@@ -648,66 +648,48 @@ if run_btn:
             st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(),
                                file_name=pdf_path, mime="application/pdf")
 # ============================================
-# 📈 Train Sales Model (city-level, tickets + revenue)
+# 📈 Train Sales Model (city-level, tickets + revenue) — session_state safe
 # ============================================
 from io import StringIO
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import Ridge
-from sklearn.metrics import mean_absolute_error, r2_score
+import numpy as np
+import pandas as pd
+import streamlit as st
+from datetime import datetime
+
+# Try sklearn; if missing, show a gentle hint
+try:
+    from sklearn.compose import ColumnTransformer
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler
+    from sklearn.pipeline import Pipeline
+    from sklearn.linear_model import Ridge
+    from sklearn.metrics import mean_absolute_error, r2_score
+    SKLEARN_OK = True
+except Exception:
+    SKLEARN_OK = False
 
 st.markdown("---")
 st.header("📈 Train Sales Model (City-Level)")
 
-with st.expander("Upload & Configure"):
-    sales_file = st.file_uploader("Upload cleaned sales dataset (e.g., alberta_ballet_productions_2017_2025_clean_positive.csv)", type=["csv","xlsx"])
-    target_choice = st.multiselect(
-        "Targets to train (both recommended):",
-        ["tickets", "revenue"],
-        default=["tickets", "revenue"]
-    )
-    holdout_mode = st.selectbox(
-        "Validation split",
-        ["Last season hold-out (time-based)", "80/20 random (by production)"],
-        index=0
-    )
-    # Force exclusion of 2021 (your requirement)
-    st.info("Pandemic seasons: 2021 **excluded by default** from training and validation.")
-
+# ---- helpers (same behavior as before) ----
 def _long_city_rows(df):
-    """
-    Convert wide rows into long city rows:
-      (season, title, city, tickets_city, revenue_city)
-    Expecting columns:
-      total_revenue, total_tickets, yyc_revenue, yeg_revenue, yyc_tickets, yeg_tickets
-    """
     rows = []
     for _, r in df.iterrows():
         season = r.get("season", None)
         title  = str(r.get("title", "")).strip()
-        # YYC
-        rows.append({
-            "season": season, "title": title, "city": "Calgary",
-            "tickets_city": r.get("yyc_tickets", None),
-            "revenue_city": r.get("yyc_revenue", None),
-        })
-        # YEG
-        rows.append({
-            "season": season, "title": title, "city": "Edmonton",
-            "tickets_city": r.get("yeg_tickets", None),
-            "revenue_city": r.get("yeg_revenue", None),
-        })
+        rows.append({"season": season, "title": title, "city": "Calgary",
+                     "tickets_city": r.get("yyc_tickets", None),
+                     "revenue_city": r.get("yyc_revenue", None)})
+        rows.append({"season": season, "title": title, "city": "Edmonton",
+                     "tickets_city": r.get("yeg_tickets", None),
+                     "revenue_city": r.get("yeg_revenue", None)})
     out = pd.DataFrame(rows)
-    # Clean numeric
     for c in ["tickets_city","revenue_city","season"]:
         out[c] = pd.to_numeric(out[c], errors="coerce")
+    out["title"] = out["title"].astype(str)
+    out["city"] = out["city"].astype(str)
     return out
 
 def _attach_title_attributes(df_titles: pd.DataFrame) -> pd.DataFrame:
-    """
-    Adds boolean attribute columns using your infer_title_attributes().
-    """
     attr_records = []
     for t in df_titles["title"].astype(str):
         attrs = infer_title_attributes(t)
@@ -718,30 +700,18 @@ def _attach_title_attributes(df_titles: pd.DataFrame) -> pd.DataFrame:
     return df_titles.merge(attrs_df2, on="title", how="left")
 
 def _build_feature_table(raw_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    1) Long city rows
-    2) Exclude season == 2021
-    3) Attach inferred attributes
-    """
     long = _long_city_rows(raw_df)
-    long = long[long["season"].astype("Int64") != 2021]  # exclude pandemic season completely
+    long = long[long["season"].astype("Int64") != 2021]  # exclude 2021 entirely
     long = _attach_title_attributes(long)
     return long
 
 def _time_split(dfX, dfY, season_col="season"):
-    """
-    Train on all seasons except the max season; test on max season.
-    If multiple seasons tie, uses the single max.
-    """
     max_season = int(dfX[season_col].max())
     train_idx = dfX[season_col] < max_season
     test_idx  = dfX[season_col] == max_season
     return train_idx, test_idx, max_season
 
 def _random_split(dfX, dfY, by_col="title", p_train=0.8, seed=42):
-    """
-    80/20 random split by title (group-wise).
-    """
     rng = np.random.default_rng(seed)
     titles = dfX[by_col].drop_duplicates().values
     rng.shuffle(titles)
@@ -751,35 +721,23 @@ def _random_split(dfX, dfY, by_col="title", p_train=0.8, seed=42):
     test_idx  = ~train_idx
     return train_idx, test_idx, None
 
-def _train_one_target(df_feat: pd.DataFrame, target_col: str):
-    """
-    Fits a Ridge regressor for one target.
-    Features:
-      - city (one-hot)
-      - season (scaled)
-      - title attributes (booleans -> numeric)
-    Target: tickets_city OR revenue_city
-    """
-    # Keep rows with target present and > 0
-    data = df_feat.copy()
+def _train_one_target(feat_df: pd.DataFrame, target_col: str, holdout_mode: str):
+    data = feat_df.copy()
     data = data[pd.notna(data[target_col]) & (data[target_col] > 0)]
 
-    # Define X / y
     attr_cols = [c for c in data.columns if c in [
         "female_lead","male_lead","family_friendly","romantic","tragic",
         "contemporary","classic_canon","spectacle","pop_ip"
     ]]
     feature_cols_num = ["season"]  # numeric
     feature_cols_cat = ["city"]     # categorical
-    feature_cols_bin = attr_cols    # booleans treated as numeric 0/1
+    feature_cols_bin = attr_cols    # booleans -> numeric
 
     X = data[feature_cols_num + feature_cols_cat + feature_cols_bin].copy()
-    # coerce boolean columns to int
     for c in feature_cols_bin:
         X[c] = X[c].astype(float).fillna(0.0).astype(int)
     y = data[target_col].astype(float)
 
-    # Split
     if holdout_mode.startswith("Last season"):
         tr_idx, te_idx, max_season = _time_split(X.assign(_season=data["season"]), y, season_col="_season")
         split_note = f"Hold-out season: {max_season}"
@@ -790,21 +748,15 @@ def _train_one_target(df_feat: pd.DataFrame, target_col: str):
     X_train, X_test = X[tr_idx], X[te_idx]
     y_train, y_test = y[tr_idx], y[te_idx]
 
-    # Pipeline
     pre = ColumnTransformer(
         transformers=[
             ("num", StandardScaler(with_mean=True, with_std=True), feature_cols_num + feature_cols_bin),
             ("cat", OneHotEncoder(handle_unknown="ignore"), feature_cols_cat),
-        ],
-        remainder="drop"
+        ], remainder="drop"
     )
-    model = Pipeline(steps=[
-        ("pre", pre),
-        ("ridge", Ridge(alpha=1.0, random_state=42))
-    ])
+    model = Pipeline(steps=[("pre", pre), ("ridge", Ridge(alpha=1.0, random_state=42))])
     model.fit(X_train, y_train)
 
-    # Evaluate
     if len(X_test) > 0:
         y_pred = model.predict(X_test)
         r2 = r2_score(y_test, y_pred)
@@ -812,79 +764,163 @@ def _train_one_target(df_feat: pd.DataFrame, target_col: str):
     else:
         r2, mae = np.nan, np.nan
 
-    # Feature importance (coefs projected is tricky post-encoding; show coef count only)
-    # For interpretability, we’ll show coefficients by group size.
-    n_num = len(feature_cols_num + feature_cols_bin)
-    # cat expands to many columns; we’ll just display group counts
-    n_cat = len(model.named_steps["pre"].transformers_[1][1].get_feature_names_out(feature_cols_cat))
-
     report = {
-        "target": target_col,
-        "r2": r2,
-        "mae": mae,
-        "split": split_note,
-        "n_train": int(tr_idx.sum()),
-        "n_test": int(te_idx.sum()),
-        "features_numeric_binary": n_num,
-        "features_categorical_expanded": int(n_cat),
+        "target": target_col, "r2": r2, "mae": mae, "split": split_note,
+        "n_train": int(tr_idx.sum()), "n_test": int(te_idx.sum())
     }
-    return model, report, (X_test, y_test)
+    # persist metadata needed for prediction
+    meta = {
+        "feature_cols_num": feature_cols_num,
+        "feature_cols_cat": feature_cols_cat,
+        "feature_cols_bin": feature_cols_bin
+    }
+    return model, report, meta
 
-def _predict_for_titles(model, titles_list, city_list, attrs_df_editable):
-    """
-    Use the trained model to predict for the CURRENT titles you entered above, for the selected cities.
-    Uses:
-      - season = next year (max historical + 1 if available from training set; else current year)
-      - city (each selected)
-      - inferred attributes (overridden by your edited attrs_df)
-    """
-    # Get season baseline from training if available:
-    # Fall back to current year + 1
+def _predict_for_titles(model, meta, titles_list, city_list, attrs_df_editable):
     now_year = datetime.now().year + 1
-    season_for_pred = now_year
-
-    # Build a small DF of (title, city, season, attributes)
-    # Merge edited attributes from attrs_df_editable
+    # Pull edited attributes from the UI editor above
     attr_map = {}
     for _, row in attrs_df_editable.iterrows():
         nm = str(row["Title"]).strip()
         if not nm: continue
-        attr_map[nm.lower()] = {k: bool(row.get(k, False)) for k in [
-            "female_lead","male_lead","family_friendly","romantic","tragic",
-            "contemporary","classic_canon","spectacle","pop_ip"
-        ]}
+        attr_map[nm.lower()] = {k: bool(row.get(k, False)) for k in meta["feature_cols_bin"]}
 
     rows = []
     for city in city_list:
         for t in titles_list:
             attrs = infer_title_attributes(t)
-            # override with UI edits if present
             if t.lower() in attr_map:
                 attrs.update(attr_map[t.lower()])
-            rec = {
-                "title": t,
-                "city": city,
-                "season": season_for_pred,
-                **{k: int(bool(attrs.get(k, False))) for k in [
-                    "female_lead","male_lead","family_friendly","romantic","tragic",
-                    "contemporary","classic_canon","spectacle","pop_ip"
-                ]}
-            }
+            rec = {"title": t, "city": city, "season": now_year}
+            for k in meta["feature_cols_bin"]:
+                rec[k] = int(bool(attrs.get(k, False)))
             rows.append(rec)
     pred_df = pd.DataFrame(rows)
 
-    # Build the same feature columns as training
-    feature_cols_num = ["season"]
-    feature_cols_cat = ["city"]
-    feature_cols_bin = ["female_lead","male_lead","family_friendly","romantic","tragic",
-                        "contemporary","classic_canon","spectacle","pop_ip"]
-    for c in feature_cols_bin:
-        pred_df[c] = pred_df[c].astype(int)
-
-    # Predict
-    y_hat = model.predict(pred_df[feature_cols_num + feature_cols_cat + feature_cols_bin])
+    X_cols = meta["feature_cols_num"] + meta["feature_cols_cat"] + meta["feature_cols_bin"]
+    y_hat = model.predict(pred_df[X_cols])
     pred_df["prediction"] = y_hat
     return pred_df
+
+# --------- UI with session_state so models survive reruns ----------
+with st.expander("Upload & Configure", expanded=True):
+    # initialize state slots
+    for k in ["sales_df", "feat_df", "models", "model_meta", "reports"]:
+        if k not in st.session_state:
+            st.session_state[k] = None if k != "models" and k != "model_meta" and k != "reports" else {}
+
+    sales_file = st.file_uploader(
+        "Upload cleaned sales dataset (e.g., alberta_ballet_productions_2017_2025_clean_positive.csv)",
+        type=["csv","xlsx"],
+        key="uploader_sales"
+    )
+
+    target_choice = st.multiselect(
+        "Targets to train (both recommended):",
+        ["tickets", "revenue"],
+        default=["tickets", "revenue"],
+        key="targets_sel"
+    )
+
+    holdout_mode = st.selectbox(
+        "Validation split",
+        ["Last season hold-out (time-based)", "80/20 random (by production)"],
+        index=0, key="holdout_sel"
+    )
+
+    with st.form("train_form", clear_on_submit=False):
+        st.caption("2021 is excluded automatically from training and validation.")
+        train_submit = st.form_submit_button("Train Model(s)")
+
+    # Load/parse as soon as a file is present (persist in session_state)
+    if sales_file is not None:
+        if sales_file.name.lower().endswith(".csv"):
+            st.session_state.sales_df = pd.read_csv(sales_file)
+        else:
+            st.session_state.sales_df = pd.read_excel(sales_file)
+        st.write("Preview:", st.session_state.sales_df.head(8))
+
+    # When user clicks Train
+    if train_submit:
+        if st.session_state.sales_df is None:
+            st.error("Please upload the cleaned sales CSV first.")
+        elif not SKLEARN_OK:
+            st.error("scikit-learn is not installed. Add it to requirements.txt and redeploy.")
+        else:
+            # Build features & train
+            st.session_state.feat_df = _build_feature_table(st.session_state.sales_df)
+            st.write("Training rows (city-level):", st.session_state.feat_df.head(8))
+
+            st.session_state.models = {}
+            st.session_state.model_meta = {}
+            st.session_state.reports = {}
+
+            if "tickets" in st.session_state.targets_sel:
+                m_tix, rep_tix, meta_tix = _train_one_target(st.session_state.feat_df, "tickets_city", st.session_state.holdout_sel)
+                st.session_state.models["tickets"] = m_tix
+                st.session_state.model_meta["tickets"] = meta_tix
+                st.session_state.reports["tickets"] = rep_tix
+
+            if "revenue" in st.session_state.targets_sel:
+                m_rev, rep_rev, meta_rev = _train_one_target(st.session_state.feat_df, "revenue_city", st.session_state.holdout_sel)
+                st.session_state.models["revenue"] = m_rev
+                st.session_state.model_meta["revenue"] = meta_rev
+                st.session_state.reports["revenue"] = rep_rev
+
+            st.success("Models trained and saved. Scroll down to ‘Predict for Current Titles’.")
+
+# Show reports if present
+if st.session_state.reports:
+    st.subheader("Validation Metrics")
+    rep_rows = []
+    for k, rep in st.session_state.reports.items():
+        rep_rows.append({
+            "Target": k,
+            "R^2": round(rep["r2"], 3) if pd.notna(rep["r2"]) else "—",
+            "MAE": round(rep["mae"], 1) if pd.notna(rep["mae"]) else "—",
+            "Split": rep["split"],
+            "Train rows": rep["n_train"],
+            "Test rows": rep["n_test"],
+        })
+    st.dataframe(pd.DataFrame(rep_rows), use_container_width=True)
+
+# ------------- Predict -------------
+st.subheader("Predict for Current Titles (by City)")
+with st.form("predict_form", clear_on_submit=False):
+    city_sel = st.multiselect("Cities to predict", ["Calgary","Edmonton"], default=["Calgary","Edmonton"], key="city_sel_predict")
+    predict_submit = st.form_submit_button("Predict Now")
+
+if predict_submit:
+    if not st.session_state.models:
+        st.error("Please train the model(s) first (above).")
+    else:
+        tables = []
+        if "tickets" in st.session_state.models:
+            preds_t = _predict_for_titles(st.session_state.models["tickets"], st.session_state.model_meta["tickets"], titles, city_sel, attrs_df)
+            preds_t = preds_t.rename(columns={"prediction": "predicted_tickets"})
+            tables.append(preds_t)
+        if "revenue" in st.session_state.models:
+            preds_r = _predict_for_titles(st.session_state.models["revenue"], st.session_state.model_meta["revenue"], titles, city_sel, attrs_df)
+            preds_r = preds_r.rename(columns={"prediction": "predicted_revenue"})
+            tables.append(preds_r)
+
+        if tables:
+            out = tables[0]
+            for extra in tables[1:]:
+                out = out.merge(extra[["title","city", [c for c in extra.columns if c.startswith("predicted_")][0]]],
+                                on=["title","city"], how="outer")
+            # Column order
+            bin_cols = ["female_lead","male_lead","family_friendly","romantic","tragic","contemporary","classic_canon","spectacle","pop_ip"]
+            out = out.merge(
+                pd.DataFrame([{"title": t, **{k:int(bool(v)) for k,v in infer_title_attributes(t).items() if k in bin_cols}} for t in out["title"].astype(str)]),
+                on="title", how="left"
+            )
+            out = out[["title","city","season"] + [c for c in out.columns if c.startswith("predicted_")] + bin_cols]
+            st.dataframe(out.sort_values(["city","title"]), use_container_width=True)
+
+            buf = StringIO(); out.to_csv(buf, index=False)
+            st.download_button("⬇️ Download Predictions (CSV)", data=buf.getvalue().encode("utf-8"),
+                               file_name="predictions_by_city.csv", mime="text/csv")
 
 # ---- UI wiring ----
 if sales_file is not None:
