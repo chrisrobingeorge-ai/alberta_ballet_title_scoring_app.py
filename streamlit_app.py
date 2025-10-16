@@ -1,7 +1,9 @@
 # streamlit_app.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v4)
-# - Robust Familiarity (log Wikipedia pageviews -> percentile rank) so scores don't collapse
-# - Optional Google Trends, YouTube, Spotify inputs
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v6)
+# - Market selector: Alberta (province), Calgary (city), Edmonton (city)
+# - City-level Google Trends via interest_by_region(resolution='CITY') with robust fallbacks
+# - Robust Familiarity (Wikipedia log pageviews -> percentile)
+# - Optional YouTube/Spotify enrichment
 # - Smarter benchmark normalization (skips flat columns)
 # - Diagnostics table + PDF export
 
@@ -75,26 +77,101 @@ def percentile_normalize(vals):
     return (ranks * 100.0).tolist()
 
 # -------------------------
-# GOOGLE TRENDS (optional)
+# GOOGLE TRENDS (province/city with retries & fallbacks)
 # -------------------------
-def fetch_google_trends_score(title: str, region_geo: str = "CA-AB") -> float:
-    """Uses pytrends only if available; returns 0.0 on error or rate-limit."""
+def _pytrends():
+    from pytrends.request import TrendReq
+    return TrendReq(hl="en-US", tz=360, retries=5, backoff_factor=0.5)
+
+def _trends_kw_variants(title: str) -> List[str]:
+    return [title, f"{title} ballet", f"{title} story"]
+
+def fetch_trends_province_or_global(title: str, region_geo: str) -> float:
+    """
+    Province (e.g., CA-AB) → Canada (CA) → Global ("") fallbacks.
+    Returns mean interest 0–100 across kw variants.
+    """
     try:
-        from pytrends.request import TrendReq
-        pytrends = TrendReq(hl="en-US", tz=360)
-        variants = [title, f"{title} ballet", f"{title} story"]
-        scores = []
-        for kw in variants:
-            try:
-                pytrends.build_payload([kw], geo=region_geo, timeframe=TRENDS_TIMEFRAME)
-                df = pytrends.interest_over_time()
-                if not df.empty and kw in df.columns:
-                    scores.append(capped_mean(df[kw].astype(float).tolist()))
-            except Exception:
-                continue
-        return max(scores) if scores else 0.0
+        pytrends = _pytrends()
+        def _get_score(geo: str) -> float:
+            vals = []
+            for kw in _trends_kw_variants(title):
+                try:
+                    pytrends.build_payload([kw], geo=geo, timeframe=TRENDS_TIMEFRAME)
+                    df = pytrends.interest_over_time()
+                    if not df.empty and kw in df.columns:
+                        vals.append(float(df[kw].mean()))
+                except Exception:
+                    continue
+            return float(np.mean(vals)) if vals else 0.0
+
+        score = _get_score(region_geo)
+        if score == 0.0 and region_geo != "CA":
+            score = _get_score("CA")
+        if score == 0.0:
+            score = _get_score("")  # Global fallback
+        return score
     except Exception:
         return 0.0
+
+def fetch_trends_city(title: str, city_name: str) -> float:
+    """
+    City-level score using interest_by_region(resolution='CITY') for Canada, inc_low_vol=True.
+    Filters rows that contain the city name and (AB) in the geo label if present.
+    Falls back to province/global if no usable city data.
+    """
+    try:
+        from pytrends.request import TrendReq
+        pytrends = _pytrends()
+
+        def _city_score(kw: str) -> float:
+            try:
+                pytrends.build_payload([kw], geo="CA", timeframe=TRENDS_TIMEFRAME)
+                df = pytrends.interest_by_region(resolution="CITY", inc_low_vol=True)
+                if df is None or df.empty or kw not in df.columns:
+                    return 0.0
+                # Normalize index to string and filter rows matching city
+                idx = df.index.astype(str)
+                mask_city = idx.str.contains(city_name, case=False, na=False)
+                # Prefer Alberta cities if listed with province code in name
+                # e.g., "Calgary (AB)" / "Edmonton (AB)"
+                mask_ab = idx.str.contains(r"\(AB\)", case=False, na=False)
+                sel = df.loc[mask_city & mask_ab, kw]
+                if sel.empty:
+                    sel = df.loc[mask_city, kw]
+                if sel.empty:
+                    return 0.0
+                # Use mean across possible matches (e.g., metro variants)
+                return float(sel.mean())
+            except Exception:
+                return 0.0
+
+        vals = []
+        for kw in _trends_kw_variants(title):
+            v = _city_score(kw)
+            if v > 0:
+                vals.append(v)
+        if vals:
+            return float(np.mean(vals))
+
+        # Fallbacks: if city yields nothing, use Alberta → CA → Global
+        return fetch_trends_province_or_global(title, "CA-AB")
+    except Exception:
+        return 0.0
+
+def fetch_google_trends_score(title: str, market: str) -> float:
+    """
+    market: 'AB' | 'Calgary' | 'Edmonton'
+    Returns a single 0–100 interest score with robust fallbacks.
+    """
+    if market == "Calgary":
+        s = fetch_trends_city(title, "Calgary")
+        return s if s > 0 else fetch_trends_province_or_global(title, "CA-AB")
+    if market == "Edmonton":
+        s = fetch_trends_city(title, "Edmonton")
+        return s if s > 0 else fetch_trends_province_or_global(title, "CA-AB")
+    # Alberta-wide
+    return fetch_trends_province_or_global(title, "CA-AB")
 
 # -------------------------
 # WIKIPEDIA (robust search + pageviews)
@@ -203,13 +280,13 @@ def fetch_spotify_popularity(title: str, client_id: Optional[str], client_secret
 # -------------------------
 # SCORING
 # -------------------------
-def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, trends_region):
+def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market):
     trends_scores, wiki_titles, wiki_scores, yt_search_counts, yt_top_view_sqrts, sp_pops = [], [], [], [], [], []
 
     for t in titles:
         st.write(f"Fetching metrics for **{t}** …")
-        # Trends (optional)
-        ts = fetch_google_trends_score(t, region_geo=trends_region) if use_trends else 0.0
+        # Trends (optional by market)
+        ts = fetch_google_trends_score(t, market=market) if use_trends else 0.0
         trends_scores.append(ts)
 
         # Wikipedia (robust)
@@ -258,6 +335,7 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, trends_region):
         rows.append({
             "Title": t,
             "ResolvedWikiPage": wiki_titles[i],
+            "Market": market,
             "Familiarity": round(fam, 1),
             "Motivation": round(mot, 1),
             "GoogleTrends": round(trends_n[i], 1),
@@ -329,6 +407,7 @@ def generate_pdf_brief(df: pd.DataFrame, file_path: str):
 
         fig5 = plt.figure(); plt.axis('off')
         memo = (
+            "Market selector adapts Google Trends (CITY/PROVINCE) with fallbacks.\n"
             "Familiarity = log Wikipedia pageviews -> percentile (robust), blended with optional Trends/Spotify.\n"
             "Motivation = YouTube + Trends + Spotify + light Wikipedia.\n"
             "Benchmark normalization scales varying columns so the benchmark = 100."
@@ -340,9 +419,9 @@ def generate_pdf_brief(df: pd.DataFrame, file_path: str):
 # UI
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Viability", layout="wide")
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v4)")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v6)")
 
-st.markdown("Robust Familiarity via Wikipedia (log → percentile). Optional Trends/YouTube/Spotify enhance separation.")
+st.markdown("Select a market (Alberta, Calgary, Edmonton), score titles, optionally normalize to a benchmark, and export a PDF.")
 
 with st.expander("🔑 API Configuration (optional)"):
     yt_key = st.text_input("YouTube Data API v3 Key", type="password")
@@ -350,9 +429,10 @@ with st.expander("🔑 API Configuration (optional)"):
     sp_secret = st.text_input("Spotify Client Secret", type="password")
 
 with st.expander("⚙️ Options"):
-    use_trends = st.checkbox("Use Google Trends (may be blocked on Cloud)", value=False)
-    trends_region = st.selectbox("Trends region", ["CA-AB","CA",""], index=0)
-    st.caption("Tip: start with Trends OFF to confirm Familiarity varies. Then experiment with AB/CA/global.")
+    use_trends = st.checkbox("Use Google Trends", value=True)
+    market = st.selectbox("Market", ["Alberta (province)", "Calgary (city)", "Edmonton (city)"], index=0)
+    market_key = {"Alberta (province)":"AB","Calgary (city)":"Calgary","Edmonton (city)":"Edmonton"}[market]
+    st.caption("If city data is sparse, the app falls back to Alberta → Canada → Global under the hood.")
 
 default_titles = [
     "The Nutcracker","Sleeping Beauty","Cinderella","Pinocchio",
@@ -372,7 +452,7 @@ with colC:
 
 if run_btn:
     with st.spinner("Scoring titles…"):
-        df = score_titles(titles, yt_key.strip() or None, sp_id.strip() or None, sp_secret.strip() or None, use_trends, trends_region)
+        df = score_titles(titles, yt_key.strip() or None, sp_id.strip() or None, sp_secret.strip() or None, use_trends, market_key)
         if do_benchmark and benchmark_title:
             df = apply_benchmark(df, benchmark_title)
         st.success("Done.")
@@ -380,12 +460,12 @@ if run_btn:
 
         # Diagnostics — raw sources and dispersion
         st.subheader("Diagnostics")
-        diag_cols = ["Familiarity","Motivation","GoogleTrends","WikipediaRawAvgDaily","WikipediaFamiliarity","YouTubeN","SpotifyN"]
+        diag_cols = ["Market","Familiarity","Motivation","GoogleTrends","WikipediaRawAvgDaily","WikipediaFamiliarity","YouTubeN","SpotifyN"]
         diag = pd.DataFrame({
             "metric": diag_cols,
-            "min":    [float(df[c].min()) for c in diag_cols],
-            "max":    [float(df[c].max()) for c in diag_cols],
-            "std":    [float(df[c].std(ddof=0)) for c in diag_cols],
+            "min":    [str(df["Market"].unique().tolist())] + [float(df[c].min()) for c in diag_cols[1:]],
+            "max":    [str(df["Market"].unique().tolist())] + [float(df[c].max()) for c in diag_cols[1:]],
+            "std":    ["—"] + [float(df[c].std(ddof=0)) for c in diag_cols[1:]],
         })
         st.dataframe(diag, use_container_width=True)
 
