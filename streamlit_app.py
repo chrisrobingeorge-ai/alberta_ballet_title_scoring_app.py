@@ -1,19 +1,20 @@
 # streamlit_app.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v7.3)
-# - Market selector: Alberta/Calgary/Edmonton (Google Trends with fallbacks)
-# - Robust Familiarity: Wikipedia log pageviews -> percentile (cached, UA+retries)
-# - Optional YouTube/Spotify enrichment (low-quota YouTube mode)
-# - Segment boosts (Core Classical / Family / Emerging Adults) + editable title attributes
-# - API Self-Test panel
-# - Source Weights sliders + auto-rebalance when a source fails
-# - Diagnostics table + quadrant & bars + CSV/PDF export
-# - Secrets/env auto-load for API keys
+# Alberta Ballet — Title Familiarity & Motivation + City-level Sales Model (v8.0)
+# - Markets: Alberta/Calgary/Edmonton (Google Trends with robust fallbacks)
+# - Live APIs: Wikipedia pageviews, Google Trends, YouTube (low quota), Spotify
+# - Segment boosts (Core Classical / Family / Emerging Adults)
+# - Title attributes inference + editable table
+# - Charts + CSV/PDF export
+# - Train city-level models (Calgary/Edmonton), exclude 2021 pandemic season
+# - Session-safe training/prediction (no "pane bounce")
 
 import os, math, time
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 
 import streamlit as st
+st.set_page_config(page_title="Alberta Ballet — Title Viability", layout="wide")
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
-# Optional APIs
+# Optional APIs (YouTube / Spotify)
 try:
     from googleapiclient.discovery import build  # YouTube Data API v3
     from googleapiclient.errors import HttpError
@@ -36,8 +37,19 @@ except Exception:
     spotipy = None
     SpotifyClientCredentials = None
 
+# Try scikit-learn for the training module
+try:
+    from sklearn.compose import ColumnTransformer
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler
+    from sklearn.pipeline import Pipeline
+    from sklearn.linear_model import Ridge
+    from sklearn.metrics import mean_absolute_error, r2_score
+    SKLEARN_OK = True
+except Exception:
+    SKLEARN_OK = False
+
 # -------------------------
-# CONFIG (defaults)
+# CONFIG
 # -------------------------
 TRENDS_TIMEFRAME = "today 5-y"
 
@@ -78,15 +90,6 @@ def normalize_series(values):
         return [50.0 for _ in values]
     return [(v - vmin) * 100.0 / (vmax - vmin) for v in values]
 
-def capped_mean(values):
-    if not values:
-        return 0.0
-    arr = sorted(values)
-    n = len(arr)
-    k = max(1, int(0.05 * n))
-    trimmed = arr[k: n-k] if n > 2*k else arr
-    return float(sum(trimmed)) / len(trimmed)
-
 def percentile_normalize(vals):
     if not vals:
         return []
@@ -106,7 +109,7 @@ def requests_session():
     return s
 
 # -------------------------
-# GOOGLE TRENDS (province/city with retries & fallbacks)
+# GOOGLE TRENDS (robust fallbacks)
 # -------------------------
 @st.cache_data(show_spinner=False, ttl=3600)
 def _pytrends():
@@ -190,7 +193,7 @@ def fetch_google_trends_score(title: str, market: str) -> Tuple[float, str]:
     return fetch_trends_province_or_global(title, "CA-AB")
 
 # -------------------------
-# WIKIPEDIA (robust search + pageviews) + caching
+# WIKIPEDIA (robust search + pageviews)
 # -------------------------
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
@@ -323,7 +326,7 @@ def segment_boosts(attrs: Dict[str,bool], segment_name: str) -> Tuple[float,floa
     return fam_delta, mot_delta
 
 # -------------------------
-# SCORING
+# SCORING ENGINE
 # -------------------------
 def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_name, attrs_df,
                  w_fam_trends, w_fam_wiki, w_fam_spot, w_mot_trends, w_mot_yt, w_mot_spot, w_mot_wiki):
@@ -339,8 +342,6 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
     fam_boosts, mot_boosts = [], []
 
     for t in titles:
-        st.write(f"Fetching metrics for **{t}** …")
-
         # Trends
         if use_trends:
             ts, src = fetch_google_trends_score(t, market=market)
@@ -374,7 +375,7 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
     sp_n       = normalize_series(sp_pops)
     yt_searchn = normalize_series(yt_search_counts)
 
-    # ---- Dynamic weights + auto-rebalance on failure
+    # Dynamic weights + auto-rebalance on failure
     def _rebalance(d):
         s = sum(d.values())
         return {k: (v/s if s>0 else 0.0) for k,v in d.items()}
@@ -401,12 +402,11 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
             fam_w["spotify"]* (sp_n[i] or 0.0)
         )
         mot = (
-            mot_w["youtube"]* (yt_searchn[i] or 0.0) +  # low-quota proxy
+            mot_w["youtube"]* (yt_searchn[i] or 0.0) +
             mot_w["trends"] * (trends_n[i] or 0.0) +
             mot_w["spotify"]* (sp_n[i] or 0.0) +
             mot_w["wiki"]   * (wiki_fam[i] or 0.0)
         )
-
         fam_adj = fam * (1.0 + fam_boosts[i])
         mot_adj = mot * (1.0 + mot_boosts[i])
 
@@ -428,20 +428,16 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
             "YouTubeN": round(yt_searchn[i], 1),
             "YouTubeStatus": yt_status[i],
             "SpotifyN": round(sp_n[i], 1),
-            "w_fam": fam_w,
-            "w_mot": mot_w,
         })
-
-    df = pd.DataFrame(rows)
-    return df
+    return pd.DataFrame(rows)
 
 def apply_benchmark(df: pd.DataFrame, benchmark_title: str, use_adjusted: bool) -> pd.DataFrame:
     df = df.copy()
     if benchmark_title not in df["Title"].values:
         return df
     b_row = df[df["Title"] == benchmark_title].iloc[0]
-    cols = ["GoogleTrends","WikipediaFamiliarity","YouTubeN","SpotifyN"]
-    cols = (["FamiliarityAdj","MotivationAdj"] if use_adjusted else ["Familiarity","Motivation"]) + cols
+    cols = (["FamiliarityAdj","MotivationAdj"] if use_adjusted else ["Familiarity","Motivation"]) + \
+           ["GoogleTrends","WikipediaFamiliarity","YouTubeN","SpotifyN"]
     for col in cols:
         series = df[col].astype(float)
         if series.std(ddof=0) < 1e-6:
@@ -463,17 +459,14 @@ def quadrant_plot(df: pd.DataFrame, colx: str, coly: str, title: str):
         plt.annotate(r["Title"], (float(r[colx]), float(r[coly])), fontsize=8, xytext=(3,3), textcoords="offset points")
     plt.axvline(np.median(x), linestyle="--")
     plt.axhline(np.median(y), linestyle="--")
-    plt.xlabel(colx)
-    plt.ylabel(coly)
-    plt.title(title)
+    plt.xlabel(colx); plt.ylabel(coly); plt.title(title)
     return fig
 
 def bar_chart(df: pd.DataFrame, col: str, title: str):
     fig = plt.figure()
     order = df.sort_values(by=col, ascending=True)
     plt.barh(order["Title"], order[col])
-    plt.title(title)
-    plt.xlabel(col)
+    plt.title(title); plt.xlabel(col)
     return fig
 
 def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
@@ -504,14 +497,12 @@ def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
         pdf.savefig(fig5, bbox_inches='tight'); plt.close(fig5)
 
 # -------------------------
-# UI
+# UI — SCORING
 # -------------------------
-st.set_page_config(page_title="Alberta Ballet — Title Viability", layout="wide")
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v7.3)")
-
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation (v8.0)")
 st.markdown("Market-aware Trends + robust Wikipedia + low-quota YouTube. Segment boosts reflect Calgary/Edmonton gender/age realities. Weights auto-rebalance when a source fails.")
 
-# --- API keys auto-load (secrets/env) ---
+# API keys from secrets/env
 def load_api_keys_from_env_and_secrets():
     yt = st.secrets.get("YOUTUBE_API_KEY") if hasattr(st, "secrets") else None
     sp_id = st.secrets.get("SPOTIFY_CLIENT_ID") if hasattr(st, "secrets") else None
@@ -537,11 +528,9 @@ with st.expander("🧪 API Self-Test"):
     with c2:
         clear_cache = st.button("Clear Cached Lookups")
     if clear_cache:
-        _pytrends.clear()
-        wiki_search_best_title.clear()
+        _pytrends.clear(); wiki_search_best_title.clear()
         fetch_wikipedia_views_for_page.clear()
-        fetch_youtube_metrics.clear()
-        fetch_spotify_popularity.clear()
+        fetch_youtube_metrics.clear(); fetch_spotify_popularity.clear()
         st.success("Caches cleared.")
     if run_test:
         wp_title, wp_views = fetch_wikipedia_views("The Nutcracker")
@@ -586,8 +575,7 @@ st.subheader("Title Attributes (edit to fit your production/angle)")
 attr_rows = []
 for t in titles:
     inferred = infer_title_attributes(t)
-    row = {"Title": t}
-    row.update(inferred)
+    row = {"Title": t}; row.update(inferred)
     attr_rows.append(row)
 attrs_df = pd.DataFrame(attr_rows, columns=["Title"]+ATTR_COLUMNS)
 attrs_df = st.data_editor(attrs_df, use_container_width=True, hide_index=True)
@@ -605,11 +593,12 @@ with colD:
 if run_btn:
     with st.spinner("Scoring titles…"):
         df = score_titles(
-            titles, yt_key.strip() or None, sp_id.strip() or None, sp_secret.strip() or None,
+            titles,
+            yt_key.strip() or None,  # YouTube
+            sp_id.strip() or None, sp_secret.strip() or None,  # Spotify
             use_trends, market_key, segment_name, attrs_df,
             w_fam_trends, w_fam_wiki, w_fam_spot, w_mot_trends, w_mot_yt, w_mot_spot, w_mot_wiki
         )
-
         sort_x, sort_y = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
         df = df.sort_values(by=[sort_y, sort_x], ascending=False)
 
@@ -617,9 +606,9 @@ if run_btn:
             df = apply_benchmark(df, benchmark_title, use_adjusted)
 
         st.success("Done.")
-        st.dataframe(df.drop(columns=["w_fam","w_mot"]), use_container_width=True)
+        st.dataframe(df, use_container_width=True)
 
-        # Diagnostics — dispersion & source status
+        # Diagnostics
         st.subheader("Diagnostics")
         diag_cols = [sort_x, sort_y, "GoogleTrends","TrendsSource","WikipediaRawAvgDaily","WikipediaFamiliarity","YouTubeN","YouTubeStatus","SpotifyN"]
         diag = pd.DataFrame({
@@ -638,39 +627,25 @@ if run_btn:
         st.pyplot(bar_chart(df, sort_y, f"{sort_y} by Title"))
 
         # CSV / PDF
-        st.download_button("⬇️ Download CSV", df.drop(columns=["w_fam","w_mot"]).to_csv(index=False).encode("utf-8"),
+        st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode("utf-8"),
                            "title_scores.csv", "text/csv")
         if gen_pdf:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             pdf_path = f"title_scores_brief_{ts}.pdf"
-            generate_pdf_brief(df.drop(columns=["w_fam","w_mot"]), use_adjusted, pdf_path)
+            generate_pdf_brief(df, use_adjusted, pdf_path)
             st.success("PDF created.")
             st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(),
                                file_name=pdf_path, mime="application/pdf")
+
 # ============================================
 # 📈 Train Sales Model (city-level, tickets + revenue) — session_state safe
 # ============================================
 from io import StringIO
-import numpy as np
-import pandas as pd
-import streamlit as st
-from datetime import datetime
-
-# Try sklearn; if missing, show a gentle hint
-try:
-    from sklearn.compose import ColumnTransformer
-    from sklearn.preprocessing import OneHotEncoder, StandardScaler
-    from sklearn.pipeline import Pipeline
-    from sklearn.linear_model import Ridge
-    from sklearn.metrics import mean_absolute_error, r2_score
-    SKLEARN_OK = True
-except Exception:
-    SKLEARN_OK = False
 
 st.markdown("---")
 st.header("📈 Train Sales Model (City-Level)")
 
-# ---- helpers (same behavior as before) ----
+# ---- helpers ----
 def _long_city_rows(df):
     rows = []
     for _, r in df.iterrows():
@@ -713,10 +688,10 @@ def _time_split(dfX, dfY, season_col="season"):
 
 def _random_split(dfX, dfY, by_col="title", p_train=0.8, seed=42):
     rng = np.random.default_rng(seed)
-    titles = dfX[by_col].drop_duplicates().values
-    rng.shuffle(titles)
-    cut = int(len(titles)*p_train)
-    train_titles = set(titles[:cut])
+    titles_u = dfX[by_col].drop_duplicates().values
+    rng.shuffle(titles_u)
+    cut = int(len(titles_u)*p_train)
+    train_titles = set(titles_u[:cut])
     train_idx = dfX[by_col].isin(train_titles)
     test_idx  = ~train_idx
     return train_idx, test_idx, None
@@ -725,13 +700,10 @@ def _train_one_target(feat_df: pd.DataFrame, target_col: str, holdout_mode: str)
     data = feat_df.copy()
     data = data[pd.notna(data[target_col]) & (data[target_col] > 0)]
 
-    attr_cols = [c for c in data.columns if c in [
-        "female_lead","male_lead","family_friendly","romantic","tragic",
-        "contemporary","classic_canon","spectacle","pop_ip"
-    ]]
-    feature_cols_num = ["season"]  # numeric
-    feature_cols_cat = ["city"]     # categorical
-    feature_cols_bin = attr_cols    # booleans -> numeric
+    attr_cols = [c for c in data.columns if c in ATTR_COLUMNS]
+    feature_cols_num = ["season"]           # numeric
+    feature_cols_cat = ["city"]             # categorical
+    feature_cols_bin = attr_cols            # booleans -> numeric
 
     X = data[feature_cols_num + feature_cols_cat + feature_cols_bin].copy()
     for c in feature_cols_bin:
@@ -747,6 +719,9 @@ def _train_one_target(feat_df: pd.DataFrame, target_col: str, holdout_mode: str)
 
     X_train, X_test = X[tr_idx], X[te_idx]
     y_train, y_test = y[tr_idx], y[te_idx]
+
+    if not SKLEARN_OK:
+        raise RuntimeError("scikit-learn not installed. Add scikit-learn to requirements.txt and redeploy.")
 
     pre = ColumnTransformer(
         transformers=[
@@ -764,25 +739,19 @@ def _train_one_target(feat_df: pd.DataFrame, target_col: str, holdout_mode: str)
     else:
         r2, mae = np.nan, np.nan
 
-    report = {
-        "target": target_col, "r2": r2, "mae": mae, "split": split_note,
-        "n_train": int(tr_idx.sum()), "n_test": int(te_idx.sum())
-    }
-    # persist metadata needed for prediction
-    meta = {
-        "feature_cols_num": feature_cols_num,
-        "feature_cols_cat": feature_cols_cat,
-        "feature_cols_bin": feature_cols_bin
-    }
+    report = {"target": target_col, "r2": r2, "mae": mae, "split": split_note,
+              "n_train": int(tr_idx.sum()), "n_test": int(te_idx.sum())}
+    meta = {"feature_cols_num": feature_cols_num, "feature_cols_cat": feature_cols_cat, "feature_cols_bin": feature_cols_bin}
     return model, report, meta
 
 def _predict_for_titles(model, meta, titles_list, city_list, attrs_df_editable):
+    """Generate predictions by city for given titles using trained model."""
     now_year = datetime.now().year + 1
-    # Pull edited attributes from the UI editor above
     attr_map = {}
     for _, row in attrs_df_editable.iterrows():
         nm = str(row["Title"]).strip()
-        if not nm: continue
+        if not nm:
+            continue
         attr_map[nm.lower()] = {k: bool(row.get(k, False)) for k in meta["feature_cols_bin"]}
 
     rows = []
@@ -795,19 +764,35 @@ def _predict_for_titles(model, meta, titles_list, city_list, attrs_df_editable):
             for k in meta["feature_cols_bin"]:
                 rec[k] = int(bool(attrs.get(k, False)))
             rows.append(rec)
+
+    if not rows:
+        return pd.DataFrame(columns=["title", "city", "season", "prediction"])
+
     pred_df = pd.DataFrame(rows)
 
+    # Safety: ensure required columns exist
     X_cols = meta["feature_cols_num"] + meta["feature_cols_cat"] + meta["feature_cols_bin"]
-    y_hat = model.predict(pred_df[X_cols])
-    pred_df["prediction"] = y_hat
+    for col in X_cols:
+        if col not in pred_df.columns:
+            pred_df[col] = 0
+
+    try:
+        y_hat = model.predict(pred_df[X_cols])
+        pred_df["prediction"] = y_hat
+    except Exception as e:
+        st.warning(f"Prediction failed: {e}")
+        pred_df["prediction"] = np.nan
+
+    if "season" not in pred_df.columns:
+        pred_df["season"] = now_year
+
     return pred_df
 
-# --------- UI with session_state so models survive reruns ----------
+# --------- session_state to survive reruns ----------
 with st.expander("Upload & Configure", expanded=True):
-    # initialize state slots
     for k in ["sales_df", "feat_df", "models", "model_meta", "reports"]:
         if k not in st.session_state:
-            st.session_state[k] = None if k != "models" and k != "model_meta" and k != "reports" else {}
+            st.session_state[k] = None if k not in ["models","model_meta","reports"] else {}
 
     sales_file = st.file_uploader(
         "Upload cleaned sales dataset (e.g., alberta_ballet_productions_2017_2025_clean_positive.csv)",
@@ -832,7 +817,6 @@ with st.expander("Upload & Configure", expanded=True):
         st.caption("2021 is excluded automatically from training and validation.")
         train_submit = st.form_submit_button("Train Model(s)")
 
-    # Load/parse as soon as a file is present (persist in session_state)
     if sales_file is not None:
         if sales_file.name.lower().endswith(".csv"):
             st.session_state.sales_df = pd.read_csv(sales_file)
@@ -840,14 +824,12 @@ with st.expander("Upload & Configure", expanded=True):
             st.session_state.sales_df = pd.read_excel(sales_file)
         st.write("Preview:", st.session_state.sales_df.head(8))
 
-    # When user clicks Train
     if train_submit:
         if st.session_state.sales_df is None:
             st.error("Please upload the cleaned sales CSV first.")
         elif not SKLEARN_OK:
             st.error("scikit-learn is not installed. Add it to requirements.txt and redeploy.")
         else:
-            # Build features & train
             st.session_state.feat_df = _build_feature_table(st.session_state.sales_df)
             st.write("Training rows (city-level):", st.session_state.feat_df.head(8))
 
@@ -870,7 +852,7 @@ with st.expander("Upload & Configure", expanded=True):
             st.success("Models trained and saved. Scroll down to ‘Predict for Current Titles’.")
 
 # Show reports if present
-if st.session_state.reports:
+if st.session_state.get("reports"):
     st.subheader("Validation Metrics")
     rep_rows = []
     for k, rep in st.session_state.reports.items():
@@ -891,7 +873,7 @@ with st.form("predict_form", clear_on_submit=False):
     predict_submit = st.form_submit_button("Predict Now")
 
 if predict_submit:
-    if not st.session_state.models:
+    if not st.session_state.get("models"):
         st.error("Please train the model(s) first (above).")
     else:
         tables = []
@@ -907,15 +889,23 @@ if predict_submit:
         if tables:
             out = tables[0]
             for extra in tables[1:]:
-                out = out.merge(extra[["title","city", [c for c in extra.columns if c.startswith("predicted_")][0]]],
-                                on=["title","city"], how="outer")
-            # Column order
-            bin_cols = ["female_lead","male_lead","family_friendly","romantic","tragic","contemporary","classic_canon","spectacle","pop_ip"]
-            out = out.merge(
-                pd.DataFrame([{"title": t, **{k:int(bool(v)) for k,v in infer_title_attributes(t).items() if k in bin_cols}} for t in out["title"].astype(str)]),
-                on="title", how="left"
-            )
-            out = out[["title","city","season"] + [c for c in out.columns if c.startswith("predicted_")] + bin_cols]
+                colname = [c for c in extra.columns if c.startswith("predicted_")][0]
+                out = out.merge(extra[["title","city", colname]], on=["title","city"], how="outer")
+
+            # Add attribute snapshot columns for reference
+            bin_cols = ATTR_COLUMNS
+            attr_snap = []
+            for t in out["title"].astype(str):
+                att = infer_title_attributes(t)
+                attr_snap.append({"title": t, **{k:int(bool(att.get(k, False))) for k in bin_cols}})
+            out = out.merge(pd.DataFrame(attr_snap), on="title", how="left")
+
+            # Reorder columns safely
+            cols_exist = [c for c in ["title","city","season"] if c in out.columns]
+            pred_cols  = [c for c in out.columns if c.startswith("predicted_")]
+            other_cols = [c for c in bin_cols if c in out.columns]
+            out = out[cols_exist + pred_cols + other_cols]
+
             st.dataframe(out.sort_values(["city","title"]), use_container_width=True)
 
             buf = StringIO(); out.to_csv(buf, index=False)
