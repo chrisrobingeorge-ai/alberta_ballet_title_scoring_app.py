@@ -1,9 +1,8 @@
-streamlit==1.39.0
-pandas==2.2.2
-numpy==1.26.4
-matplotlib==3.8.4
-requests==2.31.0
-pytrends==4.9.2
-google-api-python-client==2.139.0
+streamlit
+pandas
+numpy
+matplotlib
+requests
+pytrends
+google-api-python-client
 spotipy==2.24.0
-scikit-learn==1.4.2
