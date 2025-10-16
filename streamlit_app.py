@@ -647,3 +647,324 @@ if run_btn:
             st.success("PDF created.")
             st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(),
                                file_name=pdf_path, mime="application/pdf")
+# ============================================
+# 📈 Train Sales Model (city-level, tickets + revenue)
+# ============================================
+from io import StringIO
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_absolute_error, r2_score
+
+st.markdown("---")
+st.header("📈 Train Sales Model (City-Level)")
+
+with st.expander("Upload & Configure"):
+    sales_file = st.file_uploader("Upload cleaned sales dataset (e.g., alberta_ballet_productions_2017_2025_clean_positive.csv)", type=["csv","xlsx"])
+    target_choice = st.multiselect(
+        "Targets to train (both recommended):",
+        ["tickets", "revenue"],
+        default=["tickets", "revenue"]
+    )
+    holdout_mode = st.selectbox(
+        "Validation split",
+        ["Last season hold-out (time-based)", "80/20 random (by production)"],
+        index=0
+    )
+    # Force exclusion of 2021 (your requirement)
+    st.info("Pandemic seasons: 2021 **excluded by default** from training and validation.")
+
+def _long_city_rows(df):
+    """
+    Convert wide rows into long city rows:
+      (season, title, city, tickets_city, revenue_city)
+    Expecting columns:
+      total_revenue, total_tickets, yyc_revenue, yeg_revenue, yyc_tickets, yeg_tickets
+    """
+    rows = []
+    for _, r in df.iterrows():
+        season = r.get("season", None)
+        title  = str(r.get("title", "")).strip()
+        # YYC
+        rows.append({
+            "season": season, "title": title, "city": "Calgary",
+            "tickets_city": r.get("yyc_tickets", None),
+            "revenue_city": r.get("yyc_revenue", None),
+        })
+        # YEG
+        rows.append({
+            "season": season, "title": title, "city": "Edmonton",
+            "tickets_city": r.get("yeg_tickets", None),
+            "revenue_city": r.get("yeg_revenue", None),
+        })
+    out = pd.DataFrame(rows)
+    # Clean numeric
+    for c in ["tickets_city","revenue_city","season"]:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    return out
+
+def _attach_title_attributes(df_titles: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds boolean attribute columns using your infer_title_attributes().
+    """
+    attr_records = []
+    for t in df_titles["title"].astype(str):
+        attrs = infer_title_attributes(t)
+        rec = {"title": t}
+        rec.update({k: bool(v) for k,v in attrs.items()})
+        attr_records.append(rec)
+    attrs_df2 = pd.DataFrame(attr_records).drop_duplicates(subset=["title"])
+    return df_titles.merge(attrs_df2, on="title", how="left")
+
+def _build_feature_table(raw_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    1) Long city rows
+    2) Exclude season == 2021
+    3) Attach inferred attributes
+    """
+    long = _long_city_rows(raw_df)
+    long = long[long["season"].astype("Int64") != 2021]  # exclude pandemic season completely
+    long = _attach_title_attributes(long)
+    return long
+
+def _time_split(dfX, dfY, season_col="season"):
+    """
+    Train on all seasons except the max season; test on max season.
+    If multiple seasons tie, uses the single max.
+    """
+    max_season = int(dfX[season_col].max())
+    train_idx = dfX[season_col] < max_season
+    test_idx  = dfX[season_col] == max_season
+    return train_idx, test_idx, max_season
+
+def _random_split(dfX, dfY, by_col="title", p_train=0.8, seed=42):
+    """
+    80/20 random split by title (group-wise).
+    """
+    rng = np.random.default_rng(seed)
+    titles = dfX[by_col].drop_duplicates().values
+    rng.shuffle(titles)
+    cut = int(len(titles)*p_train)
+    train_titles = set(titles[:cut])
+    train_idx = dfX[by_col].isin(train_titles)
+    test_idx  = ~train_idx
+    return train_idx, test_idx, None
+
+def _train_one_target(df_feat: pd.DataFrame, target_col: str):
+    """
+    Fits a Ridge regressor for one target.
+    Features:
+      - city (one-hot)
+      - season (scaled)
+      - title attributes (booleans -> numeric)
+    Target: tickets_city OR revenue_city
+    """
+    # Keep rows with target present and > 0
+    data = df_feat.copy()
+    data = data[pd.notna(data[target_col]) & (data[target_col] > 0)]
+
+    # Define X / y
+    attr_cols = [c for c in data.columns if c in [
+        "female_lead","male_lead","family_friendly","romantic","tragic",
+        "contemporary","classic_canon","spectacle","pop_ip"
+    ]]
+    feature_cols_num = ["season"]  # numeric
+    feature_cols_cat = ["city"]     # categorical
+    feature_cols_bin = attr_cols    # booleans treated as numeric 0/1
+
+    X = data[feature_cols_num + feature_cols_cat + feature_cols_bin].copy()
+    # coerce boolean columns to int
+    for c in feature_cols_bin:
+        X[c] = X[c].astype(float).fillna(0.0).astype(int)
+    y = data[target_col].astype(float)
+
+    # Split
+    if holdout_mode.startswith("Last season"):
+        tr_idx, te_idx, max_season = _time_split(X.assign(_season=data["season"]), y, season_col="_season")
+        split_note = f"Hold-out season: {max_season}"
+    else:
+        tr_idx, te_idx, _ = _random_split(X.assign(_title=data["title"]), y, by_col="_title")
+        split_note = "Random 80/20 split by production"
+
+    X_train, X_test = X[tr_idx], X[te_idx]
+    y_train, y_test = y[tr_idx], y[te_idx]
+
+    # Pipeline
+    pre = ColumnTransformer(
+        transformers=[
+            ("num", StandardScaler(with_mean=True, with_std=True), feature_cols_num + feature_cols_bin),
+            ("cat", OneHotEncoder(handle_unknown="ignore"), feature_cols_cat),
+        ],
+        remainder="drop"
+    )
+    model = Pipeline(steps=[
+        ("pre", pre),
+        ("ridge", Ridge(alpha=1.0, random_state=42))
+    ])
+    model.fit(X_train, y_train)
+
+    # Evaluate
+    if len(X_test) > 0:
+        y_pred = model.predict(X_test)
+        r2 = r2_score(y_test, y_pred)
+        mae = mean_absolute_error(y_test, y_pred)
+    else:
+        r2, mae = np.nan, np.nan
+
+    # Feature importance (coefs projected is tricky post-encoding; show coef count only)
+    # For interpretability, we’ll show coefficients by group size.
+    n_num = len(feature_cols_num + feature_cols_bin)
+    # cat expands to many columns; we’ll just display group counts
+    n_cat = len(model.named_steps["pre"].transformers_[1][1].get_feature_names_out(feature_cols_cat))
+
+    report = {
+        "target": target_col,
+        "r2": r2,
+        "mae": mae,
+        "split": split_note,
+        "n_train": int(tr_idx.sum()),
+        "n_test": int(te_idx.sum()),
+        "features_numeric_binary": n_num,
+        "features_categorical_expanded": int(n_cat),
+    }
+    return model, report, (X_test, y_test)
+
+def _predict_for_titles(model, titles_list, city_list, attrs_df_editable):
+    """
+    Use the trained model to predict for the CURRENT titles you entered above, for the selected cities.
+    Uses:
+      - season = next year (max historical + 1 if available from training set; else current year)
+      - city (each selected)
+      - inferred attributes (overridden by your edited attrs_df)
+    """
+    # Get season baseline from training if available:
+    # Fall back to current year + 1
+    now_year = datetime.now().year + 1
+    season_for_pred = now_year
+
+    # Build a small DF of (title, city, season, attributes)
+    # Merge edited attributes from attrs_df_editable
+    attr_map = {}
+    for _, row in attrs_df_editable.iterrows():
+        nm = str(row["Title"]).strip()
+        if not nm: continue
+        attr_map[nm.lower()] = {k: bool(row.get(k, False)) for k in [
+            "female_lead","male_lead","family_friendly","romantic","tragic",
+            "contemporary","classic_canon","spectacle","pop_ip"
+        ]}
+
+    rows = []
+    for city in city_list:
+        for t in titles_list:
+            attrs = infer_title_attributes(t)
+            # override with UI edits if present
+            if t.lower() in attr_map:
+                attrs.update(attr_map[t.lower()])
+            rec = {
+                "title": t,
+                "city": city,
+                "season": season_for_pred,
+                **{k: int(bool(attrs.get(k, False))) for k in [
+                    "female_lead","male_lead","family_friendly","romantic","tragic",
+                    "contemporary","classic_canon","spectacle","pop_ip"
+                ]}
+            }
+            rows.append(rec)
+    pred_df = pd.DataFrame(rows)
+
+    # Build the same feature columns as training
+    feature_cols_num = ["season"]
+    feature_cols_cat = ["city"]
+    feature_cols_bin = ["female_lead","male_lead","family_friendly","romantic","tragic",
+                        "contemporary","classic_canon","spectacle","pop_ip"]
+    for c in feature_cols_bin:
+        pred_df[c] = pred_df[c].astype(int)
+
+    # Predict
+    y_hat = model.predict(pred_df[feature_cols_num + feature_cols_cat + feature_cols_bin])
+    pred_df["prediction"] = y_hat
+    return pred_df
+
+# ---- UI wiring ----
+if sales_file is not None:
+    # Load
+    if sales_file.name.lower().endswith(".csv"):
+        sales_df = pd.read_csv(sales_file)
+    else:
+        sales_df = pd.read_excel(sales_file)
+
+    st.write("Preview of uploaded data:", sales_df.head(10))
+
+    # Build training feature table
+    feat_df = _build_feature_table(sales_df)
+    st.write("Training rows (long, city-level):", feat_df.head(10))
+
+    train_btn = st.button("Train Model(s)")
+    if train_btn:
+        reports = {}
+        models = {}
+
+        if "tickets" in target_choice:
+            m_tix, rep_tix, _ = _train_one_target(feat_df, target_col="tickets_city")
+            reports["tickets"] = rep_tix
+            models["tickets"] = m_tix
+
+        if "revenue" in target_choice:
+            m_rev, rep_rev, _ = _train_one_target(feat_df, target_col="revenue_city")
+            reports["revenue"] = rep_rev
+            models["revenue"] = m_rev
+
+        # Show reports
+        st.subheader("Validation Metrics")
+        rep_rows = []
+        for k, rep in reports.items():
+            rep_rows.append({
+                "Target": k,
+                "R^2": round(rep["r2"], 3) if pd.notna(rep["r2"]) else "—",
+                "MAE": round(rep["mae"], 1) if pd.notna(rep["mae"]) else "—",
+                "Split": rep["split"],
+                "Train rows": rep["n_train"],
+                "Test rows": rep["n_test"],
+                "# numeric/bin features": rep["features_numeric_binary"],
+                "# categorical (expanded)": rep["features_categorical_expanded"],
+            })
+        if rep_rows:
+            st.dataframe(pd.DataFrame(rep_rows), use_container_width=True)
+
+        # Predict for CURRENT titles in the app
+        st.subheader("Predict for Current Titles (by City)")
+        city_sel = st.multiselect("Cities to predict", ["Calgary","Edmonton"], default=["Calgary","Edmonton"])
+        go_pred = st.button("Predict Now")
+
+        if go_pred and city_sel:
+            # Use the edited attributes table from above (attrs_df) and the current titles list
+            preds_tables = []
+            if "tickets" in models:
+                preds_t = _predict_for_titles(models["tickets"], titles, city_sel, attrs_df)
+                preds_t = preds_t.rename(columns={"prediction": "predicted_tickets"})
+                preds_tables.append(preds_t)
+            if "revenue" in models:
+                preds_r = _predict_for_titles(models["revenue"], titles, city_sel, attrs_df)
+                preds_r = preds_r.rename(columns={"prediction": "predicted_revenue"})
+                preds_tables.append(preds_r)
+
+            if preds_tables:
+                # Merge if both exist
+                pred_out = preds_tables[0]
+                for extra in preds_tables[1:]:
+                    pred_out = pred_out.merge(extra[["title","city","predicted_revenue" if "predicted_revenue" in extra.columns else "predicted_tickets"]],
+                                              on=["title","city"], how="outer")
+                # Order
+                pred_out = pred_out[["title","city","season"] + [c for c in pred_out.columns if c.startswith("predicted_")] +
+                                    ["female_lead","male_lead","family_friendly","romantic","tragic","contemporary","classic_canon","spectacle","pop_ip"]]
+                st.dataframe(pred_out.sort_values(["city","title"]), use_container_width=True)
+
+                # Download
+                csv_buf = StringIO()
+                pred_out.to_csv(csv_buf, index=False)
+                st.download_button("⬇️ Download Predictions (CSV)", data=csv_buf.getvalue().encode("utf-8"),
+                                   file_name="predictions_by_city.csv", mime="text/csv")
+
+else:
+    st.caption("Upload your cleaned dataset to enable training.")
