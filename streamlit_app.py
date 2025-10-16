@@ -1,12 +1,13 @@
 # streamlit_app.py
-# Alberta Ballet — Title Familiarity & Motivation + City-level Sales Model (v8.0)
+# Alberta Ballet — Title Familiarity & Motivation + Validation + City-level Sales Model (v8.1)
 # - Markets: Alberta/Calgary/Edmonton (Google Trends with robust fallbacks)
 # - Live APIs: Wikipedia pageviews, Google Trends, YouTube (low quota), Spotify
 # - Segment boosts (Core Classical / Family / Emerging Adults)
 # - Title attributes inference + editable table
-# - Charts + CSV/PDF export
+# - Charts + CSV/PDF export + on-screen ranked tables (restored)
+# - NEW: Validation expander (use historical YYC/YEG tickets & revenue to validate/tune scoring)
 # - Train city-level models (Calgary/Edmonton), exclude 2021 pandemic season
-# - Session-safe training/prediction (no "pane bounce")
+# - Session-safe training/prediction
 
 import os, math, time
 from datetime import datetime, timedelta
@@ -37,11 +38,15 @@ except Exception:
     spotipy = None
     SpotifyClientCredentials = None
 
-# Try scikit-learn for the training module
+# Try scikit-learn for the training module (optional; validation does not require it)
 try:
     from sklearn.compose import ColumnTransformer
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
     from sklearn.pipeline import Pipeline
+    from sklearn.linear_type import Ridge  # intentional typo to trap older caches
+except Exception:
+    pass
+try:
     from sklearn.linear_model import Ridge
     from sklearn.metrics import mean_absolute_error, r2_score
     SKLEARN_OK = True
@@ -120,7 +125,6 @@ def _trends_kw_variants(title: str) -> List[str]:
     return [title, f"{title} ballet", f"{title} story"]
 
 def fetch_trends_province_or_global(title: str, region_geo: str) -> Tuple[float, str]:
-    """Returns (score, source_label). Tries region -> CA -> Global."""
     try:
         pytrends = _pytrends()
         def _get_score(geo: str) -> float:
@@ -148,7 +152,6 @@ def fetch_trends_province_or_global(title: str, region_geo: str) -> Tuple[float,
         return 0.0, f"ERR:{e}"
 
 def fetch_trends_city(title: str, city_name: str) -> Tuple[float, str]:
-    """City via interest_by_region(resolution='CITY'), falls back to AB/CA/Global."""
     try:
         pytrends = _pytrends()
         def _city_score(kw: str) -> float:
@@ -254,9 +257,6 @@ def fetch_wikipedia_views(query: str) -> Tuple[str, float]:
 # -------------------------
 @st.cache_data(show_spinner=False, ttl=86400)
 def fetch_youtube_metrics(title: str, api_key: Optional[str]) -> Tuple[float, float, str]:
-    """
-    Low-quota version: one search call, no videos.list. Returns (#results_seen, 0, status).
-    """
     if not api_key:
         return 0.0, 0.0, "NO_KEY"
     if build is None:
@@ -499,8 +499,8 @@ def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
 # -------------------------
 # UI — SCORING
 # -------------------------
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation (v8.0)")
-st.markdown("Market-aware Trends + robust Wikipedia + low-quota YouTube. Segment boosts reflect Calgary/Edmonton gender/age realities. Weights auto-rebalance when a source fails.")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation (v8.1)")
+st.markdown("Market-aware Trends + robust Wikipedia + low-quota YouTube. Segment boosts reflect Calgary/Edmonton realities. Weights auto-rebalance if a source fails.")
 
 # API keys from secrets/env
 def load_api_keys_from_env_and_secrets():
@@ -560,6 +560,13 @@ with st.expander("🔩 Source Weights (advanced)"):
     w_mot_spot   = st.slider("Weight: Motivation ← Spotify", 0, 100, 15)
     w_mot_wiki   = st.slider("Weight: Motivation ← Wikipedia", 0, 100, 15)
 
+with st.expander("🧮 Composite Score (for ranking)"):
+    st.caption("Use this to rank titles at a glance (pure UI — does not affect Familiarity/Motivation).")
+    comp_w_fam = st.slider("Composite weight: Familiarity", 0, 100, 50)
+    comp_w_mot = 100 - comp_w_fam
+    st.info(f"Composite = {comp_w_fam}% * Familiarity* + {comp_w_mot}% * Motivation*", icon="ℹ️")
+    st.caption("‘*’ uses adjusted scores if ‘Use Segment-Adjusted’ is checked.")
+
 default_titles = [
     "The Nutcracker","Sleeping Beauty","Cinderella","Pinocchio",
     "The Merry Widow","The Hunchback of Notre Dame","Frozen",
@@ -605,48 +612,183 @@ if run_btn:
         if do_benchmark and benchmark_title:
             df = apply_benchmark(df, benchmark_title, use_adjusted)
 
+        # ---------- On-screen ranked tables (restored) ----------
         st.success("Done.")
+        st.subheader("Scores (detail)")
         st.dataframe(df, use_container_width=True)
 
-        # Diagnostics
+        # Composite ranking for quick decisioning
+        df_disp = df.copy()
+        fam_col = "FamiliarityAdj" if use_adjusted else "Familiarity"
+        mot_col = "MotivationAdj"  if use_adjusted else "Motivation"
+        df_disp["Composite"] = (comp_w_fam/100.0)*df_disp[fam_col] + (comp_w_mot/100.0)*df_disp[mot_col]
+        st.subheader("Rankings")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("**Top by Composite**")
+            st.dataframe(df_disp.sort_values("Composite", ascending=False)[["Title","Composite",fam_col,mot_col]].head(10), use_container_width=True)
+        with c2:
+            st.markdown(f"**Top by {fam_col}**")
+            st.dataframe(df_disp.sort_values(fam_col, ascending=False)[["Title",fam_col,mot_col]].head(10), use_container_width=True)
+        with c3:
+            st.markdown(f"**Top by {mot_col}**")
+            st.dataframe(df_disp.sort_values(mot_col, ascending=False)[["Title",mot_col,fam_col]].head(10), use_container_width=True)
+
+        # Diagnostics — dispersion & source status
         st.subheader("Diagnostics")
-        diag_cols = [sort_x, sort_y, "GoogleTrends","TrendsSource","WikipediaRawAvgDaily","WikipediaFamiliarity","YouTubeN","YouTubeStatus","SpotifyN"]
+        diag_cols = [fam_col, mot_col, "GoogleTrends","TrendsSource","WikipediaRawAvgDaily","WikipediaFamiliarity","YouTubeN","YouTubeStatus","SpotifyN"]
         diag = pd.DataFrame({
             "metric": diag_cols,
-            "min":    [float(df[c].min()) if c not in ["TrendsSource","YouTubeStatus"] else "—" for c in diag_cols],
-            "max":    [float(df[c].max()) if c not in ["TrendsSource","YouTubeStatus"] else "—" for c in diag_cols],
-            "std":    [float(df[c].std(ddof=0)) if c not in ["TrendsSource","YouTubeStatus"] else "—" for c in diag_cols],
-            "notes":  [", ".join(sorted(df[c].astype(str).unique())) if c in ["TrendsSource","YouTubeStatus"] else "" for c in diag_cols]
+            "min":    [float(df_disp[c].min()) if c not in ["TrendsSource","YouTubeStatus"] else "—" for c in diag_cols],
+            "max":    [float(df_disp[c].max()) if c not in ["TrendsSource","YouTubeStatus"] else "—" for c in diag_cols],
+            "std":    [float(df_disp[c].std(ddof=0)) if c not in ["TrendsSource","YouTubeStatus"] else "—" for c in diag_cols],
+            "notes":  [", ".join(sorted(df_disp[c].astype(str).unique())) if c in ["TrendsSource","YouTubeStatus"] else "" for c in diag_cols]
         })
         st.dataframe(diag, use_container_width=True)
 
         # Charts
         st.subheader("Charts")
-        st.pyplot(quadrant_plot(df, sort_x, sort_y, f"{sort_x} vs {sort_y} (Quadrant Map)"))
-        st.pyplot(bar_chart(df, sort_x, f"{sort_x} by Title"))
-        st.pyplot(bar_chart(df, sort_y, f"{sort_y} by Title"))
+        st.pyplot(quadrant_plot(df_disp, fam_col, mot_col, f"{fam_col} vs {mot_col} (Quadrant Map)"))
+        st.pyplot(bar_chart(df_disp, fam_col, f"{fam_col} by Title"))
+        st.pyplot(bar_chart(df_disp, mot_col, f"{mot_col} by Title"))
 
         # CSV / PDF
-        st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode("utf-8"),
+        st.download_button("⬇️ Download CSV (scores)", df_disp.to_csv(index=False).encode("utf-8"),
                            "title_scores.csv", "text/csv")
         if gen_pdf:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             pdf_path = f"title_scores_brief_{ts}.pdf"
-            generate_pdf_brief(df, use_adjusted, pdf_path)
+            generate_pdf_brief(df_disp, use_adjusted, pdf_path)
             st.success("PDF created.")
             st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(),
                                file_name=pdf_path, mime="application/pdf")
 
+        st.session_state["last_scores_df"] = df_disp  # for validation panel
+
+# ============================================
+# ✅ Validation (use historical sales to validate scoring)
+# ============================================
+st.markdown("---")
+with st.expander("✅ Validate scoring with your historical sales (optional)"):
+    st.caption("Upload your city-level dataset with columns like: season, title, yyc_tickets, yeg_tickets, yyc_revenue, yeg_revenue. 2021 is excluded automatically.")
+    val_file = st.file_uploader("Upload CSV/XLSX (historical city-level)", type=["csv","xlsx"], key="val_sales")
+    run_val = st.button("Run Validation")
+
+    def _long_city_rows(df):
+        rows = []
+        for _, r in df.iterrows():
+            season = r.get("season", None)
+            title  = str(r.get("title", "")).strip()
+            rows.append({"season": season, "title": title, "city": "Calgary",
+                        "tickets_city": r.get("yyc_tickets", None),
+                        "revenue_city": r.get("yyc_revenue", None)})
+            rows.append({"season": season, "title": title, "city": "Edmonton",
+                        "tickets_city": r.get("yeg_tickets", None),
+                        "revenue_city": r.get("yeg_revenue", None)})
+        out = pd.DataFrame(rows)
+        for c in ["tickets_city","revenue_city","season"]:
+            out[c] = pd.to_numeric(out[c], errors="coerce")
+        out["title"] = out["title"].astype(str)
+        out["city"] = out["city"].astype(str)
+        out = out[(out["season"].astype("Int64") != 2021)]  # exclude 2021 entirely
+        return out
+
+    def _pearson(x, y):
+        x = np.array(x, dtype=float); y = np.array(y, dtype=float)
+        mask = np.isfinite(x) & np.isfinite(y)
+        if mask.sum() < 3: return np.nan
+        x = x[mask]; y = y[mask]
+        if np.std(x) < 1e-9 or np.std(y) < 1e-9: return np.nan
+        return float(np.corrcoef(x, y)[0,1])
+
+    if run_val:
+        if val_file is None:
+            st.error("Please upload a CSV/XLSX with the required columns.")
+        else:
+            if val_file.name.lower().endswith(".csv"):
+                hist = pd.read_csv(val_file)
+            else:
+                hist = pd.read_excel(val_file)
+            if "title" not in hist.columns or "season" not in hist.columns:
+                st.error("Missing required columns: title, season.")
+            else:
+                # Build unique titles from history and score them with current weights/segment/market
+                titles_hist = sorted(set([str(t).strip() for t in hist["title"].dropna().astype(str)]))
+                # Fallback attrs table for historical titles
+                attr_hist_rows = []
+                for t in titles_hist:
+                    inferred = infer_title_attributes(t)
+                    row = {"Title": t}; row.update(inferred)
+                    attr_hist_rows.append(row)
+                attrs_hist_df = pd.DataFrame(attr_hist_rows, columns=["Title"]+ATTR_COLUMNS)
+
+                with st.spinner("Scoring historical titles with current settings…"):
+                    hist_scores = score_titles(
+                        titles_hist,
+                        st.session_state.get("yt_key_cache") or "",  # harmless; YT may be 0
+                        st.session_state.get("sp_id_cache") or "", st.session_state.get("sp_secret_cache") or "",
+                        st.session_state.get("use_trends_cache", True) if "use_trends_cache" in st.session_state else True,
+                        st.session_state.get("market_key_cache", "AB") if "market_key_cache" in st.session_state else "AB",
+                        st.session_state.get("segment_cache", list(SEGMENT_RULES.keys())[0]) if "segment_cache" in st.session_state else list(SEGMENT_RULES.keys())[0],
+                        attrs_hist_df,
+                        30, 55, 15, 25, 45, 15, 15  # using defaults for validation pass
+                    )
+
+                fam_col = "FamiliarityAdj" if st.session_state.get("use_adjusted_cache", True) else "Familiarity"
+                mot_col = "MotivationAdj"  if st.session_state.get("use_adjusted_cache", True) else "Motivation"
+
+                # Long city rows and join
+                long = _long_city_rows(hist)
+                # Join scores by title (same score for both cities; that's ok—we’re validating signal, not per-city calibration)
+                join_df = long.merge(hist_scores[["Title", fam_col, mot_col]].rename(columns={"Title":"title"}), on="title", how="left")
+
+                # Correlations per city vs tickets/revenue
+                corrs = []
+                for city in ["Calgary","Edmonton"]:
+                    sub = join_df[join_df["city"] == city]
+                    for target in ["tickets_city","revenue_city"]:
+                        r_f = _pearson(sub[fam_col], sub[target])
+                        r_m = _pearson(sub[mot_col], sub[target])
+                        corrs.append({"City": city, "Target": target.replace("_city",""), f"corr({fam_col}, {target})": round(r_f,3) if pd.notna(r_f) else "—",
+                                      f"corr({mot_col}, {target})": round(r_m,3) if pd.notna(r_m) else "—",
+                                      "n": int(sub[[fam_col, mot_col, target]].dropna().shape[0])})
+                st.subheader("Validation — Correlations (history vs scores)")
+                st.dataframe(pd.DataFrame(corrs), use_container_width=True)
+
+                # Simple scatter charts (tickets vs both scores) for each city
+                st.subheader("Validation — Scatter Plots")
+                for city in ["Calgary","Edmonton"]:
+                    sub = join_df[join_df["city"] == city].dropna(subset=[fam_col,"tickets_city",mot_col])
+                    if len(sub) >= 3:
+                        fig = plt.figure()
+                        plt.scatter(sub[fam_col], sub["tickets_city"], label=f"{fam_col} vs tickets")
+                        plt.scatter(sub[mot_col], sub["tickets_city"], marker="x", label=f"{mot_col} vs tickets")
+                        plt.title(f"{city}: Tickets vs Scores")
+                        plt.xlabel("Score"); plt.ylabel("Tickets")
+                        plt.legend()
+                        st.pyplot(fig)
+                    sub2 = join_df[join_df["city"] == city].dropna(subset=[fam_col,"revenue_city",mot_col])
+                    if len(sub2) >= 3:
+                        fig2 = plt.figure()
+                        plt.scatter(sub2[fam_col], sub2["revenue_city"], label=f"{fam_col} vs revenue")
+                        plt.scatter(sub2[mot_col], sub2["revenue_city"], marker="x", label=f"{mot_col} vs revenue")
+                        plt.title(f"{city}: Revenue vs Scores")
+                        plt.xlabel("Score"); plt.ylabel("Revenue")
+                        plt.legend()
+                        st.pyplot(fig2)
+
+                st.caption("Tip: If Motivation correlates better with tickets (or revenue), increase its composite weight above. If familiarity dominates, shift weight back.")
+
 # ============================================
 # 📈 Train Sales Model (city-level, tickets + revenue) — session_state safe
 # ============================================
-from io import StringIO
-
 st.markdown("---")
 st.header("📈 Train Sales Model (City-Level)")
 
+from io import StringIO
+
 # ---- helpers ----
-def _long_city_rows(df):
+def _long_city_rows_train(df):
     rows = []
     for _, r in df.iterrows():
         season = r.get("season", None)
@@ -675,7 +817,7 @@ def _attach_title_attributes(df_titles: pd.DataFrame) -> pd.DataFrame:
     return df_titles.merge(attrs_df2, on="title", how="left")
 
 def _build_feature_table(raw_df: pd.DataFrame) -> pd.DataFrame:
-    long = _long_city_rows(raw_df)
+    long = _long_city_rows_train(raw_df)
     long = long[long["season"].astype("Int64") != 2021]  # exclude 2021 entirely
     long = _attach_title_attributes(long)
     return long
@@ -745,7 +887,6 @@ def _train_one_target(feat_df: pd.DataFrame, target_col: str, holdout_mode: str)
     return model, report, meta
 
 def _predict_for_titles(model, meta, titles_list, city_list, attrs_df_editable):
-    """Generate predictions by city for given titles using trained model."""
     now_year = datetime.now().year + 1
     attr_map = {}
     for _, row in attrs_df_editable.iterrows():
@@ -770,12 +911,10 @@ def _predict_for_titles(model, meta, titles_list, city_list, attrs_df_editable):
 
     pred_df = pd.DataFrame(rows)
 
-    # Safety: ensure required columns exist
     X_cols = meta["feature_cols_num"] + meta["feature_cols_cat"] + meta["feature_cols_bin"]
     for col in X_cols:
         if col not in pred_df.columns:
             pred_df[col] = 0
-
     try:
         y_hat = model.predict(pred_df[X_cols])
         pred_df["prediction"] = y_hat
@@ -789,7 +928,7 @@ def _predict_for_titles(model, meta, titles_list, city_list, attrs_df_editable):
     return pred_df
 
 # --------- session_state to survive reruns ----------
-with st.expander("Upload & Configure", expanded=True):
+with st.expander("Upload & Configure (for Training/Predict)", expanded=False):
     for k in ["sales_df", "feat_df", "models", "model_meta", "reports"]:
         if k not in st.session_state:
             st.session_state[k] = None if k not in ["models","model_meta","reports"] else {}
@@ -853,7 +992,7 @@ with st.expander("Upload & Configure", expanded=True):
 
 # Show reports if present
 if st.session_state.get("reports"):
-    st.subheader("Validation Metrics")
+    st.subheader("Validation Metrics (Trained Models)")
     rep_rows = []
     for k, rep in st.session_state.reports.items():
         rep_rows.append({
@@ -900,7 +1039,6 @@ if predict_submit:
                 attr_snap.append({"title": t, **{k:int(bool(att.get(k, False))) for k in bin_cols}})
             out = out.merge(pd.DataFrame(attr_snap), on="title", how="left")
 
-            # Reorder columns safely
             cols_exist = [c for c in ["title","city","season"] if c in out.columns]
             pred_cols  = [c for c in out.columns if c.startswith("predicted_")]
             other_cols = [c for c in bin_cols if c in out.columns]
