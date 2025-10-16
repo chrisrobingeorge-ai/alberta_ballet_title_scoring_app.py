@@ -1,6 +1,13 @@
 # streamlit_app.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v7.2)
-# Adds: API Self-Test, hardened Wikipedia requests, clearer YouTube/Trends diagnostics, caching
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v7.3)
+# - Market selector: Alberta/Calgary/Edmonton (Google Trends with fallbacks)
+# - Robust Familiarity: Wikipedia log pageviews -> percentile (cached, UA+retries)
+# - Optional YouTube/Spotify enrichment (low-quota YouTube mode)
+# - Segment boosts (Core Classical / Family / Emerging Adults) + editable title attributes
+# - API Self-Test panel
+# - Source Weights sliders + auto-rebalance when a source fails
+# - Diagnostics table + quadrant & bars + CSV/PDF export
+# - Secrets/env auto-load for API keys
 
 import os, math, time
 from datetime import datetime, timedelta
@@ -30,20 +37,14 @@ except Exception:
     SpotifyClientCredentials = None
 
 # -------------------------
-# CONFIG & WEIGHTS
+# CONFIG (defaults)
 # -------------------------
 TRENDS_TIMEFRAME = "today 5-y"
 
-WEIGHTS = {
-    "fam_wiki": 0.55,
-    "fam_trends": 0.30,
-    "fam_spotify": 0.15,
-
-    "mot_youtube": 0.45,
-    "mot_trends": 0.25,
-    "mot_spotify": 0.15,
-    "mot_wiki": 0.15,
-}
+ATTR_COLUMNS = [
+    "female_lead","male_lead","family_friendly","romantic","tragic",
+    "contemporary","classic_canon","spectacle","pop_ip"
+]
 
 SEGMENT_RULES = {
     "Core Classical (Female 35–64)": {
@@ -66,13 +67,8 @@ SEGMENT_RULES = {
     }
 }
 
-ATTR_COLUMNS = [
-    "female_lead","male_lead","family_friendly","romantic","tragic",
-    "contemporary","classic_canon","spectacle","pop_ip"
-]
-
 # -------------------------
-# UTILITIES / SESSION SETUP
+# UTILITIES
 # -------------------------
 def normalize_series(values):
     if not values:
@@ -115,16 +111,13 @@ def requests_session():
 @st.cache_data(show_spinner=False, ttl=3600)
 def _pytrends():
     from pytrends.request import TrendReq
-    # retries/backoff inside TrendReq
     return TrendReq(hl="en-US", tz=360, retries=5, backoff_factor=0.5)
 
 def _trends_kw_variants(title: str) -> List[str]:
     return [title, f"{title} ballet", f"{title} story"]
 
 def fetch_trends_province_or_global(title: str, region_geo: str) -> Tuple[float, str]:
-    """
-    Returns (score, source_label) — source_label tells which region worked.
-    """
+    """Returns (score, source_label). Tries region -> CA -> Global."""
     try:
         pytrends = _pytrends()
         def _get_score(geo: str) -> float:
@@ -135,33 +128,26 @@ def fetch_trends_province_or_global(title: str, region_geo: str) -> Tuple[float,
                     df = pytrends.interest_over_time()
                     if not df.empty and kw in df.columns:
                         vals.append(float(df[kw].mean()))
-                    time.sleep(0.2)  # be gentle
+                    time.sleep(0.2)
                 except Exception:
                     continue
             return float(np.mean(vals)) if vals else 0.0
 
         score = _get_score(region_geo)
-        if score > 0:
-            return score, region_geo
+        if score > 0: return score, region_geo
         if region_geo != "CA":
             score = _get_score("CA")
-            if score > 0:
-                return score, "CA"
+            if score > 0: return score, "CA"
         score = _get_score("")
-        if score > 0:
-            return score, "GLOBAL"
+        if score > 0: return score, "GLOBAL"
         return 0.0, "NONE"
     except Exception as e:
         return 0.0, f"ERR:{e}"
 
 def fetch_trends_city(title: str, city_name: str) -> Tuple[float, str]:
-    """
-    City-level via interest_by_region(resolution='CITY'). Falls back to AB/CA/Global.
-    """
+    """City via interest_by_region(resolution='CITY'), falls back to AB/CA/Global."""
     try:
-        from pytrends.request import TrendReq
         pytrends = _pytrends()
-
         def _city_score(kw: str) -> float:
             try:
                 pytrends.build_payload([kw], geo="CA", timeframe=TRENDS_TIMEFRAME)
@@ -195,18 +181,16 @@ def fetch_trends_city(title: str, city_name: str) -> Tuple[float, str]:
 def fetch_google_trends_score(title: str, market: str) -> Tuple[float, str]:
     if market == "Calgary":
         s, src = fetch_trends_city(title, "Calgary")
-        if s > 0:
-            return s, src
+        if s > 0: return s, src
         return fetch_trends_province_or_global(title, "CA-AB")
     if market == "Edmonton":
         s, src = fetch_trends_city(title, "Edmonton")
-        if s > 0:
-            return s, src
+        if s > 0: return s, src
         return fetch_trends_province_or_global(title, "CA-AB")
     return fetch_trends_province_or_global(title, "CA-AB")
 
 # -------------------------
-# WIKIPEDIA (robust search + pageviews) + caching + UA
+# WIKIPEDIA (robust search + pageviews) + caching
 # -------------------------
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
@@ -263,31 +247,22 @@ def fetch_wikipedia_views(query: str) -> Tuple[str, float]:
     return (best_title or query), best_val
 
 # -------------------------
-# YOUTUBE / SPOTIFY (optional) + caching
+# YOUTUBE / SPOTIFY (low-quota YT) + caching
 # -------------------------
 @st.cache_data(show_spinner=False, ttl=86400)
 def fetch_youtube_metrics(title: str, api_key: Optional[str]) -> Tuple[float, float, str]:
-    """(search_count, sqrt(top_view_count), status_msg) — returns zeros + reason if key/quota missing."""
+    """
+    Low-quota version: one search call, no videos.list. Returns (#results_seen, 0, status).
+    """
     if not api_key:
         return 0.0, 0.0, "NO_KEY"
     if build is None:
         return 0.0, 0.0, "LIB_MISSING"
     try:
         yt = build("youtube", "v3", developerKey=api_key)
-        search = yt.search().list(q=title, part="id", type="video", maxResults=50).execute()
-        ids = [item["id"]["videoId"] for item in search.get("items", [])]
-        search_count = len(ids)
-        if not ids:
-            return 0.0, 0.0, "NO_RESULTS"
-        chunks = [ids[i:i+50] for i in range(0, len(ids), 50)]
-        top_views = 0
-        for ch in chunks:
-            stats = yt.videos().list(part="statistics", id=",".join(ch)).execute()
-            for it in stats.get("items", []):
-                vc = int(it.get("statistics", {}).get("viewCount", 0))
-                if vc > top_views:
-                    top_views = vc
-        return float(search_count), float(math.sqrt(top_views)), "OK"
+        resp = yt.search().list(q=title, part="id", type="video", maxResults=5).execute()
+        ids = [item["id"]["videoId"] for item in resp.get("items", [])]
+        return float(len(ids)), 0.0, ("OK" if ids else "NO_RESULTS")
     except HttpError as he:
         return 0.0, 0.0, f"HTTP_ERROR:{he}"
     except Exception as e:
@@ -338,8 +313,7 @@ def infer_title_attributes(title: str) -> Dict[str, bool]:
 
 def segment_boosts(attrs: Dict[str,bool], segment_name: str) -> Tuple[float,float]:
     rules = SEGMENT_RULES.get(segment_name, {})
-    fam_delta = 0.0
-    mot_delta = 0.0
+    fam_delta = 0.0; mot_delta = 0.0
     for k, v in rules.get("fam", {}).items():
         if attrs.get(k, False): fam_delta += v
     for k, v in rules.get("mot", {}).items():
@@ -351,14 +325,17 @@ def segment_boosts(attrs: Dict[str,bool], segment_name: str) -> Tuple[float,floa
 # -------------------------
 # SCORING
 # -------------------------
-def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_name, attrs_df):
+def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_name, attrs_df,
+                 w_fam_trends, w_fam_wiki, w_fam_spot, w_mot_trends, w_mot_yt, w_mot_spot, w_mot_wiki):
+    # Map title -> attrs from editor
     user_attrs = {}
     for _, row in attrs_df.iterrows():
         nm = str(row["Title"]).strip()
         if not nm: continue
         user_attrs[nm.lower()] = {col: bool(row.get(col, False)) for col in ATTR_COLUMNS}
 
-    trends_scores, trend_srcs, wiki_titles, wiki_scores, yt_search_counts, yt_top_view_sqrts, yt_status, sp_pops = [], [], [], [], [], [], [], []
+    trends_scores, trend_srcs, wiki_titles, wiki_scores = [], [], [], []
+    yt_search_counts, yt_status, sp_pops = [], [], []
     fam_boosts, mot_boosts = [], []
 
     for t in titles:
@@ -376,8 +353,8 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
         wiki_titles.append(w_title); wiki_scores.append(w_score)
 
         # YouTube / Spotify
-        ysc, ytv, ystat = fetch_youtube_metrics(t, yt_key)
-        yt_search_counts.append(ysc); yt_top_view_sqrts.append(ytv); yt_status.append(ystat)
+        ysc, _, ystat = fetch_youtube_metrics(t, yt_key)
+        yt_search_counts.append(ysc); yt_status.append(ystat)
         sp = fetch_spotify_popularity(t, sp_id, sp_secret)
         sp_pops.append(sp)
 
@@ -388,27 +365,46 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
         fdelta, mdelta = segment_boosts(base_attrs, segment_name)
         fam_boosts.append(fdelta); mot_boosts.append(mdelta)
 
+    # Familiarity base from Wikipedia: log -> percentile
     wiki_log = [math.log1p(v) for v in wiki_scores]
     wiki_fam = percentile_normalize(wiki_log)  # 0..100
 
+    # Other sources normalized 0..100
     trends_n   = trends_scores if use_trends else [0.0] * len(titles)
     sp_n       = normalize_series(sp_pops)
     yt_searchn = normalize_series(yt_search_counts)
-    yt_topn    = normalize_series(yt_top_view_sqrts)
-    yt_combo   = [capped_mean([a, b]) for a, b in zip(yt_searchn, yt_topn)]
+
+    # ---- Dynamic weights + auto-rebalance on failure
+    def _rebalance(d):
+        s = sum(d.values())
+        return {k: (v/s if s>0 else 0.0) for k,v in d.items()}
+
+    fam_w = {
+        "wiki": (w_fam_wiki/100.0),
+        "trends": (w_fam_trends/100.0) if use_trends and any(trends_n) else 0.0,
+        "spotify": (w_fam_spot/100.0) if any(sp_pops) else 0.0,
+    }
+    mot_w = {
+        "youtube": (w_mot_yt/100.0) if any(yt_search_counts) and ("OK" in set(yt_status) or "NO_RESULTS" in set(yt_status)) else 0.0,
+        "trends": (w_mot_trends/100.0) if use_trends and any(trends_n) else 0.0,
+        "spotify": (w_mot_spot/100.0) if any(sp_pops) else 0.0,
+        "wiki": (w_mot_wiki/100.0),
+    }
+    fam_w = _rebalance(fam_w)
+    mot_w = _rebalance(mot_w)
 
     rows = []
     for i, t in enumerate(titles):
         fam = (
-            WEIGHTS["fam_wiki"]   * (wiki_fam[i] or 0.0) +
-            WEIGHTS["fam_trends"] * (trends_n[i] or 0.0) +
-            WEIGHTS["fam_spotify"]* (sp_n[i] or 0.0)
+            fam_w["wiki"]   * (wiki_fam[i] or 0.0) +
+            fam_w["trends"] * (trends_n[i] or 0.0) +
+            fam_w["spotify"]* (sp_n[i] or 0.0)
         )
         mot = (
-            WEIGHTS["mot_youtube"]* (yt_combo[i] or 0.0) +
-            WEIGHTS["mot_trends"] * (trends_n[i] or 0.0) +
-            WEIGHTS["mot_spotify"]* (sp_n[i] or 0.0) +
-            WEIGHTS["mot_wiki"]   * (wiki_fam[i] or 0.0)
+            mot_w["youtube"]* (yt_searchn[i] or 0.0) +  # low-quota proxy
+            mot_w["trends"] * (trends_n[i] or 0.0) +
+            mot_w["spotify"]* (sp_n[i] or 0.0) +
+            mot_w["wiki"]   * (wiki_fam[i] or 0.0)
         )
 
         fam_adj = fam * (1.0 + fam_boosts[i])
@@ -429,9 +425,11 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
             "TrendsSource": trend_srcs[i],
             "WikipediaRawAvgDaily": round(wiki_scores[i], 2),
             "WikipediaFamiliarity": round(wiki_fam[i], 1),
-            "YouTubeN": round(yt_combo[i], 1),
+            "YouTubeN": round(yt_searchn[i], 1),
             "YouTubeStatus": yt_status[i],
             "SpotifyN": round(sp_n[i], 1),
+            "w_fam": fam_w,
+            "w_mot": mot_w,
         })
 
     df = pd.DataFrame(rows)
@@ -443,10 +441,7 @@ def apply_benchmark(df: pd.DataFrame, benchmark_title: str, use_adjusted: bool) 
         return df
     b_row = df[df["Title"] == benchmark_title].iloc[0]
     cols = ["GoogleTrends","WikipediaFamiliarity","YouTubeN","SpotifyN"]
-    if use_adjusted:
-        cols = ["FamiliarityAdj","MotivationAdj"] + cols
-    else:
-        cols = ["Familiarity","Motivation"] + cols
+    cols = (["FamiliarityAdj","MotivationAdj"] if use_adjusted else ["Familiarity","Motivation"]) + cols
     for col in cols:
         series = df[col].astype(float)
         if series.std(ddof=0) < 1e-6:
@@ -502,9 +497,8 @@ def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
 
         fig5 = plt.figure(); plt.axis('off')
         memo = (
-            "Self-test verifies each data source. Trends falls back City→AB→CA→Global. "
-            "Wikipedia uses pageviews with caching & proper User-Agent. "
-            "YouTube shows status (OK/NO_KEY/HTTP_ERROR)."
+            "Trends falls back City→AB→CA→Global; Wikipedia uses pageviews (log→percentile). "
+            "YouTube is low-quota (search only). Source weights auto-rebalance if a source fails."
         )
         plt.text(0.01, 0.99, memo, va='top')
         pdf.savefig(fig5, bbox_inches='tight'); plt.close(fig5)
@@ -513,9 +507,9 @@ def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
 # UI
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Viability", layout="wide")
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v7.2)")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v7.3)")
 
-st.markdown("Now with **API Self-Test**, hardened Wikipedia requests, clearer YouTube/Trends diagnostics, and caching.")
+st.markdown("Market-aware Trends + robust Wikipedia + low-quota YouTube. Segment boosts reflect Calgary/Edmonton gender/age realities. Weights auto-rebalance when a source fails.")
 
 # --- API keys auto-load (secrets/env) ---
 def load_api_keys_from_env_and_secrets():
@@ -536,11 +530,11 @@ with st.expander("🔑 API Configuration"):
     sp_secret = st.text_input("Spotify Client Secret", type="password", value=auto_sp_secret or "")
 
 with st.expander("🧪 API Self-Test"):
-    st.caption("Runs a quick probe on Google Trends, Wikipedia, and YouTube using 'The Nutcracker'.")
-    colt1, colt2 = st.columns(2)
-    with colt1:
+    st.caption("Quick probe on Wikipedia, Google Trends, and YouTube using 'The Nutcracker'.")
+    c1, c2 = st.columns(2)
+    with c1:
         run_test = st.button("Run Self-Test")
-    with colt2:
+    with c2:
         clear_cache = st.button("Clear Cached Lookups")
     if clear_cache:
         _pytrends.clear()
@@ -550,22 +544,14 @@ with st.expander("🧪 API Self-Test"):
         fetch_spotify_popularity.clear()
         st.success("Caches cleared.")
     if run_test:
-        # Wikipedia test
         wp_title, wp_views = fetch_wikipedia_views("The Nutcracker")
         st.write(f"**Wikipedia**: page='{wp_title}', avg_daily_views={wp_views:.2f} → {'OK' if wp_views>0 else 'ZERO'}")
-
-        # Trends test (AB & City fallback)
         t_score, t_src = fetch_google_trends_score("The Nutcracker", market="Calgary")
         st.write(f"**Google Trends**: score={t_score:.2f}, source={t_src} → {'OK' if t_score>0 else 'ZERO'}")
-
-        # YouTube test
-        ysc, ytv, ystat = fetch_youtube_metrics("The Nutcracker ballet", yt_key.strip() or None)
-        st.write(f"**YouTube**: search_count_norm_src≈{ysc:.0f}, top_view_sqrt≈{ytv:.0f}, status={ystat}")
-
-        if ystat.startswith("HTTP_ERROR"):
-            st.info("If you see HTTP_ERROR, confirm in Google Cloud Console that **YouTube Data API v3** is enabled for your key, and the key isn't restricted to wrong referrers.")
-        if t_src.startswith("ERR"):
-            st.info("Trends error: pytrends was blocked or failed. Try again in a minute, or switch Market to Alberta/Global.")
+        ysc, _, ystat = fetch_youtube_metrics("The Nutcracker ballet", yt_key.strip() or None)
+        st.write(f"**YouTube**: results≈{ysc:.0f}, status={ystat}")
+        if str(ystat).startswith("HTTP_ERROR"):
+            st.info("If you see HTTP_ERROR, ensure YouTube Data API v3 is enabled and the key isn't restricted incorrectly.")
 
 with st.expander("⚙️ Options"):
     use_trends = st.checkbox("Use Google Trends", value=True)
@@ -574,6 +560,16 @@ with st.expander("⚙️ Options"):
     segment_name = st.selectbox("Target Segment (applies demographic boosts)", list(SEGMENT_RULES.keys()), index=0)
     use_adjusted = st.checkbox("Use Segment-Adjusted scores in charts/exports", value=True)
     st.caption("If city data is sparse, Trends falls back to Alberta → Canada → Global automatically.")
+
+with st.expander("🔩 Source Weights (advanced)"):
+    st.caption("If a source fails (e.g., Trends=NONE, YouTube quota), weights auto-rebalance.")
+    w_fam_trends = st.slider("Weight: Familiarity ← Google Trends", 0, 100, 30)
+    w_fam_wiki   = st.slider("Weight: Familiarity ← Wikipedia", 0, 100, 55)
+    w_fam_spot   = st.slider("Weight: Familiarity ← Spotify", 0, 100, 15)
+    w_mot_trends = st.slider("Weight: Motivation ← Google Trends", 0, 100, 25)
+    w_mot_yt     = st.slider("Weight: Motivation ← YouTube", 0, 100, 45)
+    w_mot_spot   = st.slider("Weight: Motivation ← Spotify", 0, 100, 15)
+    w_mot_wiki   = st.slider("Weight: Motivation ← Wikipedia", 0, 100, 15)
 
 default_titles = [
     "The Nutcracker","Sleeping Beauty","Cinderella","Pinocchio",
@@ -608,8 +604,11 @@ with colD:
 
 if run_btn:
     with st.spinner("Scoring titles…"):
-        df = score_titles(titles, yt_key.strip() or None, sp_id.strip() or None, sp_secret.strip() or None,
-                          use_trends, market_key, segment_name, attrs_df)
+        df = score_titles(
+            titles, yt_key.strip() or None, sp_id.strip() or None, sp_secret.strip() or None,
+            use_trends, market_key, segment_name, attrs_df,
+            w_fam_trends, w_fam_wiki, w_fam_spot, w_mot_trends, w_mot_yt, w_mot_spot, w_mot_wiki
+        )
 
         sort_x, sort_y = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
         df = df.sort_values(by=[sort_y, sort_x], ascending=False)
@@ -618,7 +617,7 @@ if run_btn:
             df = apply_benchmark(df, benchmark_title, use_adjusted)
 
         st.success("Done.")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df.drop(columns=["w_fam","w_mot"]), use_container_width=True)
 
         # Diagnostics — dispersion & source status
         st.subheader("Diagnostics")
@@ -634,19 +633,17 @@ if run_btn:
 
         # Charts
         st.subheader("Charts")
-        figQ = quadrant_plot(df, sort_x, sort_y, f"{sort_x} vs {sort_y} (Quadrant Map)")
-        st.pyplot(figQ)
-        figF = bar_chart(df, sort_x, f"{sort_x} by Title")
-        st.pyplot(figF)
-        figM = bar_chart(df, sort_y, f"{sort_y} by Title")
-        st.pyplot(figM)
+        st.pyplot(quadrant_plot(df, sort_x, sort_y, f"{sort_x} vs {sort_y} (Quadrant Map)"))
+        st.pyplot(bar_chart(df, sort_x, f"{sort_x} by Title"))
+        st.pyplot(bar_chart(df, sort_y, f"{sort_y} by Title"))
 
         # CSV / PDF
-        st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode("utf-8"), "title_scores.csv", "text/csv")
+        st.download_button("⬇️ Download CSV", df.drop(columns=["w_fam","w_mot"]).to_csv(index=False).encode("utf-8"),
+                           "title_scores.csv", "text/csv")
         if gen_pdf:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             pdf_path = f"title_scores_brief_{ts}.pdf"
-            generate_pdf_brief(df, use_adjusted, pdf_path)
+            generate_pdf_brief(df.drop(columns=["w_fam","w_mot"]), use_adjusted, pdf_path)
             st.success("PDF created.")
             st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(),
                                file_name=pdf_path, mime="application/pdf")
