@@ -1,8 +1,9 @@
 # streamlit_app.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (robust Wikipedia mode)
-# v3: Option to disable Google Trends (for Streamlit Cloud rate-limits),
-#     Wikipedia Search API to resolve best page, smarter normalization,
-#     clear diagnostics, and PDF brief.
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v4)
+# - Robust Familiarity (log Wikipedia pageviews -> percentile rank) so scores don't collapse
+# - Optional Google Trends, YouTube, Spotify inputs
+# - Smarter benchmark normalization (skips flat columns)
+# - Diagnostics table + PDF export
 
 import os, math
 from datetime import datetime, timedelta
@@ -32,12 +33,17 @@ except Exception:
 # CONFIG & WEIGHTS
 # -------------------------
 TRENDS_TIMEFRAME = "today 5-y"
+
+# Weights for the composite indices
 WEIGHTS = {
-    "search_trends": 0.35,   # Google Trends (can be disabled)
-    "youtube": 0.25,         # needs API key
-    "spotify": 0.10,         # needs API creds
-    "wikipedia": 0.30,       # boosted so Wikipedia alone can carry if Trends disabled
-    "safety_buffer": 0.00    # not needed with explicit weights
+    "fam_wiki": 0.55,        # Robust Wikipedia familiarity (log -> percentile)
+    "fam_trends": 0.30,      # Google Trends familiarity (if enabled)
+    "fam_spotify": 0.15,     # Spotify recognition (if enabled)
+
+    "mot_youtube": 0.45,     # YouTube search/view proxy (if enabled)
+    "mot_trends": 0.25,      # Trends supports motivation if enabled
+    "mot_spotify": 0.15,     # Music recall
+    "mot_wiki": 0.15,        # Wikipedia salience assists motivation (lighter)
 }
 
 # -------------------------
@@ -60,11 +66,19 @@ def capped_mean(values):
     trimmed = arr[k: n-k] if n > 2*k else arr
     return float(sum(trimmed)) / len(trimmed)
 
+def percentile_normalize(vals):
+    """Turn a list into 0..100 by percentile rank; robust when ranges are tight."""
+    if not vals:
+        return []
+    s = pd.Series(vals, dtype="float64")
+    ranks = s.rank(method="average", pct=True)
+    return (ranks * 100.0).tolist()
+
 # -------------------------
 # GOOGLE TRENDS (optional)
 # -------------------------
 def fetch_google_trends_score(title: str, region_geo: str = "CA-AB") -> float:
-    """Uses pytrends only if available; returns 0.0 on error (rate-limits common on Streamlit Cloud)."""
+    """Uses pytrends only if available; returns 0.0 on error or rate-limit."""
     try:
         from pytrends.request import TrendReq
         pytrends = TrendReq(hl="en-US", tz=360)
@@ -83,13 +97,12 @@ def fetch_google_trends_score(title: str, region_geo: str = "CA-AB") -> float:
         return 0.0
 
 # -------------------------
-# WIKIPEDIA (robust)
+# WIKIPEDIA (robust search + pageviews)
 # -------------------------
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
 
 def wiki_search_best_title(query: str) -> Optional[str]:
-    """Use Wikipedia Search API to find the most relevant page title for a query."""
     try:
         params = {
             "action": "query",
@@ -104,7 +117,6 @@ def wiki_search_best_title(query: str) -> Optional[str]:
         items = r.json().get("query", {}).get("search", [])
         if not items:
             return None
-        # Prefer exact or close matches; otherwise top result
         for it in items:
             t = it.get("title", "")
             if t.lower() == query.lower() or query.lower() in t.lower():
@@ -114,7 +126,6 @@ def wiki_search_best_title(query: str) -> Optional[str]:
         return None
 
 def fetch_wikipedia_views_for_page(page_title: str) -> float:
-    """Average daily views over last 365 days for a specific Wikipedia page title."""
     try:
         end = datetime.utcnow().strftime("%Y%m%d")
         start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
@@ -130,10 +141,6 @@ def fetch_wikipedia_views_for_page(page_title: str) -> float:
         return 0.0
 
 def fetch_wikipedia_views(query: str) -> Tuple[str, float]:
-    """
-    Resolve best page using search; fall back through common disambiguations.
-    Returns (resolved_title, avg_daily_views).
-    """
     candidates = [
         query,
         f"{query} (ballet)",
@@ -142,13 +149,11 @@ def fetch_wikipedia_views(query: str) -> Tuple[str, float]:
         f"{query} (opera)",
         f"{query} (play)",
     ]
-    # Try search first
     best = wiki_search_best_title(query)
     if best:
         v = fetch_wikipedia_views_for_page(best)
         if v > 0:
             return best, v
-    # Then try candidates
     best_title, best_val = None, 0.0
     for c in candidates:
         t = wiki_search_best_title(c) or c
@@ -198,21 +203,6 @@ def fetch_spotify_popularity(title: str, client_id: Optional[str], client_secret
 # -------------------------
 # SCORING
 # -------------------------
-def weighted_sum(components: Dict[str, float], use_trends: bool) -> float:
-    pairs = []
-    if use_trends and components.get("trends") is not None:
-        pairs.append((components["trends"], WEIGHTS["search_trends"]))
-    if components.get("wikipedia") is not None:
-        pairs.append((components["wikipedia"], WEIGHTS["wikipedia"]))
-    if components.get("youtube") is not None:
-        pairs.append((components["youtube"], WEIGHTS["youtube"]))
-    if components.get("spotify") is not None:
-        pairs.append((components["spotify"], WEIGHTS["spotify"]))
-    if not pairs:
-        return 0.0
-    total_w = sum(w for _, w in pairs)
-    return sum(val * (w / total_w) for val, w in pairs)
-
 def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, trends_region):
     trends_scores, wiki_titles, wiki_scores, yt_search_counts, yt_top_view_sqrts, sp_pops = [], [], [], [], [], []
 
@@ -235,37 +225,44 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, trends_region):
         yt_top_view_sqrts.append(ytv)
         sp_pops.append(sp)
 
-    # Normalize source metrics to 0..100 in this run
-    trends_n   = trends_scores if use_trends else [0.0] * len(titles)   # Trends already 0..100 when present
-    wiki_n     = normalize_series(wiki_scores)
+    # ---- Robust Familiarity base from Wikipedia:
+    # Use raw pageviews -> log transform -> percentile rank (0..100)
+    wiki_log = [math.log1p(v) for v in wiki_scores]
+    wiki_fam = percentile_normalize(wiki_log)  # robust 0..100 familiarity signal
+
+    # Other sources normalized 0..100 for blending
+    trends_n   = trends_scores if use_trends else [0.0] * len(titles)  # already 0..100 if present
+    sp_n       = normalize_series(sp_pops)
     yt_searchn = normalize_series(yt_search_counts)
     yt_topn    = normalize_series(yt_top_view_sqrts)
-    yt_combo   = [capped_mean([a, b]) for a, b in zip(yt_searchn, yt_topn)]
-    sp_n       = normalize_series(sp_pops)
+    yt_combo   = [capped_mean([a, b]) for a, b in zip(yt_searchn, yt_topn)]  # 0..100 motivation proxy
 
+    # Compose Familiarity & Motivation
     rows = []
     for i, t in enumerate(titles):
-        fam = weighted_sum({
-            "trends": trends_n[i],
-            "wikipedia": wiki_n[i],
-            "spotify": sp_n[i]
-        }, use_trends)
+        # Familiarity = weighted blend (robust wiki, + optional trends/spotify)
+        fam = (
+            WEIGHTS["fam_wiki"]   * (wiki_fam[i] or 0.0) +
+            WEIGHTS["fam_trends"] * (trends_n[i] or 0.0) +
+            WEIGHTS["fam_spotify"]* (sp_n[i] or 0.0)
+        )
 
-        mot = weighted_sum({
-            "youtube": yt_combo[i],
-            "trends": trends_n[i],
-            "spotify": sp_n[i],
-            "wikipedia": wiki_n[i]  # include wiki in motivation as a proxy for current salience
-        }, use_trends)
+        # Motivation = weighted blend (youtube + trends + spotify + light wiki)
+        mot = (
+            WEIGHTS["mot_youtube"]* (yt_combo[i] or 0.0) +
+            WEIGHTS["mot_trends"] * (trends_n[i] or 0.0) +
+            WEIGHTS["mot_spotify"]* (sp_n[i] or 0.0) +
+            WEIGHTS["mot_wiki"]   * (wiki_fam[i] or 0.0)
+        )
 
         rows.append({
             "Title": t,
             "ResolvedWikiPage": wiki_titles[i],
-            "Familiarity": round(fam * 100.0, 1),
-            "Motivation": round(mot * 100.0, 1),
+            "Familiarity": round(fam, 1),
+            "Motivation": round(mot, 1),
             "GoogleTrends": round(trends_n[i], 1),
             "WikipediaRawAvgDaily": round(wiki_scores[i], 2),
-            "WikipediaN": round(wiki_n[i], 1),
+            "WikipediaFamiliarity": round(wiki_fam[i], 1),
             "YouTubeN": round(yt_combo[i], 1),
             "SpotifyN": round(sp_n[i], 1),
         })
@@ -278,7 +275,7 @@ def apply_benchmark(df: pd.DataFrame, benchmark_title: str) -> pd.DataFrame:
     if benchmark_title not in df["Title"].values:
         return df
     b_row = df[df["Title"] == benchmark_title].iloc[0]
-    cols = ["Familiarity","Motivation","GoogleTrends","WikipediaN","YouTubeN","SpotifyN"]
+    cols = ["Familiarity","Motivation","GoogleTrends","WikipediaFamiliarity","YouTubeN","SpotifyN"]
     for col in cols:
         series = df[col].astype(float)
         if series.std(ddof=0) < 1e-6:
@@ -314,7 +311,6 @@ def bar_chart(df: pd.DataFrame, col: str, title: str):
     return fig
 
 def generate_pdf_brief(df: pd.DataFrame, file_path: str):
-    from matplotlib.backends.backend_pdf import PdfPages
     with PdfPages(file_path) as pdf:
         fig1 = plt.figure(); plt.axis('off')
         plt.title("Alberta Ballet — Title Scores", pad=20)
@@ -332,7 +328,11 @@ def generate_pdf_brief(df: pd.DataFrame, file_path: str):
         pdf.savefig(fig4, bbox_inches='tight'); plt.close(fig4)
 
         fig5 = plt.figure(); plt.axis('off')
-        memo = "Signals: Wikipedia search+pageviews; optional Google Trends, YouTube, Spotify. Benchmark normalization scales varying columns so the benchmark = 100."
+        memo = (
+            "Familiarity = log Wikipedia pageviews -> percentile (robust), blended with optional Trends/Spotify.\n"
+            "Motivation = YouTube + Trends + Spotify + light Wikipedia.\n"
+            "Benchmark normalization scales varying columns so the benchmark = 100."
+        )
         plt.text(0.01, 0.99, memo, va='top')
         pdf.savefig(fig5, bbox_inches='tight'); plt.close(fig5)
 
@@ -340,9 +340,9 @@ def generate_pdf_brief(df: pd.DataFrame, file_path: str):
 # UI
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Viability", layout="wide")
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v3)")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v4)")
 
-st.markdown("Runs even if Google Trends is blocked. Wikipedia search resolves the best page, so you should see variance immediately.")
+st.markdown("Robust Familiarity via Wikipedia (log → percentile). Optional Trends/YouTube/Spotify enhance separation.")
 
 with st.expander("🔑 API Configuration (optional)"):
     yt_key = st.text_input("YouTube Data API v3 Key", type="password")
@@ -352,6 +352,7 @@ with st.expander("🔑 API Configuration (optional)"):
 with st.expander("⚙️ Options"):
     use_trends = st.checkbox("Use Google Trends (may be blocked on Cloud)", value=False)
     trends_region = st.selectbox("Trends region", ["CA-AB","CA",""], index=0)
+    st.caption("Tip: start with Trends OFF to confirm Familiarity varies. Then experiment with AB/CA/global.")
 
 default_titles = [
     "The Nutcracker","Sleeping Beauty","Cinderella","Pinocchio",
@@ -379,7 +380,7 @@ if run_btn:
 
         # Diagnostics — raw sources and dispersion
         st.subheader("Diagnostics")
-        diag_cols = ["Familiarity","Motivation","GoogleTrends","WikipediaRawAvgDaily","WikipediaN","YouTubeN","SpotifyN"]
+        diag_cols = ["Familiarity","Motivation","GoogleTrends","WikipediaRawAvgDaily","WikipediaFamiliarity","YouTubeN","SpotifyN"]
         diag = pd.DataFrame({
             "metric": diag_cols,
             "min":    [float(df[c].min()) for c in diag_cols],
