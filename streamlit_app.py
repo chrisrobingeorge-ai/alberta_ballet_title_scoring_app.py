@@ -330,24 +330,25 @@ if run:
 
         df = pd.DataFrame(rows)
 
-# make sure 'use_adjusted' exists in this scope
-use_adjusted = locals().get("use_adjusted", True)
+        # Ensure 'use_adjusted' exists in this scope
+        use_adjusted = locals().get("use_adjusted", True)
 
-# -------------------------
-# SCORE GRADING (A–E bands)
-# -------------------------
-sort_x, sort_y = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
+        # -------------------------
+        # SCORE GRADING (A–E bands)
+        # -------------------------
+        sort_x, sort_y = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
 
-df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
+        # Compute composite score and assign grade
+        df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
 
-def assign_score(value):
-    if value >= 90: return "A"
-    elif value >= 75: return "B"
-    elif value >= 60: return "C"
-    elif value >= 45: return "D"
-    else: return "E"
+        def assign_score(value):
+            if value >= 90: return "A"
+            elif value >= 75: return "B"
+            elif value >= 60: return "C"
+            elif value >= 45: return "D"
+            else: return "E"
 
-df["Score"] = df["Composite"].apply(assign_score)
+        df["Score"] = df["Composite"].apply(assign_score)
 
         # Index to Nutcracker = 100 under current seg/region
         if do_benchmark and benchmark_title:
