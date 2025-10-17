@@ -1,15 +1,12 @@
 # streamlit_app.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v8)
-# Rule-based update: folds in historical validation without ML training.
-# - CSV upload for historical actuals; auto‑excludes pandemic season rows
-# - Likeness buckets + Gender tagging for priors
-# - Priors computed per (Bucket × Gender × Market) using only seasons < cutoff
-# - Forecast = Historical Prior × Score Adapter (from Familiarity/Motivation)
-# - Confidence bands derived from cohort CV
-# - No leakage: you choose a cutoff season; priors use strictly earlier rows
-# - Everything else from v7 retained (Trends/Wiki/YouTube/Spotify optional)
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v8.1, rule-based with historical priors + Audience Profile)
+# - Audience Profile dropdown (General Population + segments). General Population = neutral (no boosts).
+# - Always charts FamiliarityAdj vs MotivationAdj (Adj == base under General Pop).
+# - Historical priors per (Likeness × Gender × Market), no ML, no leakage (cutoff year).
+# - Prior fallback cascade: City bucket×gender → City bucket → Alberta bucket×gender → Alberta bucket.
+# - Confidence bands from cohort CV. Pandemic season rows excluded from priors.
 
-import os, math
+import os, math, re
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 
@@ -39,19 +36,20 @@ except Exception:
 TRENDS_TIMEFRAME = "today 5-y"
 
 WEIGHTS = {
-    "fam_wiki": 0.55,
-    "fam_trends": 0.30,
-    "fam_spotify": 0.15,
-    "mot_youtube": 0.45,
-    "mot_trends": 0.25,
-    "mot_spotify": 0.15,
-    "mot_wiki": 0.15,
+    "fam_wiki": 0.55,        # Robust Wikipedia familiarity (log -> percentile)
+    "fam_trends": 0.30,      # Google Trends familiarity (market-aware)
+    "fam_spotify": 0.15,     # Spotify recognition (if enabled)
+
+    "mot_youtube": 0.45,     # YouTube search/view proxy (if enabled)
+    "mot_trends": 0.25,      # Trends supports motivation if enabled
+    "mot_spotify": 0.15,     # Music recall
+    "mot_wiki": 0.15,        # Wikipedia salience assists motivation (lighter)
 }
 
-# Adapter: how strongly the score nudges the historical prior (0..1 sensible)
+# How strongly the score nudges the historical prior (0..1 sensible)
 SCORE_ADAPTER_STRENGTH = 0.40
 
-# Segment multipliers (existing v7 logic)
+# Segment multipliers (percent deltas summed then applied as (1 + delta))
 SEGMENT_RULES = {
     "Core Classical (Female 35–64)": {
         "fam": {"female_lead": +0.12, "romantic": +0.08, "classic_canon": +0.10,
@@ -109,7 +107,7 @@ def clamp01(x):
     return max(0.0, min(1.0, x))
 
 # -------------------------
-# GOOGLE TRENDS
+# GOOGLE TRENDS (province/city with retries & fallbacks)
 # -------------------------
 def _pytrends():
     from pytrends.request import TrendReq
@@ -136,7 +134,7 @@ def fetch_trends_province_or_global(title: str, region_geo: str) -> float:
         if score == 0.0 and region_geo != "CA":
             score = _get_score("CA")
         if score == 0.0:
-            score = _get_score("")
+            score = _get_score("")  # Global fallback
         return score
     except Exception:
         return 0.0
@@ -182,7 +180,7 @@ def fetch_google_trends_score(title: str, market: str) -> float:
     return fetch_trends_province_or_global(title, "CA-AB")
 
 # -------------------------
-# WIKIPEDIA
+# WIKIPEDIA (robust search + pageviews)
 # -------------------------
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
@@ -277,8 +275,9 @@ def fetch_spotify_popularity(title: str, client_id: Optional[str], client_secret
 def infer_title_attributes(title: str) -> Dict[str, bool]:
     t = title.lower()
     attr = {k: False for k in ATTR_COLUMNS}
+    # Heuristics for common repertoire; editable in UI:
     female_titles = ["nutcracker","sleeping beauty","cinderella","beauty and the beast","alice","giselle","swan lake","merry widow","romeo and juliet"]
-    male_titles = ["pinocchio","peter pan","don quixote","hunchback","notre dame","romeo and juliet"]
+    male_titles = ["pinocchio","peter pan","don quixote","hunchback","notre dame","romeo and juliet"]  # R+J = co-leads
     family_list = ["nutcracker","cinderella","beauty and the beast","alice","frozen","peter pan","pinocchio","wizard of oz"]
     romantic_list = ["swan lake","cinderella","sleeping beauty","romeo and juliet","merry widow","beauty and the beast","giselle"]
     tragic_list = ["swan lake","romeo and juliet","hunchback","notre dame","giselle"]
@@ -295,14 +294,19 @@ def infer_title_attributes(title: str) -> Dict[str, bool]:
     if any(k in t for k in spectacle_list):attr["spectacle"] = True
     if any(k in t for k in popip_list):    attr["pop_ip"] = True
 
+    # Contemporary guess: keywords
     if any(k in t for k in ["contemporary","composers","mixed bill","forsythe","balanchine","jerome robbins","nijinsky","grimm","1000 tales","once upon a time"]):
         attr["contemporary"] = True
-    if "romeo" in t:
+    # Edge fixes:
+    if "romeo" in t:  # co-leads
         attr["female_lead"] = True
         attr["male_lead"] = True
     return attr
 
-def segment_boosts(attrs: Dict[str,bool], segment_name: str) -> Tuple[float,float]:
+def segment_boosts(attrs: Dict[str,bool], segment_name: Optional[str]) -> Tuple[float,float]:
+    # Neutral for General Population (None) -> no boosts
+    if not segment_name:
+        return 0.0, 0.0
     rules = SEGMENT_RULES.get(segment_name, {})
     fam_delta = 0.0
     mot_delta = 0.0
@@ -310,19 +314,19 @@ def segment_boosts(attrs: Dict[str,bool], segment_name: str) -> Tuple[float,floa
         if attrs.get(k, False): fam_delta += v
     for k, v in rules.get("mot", {}).items():
         if attrs.get(k, False): mot_delta += v
+    # keep within reasonable range [-30%, +40%]
     fam_delta = max(-0.30, min(0.40, fam_delta))
     mot_delta = max(-0.30, min(0.40, mot_delta))
     return fam_delta, mot_delta
 
 # -------------------------
-# VALIDATION-DRIVEN PRIORS (NO ML)
+# LIKENESS & GENDER HEURISTICS (for priors)
 # -------------------------
 FAMILY_SET = {"the nutcracker","nutcracker","cinderella","beauty and the beast","alice in wonderland","peter pan","pinocchio","frozen","wizard of oz"}
 ROMANCE_SET = {"swan lake","sleeping beauty","giselle","romeo and juliet","the merry widow","merry widow"}
 
 MALE_TITLES = {"pinocchio","peter pan","don quixote","hunchback","notre dame","notre dame de paris"}
 FEMALE_TITLES = {"nutcracker","sleeping beauty","cinderella","beauty and the beast","alice in wonderland","giselle","swan lake","the merry widow","romeo and juliet"}
-
 
 def likeness_bucket(title: str) -> str:
     t = (title or "").strip().lower()
@@ -333,7 +337,6 @@ def likeness_bucket(title: str) -> str:
     if any(k in t for k in ["notre dame","hunchback","contemporary","composers","mixed bill","forsythe","balanchine","jerome robbins","nijinsky","grimm","new works","don quixote"]):
         return "Spectacle/Contemporary"
     return "Spectacle/Contemporary"
-
 
 def gender_focus(title: str) -> str:
     t = (title or "").strip().lower().replace("the ", "")
@@ -347,14 +350,11 @@ def gender_focus(title: str) -> str:
         return "dual/ensemble"
     return "dual/ensemble"
 
-
 def parse_season_start_year(s: Optional[str]) -> Optional[int]:
     if pd.isna(s):
         return None
-    import re
     m = re.search(r"(\d{4})", str(s))
     return int(m.group(1)) if m else None
-
 
 def safe_div(a, b):
     try:
@@ -362,16 +362,19 @@ def safe_div(a, b):
     except Exception:
         return np.nan
 
-
 def build_tickets_columns(raw: pd.DataFrame) -> pd.DataFrame:
     df = raw.copy()
     df.columns = [c.strip().lower() for c in df.columns]
+    # Exclude pandemic season completely
     if "pandemic_season" in df.columns:
         df = df[df["pandemic_season"] != 1].copy()
+
+    # Province tickets (prefer total_tickets; fallback from revenue/avg price)
     df["tickets_est_from_rev"] = [safe_div(a,b) for a,b in zip(df.get("total_revenue"), df.get("avg_price_overall"))]
     df["tickets_final"] = df.get("total_tickets")
     mask_missing = df["tickets_final"].isna() | (df["tickets_final"]<=0)
     df.loc[mask_missing, "tickets_final"] = df.loc[mask_missing, "tickets_est_from_rev"]
+
     # City splits
     def estimate_city_tickets(row, city="yyc"):
         t = row.get(f"{city}_tickets")
@@ -384,49 +387,48 @@ def build_tickets_columns(raw: pd.DataFrame) -> pd.DataFrame:
         if pd.notna(share) and pd.notna(tot):
             return float(tot) * float(share)
         return np.nan
+
     df["yyc_tickets_final"] = df.apply(lambda r: estimate_city_tickets(r, "yyc"), axis=1)
     df["yeg_tickets_final"] = df.apply(lambda r: estimate_city_tickets(r, "yeg"), axis=1)
+
     df["season_start_year"] = df.get("season").apply(parse_season_start_year)
     df["bucket"] = df.get("title").astype(str).apply(likeness_bucket)
     df["gender_focus"] = df.get("title").astype(str).apply(gender_focus)
     return df
 
-
 def build_priors(df: pd.DataFrame, cutoff_year: int, market_key: str) -> pd.DataFrame:
     """Compute cohort priors per (bucket × gender) for given market.
-       Uses only rows with season_start_year < cutoff_year. No leakage."""
-    use_col = {
-        "AB": "tickets_final",
-        "Calgary": "yyc_tickets_final",
-        "Edmonton": "yeg_tickets_final",
-    }[market_key]
+       Uses only rows with season_start_year < cutoff_year (no leakage)."""
+    use_col = {"AB": "tickets_final", "Calgary": "yyc_tickets_final", "Edmonton": "yeg_tickets_final"}[market_key]
     hist = df[(df[use_col].notna()) & (df["season_start_year"].notna()) & (df["season_start_year"] < cutoff_year)].copy()
     if hist.empty:
-        return pd.DataFrame(columns=["bucket","gender_focus","prior_mean","prior_std","prior_cv","n_obs"])    
+        return pd.DataFrame(columns=["bucket","gender_focus","prior_mean","prior_std","prior_cv","n_obs","market"])
     grp = hist.groupby(["bucket","gender_focus"], dropna=False)[use_col]
     stats = grp.agg(["mean","std","count"]).reset_index()
     stats.columns = ["bucket","gender_focus","prior_mean","prior_std","n_obs"]
-    stats["prior_cv"] = stats.apply(lambda r: float(r["prior_std"])/float(r["prior_mean"]) if (pd.notna(r["prior_std"]) and pd.notna(r["prior_mean"]) and r["prior_mean"]>0) else np.nan, axis=1)
+    stats["prior_cv"] = stats.apply(
+        lambda r: float(r["prior_std"])/float(r["prior_mean"]) if (pd.notna(r["prior_std"]) and pd.notna(r["prior_mean"]) and r["prior_mean"]>0)
+        else np.nan,
+        axis=1
+    )
     stats["market"] = market_key
     return stats
 
-
 def score_adapter(fam: float, mot: float) -> float:
     """Turn Familiarity/Motivation (0..100) into a multiplicative nudge around 1.0."""
-    # Normalize to 0..1 then center at 0.5 baseline
     f = clamp01((fam or 0.0)/100.0)
     m = clamp01((mot or 0.0)/100.0)
-    base = (0.6*f + 0.4*m)  # slightly more weight on familiarity signal
+    base = (0.6*f + 0.4*m)  # slightly more weight on familiarity
     delta = (base - 0.5)    # -0.5..+0.5
-    return 1.0 + SCORE_ADAPTER_STRENGTH * delta  # e.g., ±20% at extremes if strength=0.4
-
+    return 1.0 + SCORE_ADAPTER_STRENGTH * delta  # ≈ ±20% at extremes if strength=0.4
 
 # -------------------------
-# SCORING (v8: now returns priors & rule-based forecasts)
+# SCORING (returns priors & rule-based forecasts)
 # -------------------------
-
 def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_name, attrs_df,
-                 priors_df: Optional[pd.DataFrame]=None, use_adjusted=True) -> pd.DataFrame:
+                 priors_df_market: Optional[pd.DataFrame]=None,
+                 priors_df_all_markets: Optional[pd.DataFrame]=None) -> pd.DataFrame:
+
     # Map title -> attrs from editor
     user_attrs = {}
     for _, row in attrs_df.iterrows():
@@ -458,11 +460,11 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
         yt_top_view_sqrts.append(ytv)
         sp_pops.append(sp)
 
-        # Segment boost
+        # Segment boost (audience lens)
         base_attrs = infer_title_attributes(t)
         over = user_attrs.get(t.lower(), {})
         base_attrs.update(over)
-        fdelta, mdelta = segment_boosts(base_attrs, segment_name)
+        fdelta, mdelta = segment_boosts(base_attrs, segment_name)  # None => neutral
         fam_boosts.append(fdelta)
         mot_boosts.append(mdelta)
 
@@ -482,47 +484,64 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
     yt_combo   = [capped_mean([a, b]) for a, b in zip(yt_searchn, yt_topn)]
 
     rows = []
+
+    # helper: cascade prior fallback
+    def pick_prior(bucket, gender):
+        def best_row(df_):
+            return df_.sort_values("n_obs", ascending=False).iloc[0] if not df_.empty else None
+
+        row0 = None
+        if isinstance(priors_df_market, pd.DataFrame) and not priors_df_market.empty:
+            r = best_row(priors_df_market[(priors_df_market["bucket"]==bucket) & (priors_df_market["gender_focus"]==gender)])
+            if r is None:
+                r = best_row(priors_df_market[(priors_df_market["bucket"]==bucket)])
+            row0 = r
+
+        if row0 is None and isinstance(priors_df_all_markets, pd.DataFrame) and not priors_df_all_markets.empty:
+            ab = priors_df_all_markets[priors_df_all_markets["market"]=="AB"]
+            r = best_row(ab[(ab["bucket"]==bucket) & (ab["gender_focus"]==gender)])
+            if r is None:
+                r = best_row(ab[(ab["bucket"]==bucket)])
+            row0 = r
+
+        return row0
+
     for i, t in enumerate(titles):
-        fam = (
+        fam_base = (
             WEIGHTS["fam_wiki"]   * (wiki_fam[i] or 0.0) +
             WEIGHTS["fam_trends"] * (trends_n[i] or 0.0) +
             WEIGHTS["fam_spotify"]* (sp_n[i] or 0.0)
         )
-        mot = (
+        mot_base = (
             WEIGHTS["mot_youtube"]* (yt_combo[i] or 0.0) +
             WEIGHTS["mot_trends"] * (trends_n[i] or 0.0) +
             WEIGHTS["mot_spotify"]* (sp_n[i] or 0.0) +
             WEIGHTS["mot_wiki"]   * (wiki_fam[i] or 0.0)
         )
 
-        # Apply segment percentage boosts
-        fam_adj = fam * (1.0 + fam_boosts[i])
-        mot_adj = mot * (1.0 + mot_boosts[i])
+        # Apply audience boosts
+        fam_adj = fam_base * (1.0 + fam_boosts[i])
+        mot_adj = mot_base * (1.0 + mot_boosts[i])
 
-        # ---- Historical prior lookup (optional, rule-based)
+        # ---- Historical prior lookup with cascade
         prior_mean = prior_cv = prior_n = np.nan
         prior_bucket = buckets[i]
         prior_gender = genders[i]
-        if isinstance(priors_df, pd.DataFrame) and not priors_df.empty:
-            hit = priors_df[(priors_df["bucket"]==prior_bucket) & (priors_df["gender_focus"]==prior_gender)]
-            if hit.empty:
-                # fallback to bucket-only prior
-                hit = priors_df[priors_df["bucket"]==prior_bucket]
-            if not hit.empty:
-                row0 = hit.sort_values("n_obs", ascending=False).iloc[0]
-                prior_mean = float(row0["prior_mean"]) if pd.notna(row0["prior_mean"]) else np.nan
-                prior_cv = float(row0["prior_cv"]) if pd.notna(row0["prior_cv"]) else np.nan
-                prior_n = int(row0["n_obs"]) if pd.notna(row0["n_obs"]) else 0
+        row0 = pick_prior(prior_bucket, prior_gender)
+
+        if row0 is not None:
+            prior_mean = float(row0.get("prior_mean", np.nan))
+            prior_cv = float(row0.get("prior_cv", np.nan))
+            prior_n = int(row0.get("n_obs", 0))
 
         # Score adapter → multiplicative factor around 1.0
-        adapter = score_adapter(fam_adj if use_adjusted else fam, mot_adj if use_adjusted else mot)
+        adapter = score_adapter(fam_adj, mot_adj)
 
-        # Forecast: if we have a prior mean, nudge by adapter; otherwise None
+        # Forecast: if we have a prior mean, nudge by adapter; otherwise NaN
         forecast = np.nan
         band_lo = band_hi = np.nan
         if pd.notna(prior_mean):
             forecast = prior_mean * adapter
-            # Confidence band from cohort CV; clamp CV to sensible range
             cv = prior_cv if pd.notna(prior_cv) else 0.35
             cv = float(np.clip(cv, 0.05, 0.80))
             band_lo = forecast * (1.0 - cv)
@@ -532,21 +551,25 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
             "Title": t,
             "ResolvedWikiPage": wiki_titles[i],
             "Market": market,
-            "TargetSegment": segment_name,
+            "AudienceProfile": segment_name if segment_name else "General Population",
             "LikenessBucket": prior_bucket,
             "GenderFocus": prior_gender,
-            "Familiarity": round(fam, 1),
-            "Motivation": round(mot, 1),
+
+            # Always keep both base and adjusted (charts use adjusted; GP => neutral)
+            "Familiarity": round(fam_base, 1),
+            "Motivation": round(mot_base, 1),
             "FamiliarityAdj": round(fam_adj, 1),
             "MotivationAdj": round(mot_adj, 1),
+
             "SegBoostF%": round(fam_boosts[i]*100.0, 1),
             "SegBoostM%": round(mot_boosts[i]*100.0, 1),
+
             "GoogleTrends": round(trends_n[i], 1),
             "WikipediaRawAvgDaily": round(wiki_scores[i], 2),
             "WikipediaFamiliarity": round(wiki_fam[i], 1),
             "YouTubeN": round(yt_combo[i], 1),
             "SpotifyN": round(sp_n[i], 1),
-            # Priors & rule forecast
+
             "PriorMeanTickets": round(prior_mean, 1) if pd.notna(prior_mean) else np.nan,
             "PriorCV": round(prior_cv, 3) if pd.notna(prior_cv) else np.nan,
             "PriorN": prior_n,
@@ -556,7 +579,6 @@ def score_titles(titles, yt_key, sp_id, sp_secret, use_trends, market, segment_n
         })
 
     return pd.DataFrame(rows)
-
 
 def apply_benchmark(df: pd.DataFrame, benchmark_title: str, use_adjusted: bool) -> pd.DataFrame:
     df = df.copy()
@@ -575,9 +597,8 @@ def apply_benchmark(df: pd.DataFrame, benchmark_title: str, use_adjusted: bool) 
     return df
 
 # -------------------------
-# PLOTTING & PDF (unchanged)
+# PLOTTING & PDF
 # -------------------------
-
 def quadrant_plot(df: pd.DataFrame, colx: str, coly: str, title: str):
     fig = plt.figure()
     x = df[colx].values
@@ -592,7 +613,6 @@ def quadrant_plot(df: pd.DataFrame, colx: str, coly: str, title: str):
     plt.title(title)
     return fig
 
-
 def bar_chart(df: pd.DataFrame, col: str, title: str):
     fig = plt.figure()
     order = df.sort_values(by=col, ascending=True)
@@ -601,13 +621,12 @@ def bar_chart(df: pd.DataFrame, col: str, title: str):
     plt.xlabel(col)
     return fig
 
-
 def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
     fx, fy = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
     with PdfPages(file_path) as pdf:
         fig1 = plt.figure(); plt.axis('off')
         plt.title("Alberta Ballet — Title Scores", pad=20)
-        tab_cols = ["Title","Market","TargetSegment","LikenessBucket","GenderFocus",fx,fy,
+        tab_cols = ["Title","Market","AudienceProfile","LikenessBucket","GenderFocus",fx,fy,
                     "SegBoostF%","SegBoostM%","GoogleTrends","WikipediaFamiliarity","YouTubeN","SpotifyN",
                     "PriorMeanTickets","PriorCV","PriorN","ForecastTickets","ForecastLo","ForecastHi","ResolvedWikiPage"]
         present = [c for c in tab_cols if c in df.columns]
@@ -626,9 +645,9 @@ def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
 
         fig5 = plt.figure(); plt.axis('off')
         memo = (
-            "Rule-based forecast uses historical cohort priors by Likeness×Gender, "
+            "Rule-based forecast uses historical cohort priors by Likeness×Gender×Market, "
             "nudged by Familiarity/Motivation. Confidence bands derive from cohort CV.\n"
-            "Priors exclude pandemic season and use only seasons before the chosen cutoff (no leakage)."
+            "Priors exclude pandemic seasons and use only seasons before the chosen cutoff (no leakage)."
         )
         plt.text(0.01, 0.99, memo, va='top')
         pdf.savefig(fig5, bbox_inches='tight'); plt.close(fig5)
@@ -637,16 +656,15 @@ def generate_pdf_brief(df: pd.DataFrame, use_adjusted: bool, file_path: str):
 # UI
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Viability", layout="wide")
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v8)")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v8.1)")
 
 st.markdown(
     "Market-aware Trends + robust Wikipedia. **Historical priors (no-ML)** add realism: "
     "cohort means by Likeness × Gender × Market, with confidence bands from cohort CV. "
-    "All priors exclude pandemic seasons and respect your cutoff season."
+    "All priors exclude the pandemic season and respect your cutoff."
 )
 
 # --- API keys auto-load (secrets/env) ---
-
 def load_api_keys_from_env_and_secrets():
     yt = st.secrets.get("YOUTUBE_API_KEY") if hasattr(st, "secrets") else None
     sp_id = st.secrets.get("SPOTIFY_CLIENT_ID") if hasattr(st, "secrets") else None
@@ -665,7 +683,7 @@ with st.expander("🔑 API Configuration"):
     sp_secret = st.text_input("Spotify Client Secret", type="password", value=auto_sp_secret or "")
 
 with st.expander("📥 Historical Data (for priors)"):
-    st.caption("Upload the latest cleaned dataset (with columns season, title, total_tickets/total_revenue, prices, pandemic_season, YYC/YEG splits). Pandemic seasons are dropped automatically.")
+    st.caption("Upload the latest cleaned dataset (columns: season, title, total_tickets/total_revenue, prices, pandemic_season, YYC/YEG splits). Pandemic seasons are dropped automatically.")
     uploaded = st.file_uploader("Upload CSV or Excel", type=["csv","xlsx","xls"])
     cutoff_help = "Seasons strictly **before** this year feed priors (prevents leakage). Example: if cutoff=2025, 2024/25 counts as 2024 and is included."
     cutoff_year = st.number_input("Cutoff start year for priors", min_value=2010, max_value=2100, value=2025, help=cutoff_help)
@@ -674,10 +692,18 @@ with st.expander("⚙️ Options"):
     use_trends = st.checkbox("Use Google Trends", value=True)
     market = st.selectbox("Market", ["Alberta (province)", "Calgary (city)", "Edmonton (city)"], index=0)
     market_key = {"Alberta (province)":"AB","Calgary (city)":"Calgary","Edmonton (city)":"Edmonton"}[market]
-    segment_name = st.selectbox("Target Segment (applies demographic boosts)", list(SEGMENT_RULES.keys()), index=0)
-    use_adjusted = st.checkbox("Use Segment-Adjusted scores in charts/exports", value=True)
+
+    # NEW: Audience Profile dropdown (General Population = neutral)
+    audience = st.selectbox(
+        "Audience Profile",
+        ["General Population"] + list(SEGMENT_RULES.keys()),
+        index=0,
+        help="Pick whose lens to view scores through. General Population = neutral (no boosts)."
+    )
+    segment_name = None if audience == "General Population" else audience
+
     use_priors = st.checkbox("Use Historical Priors (rule-based forecast)", value=True)
-    st.caption("If city data is sparse, Trends falls back to Alberta → Canada → Global automatically.")
+    st.caption("If city data is sparse, priors will fall back to Alberta cohorts.")
 
 # Default titles
 default_titles = [
@@ -687,11 +713,10 @@ default_titles = [
     "Romeo and Juliet","Swan Lake","Don Quixote","Contemporary Composers",
     "Nijinsky","Notre Dame de Paris","Wizard of Oz","Grimm"
 ]
-
 titles_input = st.text_area("Enter titles (one per line):", value="\n".join(default_titles), height=220)
 titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
 
-# Title attributes editor
+# --- Title attributes editor ---
 st.subheader("Title Attributes (edit to fit your production/angle)")
 attr_rows = []
 for t in titles:
@@ -702,7 +727,7 @@ for t in titles:
 attrs_df = pd.DataFrame(attr_rows, columns=["Title"]+ATTR_COLUMNS)
 attrs_df = st.data_editor(attrs_df, use_container_width=True, hide_index=True)
 
-colA, colB, colC, colD, colE = st.columns(5)
+colA, colB, colC, colD = st.columns(4)
 with colA:
     do_benchmark = st.checkbox("Normalize to a benchmark title?")
 with colB:
@@ -711,22 +736,23 @@ with colC:
     run_btn = st.button("Score Titles", type="primary")
 with colD:
     gen_pdf = st.checkbox("Prepare PDF after scoring", value=False)
-with colE:
-    st.caption("v8 uses **priors × score adapter** for forecasts; download CSV for full columns.")
 
-priors_df = None
+priors_df_market = None
+priors_df_all_markets = None
 if uploaded is not None:
     try:
         raw_df = pd.read_excel(uploaded) if uploaded.name.endswith((".xlsx",".xls")) else pd.read_csv(uploaded)
         hist_df = build_tickets_columns(raw_df)
-        priors_df_AB = build_priors(hist_df, cutoff_year, "AB")
-        priors_df_YYC = build_priors(hist_df, cutoff_year, "Calgary")
-        priors_df_YEG = build_priors(hist_df, cutoff_year, "Edmonton")
-        priors_df = pd.concat([priors_df_AB, priors_df_YYC, priors_df_YEG], ignore_index=True)
-        # Keep only selected market's priors for lookup
-        priors_df = priors_df[priors_df["market"]==market_key].copy()
-        st.success(f"Priors ready for {market}: {len(priors_df)} cohorts.")
-        st.dataframe(priors_df.sort_values(["bucket","gender_focus","n_obs"], ascending=[True,True,False]), use_container_width=True)
+        pri_AB = build_priors(hist_df, cutoff_year, "AB")
+        pri_YYC = build_priors(hist_df, cutoff_year, "Calgary")
+        pri_YEG = build_priors(hist_df, cutoff_year, "Edmonton")
+        priors_df_all_markets = pd.concat([pri_AB, pri_YYC, pri_YEG], ignore_index=True)
+
+        # primary lookup uses selected market
+        priors_df_market = priors_df_all_markets[priors_df_all_markets["market"]==market_key].copy()
+
+        st.success(f"Priors ready — {market}: {len(priors_df_market)} cohorts (total across markets: {len(priors_df_all_markets)}).")
+        st.dataframe(priors_df_market.sort_values(["bucket","gender_focus","n_obs"], ascending=[True,True,False]), use_container_width=True)
     except Exception as e:
         st.error(f"Failed to load or build priors: {e}")
 
@@ -739,18 +765,18 @@ if run_btn:
             sp_secret.strip() or None,
             use_trends,
             market_key,
-            segment_name,
+            segment_name,             # None => General Population (neutral boosts)
             attrs_df,
-            priors_df if (use_priors and priors_df is not None) else None,
-            use_adjusted=use_adjusted,
+            priors_df_market if (use_priors and priors_df_market is not None) else None,
+            priors_df_all_markets if (use_priors and priors_df_all_markets is not None) else None,
         )
 
-        # Choose which columns to sort & visualize
-        sort_x, sort_y = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
+        # Always visualize adjusted; for General Population, boosts = 0 (so adj == base)
+        sort_x, sort_y = ("FamiliarityAdj","MotivationAdj")
         df = df.sort_values(by=[sort_y, sort_x], ascending=False)
 
         if do_benchmark and benchmark_title:
-            df = apply_benchmark(df, benchmark_title, use_adjusted)
+            df = apply_benchmark(df, benchmark_title, use_adjusted=True)
 
         st.success("Done.")
         st.dataframe(df, use_container_width=True)
@@ -773,15 +799,16 @@ if run_btn:
         st.subheader("Charts")
         figQ = quadrant_plot(df, sort_x, sort_y, f"{sort_x} vs {sort_y} (Quadrant Map)")
         st.pyplot(figQ)
-        if "ForecastTickets" in df.columns and df["ForecastTickets"].notna().any():
+        if df["ForecastTickets"].notna().any():
             figF = bar_chart(df.fillna({"ForecastTickets":0}), "ForecastTickets", "Forecast Tickets (rule-based)")
             st.pyplot(figF)
 
         # CSV / PDF
-        st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode("utf-8"), "title_scores_v8.csv", "text/csv")
+        st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode("utf-8"), "title_scores_v8_1.csv", "text/csv")
         if gen_pdf:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             pdf_path = f"title_scores_brief_{ts}.pdf"
-            generate_pdf_brief(df, use_adjusted, pdf_path)
+            generate_pdf_brief(df, True, pdf_path)  # always adjusted view
             st.success("PDF created.")
-            st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(), file_name=pdf_path, mime="application/pdf")
+            st.download_button("⬇️ Download PDF Brief", data=open(pdf_path, "rb").read(),
+                               file_name=pdf_path, mime="application/pdf")
