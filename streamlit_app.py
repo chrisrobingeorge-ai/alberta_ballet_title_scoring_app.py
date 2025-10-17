@@ -292,6 +292,83 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     mot *= REGION_MULT[reg_key]
     return fam, mot
 
+# --- Hard-coded ticket priors (lists -> we use median to be robust) ---
+TICKET_PRIORS_RAW = {
+    "La Sylphide": [5221],
+    "Grimm": [6362],
+    "Nutcracker": [29934, 29934, 29877, 29066],     # Do NOT include "Nutz" here (treated as separate title)
+    "Gala": [1371, 1271],
+    "Harlem": [7269],
+    "Wizard of Oz": [8468],
+    "Don Quixote": [5650],
+    "Dona Peron": [5221],
+    "Sleeping Beauty": [10202, 8991],
+    "Hansel & Gretel": [7290],
+    "Handmaid's Tale": [6842],
+    "Away We Go": [4649],
+    "Complexions": [7096],
+    "Giselle": [9111],
+    "Botero": [5460],
+    "Swan Lake": [13157],
+    "Nutz": [23084, 33393, 33713],                   # separate title
+    "Phi": [12336],
+    "Cinderella": [15680, 16928],
+    "Taj Express": [10314],
+    "Frankenstein": [10470],
+    "Diavolo": [10673],
+    "Unleashed": [5221],
+    "BJM - L Cohen": [7819],
+    "Sleeping Beauty": [10202, 8991],
+    "Ballet BC": [4013],
+    "deViate": [5144],
+    "Midsummer Night's Dream": [6587],
+    "Fiddle": [6024],
+    "Tango Fire": [7251],
+    "Dangerous": [6875],
+    "Shaping Sound": [10208],
+    "Momix": [8391],
+    "Tragically Hip": [15488],
+}
+
+def _median(xs):
+    xs = sorted([float(x) for x in xs if x is not None])
+    if not xs: return None
+    n = len(xs)
+    mid = n // 2
+    return (xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0)
+
+# Build medians and Nutcracker baseline once
+TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+NUTCRACKER_TICKET_MEDIAN = TICKET_MEDIANS.get("Nutcracker", None) or 1.0  # safety
+
+def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Returns (ticket_median, ticket_index) where ticket_index = 100 * median / NutcrackerMedian.
+    If no prior exists, returns (None, None).
+    """
+    t = title.strip()
+    # Exact match first
+    if t in TICKET_MEDIANS and TICKET_MEDIANS[t]:
+        med = float(TICKET_MEDIANS[t])
+        idx = (med / NUTCRACKER_TICKET_MEDIAN) * 100.0
+        return med, idx
+    # Light canonicalization attempts (common variants)
+    aliases = {
+        "The Nutcracker": "Nutcracker",
+        "Romeo and Juliet": "Romeo and Juliet",  # (no tickets provided in your list)
+        "Notre Dame de Paris": "Notre Dame de Paris",  # (no tickets provided)
+        "Handmaid’s Tale": "Handmaid's Tale",
+    }
+    key = aliases.get(t, t)
+    med = TICKET_MEDIANS.get(key, None)
+    if med:
+        idx = (med / NUTCRACKER_TICKET_MEDIAN) * 100.0
+        return float(med), float(idx)
+    return None, None
+
+# Weight for blending historic tickets with signal composite
+TICKET_BLEND_WEIGHT = 0.50  # 50% tickets, 50% familiarity/motivation composite
+
 if run:
     if not titles:
         st.warning("Add at least one title to score.")
@@ -313,6 +390,8 @@ if run:
                     unknown_used_est.append(title)
 
             fam_raw, mot_raw = calc_scores(entry, segment, region)
+            t_med, t_idx = ticket_index_for_title(title)
+
             rows.append({
                 "Title": title,
                 "Region": region,
@@ -325,6 +404,8 @@ if run:
                 "TrendsIdx": entry["trends"],
                 "YouTubeIdx": entry["youtube"],
                 "SpotifyIdx": entry["spotify"],
+                "TicketMedian": t_med,
+                "TicketIndex": t_idx,
                 "Source": src
             })
 
@@ -338,15 +419,21 @@ if run:
         df["Familiarity"] = (df["FamiliarityRaw"] / nut_fam_raw) * 100.0
         df["Motivation"]  = (df["MotivationRaw"]  / nut_mot_raw)  * 100.0
 
-        # Show data-source notes for unknowns
+        # Info badges for unknowns
         if unknown_used_est:
             st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
         if unknown_used_live:
             st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
 
-        # --- Letter grade (A–E) from indexed Familiarity & Motivation ---
-        df["Composite"] = df[["Familiarity", "Motivation"]].mean(axis=1)
+        # --- Composite from signals (Nutcracker-indexed familiarity & motivation) ---
+        signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
 
+        # --- Blend in historical ticket evidence when available ---
+        # If TicketIndex is missing, fall back to the signal composite (no penalty)
+        tickets_component = df["TicketIndex"].fillna(signal_composite)
+        df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
+
+        # --- Letter grade (A–E) from blended Composite ---
         def _assign_score(v: float) -> str:
             if v >= 90: return "A"
             elif v >= 75: return "B"
@@ -355,27 +442,22 @@ if run:
             else: return "E"
         df["Score"] = df["Composite"].apply(_assign_score)
 
-        # --- Optional: Apply Benchmark AFTER indexes exist ---
-        # (uses Familiarity/Motivation columns; not the raw values)
-        if "do_benchmark" in locals() and do_benchmark and "benchmark_title" in locals() and benchmark_title:
-            df = apply_benchmark(df, benchmark_title, use_adjusted=False)
-
-        # ===== Display Table with Score =====
+        # ===== Display Table with Ticket + Score =====
         display_cols = [
             "Title","Region","Segment","Gender","Category",
-            "Familiarity","Motivation","Score",
+            "Familiarity","Motivation","TicketMedian","TicketIndex","Composite","Score",
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
         ]
         existing = [c for c in display_cols if c in df.columns]
 
-        # Quick grade summary
+        # Grade distribution
         if "Score" in df.columns:
             grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
             st.caption(f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}")
 
         st.dataframe(
             df[existing]
-              .sort_values(by=["Motivation","Familiarity"], ascending=False)
+              .sort_values(by=["Composite","Motivation","Familiarity"], ascending=[False, False, False])
               .style.map(
                   lambda v: (
                       "color: green;" if v == "A" else
@@ -389,7 +471,7 @@ if run:
             use_container_width=True
         )
 
-        # Quadrant
+        # Quadrant (signals only vs blended choice — keeping signals on axes)
         fig, ax = plt.subplots()
         ax.scatter(df["Familiarity"], df["Motivation"])
         for _, r in df.iterrows():
@@ -413,6 +495,6 @@ if run:
         st.download_button(
             "⬇️ Download CSV",
             df.to_csv(index=False).encode("utf-8"),
-            "title_scores_v9_new_titles.csv",
+            "title_scores_v9_ticket_blend.csv",
             "text/csv"
         )
