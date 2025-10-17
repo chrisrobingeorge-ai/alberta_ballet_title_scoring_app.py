@@ -328,7 +328,7 @@ if run:
                 "Source": src
             })
 
-                df = pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
 
         # Ensure 'use_adjusted' exists in this scope
         use_adjusted = locals().get("use_adjusted", True)
