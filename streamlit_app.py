@@ -349,6 +349,7 @@ if run:
         with col2:
             st.subheader("Motivation (Indexed)")
             st.bar_chart(df.set_index("Title")["Motivation"])
+
 # -------------------------
 # GLOSSARY (bottom of app)
 # -------------------------
@@ -369,9 +370,9 @@ with st.expander("📖 Glossary of Terms", expanded=False):
 | **Live Fetch** | Optional real-time retrieval of data from Wikipedia, Google Trends, YouTube, and Spotify for new titles. |
     """)
         
-        st.download_button(
-            "⬇️ Download CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            "title_scores_v9_new_titles.csv",
-            "text/csv"
-        )
+st.download_button(
+    "⬇️ Download CSV",
+    df.to_csv(index=False).encode("utf-8"),
+    "title_scores.csv",
+    "text/csv"
+)
