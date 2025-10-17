@@ -333,19 +333,18 @@ if run:
         # --- Nutcracker normalization (index Nutcracker = 100) ---
         nut_entry = BASELINES["The Nutcracker"]
         nut_fam_raw, nut_mot_raw = calc_scores(nut_entry, segment, region)
-        # Avoid divide-by-zero (very unlikely, but safe)
-        nut_fam_raw = nut_fam_raw or 1.0
-        nut_mot_raw = nut_mot_raw or 1.0
+        nut_fam_raw = nut_fam_raw or 1.0  # safety
+        nut_mot_raw = nut_mot_raw or 1.0  # safety
         df["Familiarity"] = (df["FamiliarityRaw"] / nut_fam_raw) * 100.0
         df["Motivation"]  = (df["MotivationRaw"]  / nut_mot_raw)  * 100.0
 
-        # (Optional) show which titles used which data path
+        # Show data-source notes for unknowns
         if unknown_used_est:
             st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
         if unknown_used_live:
             st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
 
-        # --- Letter grade (A–E) from the indexed Familiarity & Motivation ---
+        # --- Letter grade (A–E) from indexed Familiarity & Motivation ---
         df["Composite"] = df[["Familiarity", "Motivation"]].mean(axis=1)
 
         def _assign_score(v: float) -> str:
@@ -354,12 +353,11 @@ if run:
             elif v >= 60: return "C"
             elif v >= 45: return "D"
             else: return "E"
-
         df["Score"] = df["Composite"].apply(_assign_score)
 
-        # --- (Optional) Apply Benchmark AFTER indexes exist ---
+        # --- Optional: Apply Benchmark AFTER indexes exist ---
+        # (uses Familiarity/Motivation columns; not the raw values)
         if "do_benchmark" in locals() and do_benchmark and "benchmark_title" in locals() and benchmark_title:
-            # apply_benchmark supports Familiarity/Motivation columns
             df = apply_benchmark(df, benchmark_title, use_adjusted=False)
 
         # ===== Display Table with Score =====
@@ -371,8 +369,9 @@ if run:
         existing = [c for c in display_cols if c in df.columns]
 
         # Quick grade summary
-        grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
-        st.caption(f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}")
+        if "Score" in df.columns:
+            grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
+            st.caption(f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}")
 
         st.dataframe(
             df[existing]
