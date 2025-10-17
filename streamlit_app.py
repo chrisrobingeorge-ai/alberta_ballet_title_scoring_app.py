@@ -330,40 +330,36 @@ if run:
 
         df = pd.DataFrame(rows)
 
-        # Ensure 'use_adjusted' exists in this scope
+        # ===== SCORE GRADING (A–E) =====
+        # Make sure 'use_adjusted' is available in this scope
         use_adjusted = locals().get("use_adjusted", True)
 
-        # -------------------------
-        # SCORE GRADING (A–E bands)
-        # -------------------------
-        # Identify the best columns available for scoring
+        # Find the best familiarity/motivation columns that actually exist
         possible_pairs = [
             ("FamiliarityAdj", "MotivationAdj"),
             ("Familiarity", "Motivation"),
         ]
-
         sort_x, sort_y = None, None
         for x, y in possible_pairs:
             if x in df.columns and y in df.columns:
                 sort_x, sort_y = x, y
                 break
 
+        # Compute Composite safely (won't crash if cols aren't present yet)
         if sort_x and sort_y:
-            # Compute composite score safely
             df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
         else:
-            # Create a neutral fallback so no KeyError can occur
+            # Neutral fallback so the app never errors
             df["Composite"] = 50.0
 
-        # Assign letter score
-        def assign_score(value):
-            if value >= 90: return "A"
-            elif value >= 75: return "B"
-            elif value >= 60: return "C"
-            elif value >= 45: return "D"
+        # Assign letter grade A–E based on Composite
+        def _assign_score(v):
+            if v >= 90: return "A"
+            elif v >= 75: return "B"
+            elif v >= 60: return "C"
+            elif v >= 45: return "D"
             else: return "E"
-
-        df["Score"] = df["Composite"].apply(assign_score)
+        df["Score"] = df["Composite"].apply(_assign_score)
 
         # Index to Nutcracker = 100 under current seg/region
         if "do_benchmark" in locals() and do_benchmark and "benchmark_title" in locals() and benchmark_title:
