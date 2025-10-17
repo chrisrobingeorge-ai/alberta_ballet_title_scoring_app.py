@@ -417,6 +417,116 @@ if run:
         df["Familiarity"] = (df["FamiliarityRaw"] / nut_fam_raw) * 100.0
         df["Motivation"]  = (df["MotivationRaw"]  / nut_mot_raw)  * 100.0
 
+        # ===== Missingness-aware composite & score =====
+        # Tunables
+        TICKET_BLEND_KNOWN = 0.60     # weight when TicketIndex exists
+        TICKET_BLEND_UNKNOWN = 0.25   # lighter weight when TicketIndex missing
+        UNKNOWN_PENALTY = 0.0         # set to 5.0 for a gentle -5 pts penalty on unknowns (optional)
+        CONSERVATIVE_CAP_UNKNOWN = False  # set True to prevent unknowns from exceeding B unless signals are very high
+
+        # Signal-only composite (Nutcracker-indexed)
+        signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
+
+        # Build Category medians for TicketIndex from known rows
+        known_mask = df["TicketIndex"].notna()
+        if known_mask.any():
+            cat_medians = (df[known_mask]
+                           .groupby("Category")["TicketIndex"]
+                           .median()
+                           .to_dict())
+            overall_median = float(df.loc[known_mask, "TicketIndex"].median())
+        else:
+            cat_medians = {}
+            overall_median = 50.0  # neutral if truly nothing is known
+
+        # Row-wise weight & fallback TicketIndex
+        def _row_ticket_idx(r):
+            if pd.notna(r["TicketIndex"]):
+                return float(r["TicketIndex"]), True
+            # fallback to category median, then overall, then 50
+            cat = r.get("Category", None)
+            if cat in cat_medians:
+                return float(cat_medians[cat]), False
+            return float(overall_median if not np.isnan(overall_median) else 50.0), False
+
+        # Compute blended composite (row-wise weights)
+        ticket_idxs, has_known_ticket = [], []
+        for _, r in df.iterrows():
+            val, known = _row_ticket_idx(r)
+            ticket_idxs.append(val)
+            has_known_ticket.append(known)
+        df["TicketIndex_filled"] = ticket_idxs
+        df["HasKnownTickets"] = has_known_ticket
+
+        # Choose weight based on missingness
+        df["TicketWeight"] = np.where(df["HasKnownTickets"], TICKET_BLEND_KNOWN, TICKET_BLEND_UNKNOWN)
+
+        # Optional conservative penalty for unknowns
+        penalty = np.where(df["HasKnownTickets"], 0.0, UNKNOWN_PENALTY)
+
+        df["Composite"] = (
+            (1.0 - df["TicketWeight"]) * signal_composite
+            + df["TicketWeight"] * df["TicketIndex_filled"]
+            - penalty
+        )
+
+        # Optional conservative cap for unknowns (keeps them <= ~B unless signals are exceptional)
+        if CONSERVATIVE_CAP_UNKNOWN:
+            # soft cap at 85 for unknowns unless signals alone exceed 90
+            cap_mask = (~df["HasKnownTickets"]) & (signal_composite < 90)
+            df.loc[cap_mask, "Composite"] = np.minimum(df.loc[cap_mask, "Composite"], 85.0)
+
+        # Confidence label for transparency
+        def _confidence(row):
+            if row["HasKnownTickets"]:
+                return "High"
+            elif row["Source"] == "Live":
+                return "Medium"
+            else:
+                return "Low"
+        df["Confidence"] = df.apply(_confidence, axis=1)
+
+        # Letter grade from blended composite
+        def _assign_score(v: float) -> str:
+            if v >= 90: return "A"
+            elif v >= 75: return "B"
+            elif v >= 60: return "C"
+            elif v >= 45: return "D"
+            else: return "E"
+        df["Score"] = df["Composite"].apply(_assign_score)
+
+        # === Display table (add Composite, Confidence) ===
+        display_cols = [
+            "Title","Region","Segment","Gender","Category",
+            "Familiarity","Motivation",
+            "TicketMedian","TicketIndex","TicketIndex_filled","HasKnownTickets","TicketWeight",
+            "Composite","Score","Confidence",
+            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
+        ]
+        existing = [c for c in display_cols if c in df.columns]
+
+        # Grade distribution
+        grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
+        st.caption(
+            "Grade distribution — "
+            f"A:{grade_counts['A']}  B:{grade_counts['B']}  C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}  "
+            f"(Known tickets: {int(df['HasKnownTickets'].sum())}/{len(df)})"
+        )
+
+        st.dataframe(
+            df[existing]
+              .sort_values(by=["Composite","Motivation","Familiarity"], ascending=[False, False, False])
+              .style.map(
+                  lambda v: ("color: green;" if v == "A" else
+                             "color: darkgreen;" if v == "B" else
+                             "color: orange;" if v == "C" else
+                             "color: darkorange;" if v == "D" else
+                             "color: red;" if v == "E" else ""),
+                  subset=["Score"] if "Score" in df.columns else []
+              ),
+            use_container_width=True
+        )
+
         # Info badges for unknowns
         if unknown_used_est:
             st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
