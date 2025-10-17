@@ -328,7 +328,7 @@ if run:
                 "Source": src
             })
 
-        df = pd.DataFrame(rows)
+                df = pd.DataFrame(rows)
 
         # Ensure 'use_adjusted' exists in this scope
         use_adjusted = locals().get("use_adjusted", True)
@@ -336,16 +336,26 @@ if run:
         # -------------------------
         # SCORE GRADING (A–E bands)
         # -------------------------
-        possible_cols = ["FamiliarityAdj", "MotivationAdj", "Familiarity", "Motivation"]
-        existing_cols = [c for c in possible_cols if c in df.columns]
-        if len(existing_cols) >= 2:
-            sort_x, sort_y = existing_cols[:2]
+        # Identify the best columns available for scoring
+        possible_pairs = [
+            ("FamiliarityAdj", "MotivationAdj"),
+            ("Familiarity", "Motivation"),
+        ]
+
+        sort_x, sort_y = None, None
+        for x, y in possible_pairs:
+            if x in df.columns and y in df.columns:
+                sort_x, sort_y = x, y
+                break
+
+        if sort_x and sort_y:
+            # Compute composite score safely
+            df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
         else:
-            sort_x, sort_y = "Familiarity", "Motivation"
+            # Create a neutral fallback so no KeyError can occur
+            df["Composite"] = 50.0
 
-        # Compute composite safely
-        df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
-
+        # Assign letter score
         def assign_score(value):
             if value >= 90: return "A"
             elif value >= 75: return "B"
@@ -356,7 +366,7 @@ if run:
         df["Score"] = df["Composite"].apply(assign_score)
 
         # Index to Nutcracker = 100 under current seg/region
-        if do_benchmark and benchmark_title:
+        if "do_benchmark" in locals() and do_benchmark and "benchmark_title" in locals() and benchmark_title:
             df = apply_benchmark(df, benchmark_title, use_adjusted)
             
         # Index to Nutcracker = 100 under current seg/region
