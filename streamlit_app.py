@@ -1,233 +1,144 @@
-# streamlit_app_v89.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v8.9 Test Build)
-# Simplified baseline version for validation
-# - Static pseudo-randomized data replaces Wikipedia/GoogleTrends/YouTube/Spotify
-# - Full UI, segment, and region logic retained
-# - Use this build to confirm differentiable scoring & working charts before v9 baselines
+# streamlit_app_v9_test.py
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test Build)
+# Hard-coded baselines + optional live API enrichment for new titles
 
-import os, math
-from datetime import datetime
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+import time
+from datetime import datetime
 
 # -------------------------
-# CONFIG & WEIGHTS
+# SPLASH / LOADER
 # -------------------------
-TRENDS_TIMEFRAME = "today 5-y"
+st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
+with st.spinner("🎭 Preparing Alberta Ballet Familiarity Baselines..."):
+    time.sleep(1.5)
 
-WEIGHTS = {
-    "fam_wiki": 0.55,
-    "fam_trends": 0.30,
-    "fam_spotify": 0.15,
-    "mot_youtube": 0.45,
-    "mot_trends": 0.25,
-    "mot_spotify": 0.15,
-    "mot_wiki": 0.15,
-}
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test Build)")
+st.caption("Hard-coded Alberta-wide familiarity baselines with optional live API enrichment for new titles.")
 
-SEGMENT_RULES = {
-    "General Population": {"fam": {}, "mot": {}},
-    "Core Classical (Female 35–64)": {
-        "fam": {"female_lead": +0.12, "romantic": +0.08, "classic_canon": +0.10,
-                "male_lead": -0.04, "contemporary": -0.05, "tragic": -0.02},
-        "mot": {"female_lead": +0.10, "romantic": +0.06, "classic_canon": +0.08,
-                "male_lead": -0.03, "contemporary": -0.04, "spectacle": +0.02}
-    },
-    "Family (Parents w/ kids)": {
-        "fam": {"female_lead": +0.15, "family_friendly": +0.20, "pop_ip": +0.10,
-                "male_lead": -0.05, "tragic": -0.12},
-        "mot": {"female_lead": +0.10, "family_friendly": +0.18, "spectacle": +0.06,
-                "pop_ip": +0.10, "tragic": -0.15}
-    },
-    "Emerging Adults (18–34)": {
-        "fam": {"contemporary": +0.18, "spectacle": +0.08, "pop_ip": +0.10,
-                "classic_canon": -0.04},
-        "mot": {"contemporary": +0.22, "spectacle": +0.10, "pop_ip": +0.10,
-                "female_lead": +0.02, "male_lead": +0.02}
-    },
-}
-
-ATTR_COLUMNS = [
-    "female_lead", "male_lead", "family_friendly", "romantic", "tragic",
-    "contemporary", "classic_canon", "spectacle", "pop_ip"
-]
-
-REGIONAL_MULTIPLIERS = {
-    "Province-wide (default)": {"fam": 1.00, "mot": 1.00},
-    "Calgary": {"fam": 1.05, "mot": 1.07},
-    "Edmonton": {"fam": 0.95, "mot": 0.93},
+# -------------------------
+# BASELINE DATA
+# -------------------------
+# Familiarity & Motivation baselines (Nutcracker = 100 benchmark)
+BASELINES = {
+    "The Nutcracker": {"wiki": 100, "trends": 100, "youtube": 100, "spotify": 100, "gender": "female", "category": "family_classic"},
+    "Sleeping Beauty": {"wiki": 92, "trends": 85, "youtube": 78, "spotify": 74, "gender": "female", "category": "classic_romance"},
+    "Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "gender": "female", "category": "family_classic"},
+    "Swan Lake": {"wiki": 95, "trends": 90, "youtube": 88, "spotify": 84, "gender": "female", "category": "classic_romance"},
+    "Romeo and Juliet": {"wiki": 90, "trends": 82, "youtube": 79, "spotify": 77, "gender": "co", "category": "romantic_tragedy"},
+    "The Merry Widow": {"wiki": 70, "trends": 60, "youtube": 55, "spotify": 50, "gender": "female", "category": "romantic_comedy"},
+    "Beauty and the Beast": {"wiki": 94, "trends": 97, "youtube": 92, "spotify": 90, "gender": "female", "category": "family_classic"},
+    "Frozen": {"wiki": 100, "trends": 110, "youtube": 120, "spotify": 115, "gender": "female", "category": "pop_ip"},
+    "Peter Pan": {"wiki": 80, "trends": 78, "youtube": 85, "spotify": 82, "gender": "male", "category": "family_classic"},
+    "Pinocchio": {"wiki": 72, "trends": 68, "youtube": 70, "spotify": 66, "gender": "male", "category": "family_classic"},
+    "Don Quixote": {"wiki": 88, "trends": 75, "youtube": 72, "spotify": 68, "gender": "male", "category": "classic_comedy"},
+    "Giselle": {"wiki": 82, "trends": 72, "youtube": 65, "spotify": 60, "gender": "female", "category": "classic_romance"},
+    "Nijinsky": {"wiki": 50, "trends": 45, "youtube": 48, "spotify": 40, "gender": "male", "category": "contemporary"},
+    "Hansel and Gretel": {"wiki": 78, "trends": 70, "youtube": 65, "spotify": 62, "gender": "co", "category": "family_classic"},
+    "Contemporary Composers": {"wiki": 60, "trends": 55, "youtube": 58, "spotify": 50, "gender": "na", "category": "contemporary"},
+    "Notre Dame de Paris": {"wiki": 85, "trends": 88, "youtube": 80, "spotify": 76, "gender": "male", "category": "romantic_tragedy"},
+    "Wizard of Oz": {"wiki": 97, "trends": 93, "youtube": 95, "spotify": 90, "gender": "female", "category": "family_classic"},
+    "Grimm": {"wiki": 55, "trends": 52, "youtube": 50, "spotify": 45, "gender": "na", "category": "contemporary"},
+    "Ballet Boyz": {"wiki": 45, "trends": 40, "youtube": 60, "spotify": 58, "gender": "male", "category": "contemporary"},
+    "Frankenstein": {"wiki": 68, "trends": 63, "youtube": 66, "spotify": 62, "gender": "male", "category": "dramatic"},
 }
 
 # -------------------------
-# STATIC FETCH FUNCTIONS (replace APIs)
+# SEGMENT MULTIPLIERS
 # -------------------------
-def fetch_google_trends_score(title, market):
-    return float((len(title) * 3) % 100) + 10  # 10–100 range
-
-def fetch_wikipedia_views(query):
-    return (query, float((len(query) * 2.5) % 120) + 10)
-
-def fetch_youtube_metrics(title, api_key):
-    base = len(title)
-    return (float(base % 10), float((base * 1.5) % 80) + 10)
-
-def fetch_spotify_popularity(title, cid, secret):
-    return float((len(title) * 2) % 100) + 5
+SEGMENT_MULT = {
+    "General Population": {"female": 1.00, "male": 1.00, "co": 1.00, "family_classic": 1.00, "classic_romance": 1.00, "romantic_tragedy": 1.00, "contemporary": 1.00, "pop_ip": 1.00},
+    "Core Classical (F35–64)": {"female": 1.12, "male": 0.95, "co": 1.05, "family_classic": 1.10, "classic_romance": 1.08, "romantic_tragedy": 1.05, "contemporary": 0.90, "pop_ip": 1.00},
+    "Family (Parents w/ kids)": {"female": 1.10, "male": 0.90, "co": 1.05, "family_classic": 1.18, "classic_romance": 0.95, "romantic_tragedy": 0.85, "contemporary": 0.80, "pop_ip": 1.20},
+    "Emerging Adults (18–34)": {"female": 1.02, "male": 1.02, "co": 1.00, "family_classic": 0.95, "classic_romance": 0.92, "romantic_tragedy": 0.90, "contemporary": 1.25, "pop_ip": 1.15},
+}
 
 # -------------------------
-# UTILITIES
+# REGION ADJUSTMENTS
 # -------------------------
-def normalize_series(values):
-    if not values: return []
-    vmin, vmax = min(values), max(values)
-    if vmax == vmin: return [50.0 for _ in values]
-    return [(v - vmin) * 100.0 / (vmax - vmin) for v in values]
+REGION_MULT = {"Province": 1.00, "Calgary": 1.05, "Edmonton": 0.95}
 
-def percentile_normalize(vals):
-    if not vals: return []
-    s = pd.Series(vals, dtype="float64")
-    return (s.rank(pct=True) * 100.0).tolist()
+# -------------------------
+# API CONFIGURATION (OPTIONAL)
+# -------------------------
+with st.expander("🔑 API Configuration"):
+    yt_key = st.text_input("YouTube Data API v3 Key", type="password")
+    sp_id = st.text_input("Spotify Client ID", type="password")
+    sp_secret = st.text_input("Spotify Client Secret", type="password")
+    use_live = st.checkbox("Use Live Data for Unknown Titles", value=False)
 
-def infer_title_attributes(title: str):
-    t = title.lower()
-    attr = {k: False for k in ATTR_COLUMNS}
-    female_titles = ["nutcracker","sleeping beauty","cinderella","beauty","alice","giselle","swan lake","merry widow","romeo"]
-    male_titles = ["pinocchio","peter pan","don quixote","hunchback","notre dame","romeo"]
-    family_list = ["nutcracker","cinderella","beauty","alice","frozen","peter pan","pinocchio","wizard","oz"]
-    romantic_list = ["swan","cinderella","sleeping","romeo","merry","beauty","giselle"]
-    tragic_list = ["swan","romeo","hunchback","notre dame","giselle"]
-    classic_list = ["nutcracker","swan","sleeping","cinderella","romeo","don","giselle","merry"]
-    spectacle_list = ["wizard","peter pan","pinocchio","frozen","notre","hunchback","don"]
-    popip_list = ["frozen","beauty","wizard","bridgerton","harry","star","avengers","barbie"]
-
-    if any(k in t for k in female_titles): attr["female_lead"] = True
-    if any(k in t for k in male_titles): attr["male_lead"] = True
-    if any(k in t for k in family_list): attr["family_friendly"] = True
-    if any(k in t for k in romantic_list): attr["romantic"] = True
-    if any(k in t for k in tragic_list): attr["tragic"] = True
-    if any(k in t for k in classic_list): attr["classic_canon"] = True
-    if any(k in t for k in spectacle_list): attr["spectacle"] = True
-    if any(k in t for k in popip_list): attr["pop_ip"] = True
-    if any(k in t for k in ["contemporary","composers","mixed","forsythe","balanchine","nijinsky","grimm"]):
-        attr["contemporary"] = True
-    if "romeo" in t:
-        attr["female_lead"] = True
-        attr["male_lead"] = True
-    return attr
-
-def segment_boosts(attrs, segment):
-    rules = SEGMENT_RULES.get(segment, {})
-    fam_delta = mot_delta = 0.0
-    for k, v in rules.get("fam", {}).items():
-        if attrs.get(k, False): fam_delta += v
-    for k, v in rules.get("mot", {}).items():
-        if attrs.get(k, False): mot_delta += v
-    return max(-0.3, min(0.4, fam_delta)), max(-0.3, min(0.4, mot_delta))
+# -------------------------
+# OPTIONS
+# -------------------------
+region = st.selectbox("Region", ["Province", "Calgary", "Edmonton"], index=0)
+segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
+titles = st.multiselect("Select titles to score:", list(BASELINES.keys()), default=list(BASELINES.keys())[:10])
 
 # -------------------------
 # SCORING
 # -------------------------
-def score_titles(titles, market, segment, region, attrs_df):
-    regmult = REGIONAL_MULTIPLIERS[region]
-    user_attrs = {str(r["Title"]).lower(): {c: bool(r.get(c, False)) for c in ATTR_COLUMNS} for _, r in attrs_df.iterrows()}
+rows = []
+for title in titles:
+    base = BASELINES[title]
+    seg_mult = SEGMENT_MULT[segment]
+    reg_mult = REGION_MULT[region]
 
-    rows = []
-    for t in titles:
-        w_title, w_val = fetch_wikipedia_views(t)
-        trends_val = fetch_google_trends_score(t, market)
-        yt_count, yt_views = fetch_youtube_metrics(t, None)
-        sp_pop = fetch_spotify_popularity(t, None, None)
+    gender = base["gender"]
+    cat = base["category"]
 
-        wiki_fam = math.log1p(w_val)
-        fam = WEIGHTS["fam_wiki"] * wiki_fam + WEIGHTS["fam_trends"] * trends_val + WEIGHTS["fam_spotify"] * sp_pop
-        mot = WEIGHTS["mot_youtube"] * yt_views + WEIGHTS["mot_trends"] * trends_val + WEIGHTS["mot_spotify"] * sp_pop + WEIGHTS["mot_wiki"] * wiki_fam
+    fam = (base["wiki"] * 0.5 + base["trends"] * 0.3 + base["spotify"] * 0.2)
+    mot = (base["youtube"] * 0.5 + base["trends"] * 0.3 + base["wiki"] * 0.2)
 
-        base_attrs = infer_title_attributes(t)
-        over = user_attrs.get(t.lower(), {})
-        base_attrs.update(over)
-        fboost, mboost = segment_boosts(base_attrs, segment)
+    fam *= seg_mult.get(gender, 1.0) * seg_mult.get(cat, 1.0) * reg_mult
+    mot *= seg_mult.get(gender, 1.0) * seg_mult.get(cat, 1.0) * reg_mult
 
-        fam_adj = fam * (1 + fboost) * regmult["fam"]
-        mot_adj = mot * (1 + mboost) * regmult["mot"]
+    rows.append({
+        "Title": title,
+        "Region": region,
+        "Segment": segment,
+        "Familiarity": round(fam, 1),
+        "Motivation": round(mot, 1),
+        "Category": cat,
+        "Gender": gender
+    })
 
-        rows.append({
-            "Title": t, "WikiViews": w_val, "Trends": trends_val, "YTViews": yt_views, "Spotify": sp_pop,
-            "Familiarity": round(fam, 1), "Motivation": round(mot, 1),
-            "FamiliarityAdj": round(fam_adj, 1), "MotivationAdj": round(mot_adj, 1),
-            "SegBoostF%": round(fboost * 100, 1), "SegBoostM%": round(mboost * 100, 1),
-            "RegionFamMult": regmult["fam"], "RegionMotMult": regmult["mot"]
-        })
-    return pd.DataFrame(rows)
+df = pd.DataFrame(rows)
 
-# -------------------------
-# PLOTS
-# -------------------------
-def quadrant_plot(df, xcol, ycol, title):
-    fig = plt.figure()
-    x, y = df[xcol], df[ycol]
-    plt.scatter(x, y)
-    for _, r in df.iterrows():
-        plt.annotate(r["Title"], (r[xcol], r[ycol]), fontsize=8, xytext=(3,3), textcoords="offset points")
-    plt.axvline(np.median(x), linestyle="--")
-    plt.axhline(np.median(y), linestyle="--")
-    plt.title(title)
-    plt.xlabel(xcol)
-    plt.ylabel(ycol)
-    return fig
-
-def bar_chart(df, col, title):
-    fig = plt.figure()
-    df2 = df.sort_values(by=col, ascending=True)
-    plt.barh(df2["Title"], df2[col])
-    plt.title(title)
-    plt.xlabel(col)
-    return fig
+# Normalize to Nutcracker (100)
+if "The Nutcracker" in df["Title"].values:
+    nut_fam = df.loc[df["Title"]=="The Nutcracker","Familiarity"].values[0]
+    nut_mot = df.loc[df["Title"]=="The Nutcracker","Motivation"].values[0]
+    df["Familiarity"] = (df["Familiarity"] / nut_fam) * 100
+    df["Motivation"] = (df["Motivation"] / nut_mot) * 100
 
 # -------------------------
-# STREAMLIT UI
+# DISPLAY
 # -------------------------
-st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation", layout="wide")
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v8.9 Test Build)")
+st.success("Scoring complete.")
+st.dataframe(df, use_container_width=True)
 
-st.markdown("Testing static data sources — this version ensures scoring logic and charts function before full baselines.")
+# Quadrant Plot
+fig, ax = plt.subplots()
+ax.scatter(df["Familiarity"], df["Motivation"])
+for _, r in df.iterrows():
+    ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
+ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
+ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
+ax.set_xlabel("Familiarity (relative to Nutcracker)")
+ax.set_ylabel("Motivation (relative to Nutcracker)")
+ax.set_title(f"Alberta Ballet Familiarity vs Motivation — {segment} ({region})")
+st.pyplot(fig)
 
-region = st.selectbox("Select Region", list(REGIONAL_MULTIPLIERS.keys()), index=0)
-segment = st.selectbox("Select Audience Segment", list(SEGMENT_RULES.keys()), index=0)
+# Bar charts
+col1, col2 = st.columns(2)
+with col1:
+    st.bar_chart(df.set_index("Title")["Familiarity"])
+with col2:
+    st.bar_chart(df.set_index("Title")["Motivation"])
 
-default_titles = [
-    "The Nutcracker","Sleeping Beauty","Cinderella","Pinocchio",
-    "The Merry Widow","The Hunchback of Notre Dame","Frozen","Beauty and the Beast",
-    "Alice in Wonderland","Peter Pan","Romeo and Juliet","Swan Lake","Don Quixote",
-    "Contemporary Composers","Nijinsky","Notre Dame de Paris","Wizard of Oz","Grimm"
-]
-titles_input = st.text_area("Enter titles (one per line):", value="\n".join(default_titles), height=220)
-titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
-
-# Attributes
-st.subheader("Title Attributes (editable)")
-attr_rows = []
-for t in titles:
-    inferred = infer_title_attributes(t)
-    row = {"Title": t}
-    row.update(inferred)
-    attr_rows.append(row)
-attrs_df = pd.DataFrame(attr_rows, columns=["Title"] + ATTR_COLUMNS)
-attrs_df = st.data_editor(attrs_df, use_container_width=True, hide_index=True)
-
-if st.button("Run Scoring", type="primary"):
-    with st.spinner("Scoring titles…"):
-        df = score_titles(titles, market="AB", segment=segment, region=region, attrs_df=attrs_df)
-        st.success("Scoring complete.")
-        st.dataframe(df, use_container_width=True)
-
-        st.subheader("Quadrant")
-        st.pyplot(quadrant_plot(df, "FamiliarityAdj", "MotivationAdj", "Familiarity vs Motivation (Adjusted)"))
-        st.subheader("Familiarity Bar")
-        st.pyplot(bar_chart(df, "FamiliarityAdj", "Adjusted Familiarity"))
-        st.subheader("Motivation Bar")
-        st.pyplot(bar_chart(df, "MotivationAdj", "Adjusted Motivation"))
-
-        st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode("utf-8"), "title_scores_test.csv", "text/csv")
+# Download
+csv = df.to_csv(index=False).encode("utf-8")
+st.download_button("⬇️ Download CSV", csv, "title_scores_v9_test.csv", "text/csv")
