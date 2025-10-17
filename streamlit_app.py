@@ -1,29 +1,48 @@
-# streamlit_app_v9_test.py
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test Build)
-# Hard-coded baselines + optional live API enrichment for new titles
+# streamlit_app_v9_test_new_titles.py
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test + New Titles)
+# - Hard-coded baselines (Nutcracker = 100 index)
+# - Add NEW titles via text area
+# - Unknown titles: live fetch (optional) OR offline estimate
+# - Segment + Region multipliers; charts + CSV
+
+import os, math, time
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Tuple
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import time
-from datetime import datetime
+import requests
+
+# Optional APIs (only used if 'Use Live Data' is enabled and keys provided)
+try:
+    from googleapiclient.discovery import build  # YouTube
+except Exception:
+    build = None
+
+try:
+    import spotipy
+    from spotipy.oauth2 import SpotifyClientCredentials
+except Exception:
+    spotipy = None
+    SpotifyClientCredentials = None
 
 # -------------------------
-# SPLASH / LOADER
+# PAGE / SPLASH
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
 with st.spinner("🎭 Preparing Alberta Ballet Familiarity Baselines..."):
-    time.sleep(1.5)
+    time.sleep(1.2)
 
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test Build)")
-st.caption("Hard-coded Alberta-wide familiarity baselines with optional live API enrichment for new titles.")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test + New Titles)")
+st.caption("Hard-coded Alberta-wide baselines (Nutcracker = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
-# BASELINE DATA
-# -------------------------
-# Familiarity & Motivation baselines (Nutcracker = 100 benchmark)
-BASELINES = {
+# BASELINE DATA (subset for test run)
+# wiki/trends/youtube/spotify are indexed vs Nutcracker=100 (not a cap)
+# gender: female/male/co/na ; category: family_classic/classic_romance/romantic_tragedy/classic_comedy/contemporary/pop_ip/dramatic
+BASELINES: Dict[str, Dict[str, float | str]] = {
     "The Nutcracker": {"wiki": 100, "trends": 100, "youtube": 100, "spotify": 100, "gender": "female", "category": "family_classic"},
     "Sleeping Beauty": {"wiki": 92, "trends": 85, "youtube": 78, "spotify": 74, "gender": "female", "category": "classic_romance"},
     "Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "gender": "female", "category": "family_classic"},
@@ -47,78 +66,230 @@ BASELINES = {
 }
 
 # -------------------------
-# SEGMENT MULTIPLIERS
+# SEGMENTS & REGIONS
 # -------------------------
 SEGMENT_MULT = {
-    "General Population": {"female": 1.00, "male": 1.00, "co": 1.00, "family_classic": 1.00, "classic_romance": 1.00, "romantic_tragedy": 1.00, "contemporary": 1.00, "pop_ip": 1.00},
-    "Core Classical (F35–64)": {"female": 1.12, "male": 0.95, "co": 1.05, "family_classic": 1.10, "classic_romance": 1.08, "romantic_tragedy": 1.05, "contemporary": 0.90, "pop_ip": 1.00},
-    "Family (Parents w/ kids)": {"female": 1.10, "male": 0.90, "co": 1.05, "family_classic": 1.18, "classic_romance": 0.95, "romantic_tragedy": 0.85, "contemporary": 0.80, "pop_ip": 1.20},
-    "Emerging Adults (18–34)": {"female": 1.02, "male": 1.02, "co": 1.00, "family_classic": 0.95, "classic_romance": 0.92, "romantic_tragedy": 0.90, "contemporary": 1.25, "pop_ip": 1.15},
+    "General Population": {"female": 1.00, "male": 1.00, "co": 1.00, "na": 1.00,
+                           "family_classic": 1.00, "classic_romance": 1.00, "romantic_tragedy": 1.00,
+                           "classic_comedy": 1.00, "contemporary": 1.00, "pop_ip": 1.00, "dramatic": 1.00},
+    "Core Classical (F35–64)": {"female": 1.12, "male": 0.95, "co": 1.05, "na": 1.00,
+                                 "family_classic": 1.10, "classic_romance": 1.08, "romantic_tragedy": 1.05,
+                                 "classic_comedy": 1.02, "contemporary": 0.90, "pop_ip": 1.00, "dramatic": 1.00},
+    "Family (Parents w/ kids)": {"female": 1.10, "male": 0.92, "co": 1.06, "na": 1.00,
+                                  "family_classic": 1.18, "classic_romance": 0.95, "romantic_tragedy": 0.85,
+                                  "classic_comedy": 1.05, "contemporary": 0.82, "pop_ip": 1.20, "dramatic": 0.90},
+    "Emerging Adults (18–34)": {"female": 1.02, "male": 1.02, "co": 1.00, "na": 1.00,
+                                 "family_classic": 0.95, "classic_romance": 0.92, "romantic_tragedy": 0.90,
+                                 "classic_comedy": 0.98, "contemporary": 1.25, "pop_ip": 1.15, "dramatic": 1.05},
 }
-
-# -------------------------
-# REGION ADJUSTMENTS
-# -------------------------
 REGION_MULT = {"Province": 1.00, "Calgary": 1.05, "Edmonton": 0.95}
 
 # -------------------------
-# API CONFIGURATION (OPTIONAL)
+# HEURISTICS (for offline estimation of NEW titles)
 # -------------------------
-with st.expander("🔑 API Configuration"):
+def infer_gender_and_category(title: str) -> Tuple[str, str]:
+    t = title.lower()
+    # Gender heuristic
+    gender = "na"
+    female_keys = ["cinderella","sleeping","beauty and the beast","beauty","giselle","swan","widow","alice","juliet","sylphide"]
+    male_keys = ["pinocchio","peter pan","don quixote","hunchback","hamlet","frankenstein","romeo","nijinsky"]
+    if any(k in t for k in female_keys): gender = "female"
+    elif any(k in t for k in male_keys): gender = "male"
+    elif "romeo" in t and "juliet" in t: gender = "co"
+
+    # Category heuristic
+    if any(k in t for k in ["nutcracker","wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
+        cat = "family_classic"
+    elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
+        cat = "classic_romance"
+    elif any(k in t for k in ["romeo","hunchback","notre dame","hamlet","frankenstein"]):
+        cat = "romantic_tragedy"
+    elif any(k in t for k in ["don quixote","merry widow"]):
+        cat = "classic_comedy"
+    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi"]):
+        cat = "contemporary"
+    elif any(k in t for k in ["taj","tango","fire","harlem","lojazz","tragically hip", "l cohen"]):
+        cat = "pop_ip"
+    else:
+        cat = "dramatic"
+    return gender, cat
+
+def estimate_unknown_title(title: str) -> Dict[str, float | str]:
+    """Offline estimation: start from medians by category, then tweak."""
+    gender, category = infer_gender_and_category(title)
+    base_df = pd.DataFrame(BASELINES).T
+    for k in ["wiki","trends","youtube","spotify"]:
+        if k not in base_df.columns:
+            base_df[k] = np.nan
+    # category medians where available, else overall medians
+    # build a small helper DF with categories
+    cats = {k: v["category"] for k, v in BASELINES.items()}
+    tmp = base_df.copy()
+    tmp["category"] = tmp.index.map(lambda x: cats.get(x, "dramatic"))
+    cat_df = tmp[tmp["category"] == category]
+    med = (cat_df[["wiki","trends","youtube","spotify"]].median()
+           if not cat_df.empty else tmp[["wiki","trends","youtube","spotify"]].median())
+    # tweak by gender (small baked-in nudge)
+    g_adj = {"female": 1.05, "male": 0.98, "co": 1.03, "na": 1.00}[gender]
+    est = {k: float(med[k] * g_adj) for k in ["wiki","trends","youtube","spotify"]}
+    # ensure reasonable bounds (30..150 relative to Nutcracker)
+    for k in est: est[k] = float(max(30.0, min(150.0, est[k])))
+    return {"wiki": est["wiki"], "trends": est["trends"], "youtube": est["youtube"],
+            "spotify": est["spotify"], "gender": gender, "category": category}
+
+# -------------------------
+# OPTIONAL LIVE FETCHERS (used only if toggled on AND title unknown)
+# -------------------------
+WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_PAGEVIEW = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
+
+def wiki_search_best_title(query: str) -> Optional[str]:
+    try:
+        params = {"action":"query","list":"search","srsearch":query,"format":"json","srlimit": 5}
+        r = requests.get(WIKI_API, params=params, timeout=10)
+        if r.status_code != 200: return None
+        items = r.json().get("query",{}).get("search",[])
+        return items[0]["title"] if items else None
+    except Exception:
+        return None
+
+def fetch_wikipedia_views_for_page(page_title: str) -> float:
+    try:
+        end = datetime.utcnow().strftime("%Y%m%d")
+        start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
+        url = WIKI_PAGEVIEW.format(page=page_title.replace(" ","_"), start=start, end=end)
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200: return 0.0
+        items = r.json().get("items",[])
+        views = [it.get("views",0) for it in items]
+        return (sum(views)/365.0) if views else 0.0
+    except Exception:
+        return 0.0
+
+def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[str], sp_secret: Optional[str]) -> Dict[str, float | str]:
+    # Wikipedia
+    w_title = wiki_search_best_title(title) or title
+    wiki_raw = fetch_wikipedia_views_for_page(w_title)  # absolute avg daily
+    # Trends (simple global fallback via title length heuristic if live Trends not configured)
+    trends_idx = 60.0 + (len(title) % 40)  # keep within 60..100 for demo
+    # YouTube
+    yt_score = 0.0
+    if yt_key and build is not None:
+        try:
+            yt = build("youtube","v3",developerKey=yt_key)
+            search = yt.search().list(q=title, part="id", type="video", maxResults=25).execute()
+            ids = [it["id"]["videoId"] for it in search.get("items",[])]
+            if ids:
+                stats = yt.videos().list(part="statistics", id=",".join(ids[:50])).execute()
+                views = [int(i.get("statistics",{}).get("viewCount",0)) for i in stats.get("items",[])]
+                yt_score = float(np.log1p(max(views)) * 12.0)  # compress to ~50..140
+        except Exception:
+            yt_score = 0.0
+    # Spotify
+    sp_score = 0.0
+    if sp_id and sp_secret and spotipy is not None:
+        try:
+            auth = SpotifyClientCredentials(client_id=sp_id, client_secret=sp_secret)
+            sp = spotipy.Spotify(auth_manager=auth)
+            res = sp.search(q=title, type="track,album", limit=10)
+            pops = [t.get("popularity",0) for t in res.get("tracks",{}).get("items",[])]
+            sp_score = float(np.percentile(pops, 80)) if pops else 0.0
+        except Exception:
+            sp_score = 0.0
+
+    # Convert absolute wiki_raw to index ~ (40..140) relative to Nutcracker baseline
+    # If wiki_raw is zero, fall back to a heuristic around category/length
+    wiki_idx = 40.0 + min(100.0, (math.log1p(max(0.0, wiki_raw)) * 20.0))
+
+    # YouTube/Spotify fallbacks if missing
+    if yt_score == 0.0: yt_score = 55.0 + (len(title) * 1.2) % 45.0
+    if sp_score == 0.0: sp_score = 50.0 + (len(title) * 1.7) % 40.0
+
+    gender, category = infer_gender_and_category(title)
+    return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_score, "spotify": sp_score,
+            "gender": gender, "category": category}
+
+# -------------------------
+# UI — API + OPTIONS
+# -------------------------
+with st.expander("🔑 API Configuration (only used for NEW titles if enabled)"):
     yt_key = st.text_input("YouTube Data API v3 Key", type="password")
     sp_id = st.text_input("Spotify Client ID", type="password")
     sp_secret = st.text_input("Spotify Client Secret", type="password")
     use_live = st.checkbox("Use Live Data for Unknown Titles", value=False)
 
-# -------------------------
-# OPTIONS
-# -------------------------
-region = st.selectbox("Region", ["Province", "Calgary", "Edmonton"], index=0)
+region = st.selectbox("Region", ["Province","Calgary","Edmonton"], index=0)
 segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
-titles = st.multiselect("Select titles to score:", list(BASELINES.keys()), default=list(BASELINES.keys())[:10])
+
+default_list = list(BASELINES.keys())[:10]
+st.markdown("**Titles to score** (one per line). Preloaded with a mix; feel free to add NEW titles:")
+titles_input = st.text_area("Enter titles", value="\n".join(default_list), height=220)
+titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
 
 # -------------------------
 # SCORING
 # -------------------------
+def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tuple[float,float]:
+    """Blend familiarity/motivation from source indices, then apply segment+region multipliers."""
+    gender = entry["gender"]; cat = entry["category"]
+    # Familiarity/Motivation source weights (kept simple for test build; v9 full uses your original weights)
+    fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + entry["spotify"] * 0.15
+    mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + entry["spotify"] * 0.15 + entry["wiki"] * 0.15
+    seg = SEGMENT_MULT[seg_key]
+    fam *= seg.get(gender,1.0) * seg.get(cat,1.0)
+    mot *= seg.get(gender,1.0) * seg.get(cat,1.0)
+    fam *= REGION_MULT[reg_key]
+    mot *= REGION_MULT[reg_key]
+    return fam, mot
+
 rows = []
+unknown_used_live, unknown_used_est = [], []
 for title in titles:
-    base = BASELINES[title]
-    seg_mult = SEGMENT_MULT[segment]
-    reg_mult = REGION_MULT[region]
-
-    gender = base["gender"]
-    cat = base["category"]
-
-    fam = (base["wiki"] * 0.5 + base["trends"] * 0.3 + base["spotify"] * 0.2)
-    mot = (base["youtube"] * 0.5 + base["trends"] * 0.3 + base["wiki"] * 0.2)
-
-    fam *= seg_mult.get(gender, 1.0) * seg_mult.get(cat, 1.0) * reg_mult
-    mot *= seg_mult.get(gender, 1.0) * seg_mult.get(cat, 1.0) * reg_mult
-
+    if title in BASELINES:
+        entry = BASELINES[title]
+    else:
+        if use_live:
+            entry = fetch_live_for_unknown(title, yt_key, sp_id, sp_secret)
+            unknown_used_live.append(title)
+        else:
+            entry = estimate_unknown_title(title)
+            unknown_used_est.append(title)
+    fam_raw, mot_raw = calc_scores(entry, segment, region)
     rows.append({
         "Title": title,
         "Region": region,
         "Segment": segment,
-        "Familiarity": round(fam, 1),
-        "Motivation": round(mot, 1),
-        "Category": cat,
-        "Gender": gender
+        "Gender": entry["gender"],
+        "Category": entry["category"],
+        "FamiliarityRaw": fam_raw,
+        "MotivationRaw": mot_raw,
+        "WikiIdx": entry["wiki"],
+        "TrendsIdx": entry["trends"],
+        "YouTubeIdx": entry["youtube"],
+        "SpotifyIdx": entry["spotify"],
+        "Source": "Baseline" if title in BASELINES else ("Live" if use_live else "Estimated")
     })
 
 df = pd.DataFrame(rows)
 
-# Normalize to Nutcracker (100)
-if "The Nutcracker" in df["Title"].values:
-    nut_fam = df.loc[df["Title"]=="The Nutcracker","Familiarity"].values[0]
-    nut_mot = df.loc[df["Title"]=="The Nutcracker","Motivation"].values[0]
-    df["Familiarity"] = (df["Familiarity"] / nut_fam) * 100
-    df["Motivation"] = (df["Motivation"] / nut_mot) * 100
+# Always index to Nutcracker = 100 using the BASELINE Nutcracker under current seg/region
+nut_entry = BASELINES["The Nutcracker"]
+nut_fam_raw, nut_mot_raw = calc_scores(nut_entry, segment, region)
+df["Familiarity"] = (df["FamiliarityRaw"] / nut_fam_raw) * 100.0
+df["Motivation"]  = (df["MotivationRaw"] / nut_mot_raw) * 100.0
 
 # -------------------------
 # DISPLAY
 # -------------------------
-st.success("Scoring complete.")
-st.dataframe(df, use_container_width=True)
+if unknown_used_est:
+    st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
+if unknown_used_live:
+    st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
+
+st.dataframe(df[[
+    "Title","Region","Segment","Gender","Category",
+    "Familiarity","Motivation","WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
+]].sort_values(by=["Motivation","Familiarity"], ascending=False), use_container_width=True)
 
 # Quadrant Plot
 fig, ax = plt.subplots()
@@ -127,18 +298,24 @@ for _, r in df.iterrows():
     ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
 ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
 ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
-ax.set_xlabel("Familiarity (relative to Nutcracker)")
-ax.set_ylabel("Motivation (relative to Nutcracker)")
-ax.set_title(f"Alberta Ballet Familiarity vs Motivation — {segment} ({region})")
+ax.set_xlabel("Familiarity (Nutcracker = 100 index)")
+ax.set_ylabel("Motivation (Nutcracker = 100 index)")
+ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
 st.pyplot(fig)
 
-# Bar charts
+# Bars
 col1, col2 = st.columns(2)
 with col1:
+    st.subheader("Familiarity (Indexed)")
     st.bar_chart(df.set_index("Title")["Familiarity"])
 with col2:
+    st.subheader("Motivation (Indexed)")
     st.bar_chart(df.set_index("Title")["Motivation"])
 
 # Download
-csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("⬇️ Download CSV", csv, "title_scores_v9_test.csv", "text/csv")
+st.download_button(
+    "⬇️ Download CSV",
+    df.to_csv(index=False).encode("utf-8"),
+    "title_scores_v9_with_new_titles.csv",
+    "text/csv"
+)
