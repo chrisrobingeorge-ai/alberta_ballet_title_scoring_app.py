@@ -1,8 +1,20 @@
-streamlit
-pandas
-numpy
-matplotlib
-requests
-pytrends
-google-api-python-client
+# Core dependencies
+streamlit==1.39.0
+pandas==2.2.2
+numpy==1.26.4
+matplotlib==3.9.2
+requests==2.32.3
+
+# External data APIs
+pytrends==4.9.2
+google-api-python-client==2.137.0
 spotipy==2.24.0
+
+# Excel support
+openpyxl==3.1.5
+
+# PDF export
+reportlab==4.2.2
+
+# Optional safety (for app hosting)
+protobuf==4.25.3
