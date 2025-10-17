@@ -336,9 +336,14 @@ if run:
         # -------------------------
         # SCORE GRADING (A–E bands)
         # -------------------------
-        sort_x, sort_y = ("FamiliarityAdj","MotivationAdj") if use_adjusted else ("Familiarity","Motivation")
+        possible_cols = ["FamiliarityAdj", "MotivationAdj", "Familiarity", "Motivation"]
+        existing_cols = [c for c in possible_cols if c in df.columns]
+        if len(existing_cols) >= 2:
+            sort_x, sort_y = existing_cols[:2]
+        else:
+            sort_x, sort_y = "Familiarity", "Motivation"
 
-        # Compute composite score and assign grade
+        # Compute composite safely
         df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
 
         def assign_score(value):
