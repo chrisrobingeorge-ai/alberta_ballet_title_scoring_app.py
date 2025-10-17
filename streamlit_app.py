@@ -296,7 +296,6 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
 TICKET_PRIORS_RAW = {
     "La Sylphide": [5221],
     "Grimm": [6362],
-    "Nutcracker": [29934, 29934, 29877, 29066],     # Do NOT include "Nutz" here (treated as separate title)
     "Gala": [1371, 1271],
     "Harlem": [7269],
     "Wizard of Oz": [8468],
@@ -310,7 +309,6 @@ TICKET_PRIORS_RAW = {
     "Giselle": [9111],
     "Botero": [5460],
     "Swan Lake": [13157],
-    "Nutz": [23084, 33393, 33713],                   # separate title
     "Phi": [12336],
     "Cinderella": [15680, 16928],
     "Taj Express": [10314],
