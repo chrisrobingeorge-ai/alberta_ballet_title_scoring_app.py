@@ -330,55 +330,63 @@ if run:
 
         df = pd.DataFrame(rows)
 
-        # ===== SCORE GRADING (A–E) =====
-        # Make sure 'use_adjusted' is available in this scope
-        use_adjusted = locals().get("use_adjusted", True)
-
-        # Find the best familiarity/motivation columns that actually exist
-        possible_pairs = [
-            ("FamiliarityAdj", "MotivationAdj"),
-            ("Familiarity", "Motivation"),
-        ]
-        sort_x, sort_y = None, None
-        for x, y in possible_pairs:
-            if x in df.columns and y in df.columns:
-                sort_x, sort_y = x, y
-                break
-
-        # Compute Composite safely (won't crash if cols aren't present yet)
-        if sort_x and sort_y:
-            df["Composite"] = df[[sort_x, sort_y]].mean(axis=1)
-        else:
-            # Neutral fallback so the app never errors
-            df["Composite"] = 50.0
-
-        # Assign letter grade A–E based on Composite
-        def _assign_score(v):
-            if v >= 90: return "A"
-            elif v >= 75: return "B"
-            elif v >= 60: return "C"
-            elif v >= 45: return "D"
-            else: return "E"
-        df["Score"] = df["Composite"].apply(_assign_score)
-
-        # Index to Nutcracker = 100 under current seg/region
-        if "do_benchmark" in locals() and do_benchmark and "benchmark_title" in locals() and benchmark_title:
-            df = apply_benchmark(df, benchmark_title, use_adjusted)
-            
-        # Index to Nutcracker = 100 under current seg/region
+        # --- Nutcracker normalization (index Nutcracker = 100) ---
         nut_entry = BASELINES["The Nutcracker"]
         nut_fam_raw, nut_mot_raw = calc_scores(nut_entry, segment, region)
+        # Avoid divide-by-zero (very unlikely, but safe)
+        nut_fam_raw = nut_fam_raw or 1.0
+        nut_mot_raw = nut_mot_raw or 1.0
         df["Familiarity"] = (df["FamiliarityRaw"] / nut_fam_raw) * 100.0
         df["Motivation"]  = (df["MotivationRaw"]  / nut_mot_raw)  * 100.0
 
+        # (Optional) show which titles used which data path
         if unknown_used_est:
             st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
         if unknown_used_live:
             st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
 
+        # --- Letter grade (A–E) from the indexed Familiarity & Motivation ---
+        df["Composite"] = df[["Familiarity", "Motivation"]].mean(axis=1)
+
+        def _assign_score(v: float) -> str:
+            if v >= 90: return "A"
+            elif v >= 75: return "B"
+            elif v >= 60: return "C"
+            elif v >= 45: return "D"
+            else: return "E"
+
+        df["Score"] = df["Composite"].apply(_assign_score)
+
+        # --- (Optional) Apply Benchmark AFTER indexes exist ---
+        if "do_benchmark" in locals() and do_benchmark and "benchmark_title" in locals() and benchmark_title:
+            # apply_benchmark supports Familiarity/Motivation columns
+            df = apply_benchmark(df, benchmark_title, use_adjusted=False)
+
+        # ===== Display Table with Score =====
+        display_cols = [
+            "Title","Region","Segment","Gender","Category",
+            "Familiarity","Motivation","Score",
+            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
+        ]
+        existing = [c for c in display_cols if c in df.columns]
+
+        # Quick grade summary
+        grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
+        st.caption(f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}")
+
         st.dataframe(
-            df[["Title","Region","Segment","Gender","Category","Familiarity","Motivation","WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"]]
-            .sort_values(by=["Motivation","Familiarity"], ascending=False),
+            df[existing]
+              .sort_values(by=["Motivation","Familiarity"], ascending=False)
+              .style.map(
+                  lambda v: (
+                      "color: green;" if v == "A" else
+                      "color: darkgreen;" if v == "B" else
+                      "color: orange;" if v == "C" else
+                      "color: darkorange;" if v == "D" else
+                      "color: red;" if v == "E" else ""
+                  ),
+                  subset=["Score"] if "Score" in df.columns else []
+              ),
             use_container_width=True
         )
 
