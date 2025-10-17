@@ -349,30 +349,10 @@ if run:
         with col2:
             st.subheader("Motivation (Indexed)")
             st.bar_chart(df.set_index("Title")["Motivation"])
-
-# -------------------------
-# GLOSSARY (bottom of app)
-# -------------------------
-with st.expander("📖 Glossary of Terms", expanded=False):
-    st.markdown("""
-| Term | Definition |
-|------|-------------|
-| **Baseline** | Hard-coded familiarity and motivation indices for existing repertoire, normalized to *The Nutcracker* (100). |
-| **Familiarity** | Relative measure of audience awareness based on Wikipedia, Trends, and Spotify indices. |
-| **Motivation** | Relative measure of interest and engagement potential based on YouTube, Trends, and Wiki data. |
-| **Segment** | Target demographic lens (Core Classical, Family, Emerging Adults, or General). Adjusts score weighting. |
-| **Region** | Market context (Province-wide default, Calgary, or Edmonton). Adjusts for local preferences. |
-| **Pop IP** | “Popular Intellectual Property” — stories known through film, literature, or franchise (e.g., *Frozen*, *Beauty and the Beast*). |
-| **Contemporary** | Non-narrative or modern programs, often concept-driven or physically abstract. |
-| **Classic Romance** | Canonical 19th-century works with romantic or tragic themes (e.g., *Swan Lake*, *Giselle*). |
-| **Family Classic** | Accessible narrative works suitable for all ages, often fairy-tale or children’s stories. |
-| **Normalization** | Scaling process that expresses all familiarity and motivation scores as a ratio to *The Nutcracker*. |
-| **Live Fetch** | Optional real-time retrieval of data from Wikipedia, Google Trends, YouTube, and Spotify for new titles. |
-    """)
-        
-st.download_button(
-    "⬇️ Download CSV",
-    df.to_csv(index=False).encode("utf-8"),
-    "title_scores.csv",
-    "text/csv"
-)
+            
+        st.download_button(
+            "⬇️ Download CSV",
+            df.to_csv(index=False).encode("utf-8"),
+            "title_scores_v9_new_titles.csv",
+            "text/csv"
+        )
