@@ -40,16 +40,16 @@ st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test
 st.caption("Hard-coded Alberta-wide baselines (Nutcracker = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
-# METHODOLOGY SECTION (top of app)
+# METHODOLOGY & GLOSSARY SECTION
 # -------------------------
-with st.expander("📘 About This App — Methodology", expanded=False):
+with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown("""
 ### **Purpose**
 This tool helps Alberta Ballet estimate how familiar and motivated audiences are likely to be toward specific productions, both current and prospective.  
 It combines cultural familiarity data, historical sales performance, and demographic patterns derived from *Spotlight on Arts Audiences* and Alberta Ballet’s 2017–2025 production results.
 
 ### **Methodology Overview**
-- **Baselines:** Each existing title is assigned familiarity and motivation scores derived from:
+- **Baselines:** Each existing title is assigned familiarity and motivation scores derived from a combination of:
   - Wikipedia page views (public awareness)
   - Google Trends (search interest)
   - YouTube activity (media engagement)
@@ -76,8 +76,26 @@ It combines cultural familiarity data, historical sales performance, and demogra
 
 ---
 
+### **Glossary of Terms**
+| Term | Definition |
+|------|-------------|
+| **Baseline** | Hard-coded familiarity and motivation indices for existing repertoire, normalized to *The Nutcracker* (100). |
+| **Familiarity** | Relative measure of audience awareness based on Wikipedia, Trends, and Spotify indices. |
+| **Motivation** | Relative measure of interest and engagement potential based on YouTube, Trends, and Wiki data. |
+| **Segment** | Target demographic lens (Core Classical, Family, Emerging Adults, or General). Adjusts score weighting. |
+| **Region** | Market context (Province-wide default, Calgary, or Edmonton). Adjusts for local preferences. |
+| **Pop IP** | “Popular Intellectual Property” — stories known through film, literature, or franchise (e.g., *Frozen*, *Beauty and the Beast*). |
+| **Contemporary** | Non-narrative or modern programs, often concept-driven or physically abstract. |
+| **Classic Romance** | Canonical 19th-century works with romantic or tragic themes (e.g., *Swan Lake*, *Giselle*). |
+| **Family Classic** | Accessible narrative works suitable for all ages, often fairy-tale or children’s stories. |
+| **Normalization** | Scaling process that expresses all familiarity and motivation scores as a ratio to *The Nutcracker*. |
+| **Live Fetch** | Optional real-time retrieval of data from Wikipedia, Google Trends, YouTube, and Spotify for new titles. |
+
+---
+
 **Note:** This tool is not a predictor of exact ticket sales but a comparative instrument for programming strategy and communication alignment.
     """)
+
 # -------------------------
 # BASELINE DATA (subset for test run)
 # Values are indices relative to Nutcracker=100 (not capped).
@@ -349,7 +367,7 @@ if run:
         with col2:
             st.subheader("Motivation (Indexed)")
             st.bar_chart(df.set_index("Title")["Motivation"])
-            
+
         st.download_button(
             "⬇️ Download CSV",
             df.to_csv(index=False).encode("utf-8"),
