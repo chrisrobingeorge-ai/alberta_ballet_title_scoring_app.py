@@ -427,13 +427,21 @@ if run:
 
         df = pd.DataFrame(rows)
 
-        # --- Nutcracker normalization (index Nutcracker = 100) ---
-        nut_entry = BASELINES["The Nutcracker"]
-        nut_fam_raw, nut_mot_raw = calc_scores(nut_entry, segment, region)
-        nut_fam_raw = nut_fam_raw or 1.0  # safety
-        nut_mot_raw = nut_mot_raw or 1.0  # safety
-        df["Familiarity"] = (df["FamiliarityRaw"] / nut_fam_raw) * 100.0
-        df["Motivation"]  = (df["MotivationRaw"]  / nut_mot_raw)  * 100.0
+       # --- User-selected normalization benchmark ---
+        benchmark_title = st.selectbox(
+            "Choose Benchmark Title for Normalization",
+            options=[t for t in BASELINES.keys() if t != "The Nutcracker"],
+            index=0
+        )
+
+        bench_entry = BASELINES[benchmark_title]
+        bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
+        bench_fam_raw = bench_fam_raw or 1.0  # safety
+        bench_mot_raw = bench_mot_raw or 1.0  # safety
+
+        df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
+        df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
+        st.caption(f"Scores normalized to benchmark: {benchmark_title}")
 
         # Info badges for unknowns
         if unknown_used_est:
