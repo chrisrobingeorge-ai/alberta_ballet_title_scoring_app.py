@@ -279,7 +279,7 @@ with st.expander("🔑 API Configuration (only used for NEW titles if enabled)")
 region = st.selectbox("Region", ["Province","Calgary","Edmonton"], index=0)
 segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
 
-default_list = list(BASELINES.keys())[:10]
+default_list = list(BASELINES.keys())[:30]
 st.markdown("**Titles to score** (one per line). Add NEW titles freely:")
 titles_input = st.text_area("Enter titles", value="\n".join(default_list), height=220)
 titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
