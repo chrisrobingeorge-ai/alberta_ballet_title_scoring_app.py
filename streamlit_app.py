@@ -100,7 +100,6 @@ It combines cultural familiarity data, historical sales performance, and demogra
 # BASELINE DATA (subset for test run)
 # Values are indices relative to Nutcracker=100 (not capped).
 BASELINES = {
-"The Nutcracker": {"wiki": 100, "trends": 100, "youtube": 100, "spotify": 100, "category": "family_classic", "gender": "female"},
 "Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "category": "family_classic", "gender": "female"},
 "Swan Lake": {"wiki": 95, "trends": 90, "youtube": 88, "spotify": 84, "category": "classic_romance", "gender": "female"},
 "Sleeping Beauty": {"wiki": 92, "trends": 85, "youtube": 78, "spotify": 74, "category": "classic_romance", "gender": "female"},
@@ -166,7 +165,7 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
     elif any(k in t for k in female_keys): gender = "female"
     elif any(k in t for k in male_keys): gender = "male"
 
-    if any(k in t for k in ["nutcracker","wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
+    if any(k in t for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
         cat = "family_classic"
     elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
         cat = "classic_romance"
@@ -332,7 +331,6 @@ TICKET_PRIORS_RAW = {
     "La Sylphide": [5221],
     "Midsummer Night's Dream": [6587],
     "Momix": [8391],
-    "Nutcracker": [29845],
     "Our Canada": [10138],
     "Phi - David Bowie": [12336],
     "Shaping Sound": [10208],
@@ -353,33 +351,38 @@ def _median(xs):
     mid = n // 2
     return (xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0)
 
-# Build medians and Nutcracker baseline once
+# Build medians once
 TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-NUTCRACKER_TICKET_MEDIAN = TICKET_MEDIANS.get("Nutcracker", None) or 1.0  # safety
+
+# This is now dynamic based on user benchmark selection
+BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0  # safety fallback
 
 def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
     """
-    Returns (ticket_median, ticket_index) where ticket_index = 100 * median / NutcrackerMedian.
+    Returns (ticket_median, ticket_index) where ticket_index = 100 * median / BenchmarkMedian.
     If no prior exists, returns (None, None).
     """
     t = title.strip()
+
     # Exact match first
     if t in TICKET_MEDIANS and TICKET_MEDIANS[t]:
         med = float(TICKET_MEDIANS[t])
-        idx = (med / NUTCRACKER_TICKET_MEDIAN) * 100.0
+        idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
         return med, idx
-    # Light canonicalization attempts (common variants)
+
+    # Light canonicalization attempts
     aliases = {
         "The Nutcracker": "Nutcracker",
-        "Romeo and Juliet": "Romeo and Juliet",  # (no tickets provided in your list)
-        "Notre Dame de Paris": "Notre Dame de Paris",  # (no tickets provided)
+        "Romeo and Juliet": "Romeo and Juliet",
+        "Notre Dame de Paris": "Notre Dame de Paris",
         "Handmaid’s Tale": "Handmaid's Tale",
     }
     key = aliases.get(t, t)
     med = TICKET_MEDIANS.get(key, None)
     if med:
-        idx = (med / NUTCRACKER_TICKET_MEDIAN) * 100.0
+        idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
         return float(med), float(idx)
+
     return None, None
 
 # Weight for blending historic tickets with signal composite
@@ -430,10 +433,11 @@ if run:
        # --- User-selected normalization benchmark ---
         benchmark_title = st.selectbox(
             "Choose Benchmark Title for Normalization",
-            options=[t for t in BASELINES.keys() if t != "The Nutcracker"],
+            options=[t for t in BASELINES.keys()],
             index=0
         )
 
+        # Normalize Familiarity and Motivation
         bench_entry = BASELINES[benchmark_title]
         bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
         bench_fam_raw = bench_fam_raw or 1.0  # safety
@@ -441,29 +445,49 @@ if run:
 
         df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
         df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
-        st.caption(f"Scores normalized to benchmark: {benchmark_title}")
+        st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
 
-        # Info badges for unknowns
+        # --- Ticket medians and dynamic benchmark ticket baseline ---
+        TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+        BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0  # safety
+
+        def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
+            t = title.strip()
+            aliases = {
+                "The Nutcracker": "Nutcracker",
+                "Handmaid’s Tale": "Handmaid's Tale",
+            }
+            key = aliases.get(t, t)
+            med = TICKET_MEDIANS.get(key)
+            if med:
+                idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
+                return float(med), float(idx)
+            return None, None
+
+        # --- Apply ticket indices to DataFrame ---
+        ticket_medians, ticket_indices = [], []
+        for t in df["Title"]:
+            med, idx = ticket_index_for_title(t)
+            ticket_medians.append(med)
+            ticket_indices.append(idx)
+
+        df["TicketMedian"] = ticket_medians
+        df["TicketIndex"] = ticket_indices
+
+        # --- Info badges for unknowns ---
         if unknown_used_est:
             st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
         if unknown_used_live:
             st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
 
-        # --- Composite from signals (Nutcracker-indexed familiarity & motivation) ---
+        # --- Composite from Familiarity and Motivation (signal-based) ---
         signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
 
-        # --- Final Composite: blend only when ticket data exists ---
-        blended_composite = []
-        for i, row in df.iterrows():
-            if pd.notnull(row["TicketIndex"]):
-                comp = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite[i] + TICKET_BLEND_WEIGHT * row["TicketIndex"]
-            else:
-                comp = signal_composite[i]
-            blended_composite.append(comp)
+        # --- Blend with ticket history only if available ---
+        tickets_component = df["TicketIndex"].fillna(signal_composite)
+        df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
 
-        df["Composite"] = blended_composite
-
-        # --- Letter grade (A–E) from blended Composite ---
+        # --- Assign Letter Score (A–E) ---
         def _assign_score(v: float) -> str:
             if v >= 90: return "A"
             elif v >= 75: return "B"
