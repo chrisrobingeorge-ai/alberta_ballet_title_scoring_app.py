@@ -1,6 +1,6 @@
 # streamlit_app_v9_new_titles_fix.py
 # Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test, New Titles FIX)
-# - Hard-coded baselines (baseline = 100 index)
+# - Hard-coded baselines (normalized to a user-selected benchmark = 100)
 # - Add NEW titles via text area
 # - "Score Titles" button triggers scoring
 # - Unknown titles: live fetch (if enabled) OR offline estimate
@@ -37,7 +37,7 @@ with st.spinner("🎭 Preparing Alberta Ballet Familiarity Baselines..."):
     time.sleep(1.0)
 
 st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test — New Titles Enabled)")
-st.caption("Hard-coded Alberta-wide baselines (Nutcracker = 100). Add new titles; choose live fetch or offline estimate.")
+st.caption("Hard-coded Alberta-wide baselines (normalized to your selected benchmark = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
 # METHODOLOGY & GLOSSARY SECTION
@@ -55,8 +55,8 @@ It combines cultural familiarity data, historical sales performance, and demogra
   - YouTube activity (media engagement)
   - Spotify popularity (musical familiarity)
   - Adjusted for Alberta-specific performance data and demographic trends.
-- **Normalization:** All titles are scaled relative to *The Nutcracker* (index = 100).  
-  Scores above 100 represent titles with greater recognition or motivation potential; below 100 suggests lesser-known works.
+- **Normalization:** All titles are scaled relative to the **benchmark title you select** (index = 100).  
+  Scores above 100 represent titles with greater recognition or motivation potential under the current segment/region; below 100 suggests lesser-known works.
 - **Segments:** Audience segments apply different weightings:
   - *Core Classical (F35–64):* Prioritizes classic ballets and female or co-leads.
   - *Family (Parents w/ kids):* Boosts family-oriented, accessible stories and pop IPs.
@@ -65,9 +65,9 @@ It combines cultural familiarity data, historical sales performance, and demogra
   - *Calgary:* Slightly higher affinity for classical and family titles.
   - *Edmonton:* Slightly stronger interest in contemporary or conceptual programs.
 - **Unknown Titles:**  
-  - If *Use Live Data* is enabled and API keys are provided, the app fetches real data from Wikipedia, YouTube, Spotify, and Google Trends.  
+  - If *Use Live Data* is enabled and API keys are provided, the app fetches real data from Wikipedia, YouTube, Spotify, and heuristic Trends.  
   - Otherwise, it estimates based on category medians and historical genre performance.
-- **Benchmarking:** All familiarity and motivation scores are expressed as a percentage relative to *The Nutcracker* under the current segment and region selection.
+- **Benchmarking:** Familiarity and motivation are expressed as a percentage relative to the **currently selected** benchmark, given the chosen segment and region.
 
 ### **Interpretation**
 - **Familiarity** reflects brand or story awareness (e.g., “Have people heard of it?”).  
@@ -79,59 +79,55 @@ It combines cultural familiarity data, historical sales performance, and demogra
 ### **Glossary of Terms**
 | Term | Definition |
 |------|-------------|
-| **Baseline** | Hard-coded familiarity and motivation indices for existing repertoire, normalized to *The Nutcracker* (100). |
+| **Baseline** | Hard-coded familiarity and motivation indices for existing repertoire. |
 | **Familiarity** | Relative measure of audience awareness based on Wikipedia, Trends, and Spotify indices. |
 | **Motivation** | Relative measure of interest and engagement potential based on YouTube, Trends, and Wiki data. |
 | **Segment** | Target demographic lens (Core Classical, Family, Emerging Adults, or General). Adjusts score weighting. |
 | **Region** | Market context (Province-wide default, Calgary, or Edmonton). Adjusts for local preferences. |
-| **Pop IP** | “Popular Intellectual Property” — stories known through film, literature, or franchise (e.g., *Frozen*, *Beauty and the Beast*). |
+| **Pop IP** | “Popular Intellectual Property” — stories known through film, literature, or franchise (e.g., Bowie, Joni, Bollywood). |
 | **Contemporary** | Non-narrative or modern programs, often concept-driven or physically abstract. |
-| **Classic Romance** | Canonical 19th-century works with romantic or tragic themes (e.g., *Swan Lake*, *Giselle*). |
-| **Family Classic** | Accessible narrative works suitable for all ages, often fairy-tale or children’s stories. |
-| **Normalization** | Scaling process that expresses all familiarity and motivation scores as a ratio to *The Nutcracker*. |
-| **Live Fetch** | Optional real-time retrieval of data from Wikipedia, Google Trends, YouTube, and Spotify for new titles. |
-
----
+| **Normalization** | Scaling process that expresses scores as a ratio to the **selected** benchmark title (index = 100). |
+| **Live Fetch** | Optional real-time retrieval from Wikipedia, YouTube, Spotify for new titles. |
 
 **Note:** This tool is not a predictor of exact ticket sales but a comparative instrument for programming strategy and communication alignment.
     """)
 
 # -------------------------
 # BASELINE DATA (subset for test run)
-# Values are indices relative to Nutcracker=100 (not capped).
+# Values are indices relative to a general baseline (not capped).
 BASELINES = {
-"Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "category": "family_classic", "gender": "female"},
-"Swan Lake": {"wiki": 95, "trends": 90, "youtube": 88, "spotify": 84, "category": "classic_romance", "gender": "female"},
-"Sleeping Beauty": {"wiki": 92, "trends": 85, "youtube": 78, "spotify": 74, "category": "classic_romance", "gender": "female"},
-"Hansel & Gretel": {"wiki": 78, "trends": 70, "youtube": 65, "spotify": 62, "category": "family_classic", "gender": "co"},
-"Don Quixote": {"wiki": 88, "trends": 75, "youtube": 72, "spotify": 68, "category": "classic_comedy", "gender": "male"},
-"Giselle": {"wiki": 82, "trends": 72, "youtube": 65, "spotify": 60, "category": "classic_romance", "gender": "female"},
-"La Sylphide": {"wiki": 75, "trends": 68, "youtube": 60, "spotify": 55, "category": "classic_romance", "gender": "female"},
-"Beauty and the Beast": {"wiki": 94, "trends": 97, "youtube": 92, "spotify": 90, "category": "family_classic", "gender": "female"},
-"Romeo and Juliet": {"wiki": 90, "trends": 82, "youtube": 79, "spotify": 77, "category": "romantic_tragedy", "gender": "co"},
-"The Merry Widow": {"wiki": 70, "trends": 60, "youtube": 55, "spotify": 50, "category": "romantic_comedy", "gender": "female"},
-"Peter Pan": {"wiki": 80, "trends": 78, "youtube": 85, "spotify": 82, "category": "family_classic", "gender": "male"},
-"Pinocchio": {"wiki": 72, "trends": 68, "youtube": 70, "spotify": 66, "category": "family_classic", "gender": "male"},
-"Grimm": {"wiki": 55, "trends": 52, "youtube": 50, "spotify": 45, "category": "contemporary", "gender": "na"},
-"Momix": {"wiki": 65, "trends": 60, "youtube": 68, "spotify": 60, "category": "contemporary", "gender": "na"},
-"Dangerous Liaisons": {"wiki": 66, "trends": 62, "youtube": 63, "spotify": 58, "category": "dramatic", "gender": "female"},
-"Frankenstein": {"wiki": 68, "trends": 63, "youtube": 66, "spotify": 62, "category": "dramatic", "gender": "male"},
-"Ballet Boyz": {"wiki": 45, "trends": 40, "youtube": 60, "spotify": 58, "category": "contemporary", "gender": "male"},
-"Contemporary Classical": {"wiki": 60, "trends": 55, "youtube": 58, "spotify": 50, "category": "contemporary", "gender": "na"},
-"Ballet BC": {"wiki": 50, "trends": 45, "youtube": 53, "spotify": 49, "category": "contemporary", "gender": "na"},
-"Complexions": {"wiki": 62, "trends": 58, "youtube": 66, "spotify": 60, "category": "contemporary", "gender": "na"},
-"Phi – David Bowie": {"wiki": 70, "trends": 65, "youtube": 72, "spotify": 75, "category": "pop_ip", "gender": "male"},
-"Tragically Hip – All of Us": {"wiki": 72, "trends": 68, "youtube": 78, "spotify": 80, "category": "pop_ip", "gender": "male"},
-"Harlem (Dance Theatre)": {"wiki": 75, "trends": 68, "youtube": 74, "spotify": 68, "category": "pop_ip", "gender": "co"},
-"Shaping Sound": {"wiki": 68, "trends": 64, "youtube": 70, "spotify": 66, "category": "contemporary", "gender": "co"},
-"Taj Express": {"wiki": 66, "trends": 62, "youtube": 68, "spotify": 70, "category": "pop_ip", "gender": "male"},
-"Diavolo": {"wiki": 60, "trends": 58, "youtube": 66, "spotify": 64, "category": "contemporary", "gender": "co"},
-"Unleashed – Mixed Bill": {"wiki": 55, "trends": 50, "youtube": 60, "spotify": 52, "category": "contemporary", "gender": "co"},
-"Botero": {"wiki": 58, "trends": 54, "youtube": 62, "spotify": 57, "category": "contemporary", "gender": "male"},
-"Away We Go – Mixed Bill": {"wiki": 54, "trends": 52, "youtube": 58, "spotify": 50, "category": "contemporary", "gender": "co"},
-"Fiddle – Joni Mitchell": {"wiki": 60, "trends": 55, "youtube": 62, "spotify": 66, "category": "pop_ip", "gender": "female"},
-"Midsummer Night’s Dream": {"wiki": 75, "trends": 70, "youtube": 70, "spotify": 68, "category": "classic_romance", "gender": "co"},
-"Dracula": {"wiki": 74, "trends": 65, "youtube": 70, "spotify": 65, "category": "romantic_tragedy", "gender": "male"},
+    "Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "category": "family_classic", "gender": "female"},
+    "Swan Lake": {"wiki": 95, "trends": 90, "youtube": 88, "spotify": 84, "category": "classic_romance", "gender": "female"},
+    "Sleeping Beauty": {"wiki": 92, "trends": 85, "youtube": 78, "spotify": 74, "category": "classic_romance", "gender": "female"},
+    "Hansel & Gretel": {"wiki": 78, "trends": 70, "youtube": 65, "spotify": 62, "category": "family_classic", "gender": "co"},
+    "Don Quixote": {"wiki": 88, "trends": 75, "youtube": 72, "spotify": 68, "category": "classic_comedy", "gender": "male"},
+    "Giselle": {"wiki": 82, "trends": 72, "youtube": 65, "spotify": 60, "category": "classic_romance", "gender": "female"},
+    "La Sylphide": {"wiki": 75, "trends": 68, "youtube": 60, "spotify": 55, "category": "classic_romance", "gender": "female"},
+    "Beauty and the Beast": {"wiki": 94, "trends": 97, "youtube": 92, "spotify": 90, "category": "family_classic", "gender": "female"},
+    "Romeo and Juliet": {"wiki": 90, "trends": 82, "youtube": 79, "spotify": 77, "category": "romantic_tragedy", "gender": "co"},
+    "The Merry Widow": {"wiki": 70, "trends": 60, "youtube": 55, "spotify": 50, "category": "romantic_comedy", "gender": "female"},
+    "Peter Pan": {"wiki": 80, "trends": 78, "youtube": 85, "spotify": 82, "category": "family_classic", "gender": "male"},
+    "Pinocchio": {"wiki": 72, "trends": 68, "youtube": 70, "spotify": 66, "category": "family_classic", "gender": "male"},
+    "Grimm": {"wiki": 55, "trends": 52, "youtube": 50, "spotify": 45, "category": "contemporary", "gender": "na"},
+    "Momix": {"wiki": 65, "trends": 60, "youtube": 68, "spotify": 60, "category": "contemporary", "gender": "na"},
+    "Dangerous Liaisons": {"wiki": 66, "trends": 62, "youtube": 63, "spotify": 58, "category": "dramatic", "gender": "female"},
+    "Frankenstein": {"wiki": 68, "trends": 63, "youtube": 66, "spotify": 62, "category": "dramatic", "gender": "male"},
+    "Ballet Boyz": {"wiki": 45, "trends": 40, "youtube": 60, "spotify": 58, "category": "contemporary", "gender": "male"},
+    "Contemporary Classical": {"wiki": 60, "trends": 55, "youtube": 58, "spotify": 50, "category": "contemporary", "gender": "na"},
+    "Ballet BC": {"wiki": 50, "trends": 45, "youtube": 53, "spotify": 49, "category": "contemporary", "gender": "na"},
+    "Complexions": {"wiki": 62, "trends": 58, "youtube": 66, "spotify": 60, "category": "contemporary", "gender": "na"},
+    "Phi – David Bowie": {"wiki": 70, "trends": 65, "youtube": 72, "spotify": 75, "category": "pop_ip", "gender": "male"},
+    "Tragically Hip – All of Us": {"wiki": 72, "trends": 68, "youtube": 78, "spotify": 80, "category": "pop_ip", "gender": "male"},
+    "Harlem (Dance Theatre)": {"wiki": 75, "trends": 68, "youtube": 74, "spotify": 68, "category": "pop_ip", "gender": "co"},
+    "Shaping Sound": {"wiki": 68, "trends": 64, "youtube": 70, "spotify": 66, "category": "contemporary", "gender": "co"},
+    "Taj Express": {"wiki": 66, "trends": 62, "youtube": 68, "spotify": 70, "category": "pop_ip", "gender": "male"},
+    "Diavolo": {"wiki": 60, "trends": 58, "youtube": 66, "spotify": 64, "category": "contemporary", "gender": "co"},
+    "Unleashed – Mixed Bill": {"wiki": 55, "trends": 50, "youtube": 60, "spotify": 52, "category": "contemporary", "gender": "co"},
+    "Botero": {"wiki": 58, "trends": 54, "youtube": 62, "spotify": 57, "category": "contemporary", "gender": "male"},
+    "Away We Go – Mixed Bill": {"wiki": 54, "trends": 52, "youtube": 58, "spotify": 50, "category": "contemporary", "gender": "co"},
+    "Fiddle – Joni Mitchell": {"wiki": 60, "trends": 55, "youtube": 62, "spotify": 66, "category": "pop_ip", "gender": "female"},
+    "Midsummer Night’s Dream": {"wiki": 75, "trends": 70, "youtube": 70, "spotify": 68, "category": "classic_romance", "gender": "co"},
+    "Dracula": {"wiki": 74, "trends": 65, "youtube": 70, "spotify": 65, "category": "romantic_tragedy", "gender": "male"},
 }
 
 # -------------------------
@@ -351,40 +347,6 @@ def _median(xs):
     mid = n // 2
     return (xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0)
 
-# Build medians once
-TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-
-# This is now dynamic based on user benchmark selection
-BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0  # safety fallback
-
-def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
-    """
-    Returns (ticket_median, ticket_index) where ticket_index = 100 * median / BenchmarkMedian.
-    If no prior exists, returns (None, None).
-    """
-    t = title.strip()
-
-    # Exact match first
-    if t in TICKET_MEDIANS and TICKET_MEDIANS[t]:
-        med = float(TICKET_MEDIANS[t])
-        idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
-        return med, idx
-
-    # Light canonicalization attempts
-    aliases = {
-        "The Nutcracker": "Nutcracker",
-        "Romeo and Juliet": "Romeo and Juliet",
-        "Notre Dame de Paris": "Notre Dame de Paris",
-        "Handmaid’s Tale": "Handmaid's Tale",
-    }
-    key = aliases.get(t, t)
-    med = TICKET_MEDIANS.get(key, None)
-    if med:
-        idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
-        return float(med), float(idx)
-
-    return None, None
-
 # Weight for blending historic tickets with signal composite
 TICKET_BLEND_WEIGHT = 0.50  # 50% tickets, 50% familiarity/motivation composite
 
@@ -394,6 +356,8 @@ if run:
     else:
         rows = []
         unknown_used_live, unknown_used_est = [], []
+
+        # Build raw rows first (no ticket indices yet)
         for title in titles:
             if title in BASELINES:
                 entry = BASELINES[title]
@@ -409,7 +373,6 @@ if run:
                     unknown_used_est.append(title)
 
             fam_raw, mot_raw = calc_scores(entry, segment, region)
-            t_med, t_idx = ticket_index_for_title(title)
 
             rows.append({
                 "Title": title,
@@ -423,14 +386,12 @@ if run:
                 "TrendsIdx": entry["trends"],
                 "YouTubeIdx": entry["youtube"],
                 "SpotifyIdx": entry["spotify"],
-                "TicketMedian": t_med,
-                "TicketIndex": t_idx,
                 "Source": src
             })
 
         df = pd.DataFrame(rows)
 
-       # --- User-selected normalization benchmark ---
+        # --- User-selected normalization benchmark ---
         benchmark_title = st.selectbox(
             "Choose Benchmark Title for Normalization",
             options=[t for t in BASELINES.keys()],
@@ -453,8 +414,8 @@ if run:
 
         def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
             t = title.strip()
+            # Handle a couple of common punctuation variants
             aliases = {
-                "The Nutcracker": "Nutcracker",
                 "Handmaid’s Tale": "Handmaid's Tale",
             }
             key = aliases.get(t, t)
