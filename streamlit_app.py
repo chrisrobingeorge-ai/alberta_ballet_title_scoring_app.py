@@ -444,10 +444,16 @@ if run:
         # --- Composite from signals (Nutcracker-indexed familiarity & motivation) ---
         signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
 
-        # --- Blend in historical ticket evidence when available ---
-        # If TicketIndex is missing, fall back to the signal composite (no penalty)
-        tickets_component = df["TicketIndex"].fillna(signal_composite)
-        df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
+        # --- Final Composite: blend only when ticket data exists ---
+        blended_composite = []
+        for i, row in df.iterrows():
+            if pd.notnull(row["TicketIndex"]):
+                comp = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite[i] + TICKET_BLEND_WEIGHT * row["TicketIndex"]
+            else:
+                comp = signal_composite[i]
+            blended_composite.append(comp)
+
+        df["Composite"] = blended_composite
 
         # --- Letter grade (A–E) from blended Composite ---
         def _assign_score(v: float) -> str:
