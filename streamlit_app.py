@@ -1,6 +1,6 @@
 # streamlit_app_v9_new_titles_fix.py
 # Alberta Ballet — Title Familiarity & Motivation Scorer (v9 Test, New Titles FIX)
-# - Hard-coded baselines (Nutcracker = 100 index)
+# - Hard-coded baselines (baseline = 100 index)
 # - Add NEW titles via text area
 # - "Score Titles" button triggers scoring
 # - Unknown titles: live fetch (if enabled) OR offline estimate
@@ -532,8 +532,8 @@ if run:
             ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
         ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
         ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
-        ax.set_xlabel("Familiarity (Nutcracker = 100 index)")
-        ax.set_ylabel("Motivation (Nutcracker = 100 index)")
+        ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
+        ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
         ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
         st.pyplot(fig)
 
