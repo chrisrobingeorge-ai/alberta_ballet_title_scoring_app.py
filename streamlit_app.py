@@ -800,7 +800,6 @@ def render_results():
             "Familiarity","Motivation","WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
         ]
         present = [c for c in display_cols if c in df.columns]
-
         st.dataframe(
             df[present]
               .sort_values(by=["EstimatedTickets","Composite","Motivation","Familiarity"], ascending=[False, False, False, False])
@@ -828,11 +827,11 @@ def render_results():
                     ),
                     subset=["Score"]
                 )
-                .map(  # visually downplay low-confidence estimates
+                .map(
                     lambda v: "opacity: 0.75;" if v == "Online-only (proxy: low confidence)" else "",
                     subset=["Ticket estimate source"]
                 )
-                .map(  # highlight where we couldn't learn a mapping
+                .map(
                     lambda v: "color: #b23b3b; font-weight: 600;" if v == "Not enough data" else "",
                     subset=["TicketIndexSource"]
                 ),
