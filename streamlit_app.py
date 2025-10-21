@@ -693,42 +693,43 @@ def render_results():
         else: return "E"
     df["Score"] = df["Composite"].apply(_assign_score)
 
-        # --- Estimate ticket counts for each title (history, predicted, or fallback) ---
+    # --- Estimate ticket counts for each title (history, predicted, or fallback) ---
 
-        # Recompute benchmark ticket median here (relative to selected benchmark)
-        def _median(xs):
-            xs = sorted([float(x) for x in xs if x is not None])
-            if not xs: return None
-            n = len(xs); mid = n // 2
-            return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
-    
-        TICKET_MEDIANS_LOCAL = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-        BENCHMARK_TICKET_MEDIAN_LOCAL = TICKET_MEDIANS_LOCAL.get(benchmark_title, None) or 1.0
-    
-        # Effective TicketIndex we will use to estimate tickets:
-        #   - If we have actual history, use that
-        #   - Else use the imputed TicketIndex (Category/Overall model)
-        #   - Else (Not enough data) fall back to online-only signal (low confidence)
-        df["EffectiveTicketIndex"] = np.where(
-            df["TicketIndex"].notna(), df["TicketIndex"],
-            np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
-        )
-    
-        # Estimation source label
-        def _est_src(row):
-            if pd.notna(row["TicketMedian"]):
-                return "History (actual median)"
-            if pd.notna(row["TicketIndexImputed"]):
-                return f'Predicted ({row.get("TicketIndexSource","model")})'
-            return "Online-only (proxy: low confidence)"
-    
-        df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
-    
-        # Convert index -> tickets using the benchmark's historical median
-        df["EstimatedTickets"] = (df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL
-    
-        # Round for display
-        df["EstimatedTickets"] = df["EstimatedTickets"].round(0)
+    # Local median helper (rename avoids conflicts)
+    def _median_local(xs):
+        xs = sorted([float(x) for x in xs if x is not None])
+        if not xs:
+            return None
+        n = len(xs); mid = n // 2
+        return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
+
+    # Recompute benchmark ticket median here (relative to the selected benchmark)
+    TICKET_MEDIANS_LOCAL = {k: _median_local(v) for k, v in TICKET_PRIORS_RAW.items()}
+    BENCHMARK_TICKET_MEDIAN_LOCAL = TICKET_MEDIANS_LOCAL.get(benchmark_title, None) or 1.0
+
+    # Choose the TicketIndex we will use to estimate tickets:
+    #   - If we have actual history, use that
+    #   - Else use the imputed TicketIndex (Category/Overall model)
+    #   - Else (Not enough data) fall back to online-only signal (low confidence)
+    df["EffectiveTicketIndex"] = np.where(
+        df["TicketIndex"].notna(), df["TicketIndex"],
+        np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
+    )
+
+    # Label the estimate source
+    def _est_src(row):
+        if pd.notna(row.get("TicketMedian", np.nan)):
+            return "History (actual median)"
+        if pd.notna(row.get("TicketIndexImputed", np.nan)):
+            return f'Predicted ({row.get("TicketIndexSource","model")})'
+        return "Online-only (proxy: low confidence)"
+
+    df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
+
+    # Convert index -> tickets using the benchmark's historical median
+    df["EstimatedTickets"] = (df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL
+    df["EstimatedTickets"] = df["EstimatedTickets"].round(0)
+
     
         # --- Grade → typical ticket ranges (based on KNOWN titles only) ---
         known_mask = df["TicketMedian"].notna()
