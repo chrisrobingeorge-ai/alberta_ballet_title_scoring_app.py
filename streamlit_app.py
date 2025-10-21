@@ -342,7 +342,7 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
 
             views = []
             if filtered_ids:
-                stats = yt.videos().list(part="statistics", id=",".join(filtered_ids[:50])).execute()
+                stats = yt.videos().list(part="statistics", id=",".join(filtered_ids[:60])).execute()
                 for i in stats.get("items", []) or []:
                     vc = i.get("statistics", {}).get("viewCount")
                     if vc is not None:
@@ -458,7 +458,7 @@ TICKET_PRIORS_RAW = {
     "La Sylphide": [5221],
     "Midsummer Night’s Dream": [6587],
     "Momix": [8391],
-    "Our Canada": [10138],
+    "Our Canada - Gordon Lightfoot": [10138],
     "Phi - David Bowie": [12336],
     "Shaping Sound": [10208],
     "Sleeping Beauty": [9596.5],
