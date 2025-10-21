@@ -693,6 +693,149 @@ def render_results():
         else: return "E"
     df["Score"] = df["Composite"].apply(_assign_score)
 
+        # --- Estimate ticket counts for each title (history, predicted, or fallback) ---
+
+        # Recompute benchmark ticket median here (relative to selected benchmark)
+        def _median(xs):
+            xs = sorted([float(x) for x in xs if x is not None])
+            if not xs: return None
+            n = len(xs); mid = n // 2
+            return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
+    
+        TICKET_MEDIANS_LOCAL = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+        BENCHMARK_TICKET_MEDIAN_LOCAL = TICKET_MEDIANS_LOCAL.get(benchmark_title, None) or 1.0
+    
+        # Effective TicketIndex we will use to estimate tickets:
+        #   - If we have actual history, use that
+        #   - Else use the imputed TicketIndex (Category/Overall model)
+        #   - Else (Not enough data) fall back to online-only signal (low confidence)
+        df["EffectiveTicketIndex"] = np.where(
+            df["TicketIndex"].notna(), df["TicketIndex"],
+            np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
+        )
+    
+        # Estimation source label
+        def _est_src(row):
+            if pd.notna(row["TicketMedian"]):
+                return "History (actual median)"
+            if pd.notna(row["TicketIndexImputed"]):
+                return f'Predicted ({row.get("TicketIndexSource","model")})'
+            return "Online-only (proxy: low confidence)"
+    
+        df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
+    
+        # Convert index -> tickets using the benchmark's historical median
+        df["EstimatedTickets"] = (df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL
+    
+        # Round for display
+        df["EstimatedTickets"] = df["EstimatedTickets"].round(0)
+    
+        # --- Grade → typical ticket ranges (based on KNOWN titles only) ---
+        known_mask = df["TicketMedian"].notna()
+        if known_mask.any():
+            grade_ticket_stats = (
+                df.loc[known_mask]
+                  .groupby("Score")["TicketMedian"]
+                  .agg(median="median", p25=lambda s: np.percentile(s, 25), p75=lambda s: np.percentile(s, 75), n="count")
+                  .reindex(["A","B","C","D","E"])
+            )
+            st.subheader("🎟️ Estimated ticket sales")
+            st.caption(
+                "Counts are estimated from the TicketIndex (history or predicted) scaled by your selected benchmark’s historical median. "
+                "‘Online-only (proxy)’ is used only when there isn’t enough data to learn a reliable mapping."
+            )
+    
+            # Main table (you can add/remove columns as you prefer)
+            display_cols = [
+                "Title","Category","Region","Segment",
+                "Score","Composite","EffectiveTicketIndex",
+                "EstimatedTickets","TicketEstimateSource"
+            ]
+            present = [c for c in display_cols if c in df.columns]
+            st.dataframe(
+                df[present]
+                  .sort_values(by=["EstimatedTickets","Composite"], ascending=[False, False])
+                  .rename(columns={
+                      "EffectiveTicketIndex":"TicketIndex used",
+                  })
+                  .style.format({
+                      "Composite":"{:.1f}",
+                      "TicketIndex used":"{:.1f}",
+                      "EstimatedTickets":"{:,.0f}",
+                  }),
+                use_container_width=True
+            )
+    
+            st.markdown("**Typical tickets by grade** (based on shows with history)")
+            st.dataframe(
+                grade_ticket_stats.rename(columns={
+                    "median":"Median tickets",
+                    "p25":"25th percentile",
+                    "p75":"75th percentile",
+                    "n":"# titles"
+                }).style.format({
+                    "Median tickets":"{:,.0f}",
+                    "25th percentile":"{:,.0f}",
+                    "75th percentile":"{:,.0f}",
+                    "# titles":"{:,.0f}"
+                }),
+                use_container_width=True
+            )
+        else:
+            # No known titles in current run; still show per-title estimates (will be proxies if no imputation)
+            st.subheader("🎟️ Estimated ticket sales")
+            st.caption(
+                "No known-history titles in this run to summarize by grade. "
+                "Per-title estimates below use the TicketIndex (predicted if needed) or an online-only proxy."
+            )
+            # ===== Main results table (now includes ticket estimates) =====
+            display_cols = [
+                "Title","Region","Segment","Gender","Category",
+                "Score","Composite",
+                "EstimatedTickets","TicketEstimateSource",
+                "EffectiveTicketIndex","TicketMedian","TicketIndex","TicketIndexImputed","TicketIndexSource",
+                "Familiarity","Motivation","WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
+            ]
+            present = [c for c in display_cols if c in df.columns]
+        
+            st.dataframe(
+                df[present]
+                  .sort_values(by=["EstimatedTickets","Composite","Motivation","Familiarity"], ascending=[False, False, False, False])
+                  .rename(columns={
+                      "EffectiveTicketIndex": "TicketIndex used",
+                      "TicketEstimateSource": "Ticket estimate source"
+                  })
+                  .style
+                    .format({
+                        "Composite": "{:.1f}",
+                        "Familiarity": "{:.1f}",
+                        "Motivation": "{:.1f}",
+                        "TicketIndex used": "{:.1f}",
+                        "TicketMedian": "{:,.0f}",
+                        "EstimatedTickets": "{:,.0f}",
+                        "WikiIdx": "{:.0f}", "TrendsIdx": "{:.0f}", "YouTubeIdx": "{:.0f}", "SpotifyIdx": "{:.0f}",
+                    })
+                    .map(
+                        lambda v: (
+                            "color: green;" if v == "A" else
+                            "color: darkgreen;" if v == "B" else
+                            "color: orange;" if v == "C" else
+                            "color: darkorange;" if v == "D" else
+                            "color: red;" if v == "E" else ""
+                        ),
+                        subset=["Score"]
+                    )
+                    .map(  # visually downplay low-confidence estimates
+                        lambda v: "opacity: 0.75;" if v == "Online-only (proxy: low confidence)" else "",
+                        subset=["Ticket estimate source"]
+                    )
+                    .map(  # highlight where we couldn't learn a mapping
+                        lambda v: "color: #b23b3b; font-weight: 600;" if v == "Not enough data" else "",
+                        subset=["TicketIndexSource"]
+                    ),
+                use_container_width=True
+            )
+
     # Display + charts + download
     display_cols = [
         "Title","Region","Segment","Gender","Category",
@@ -702,7 +845,6 @@ def render_results():
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
     ]
     existing = [c for c in display_cols if c in df.columns]
-
 
     if "Score" in df.columns:
         grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
