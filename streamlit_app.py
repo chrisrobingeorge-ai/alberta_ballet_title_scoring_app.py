@@ -658,122 +658,31 @@ def render_results():
         st.success(f"Used LIVE data for new titles: {', '.join(R['unknown_live'])}")
 
     # Plain-English comparison / calibration
-    with st.expander("🧪 How close are the online-signal scores to your real ticket results?"):
-        from textwrap import dedent  # safe even if already imported
-        st.markdown(dedent("""
-        **Why this matters**
+        # Integrated status (no separate panel)
+        src_counts = (
+            df["TicketIndexSource"]
+            .value_counts(dropna=False)
+            .reindex(["History", "Category model", "Overall model", "Not enough data"])
+            .fillna(0)
+            .astype(int)
+        )
     
-        This section helps you sanity-check the model by comparing **online-signal scores** (from Wikipedia, Google Trends, YouTube, and Spotify) with your **real ticket results** for titles where we have history. *Overall similarity* tells you how closely the online signals move with ticket results across those titles (closer to **1.00** = they rise and fall together). *Average miss* shows, in the same index units as your charts (benchmark = 100), how far off the online-only score tends to be—e.g., a 15-point miss means the signal was about 15 points too high or low on average. The **by-category** view highlights where the model is systematically off: positive numbers mean ticket-informed scores run **higher** than the online signals for that category (signals are underestimating demand), while negative numbers mean they run **lower** (signals are overestimating). Use this to decide whether to trust the online signals as-is, nudge them with the optional adjustment, or apply category-specific tweaks when evaluating new titles.
-        """))
+        hist_count    = int(src_counts.get("History", 0))
+        cat_count     = int(src_counts.get("Category model", 0))
+        overall_count = int(src_counts.get("Overall model", 0))
+        ned_count     = int(src_counts.get("Not enough data", 0))
     
-        # Build the comparison columns
-        df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
-        df["Blended"] = df["Composite"]
-        df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
-        df["DeltaPct"] = (df["Blended"] / df["SignalOnly"] - 1.0) * 100.0
+        st.caption(
+            f"TicketIndex source — "
+            f"History: {hist_count} · Category model: {cat_count} · "
+            f"Overall model: {overall_count} · Not enough data: {ned_count}"
+        )
     
-        # Only use titles that actually have ticket history for diagnostics
-        df_known = df[df["TicketIndex"].notna()].copy()
-        if df_known.empty:
-            st.info("No titles in your list have past ticket history to compare against.")
-        else:
-            # Correlation and error (RMSE) between signal-only and ticket-based
-            corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
-            resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
-            rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
-    
-            do_calibrate = st.checkbox(
-                "Adjust the online-signal scores to better match past ticket results (optional)",
-                value=False, key="calibrate_signals"
+        if ned_count > 0:
+            st.info(
+                "Some titles fell back to online-only because there wasn’t enough data "
+                "to learn a reliable ticket mapping."
             )
-    
-            a = b = None
-            if do_calibrate and len(df_known) >= 2:
-                x = df_known["SignalOnly"].values
-                y = df_known["TicketIndex"].values
-                a, b = np.polyfit(x, y, 1)
-                df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
-                resid_cal = df_known["TicketIndex"] - df_known["SignalCalibrated"]
-                rmse_cal = float(np.sqrt(np.mean(resid_cal**2)))
-            else:
-                rmse_cal = None
-    
-            st.markdown("### What this means, in plain English")
-            msg = (
-                f"- **Overall similarity:** `{corr:.2f}` — closer to **1.00** means the online signals move up/down like ticket results do.\n"
-                f"- **Average miss using online-only scores:** about **{rmse_raw:.1f} index points**."
-            )
-            if rmse_cal is not None:
-                msg += f"\n- **After adjustment:** average miss improves to **{rmse_cal:.1f} index points**."
-            st.markdown(msg)
-            st.caption(
-                "“Index points” are the same units you see in the tables and charts (your chosen benchmark = 100). "
-                "For example, a 15-point miss means online signals were off by ~15 on that scale."
-            )
-    
-            # Category bias table
-            by_cat = (
-                df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
-                .agg({"SignalOnly":"mean","TicketIndex":"mean","DeltaAbs":"mean","DeltaPct":"mean"})
-                .rename(columns={
-                    "SignalOnly":"Avg online-only score",
-                    "TicketIndex":"Avg ticket-based score",
-                    "DeltaAbs":"Avg difference (points)",
-                    "DeltaPct":"Avg difference (%)"
-                })
-                .sort_values("Avg difference (points)", ascending=False)
-            )
-    
-            st.markdown("### Where the model tends to be off (by category)")
-            st.caption("Positive numbers = ticket-informed scores run higher than online-only; negative = they run lower.")
-            st.dataframe(
-                by_cat.style.format({
-                    "Avg online-only score":"{:.1f}",
-                    "Avg ticket-based score":"{:.1f}",
-                    "Avg difference (points)":"{:+.1f}",
-                    "Avg difference (%)":"{:+.1f}%"
-                }),
-                use_container_width=True
-            )
-    
-            # Known titles table
-            show_cols = [
-                "Title","Category","Region","Segment",
-                "SignalOnly","TicketIndex","TicketIndexImputed","TicketIndexSource",
-                "Blended","DeltaAbs","DeltaPct","Source"
-            ]
-            show_cols = [c for c in show_cols if c in df_known.columns]
-            st.markdown("### Titles we can compare (we have ticket history for these)")
-            st.dataframe(
-                df_known[show_cols]
-                    .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False])
-                    .rename(columns={
-                        "SignalOnly":"Online-only score",
-                        "TicketIndex":"Ticket-based score",
-                        "TicketIndexImputed":"TicketIndex (history or predicted)",
-                        "TicketIndexSource":"TicketIndex source",
-                        "Blended":"Score used (blended)",
-                        "DeltaAbs":"How much tickets moved it (pts)",
-                        "DeltaPct":"How much tickets moved it (%)"
-                    })
-                    .style.format({
-                        "Online-only score":"{:.1f}",
-                        "Ticket-based score":"{:.1f}",
-                        "TicketIndex (history or predicted)":"{:.1f}",
-                        "How much tickets moved it (pts)":"{:+.1f}",
-                        "How much tickets moved it (%)":"{:+.1f}%"
-                    }),
-                use_container_width=True
-            )
-    
-            # Residual plot (tickets minus signals)
-            fig_res, ax_res = plt.subplots()
-            ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
-            ax_res.axhline(0, linestyle="--")
-            ax_res.set_xlabel("Online-only score (index)")
-            ax_res.set_ylabel("Ticket-based minus online-only (points)")
-            ax_res.set_title("How much ticket results shift the score (for titles with history)")
-            st.pyplot(fig_res)
 
     # Grades (unchanged)
     def _assign_score(v: float) -> str:
