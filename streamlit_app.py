@@ -50,88 +50,93 @@ st.caption("Hard-coded Alberta-wide baselines (normalized to your selected bench
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown(dedent("""
     ### **Purpose**
-    This tool estimates how familiar audiences are with a title and how motivated they are to attend, then blends those "online signal" estimates with Alberta Ballet's historical ticket results (when available). Use it to compare current and prospective titles under different audience segments and regions.
-
+    This tool estimates how familiar audiences are with a title and how motivated they are to attend, then blends those “online signal” estimates with **ticket-informed** scores. If a title has past ticket history, we use it directly; if it doesn’t, we **predict** a TicketIndex from similar shows so new titles get a fair, history-like adjustment.
+    
     ---
-
+    
     ### **What goes into the scores**
     **Online signals (per title):**
     - **Wikipedia** page views → awareness  
     - **Google Trends** (light heuristic) → search interest  
     - **YouTube** activity → engagement potential  
     - **Spotify** popularity → musical familiarity
-
+    
     **Contextual multipliers:**
     - **Audience Segment**: weights by **gender lead** and **category** (e.g., Core Classical, Family, Emerging Adults).  
     - **Region**: Province / Calgary / Edmonton adjustment.
-
-    **Ticket history (if available):**
-    - Historical median tickets sold per title are converted to a **TicketIndex**, relative to the selected benchmark title's median, so tickets and signals live on the same 0–~150 scale.
-
+    
+    **Ticket history & prediction:**
+    - If a title has history, we convert its historical median tickets to a **TicketIndex** relative to the selected benchmark title’s median.  
+    - If a title has **no** history, we **predict** its TicketIndex from the online signal using a simple linear fit learned from known titles:
+      - Prefer a **per-category** fit when there’s enough data in that category; otherwise use an **overall** fit.  
+      - We show which source was used: **History**, **Category model**, or **Overall model**.
+    
     ---
-
+    
     ### **How the score is calculated**
     1) **Raw signals → Familiarity & Motivation**  
        - Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify  
        - Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki  
        - Apply segment multipliers (by **gender** and **category**) and a **region** multiplier.
-
+    
     2) **Normalize to your benchmark (= 100)**  
        You choose a benchmark title; all Familiarity/Motivation numbers are scaled so that the benchmark equals 100 under the current segment and region.
-
-    3) **TicketIndex (only when history exists)**  
-       Ticket median for a title ÷ ticket median for the benchmark × 100 → TicketIndex.
-
-    4) **Blend signals with ticket history**  
-       **Composite = 50% Online Signals + 50% TicketIndex.**  
-       If a title has **no** ticket history, its Composite falls back to the online-signal value (so unknown titles aren't penalized).
-
+    
+    3) **TicketIndex (history or predicted)**  
+       - **History available:** Ticket median ÷ benchmark ticket median × 100.  
+       - **No history:** Predicted via the learned linear mapping from **Online Signals** to **TicketIndex** (per-category if possible, otherwise overall).
+    
+    4) **Blend signals with (actual or predicted) tickets**  
+       **Composite = 50% Online Signals + 50% TicketIndex (history or predicted).**  
+       This gives every title a consistent, ticket-informed adjustment.  
+    
     5) **Letter grade**  
        A (≥90), B (≥75), C (≥60), D (≥45), E (<45) based on the Composite.
-
+    
     ---
-
+    
     ### **Unknown / new titles**
     - The app infers **gender lead** and **category** from the title text (e.g., family classic, classic romance, pop IP, contemporary).  
-    - It uses **category medians** of the online signals (with a small gender adjustment), capped to a sensible range.  
-    - If **Use Live Data** is on and API keys are provided, the app attempts live lookups (Wikipedia, YouTube, Spotify); otherwise it uses the offline estimate.
-
+    - It uses **category medians** of the online signals (with a small gender adjustment) for initial estimates, capped to a sensible range.  
+    - If **Use Live Data** is on and API keys are provided, the app attempts live lookups (Wikipedia, YouTube, Spotify); otherwise it uses the offline estimate.  
+    - Their **TicketIndex** is **predicted** using the learned mapping so they’re adjusted like comparable known shows.
+    
     ---
-
+    
     ### **Reality check & calibration**
-    In **"How close are the online-signal scores to your real ticket results?"** you can:
+    In **“How close are the online-signal scores to your real ticket results?”** you can:
     - See **overall similarity** (closer to 1.00 = online signals rise/fall like tickets do) and the **average miss** in index points if you relied on online signals alone.  
     - Optionally **adjust** (simple straight-line fit) the online-only scores to better match history for known titles.  
     - Review a **by-category bias** table to spot where signals tend to under- or over-estimate compared to tickets.
-
+    
     ---
-
+    
     ### **How to interpret**
     - Treat scores as **comparative** indicators for programming, pricing, marketing emphasis, and creative positioning—not exact sales forecasts.  
-    - Strong **online signal** + weak **TicketIndex** → awareness/appeal that hasn't converted historically (consider messaging/positioning).  
+    - Strong **online signal** + weak **TicketIndex** → awareness/appeal that hasn’t converted historically (consider messaging/positioning).  
     - Modest **online signal** + strong **TicketIndex** → titles that outperform buzz (brand equity, tradition, word-of-mouth).
-
+    
     ---
-
+    
     ### **Glossary of Terms**
     | Term | Definition |
     |------|------------|
     | **Benchmark** | The title you choose to set the 100 index. All other scores are scaled relative to this under the current segment/region. |
-    | **Familiarity** | Online awareness signal computed from Wiki, Trends, and Spotify (after segment/region multipliers), then normalized to the benchmark. |
-    | **Motivation** | Online interest/engagement signal computed from YouTube, Trends, Spotify, and Wiki (after multipliers), then normalized. |
-    | **TicketIndex** | Historical median tickets for a title divided by the benchmark title’s median × 100, so tickets live on the same index scale. |
-    | **Composite** | The score used for ranking: 50% Online Signals (average of Familiarity & Motivation) + 50% TicketIndex when available; if no history, falls back to Online Signals. |
+    | **Familiarity** | Online awareness signal from Wiki, Trends, Spotify (after multipliers), then normalized to the benchmark. |
+    | **Motivation** | Online interest/engagement signal from YouTube, Trends, Spotify, Wiki (after multipliers), then normalized. |
     | **Online Signals** | The average of the normalized Familiarity and Motivation scores (what the title would score without ticket history). |
-    | **Delta** | The difference between the blended Composite and the Online-only score. Shows how much history moves the score (points and %). |
-    | **Segment** | Target audience lens that applies multipliers by gender lead and category (e.g., Core Classical, Family, Emerging Adults). |
-    | **Region** | Market context adjustment (Province, Calgary, Edmonton). |
-    | **Category** | Heuristic label for the title’s type (e.g., family classic, classic romance, pop IP, contemporary). Used for estimation and analysis. |
-    | **Gender Lead** | Heuristic label (female/male/co/na) inferred from title; used by segment multipliers. |
-    | **Normalization** | Scaling that expresses all scores as an index where the benchmark = 100 under the current segment/region. |
-    | **Calibration (optional)** | A simple straight-line adjustment that nudges Online-only scores to better match TicketIndex on known titles. |
-    | **Average miss** | Typical size of the error (in index points) if you used Online-only scores instead of ticket-informed results. |
-    | **Overall similarity** | How closely Online-only scores move with TicketIndex across known titles (closer to 1.00 = move together). |
-    """))
+    | **TicketIndex (history)** | Historical median tickets ÷ benchmark median × 100 (actual ticket-based index). |
+    | **TicketIndex (predicted)** | TicketIndex estimated from Online Signals using a learned linear fit (per-category if possible, otherwise overall). |
+    | **TicketIndex source** | Indicates whether we used **History**, a **Category model**, or the **Overall model**. |
+    | **Composite** | 50% Online Signals + 50% TicketIndex (history or predicted). |
+    | **Delta** | Difference between the blended Composite and the Online-only score; shows how much tickets move the score. |
+    | **Segment / Region** | Audience and market context multipliers applied to the online signals. |
+    | **Normalization** | Scaling that sets the benchmark title to 100 under the current segment/region. |
+    | **Calibration (optional)** | Extra straight-line adjustment you can apply in the comparison panel to nudge Online-only scores toward TicketIndex on known titles. |
+    
+    ---
+    
+    **Note:** This tool is not a predictor of exact ticket sales. Use online signals to screen and compare ideas, ticket history (or the predicted TicketIndex) to ground expectations, and the calibration view to learn where signals run high or low—and adjust accordingly.
 
 # -------------------------
 # BASELINE DATA (subset for test run)
