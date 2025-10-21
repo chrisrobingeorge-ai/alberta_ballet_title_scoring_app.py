@@ -9,6 +9,7 @@
 import math, time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
+from textwrap import dedent  # <-- for clean, indentation-safe Markdown
 
 import streamlit as st
 import pandas as pd
@@ -47,98 +48,88 @@ st.caption("Hard-coded Alberta-wide baselines (normalized to your selected bench
 # METHODOLOGY & GLOSSARY SECTION
 # -------------------------
 with st.expander("📘 About This App — Methodology & Glossary"):
-    st.markdown("""
-### **Purpose**
-This tool estimates how familiar audiences are with a title and how motivated they are to attend, then blends those “online signal” estimates with Alberta Ballet’s historical ticket results (when available). Use it to compare current and prospective titles under different audience segments and regions.
+    st.markdown(dedent("""
+    ### **Purpose**
+    This tool estimates how familiar audiences are with a title and how motivated they are to attend, then blends those "online signal" estimates with Alberta Ballet's historical ticket results (when available). Use it to compare current and prospective titles under different audience segments and regions.
 
----
+    ---
 
-### **What goes into the scores**
-**Online signals (for each title):**
-- **Wikipedia** page views → awareness
-- **Google Trends** (light heuristic here) → search interest
-- **YouTube** activity → engagement potential
-- **Spotify** popularity → musical familiarity
+    ### **What goes into the scores**
+    **Online signals (per title):**
+    - **Wikipedia** page views → awareness  
+    - **Google Trends** (light heuristic) → search interest  
+    - **YouTube** activity → engagement potential  
+    - **Spotify** popularity → musical familiarity
 
-**Contextual multipliers:**
-- **Audience Segment**: weights and multipliers for gender lead and category (e.g., Core Classical vs. Family vs. Emerging Adults).
-- **Region**: Province / Calgary / Edmonton adjustment.
+    **Contextual multipliers:**
+    - **Audience Segment**: weights by **gender lead** and **category** (e.g., Core Classical, Family, Emerging Adults).  
+    - **Region**: Province / Calgary / Edmonton adjustment.
 
-**Ticket history (if available):**
-- Median tickets sold per title (historical priors) → converted to a **TicketIndex** relative to your selected benchmark title’s median.
+    **Ticket history (if available):**
+    - Historical median tickets sold per title are converted to a **TicketIndex**, relative to the selected benchmark title's median, so tickets and signals live on the same 0–~150 scale.
 
----
+    ---
 
-### **Scoring pipeline (step by step)**
-1) **Compute raw Familiarity & Motivation**  
-   - Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify  
-   - Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki  
-   - Apply segment multipliers (by **gender** and **category**) and a region multiplier.
+    ### **How the score is calculated**
+    1) **Raw signals → Familiarity & Motivation**  
+       - Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify  
+       - Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki  
+       - Apply segment multipliers (by **gender** and **category**) and a **region** multiplier.
 
-2) **Normalize to your benchmark ( = 100 )**  
-   You choose a benchmark title. All Familiarity/Motivation numbers are scaled so that the benchmark equals 100 under the current segment and region.
+    2) **Normalize to your benchmark (= 100)**  
+       You choose a benchmark title; all Familiarity/Motivation numbers are scaled so that the benchmark equals 100 under the current segment and region.
 
-3) **TicketIndex (only when history exists)**  
-   - We take the title’s historical median tickets and divide by the benchmark title’s median tickets, then multiply by 100 to get a **TicketIndex** on the same scale.
+    3) **TicketIndex (only when history exists)**  
+       Ticket median for a title ÷ ticket median for the benchmark × 100 → TicketIndex.
 
-4) **Blend signal with tickets**  
-   - **Composite = 50% Online Signals + 50% TicketIndex** (when TicketIndex exists).  
-   - If a title has **no** ticket history, its TicketIndex is treated as missing and the Composite falls back to the online signal value (so it doesn’t get unfairly penalized).
+    4) **Blend signals with ticket history**  
+       **Composite = 50% Online Signals + 50% TicketIndex.**  
+       If a title has **no** ticket history, its Composite falls back to the online-signal value (so unknown titles aren't penalized).
 
-5) **Letter grade**  
-   - A (≥90), B (≥75), C (≥60), D (≥45), E (<45) based on the Composite.
+    5) **Letter grade**  
+       A (≥90), B (≥75), C (≥60), D (≥45), E (<45) based on the Composite.
 
----
+    ---
 
-### **New titles / unknown titles**
-- We infer **gender lead** and **category** from the title text (e.g., family classic, classic romance, pop IP, contemporary).
-- We use the **median** online-signal values for that category (with a small gender adjustment), clipped to a sensible range.
-- If **Use Live Data** is on and you provide API keys, Wikipedia/YouTube/Spotify lookups are attempted; otherwise we use the offline estimate.
+    ### **Unknown / new titles**
+    - The app infers **gender lead** and **category** from the title text (e.g., family classic, classic romance, pop IP, contemporary).  
+    - It uses **category medians** of the online signals (with a small gender adjustment), capped to a sensible range.  
+    - If **Use Live Data** is on and API keys are provided, the app attempts live lookups (Wikipedia, YouTube, Spotify); otherwise it uses the offline estimate.
 
----
+    ---
 
-### **Reality check & calibration (what the comparison section shows)**
-- **How close are online signals to real ticket results?**  
-  We show an **overall similarity** number (closer to 1.00 means signals move up/down like ticket results) and the **average miss** in index points if you relied on online signals alone.
-- **Optional adjustment:**  
-  You can apply a simple straight-line adjustment to nudge online-only scores closer to history (for known titles).  
-- **Category bias table:**  
-  Highlights where the model tends to under- or over-estimate compared to ticket results; use this insight when evaluating new titles.
+    ### **Reality check & calibration**
+    In **"How close are the online-signal scores to your real ticket results?"** you can:
+    - See **overall similarity** (closer to 1.00 = online signals rise/fall like tickets do) and the **average miss** in index points if you relied on online signals alone.  
+    - Optionally **adjust** (simple straight-line fit) the online-only scores to better match history for known titles.  
+    - Review a **by-category bias** table to spot where signals tend to under- or over-estimate compared to tickets.
 
----
+    ---
 
-### **How to interpret**
-- Treat scores as **comparative** indicators for programming, pricing, marketing emphasis, and creative positioning—not as exact sales forecasts.
-- Strong **online signal** but weak **TicketIndex** → promising awareness/appeal that hasn’t converted historically (consider messaging/positioning).  
-- Weaker **online signal** but strong **TicketIndex** → title that outperforms buzz (brand equity, tradition, or word-of-mouth may be at work).
+    ### **How to interpret**
+    - Treat scores as **comparative** indicators for programming, pricing, marketing emphasis, and creative positioning—not exact sales forecasts.  
+    - Strong **online signal** + weak **TicketIndex** → awareness/appeal that hasn't converted historically (consider messaging/positioning).  
+    - Modest **online signal** + strong **TicketIndex** → titles that outperform buzz (brand equity, tradition, word-of-mouth).
 
----
+    ---
 
-### **Limitations**
-- Google Trends here is a lightweight proxy (to avoid heavy dependencies) and YouTube/Spotify may be noisy for niche repertoire.  
-- Historical medians reflect past contexts (pricing, venue, timing, competing events) that may differ in the future.  
-- Category inference for brand-new titles is heuristic—refine the category/gender labels if you see mismatches.
+    ### **Glossary of Terms**
+    | Term | Definition |
+    |------|------------|
+    | **Baseline** | Hard-coded familiarity and motivation indices for existing repertoire. |
+    | **Familiarity** | Relative measure of audience awareness based on Wikipedia, Trends, and Spotify indices. |
+    | **Motivation** | Relative measure of interest and engagement potential based on YouTube, Trends, and Wiki data. |
+    | **Segment** | Target demographic lens (Core Classical, Family, Emerging Adults, or General). Adjusts score weighting. |
+    | **Region** | Market context (Province-wide default, Calgary, or Edmonton). Adjusts for local preferences. |
+    | **Pop IP** | "Popular Intellectual Property" — stories known through film, literature, or franchise (e.g., Bowie, Joni, Bollywood). |
+    | **Contemporary** | Non-narrative or modern programs, often concept-driven or physically abstract. |
+    | **Normalization** | Scaling process that expresses scores as a ratio to the **selected** benchmark title (index = 100). |
+    | **Live Fetch** | Optional real-time retrieval from Wikipedia, YouTube, Spotify for new titles. |
 
-**Bottom line:** Use the online signals to screen and compare ideas, use ticket history to ground expectations, and use the calibration view to learn and adjust where the signals are systematically high or low.
-    """)
+    ---
 
----
-
-### **Glossary of Terms**
-| Term | Definition |
-|------|-------------|
-| **Baseline** | Hard-coded familiarity and motivation indices for existing repertoire. |
-| **Familiarity** | Relative measure of audience awareness based on Wikipedia, Trends, and Spotify indices. |
-| **Motivation** | Relative measure of interest and engagement potential based on YouTube, Trends, and Wiki data. |
-| **Segment** | Target demographic lens (Core Classical, Family, Emerging Adults, or General). Adjusts score weighting. |
-| **Region** | Market context (Province-wide default, Calgary, or Edmonton). Adjusts for local preferences. |
-| **Pop IP** | “Popular Intellectual Property” — stories known through film, literature, or franchise (e.g., Bowie, Joni, Bollywood). |
-| **Contemporary** | Non-narrative or modern programs, often concept-driven or physically abstract. |
-| **Normalization** | Scaling process that expresses scores as a ratio to the **selected** benchmark title (index = 100). |
-| **Live Fetch** | Optional real-time retrieval from Wikipedia, YouTube, Spotify for new titles. |
-
-**Note:** This tool is not a predictor of exact ticket sales but a comparative instrument for programming strategy and communication alignment.
-    """)
+    **Note:** This tool is not a predictor of exact ticket sales but a comparative instrument for programming strategy and communication alignment. Use online signals to screen and compare ideas, tickets to ground expectations, and the calibration view to learn where signals are consistently high or low—and adjust accordingly.
+    """))
 
 # -------------------------
 # BASELINE DATA (subset for test run)
