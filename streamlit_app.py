@@ -357,7 +357,7 @@ if run:
         rows = []
         unknown_used_live, unknown_used_est = [], []
 
-        # Build raw rows first (no ticket indices yet)
+        # 1) Build base rows (INCLUDING FamiliarityRaw/MotivationRaw) BEFORE any normalization
         for title in titles:
             if title in BASELINES:
                 entry = BASELINES[title]
@@ -389,223 +389,208 @@ if run:
                 "Source": src
             })
 
+        # 2) Create the DataFrame NOW (so df exists for everything else)
         df = pd.DataFrame(rows)
 
-        # --- User-selected normalization benchmark ---
-benchmark_title = st.selectbox(
-    "Choose Benchmark Title for Normalization",
-    options=[t for t in BASELINES.keys()],
-    index=0
-)
-
-# Normalize Familiarity and Motivation
-bench_entry = BASELINES[benchmark_title]
-bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
-bench_fam_raw = bench_fam_raw or 1.0  # safety
-bench_mot_raw = bench_mot_raw or 1.0  # safety
-
-df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
-df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
-st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
-
-# --- Ticket medians and dynamic benchmark ticket baseline ---
-TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0  # safety
-
-def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
-    t = title.strip()
-    # Handle a punctuation variant
-    aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
-    key = aliases.get(t, t)
-    med = TICKET_MEDIANS.get(key)
-    if med:
-        idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
-        return float(med), float(idx)
-    return None, None
-
-# --- Apply ticket indices to DataFrame ---
-ticket_medians, ticket_indices = [], []
-for t in df["Title"]:
-    med, idx = ticket_index_for_title(t)
-    ticket_medians.append(med)
-    ticket_indices.append(idx)
-
-df["TicketMedian"] = ticket_medians
-df["TicketIndex"]  = ticket_indices
-
-# --- Info badges for unknowns (computed earlier) ---
-if unknown_used_est:
-    st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
-if unknown_used_live:
-    st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
-
-# --- Composite from Familiarity and Motivation (signal-based) ---
-signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
-
-# --- Blend with ticket history only if available ---
-tickets_component = df["TicketIndex"].fillna(signal_composite)
-df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
-
-# ======================
-# 🧪 Compare signal-only vs ticket-informed (CALIBRATION TOOLS)
-# ======================
-with st.expander("🧪 Compare signal-only scores vs ticket-informed scores"):
-    # 1) Signal-only = the mean of Familiarity and Motivation (already computed above)
-    df["SignalOnly"] = signal_composite
-
-    # 2) Ticket-blended = your existing Composite (already computed)
-    df["Blended"] = df["Composite"]
-
-    # 3) Deltas (only meaningful on titles with ticket history)
-    df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
-    df["DeltaPct"] = (df["Blended"] / df["SignalOnly"] - 1.0) * 100.0
-
-    # Focus set: titles with ticket history
-    df_known = df[df["TicketIndex"].notna()].copy()
-    if df_known.empty:
-        st.info("No titles in your list have ticket history; add some known titles to compare.")
-    else:
-        # Quick diagnostics
-        corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
-
-        # Optional simple linear calibration TicketIndex ≈ a*SignalOnly + b
-        do_calibrate = st.checkbox("Calibrate signal to tickets with linear fit (overall)", value=False)
-        a = b = None
-        if do_calibrate and len(df_known) >= 2:
-            x = df_known["SignalOnly"].values
-            y = df_known["TicketIndex"].values
-            a, b = np.polyfit(x, y, 1)  # y ≈ a*x + b
-            df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
-            resid_cal = df_known["TicketIndex"] - df_known["SignalCalibrated"]
-            rmse_cal = float(np.sqrt(np.mean(resid_cal**2)))
-        else:
-            rmse_cal = None
-
-        resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
-        rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
-
-        # By-category bias diagnostics
-        by_cat = (
-            df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
-            .agg({
-                "SignalOnly":"mean",
-                "TicketIndex":"mean",
-                "DeltaAbs":"mean",
-                "DeltaPct":"mean",
-            })
-            .rename(columns={
-                "SignalOnly":"SignalOnly_mean",
-                "TicketIndex":"TicketIndex_mean",
-                "DeltaAbs":"DeltaAbs_mean",
-                "DeltaPct":"DeltaPct_mean"
-            })
-            .sort_values("DeltaAbs_mean", ascending=False)
+        # 3) Pick benchmark and normalize signals
+        benchmark_title = st.selectbox(
+            "Choose Benchmark Title for Normalization",
+            options=list(BASELINES.keys()),
+            index=0
         )
+        bench_entry = BASELINES[benchmark_title]
+        bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
+        bench_fam_raw = bench_fam_raw or 1.0
+        bench_mot_raw = bench_mot_raw or 1.0
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Correlation (SignalOnly ↔ TicketIndex)", f"{corr:.2f}")
-        c2.metric("RMSE vs TicketIndex (raw signal)", f"{rmse_raw:.1f} index pts")
-        if rmse_cal is not None:
-            c3.metric("RMSE vs TicketIndex (calibrated)", f"{rmse_cal:.1f} index pts")
+        df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
+        df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
+        st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
 
-        # Known titles table
-        show_cols = [
-            "Title","Category","Region","Segment",
-            "SignalOnly","TicketIndex","Blended","DeltaAbs","DeltaPct","Source"
+        # 4) Ticket medians and ticket indices (after benchmark chosen)
+        def _median(xs):
+            xs = sorted([float(x) for x in xs if x is not None])
+            if not xs: return None
+            n = len(xs); mid = n // 2
+            return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
+
+        TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+        BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
+
+        def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
+            t = title.strip()
+            aliases = {"Handmaid’s Tale": "Handmaid's Tale"}  # punctuation variant
+            key = aliases.get(t, t)
+            med = TICKET_MEDIANS.get(key)
+            if med:
+                idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
+                return float(med), float(idx)
+            return None, None
+
+        ticket_medians, ticket_indices = [], []
+        for t in df["Title"]:
+            med, idx = ticket_index_for_title(t)
+            ticket_medians.append(med)
+            ticket_indices.append(idx)
+        df["TicketMedian"] = ticket_medians
+        df["TicketIndex"]  = ticket_indices
+
+        # 5) Info badges for unknowns
+        if unknown_used_est:
+            st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
+        if unknown_used_live:
+            st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
+
+        # 6) Build composites
+        TICKET_BLEND_WEIGHT = 0.50  # 50/50 blend
+        signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
+        tickets_component = df["TicketIndex"].fillna(signal_composite)
+        df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
+
+        # 7) === Comparison & calibration expander ===
+        with st.expander("🧪 Compare signal-only scores vs ticket-informed scores"):
+            df["SignalOnly"] = signal_composite
+            df["Blended"] = df["Composite"]
+            df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
+            df["DeltaPct"] = (df["Blended"] / df["SignalOnly"] - 1.0) * 100.0
+
+            df_known = df[df["TicketIndex"].notna()].copy()
+            if df_known.empty:
+                st.info("No titles in your list have ticket history; add some known titles to compare.")
+            else:
+                corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
+
+                do_calibrate = st.checkbox("Calibrate signal to tickets with linear fit (overall)", value=False)
+                a = b = None
+                if do_calibrate and len(df_known) >= 2:
+                    x = df_known["SignalOnly"].values
+                    y = df_known["TicketIndex"].values
+                    a, b = np.polyfit(x, y, 1)  # y ≈ a*x + b
+                    df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
+                    resid_cal = df_known["TicketIndex"] - df_known["SignalCalibrated"]
+                    rmse_cal = float(np.sqrt(np.mean(resid_cal**2)))
+                else:
+                    rmse_cal = None
+
+                resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
+                rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
+
+                by_cat = (
+                    df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
+                    .agg({
+                        "SignalOnly":"mean",
+                        "TicketIndex":"mean",
+                        "DeltaAbs":"mean",
+                        "DeltaPct":"mean",
+                    })
+                    .rename(columns={
+                        "SignalOnly":"SignalOnly_mean",
+                        "TicketIndex":"TicketIndex_mean",
+                        "DeltaAbs":"DeltaAbs_mean",
+                        "DeltaPct":"DeltaPct_mean"
+                    })
+                    .sort_values("DeltaAbs_mean", ascending=False)
+                )
+
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Correlation (SignalOnly ↔ TicketIndex)", f"{corr:.2f}")
+                c2.metric("RMSE vs TicketIndex (raw signal)", f"{rmse_raw:.1f} index pts")
+                if rmse_cal is not None:
+                    c3.metric("RMSE vs TicketIndex (calibrated)", f"{rmse_cal:.1f} index pts")
+
+                show_cols = [
+                    "Title","Category","Region","Segment",
+                    "SignalOnly","TicketIndex","Blended","DeltaAbs","DeltaPct","Source"
+                ]
+                show_cols = [c for c in show_cols if c in df_known.columns]
+                st.markdown("**Titles with ticket history — signal vs blended**")
+                st.dataframe(
+                    df_known[show_cols]
+                        .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False]),
+                    use_container_width=True
+                )
+
+                if a is not None and b is not None:
+                    st.caption(f"Calibrated mapping (overall): TicketIndex ≈ **{a:.2f} × SignalOnly + {b:.2f}**")
+
+                st.markdown("**Category-level average bias (known titles)**")
+                st.dataframe(by_cat.style.format({
+                    "SignalOnly_mean":"{:.1f}",
+                    "TicketIndex_mean":"{:.1f}",
+                    "DeltaAbs_mean":"{:+.1f}",
+                    "DeltaPct_mean":"{:+.1f}%"
+                }), use_container_width=True)
+
+                fig_res, ax_res = plt.subplots()
+                ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
+                ax_res.axhline(0, linestyle="--", color="gray")
+                ax_res.set_xlabel("SignalOnly (index)")
+                ax_res.set_ylabel("TicketIndex − SignalOnly (index pts)")
+                ax_res.set_title("Residuals: tickets minus signal (known titles)")
+                st.pyplot(fig_res)
+
+        # 8) Assign letter grades
+        def _assign_score(v: float) -> str:
+            if v >= 90: return "A"
+            elif v >= 75: return "B"
+            elif v >= 60: return "C"
+            elif v >= 45: return "D"
+            else: return "E"
+        df["Score"] = df["Composite"].apply(_assign_score)
+
+        # 9) Display + charts + download
+        display_cols = [
+            "Title","Region","Segment","Gender","Category",
+            "Familiarity","Motivation","TicketMedian","TicketIndex","Composite","Score",
+            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
         ]
-        show_cols = [c for c in show_cols if c in df_known.columns]
-        st.markdown("**Titles with ticket history — signal vs blended**")
+        existing = [c for c in display_cols if c in df.columns]
+
+        if "Score" in df.columns:
+            grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
+            st.caption(
+                f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  "
+                f"C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}"
+            )
+
         st.dataframe(
-            df_known[show_cols]
-                .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False]),
+            df[existing]
+              .sort_values(by=["Composite","Motivation","Familiarity"], ascending=[False, False, False])
+              .style.map(
+                  lambda v: (
+                      "color: green;" if v == "A" else
+                      "color: darkgreen;" if v == "B" else
+                      "color: orange;" if v == "C" else
+                      "color: darkorange;" if v == "D" else
+                      "color: red;" if v == "E" else ""
+                  ),
+                  subset=["Score"] if "Score" in df.columns else []
+              ),
             use_container_width=True
         )
 
-        if a is not None and b is not None:
-            st.caption(f"Calibrated mapping (overall): TicketIndex ≈ **{a:.2f} × SignalOnly + {b:.2f}**")
+        fig, ax = plt.subplots()
+        ax.scatter(df["Familiarity"], df["Motivation"])
+        for _, r in df.iterrows():
+            ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
+        ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
+        ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
+        ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
+        ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
+        ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
+        st.pyplot(fig)
 
-        st.markdown("**Category-level average bias (known titles)**")
-        st.dataframe(by_cat.style.format({
-            "SignalOnly_mean":"{:.1f}",
-            "TicketIndex_mean":"{:.1f}",
-            "DeltaAbs_mean":"{:+.1f}",
-            "DeltaPct_mean":"{:+.1f}%"
-        }), use_container_width=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Familiarity (Indexed)")
+            st.bar_chart(df.set_index("Title")["Familiarity"])
+        with col2:
+            st.subheader("Motivation (Indexed)")
+            st.bar_chart(df.set_index("Title")["Motivation"])
 
-        # Residual plot
-        fig_res, ax_res = plt.subplots()
-        ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
-        ax_res.axhline(0, linestyle="--", color="gray")
-        ax_res.set_xlabel("SignalOnly (index)")
-        ax_res.set_ylabel("TicketIndex − SignalOnly (index pts)")
-        ax_res.set_title("Residuals: tickets minus signal (known titles)")
-        st.pyplot(fig_res)
-
-# --- Assign Letter Score (A–E) ---
-def _assign_score(v: float) -> str:
-    if v >= 90: return "A"
-    elif v >= 75: return "B"
-    elif v >= 60: return "C"
-    elif v >= 45: return "D"
-    else: return "E"
-df["Score"] = df["Composite"].apply(_assign_score)
-
-# ===== Display Table with Ticket + Score =====
-display_cols = [
-    "Title","Region","Segment","Gender","Category",
-    "Familiarity","Motivation","TicketMedian","TicketIndex","Composite","Score",
-    "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
-]
-existing = [c for c in display_cols if c in df.columns]
-
-# Grade distribution
-if "Score" in df.columns:
-    grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
-    st.caption(
-        f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  "
-        f"C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}"
-    )
-
-st.dataframe(
-    df[existing]
-        .sort_values(by=["Composite","Motivation","Familiarity"], ascending=[False, False, False])
-        .style.map(
-            lambda v: (
-                "color: green;" if v == "A" else
-                "color: darkgreen;" if v == "B" else
-                "color: orange;" if v == "C" else
-                "color: darkorange;" if v == "D" else
-                "color: red;" if v == "E" else ""
-            ),
-            subset=["Score"] if "Score" in df.columns else []
-        ),
-    use_container_width=True
-)
-
-# Quadrant chart
-fig, ax = plt.subplots()
-ax.scatter(df["Familiarity"], df["Motivation"])
-for _, r in df.iterrows():
-    ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
-ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
-ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
-ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
-ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
-ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
-st.pyplot(fig)
-
-# Bars
-col1, col2 = st.columns(2)
-with col1:
-    st.subheader("Familiarity (Indexed)")
-    st.bar_chart(df.set_index("Title")["Familiarity"])
-with col2:
-    st.subheader("Motivation (Indexed)")
-    st.bar_chart(df.set_index("Title")["Motivation"])
-
-st.download_button(
-    "⬇️ Download CSV",
-    df.to_csv(index=False).encode("utf-8"),
-    "title_scores_v9_ticket_blend.csv",
-    "text/csv"
-)
+        st.download_button(
+            "⬇️ Download CSV",
+            df.to_csv(index=False).encode("utf-8"),
+            "title_scores_v9_ticket_blend.csv",
+            "text/csv"
+        )
