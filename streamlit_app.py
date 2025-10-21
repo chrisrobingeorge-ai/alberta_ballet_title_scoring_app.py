@@ -550,42 +550,71 @@ def compute_scores_and_store():
     df["TicketMedian"] = medians
     df["TicketIndex"]  = indices
     
-    # === Learn ticket adjustment from known titles and apply to unknowns ===
-    # Build the online-only signal (used for fitting and blending)
-    df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
+    # === Learn ticket adjustment from known titles; auto-apply or flag "Not enough data" ===
+
+    # Ensure SignalOnly exists (avg of normalized Familiarity & Motivation)
+    if "SignalOnly" not in df.columns:
+        df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
     
     df_known = df[df["TicketIndex"].notna()].copy()
     
-    def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
-        """Return (overall_a, overall_b, cat_to_(a,b)). Fallback is identity if too little data."""
-        overall_a, overall_b = 1.0, 0.0
-        if len(df_known_in) >= 2:
-            x = df_known_in["SignalOnly"].values
-            y = df_known_in["TicketIndex"].values
-            overall_a, overall_b = np.polyfit(x, y, 1)
+    # ---- Learn models only when there is enough data
+    overall_coef = None  # (a, b)
+    if len(df_known) >= 5:
+        x = df_known["SignalOnly"].values
+        y = df_known["TicketIndex"].values
+        a, b = np.polyfit(x, y, 1)
+        overall_coef = (float(a), float(b))
     
-        cat_coefs = {}
-        for cat, g in df_known_in.groupby("Category"):
-            if len(g) >= 3:
-                xs = g["SignalOnly"].values
-                ys = g["TicketIndex"].values
-                a, b = np.polyfit(xs, ys, 1)
-                cat_coefs[cat] = (float(a), float(b))
-        return float(overall_a), float(overall_b), cat_coefs
+    cat_coefs = {}   # category -> (a, b)
+    cat_ns = {}      # category -> n with history
+    for cat, g in df_known.groupby("Category"):
+        n = len(g)
+        cat_ns[cat] = n
+        if n >= 3:
+            xs = g["SignalOnly"].values
+            ys = g["TicketIndex"].values
+            a, b = np.polyfit(xs, ys, 1)
+            cat_coefs[cat] = (float(a), float(b))
     
-    overall_a, overall_b, cat_coefs = _fit_overall_and_by_category(df_known)
+    def _predict_ticket_index_or_none(signal_only: float, category: str) -> Optional[float]:
+        """
+        Prefer category model (>=3 in category), else overall model (>=5 overall),
+        else return None to indicate 'Not enough data'.
+        """
+        if category in cat_coefs and cat_ns.get(category, 0) >= 3:
+            a, b = cat_coefs[category]
+        elif overall_coef is not None:
+            a, b = overall_coef
+        else:
+            return None
+        pred = a * float(signal_only) + b
+        return float(np.clip(pred, 20.0, 180.0))
     
-    def _predict_ticket_index(signal_only: float, category: str) -> float:
-        """Predict TicketIndex via per-category (a,b) when available; otherwise overall (a,b)."""
-        a, b = cat_coefs.get(category, (overall_a, overall_b))
-        pred = a * signal_only + b
-        return float(np.clip(pred, 20.0, 180.0))  # keep within a sensible index range
+    # Impute TicketIndex (or leave as NaN if not enough data), and record the source
+    imputed, sources = [], []
+    for _, r in df.iterrows():
+        if pd.notna(r["TicketIndex"]):
+            imputed.append(r["TicketIndex"])
+            sources.append("History")
+        else:
+            pred = _predict_ticket_index_or_none(r["SignalOnly"], r["Category"])
+            if pred is None:
+                imputed.append(np.nan)
+                sources.append("Not enough data")
+            else:
+                imputed.append(pred)
+                if r["Category"] in cat_coefs and cat_ns.get(r["Category"], 0) >= 3:
+                    sources.append("Category model")
+                else:
+                    sources.append("Overall model")
     
-    # Impute TicketIndex for titles without history
-    df["TicketIndexImputed"] = df.apply(
-        lambda r: r["TicketIndex"] if pd.notna(r["TicketIndex"]) else _predict_ticket_index(r["SignalOnly"], r["Category"]),
-        axis=1
-    )
+    df["TicketIndexImputed"] = imputed
+    df["TicketIndexSource"] = sources
+    
+    # --- Blend: if imputed/actual exists, use it; else fall back to SignalOnly
+    tickets_component = df["TicketIndexImputed"].where(df["TicketIndexImputed"].notna(), df["SignalOnly"])
+    df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
     
     # Transparency: where the imputation came from
     def _imputation_source(row) -> str:
@@ -610,7 +639,6 @@ def compute_scores_and_store():
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
     }
-
 
 def render_results():
     """Read from session_state['results'] and render UI (checkbox will not clear this)."""
