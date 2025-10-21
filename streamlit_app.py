@@ -29,6 +29,10 @@ except Exception:
     spotipy = None
     SpotifyClientCredentials = None
 
+# ✅ Keep results across reruns so checkboxes/dropdowns don't wipe them
+if "results" not in st.session_state:
+    st.session_state["results"] = None  # {"df": ..., "benchmark": ..., "segment": ..., "region": ...}
+
 # -------------------------
 # PAGE / SPLASH
 # -------------------------
@@ -350,283 +354,283 @@ def _median(xs):
 # Weight for blending historic tickets with signal composite
 TICKET_BLEND_WEIGHT = 0.50  # 50% tickets, 50% familiarity/motivation composite
 
+def compute_scores_and_store():
+    """Compute scores and stash results in session_state['results']."""
+    rows = []
+    unknown_used_live, unknown_used_est = [], []
+
+    # Build base rows (raw signals per title)
+    for title in titles:
+        if title in BASELINES:
+            entry = BASELINES[title]; src = "Baseline"
+        else:
+            if use_live:
+                entry = fetch_live_for_unknown(title, yt_key, sp_id, sp_secret)
+                src = "Live"; unknown_used_live.append(title)
+            else:
+                entry = estimate_unknown_title(title)
+                src = "Estimated"; unknown_used_est.append(title)
+
+        fam_raw, mot_raw = calc_scores(entry, segment, region)
+        rows.append({
+            "Title": title, "Region": region, "Segment": segment,
+            "Gender": entry["gender"], "Category": entry["category"],
+            "FamiliarityRaw": fam_raw, "MotivationRaw": mot_raw,
+            "WikiIdx": entry["wiki"], "TrendsIdx": entry["trends"],
+            "YouTubeIdx": entry["youtube"], "SpotifyIdx": entry["spotify"],
+            "Source": src
+        })
+
+    df = pd.DataFrame(rows)
+
+    # Pick benchmark & normalize
+    benchmark_title = st.selectbox(
+        "Choose Benchmark Title for Normalization",
+        options=list(BASELINES.keys()),
+        index=0
+    )
+    bench_entry = BASELINES[benchmark_title]
+    bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
+    bench_fam_raw = bench_fam_raw or 1.0
+    bench_mot_raw = bench_mot_raw or 1.0
+
+    df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
+    df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
+    st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
+
+    # Tickets → medians & indices (use chosen benchmark)
+    def _median(xs):
+        xs = sorted([float(x) for x in xs if x is not None])
+        if not xs: return None
+        n = len(xs); mid = n // 2
+        return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
+
+    TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+    BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
+
+    def ticket_index_for_title(title: str):
+        aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
+        key = aliases.get(title.strip(), title.strip())
+        med = TICKET_MEDIANS.get(key)
+        if med:
+            return float(med), float((med / BENCHMARK_TICKET_MEDIAN) * 100.0)
+        return None, None
+
+    medians, indices = [], []
+    for t in df["Title"]:
+        med, idx = ticket_index_for_title(t)
+        medians.append(med); indices.append(idx)
+    df["TicketMedian"] = medians
+    df["TicketIndex"]  = indices
+
+    # Composite
+    signal_only = df[["Familiarity", "Motivation"]].mean(axis=1)
+    tickets_component = df["TicketIndex"].fillna(signal_only)
+    df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_only + TICKET_BLEND_WEIGHT * tickets_component
+
+    # Stash everything needed for rendering
+    st.session_state["results"] = {
+        "df": df,
+        "benchmark": benchmark_title,
+        "segment": segment,
+        "region": region,
+        "unknown_est": unknown_used_est,
+        "unknown_live": unknown_used_live,
+    }
+
+def render_results():
+    """Read from session_state['results'] and render UI (checkbox won’t clear this)."""
+    R = st.session_state["results"]
+    if not R: 
+        return
+
+    df = R["df"].copy()
+    benchmark_title = R["benchmark"]
+    segment = R["segment"]
+    region = R["region"]
+
+    # Notices about unknowns
+    if R["unknown_est"]:
+        st.info(f"Estimated (offline) for new titles: {', '.join(R['unknown_est'])}")
+    if R["unknown_live"]:
+        st.success(f"Used LIVE data for new titles: {', '.join(R['unknown_live'])}")
+
+    # Plain-English comparison / calibration
+    with st.expander("🧪 How close are the online-signal scores to your real ticket results?"):
+        df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
+        df["Blended"] = df["Composite"]
+        df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
+        df["DeltaPct"] = (df["Blended"] / df["SignalOnly"] - 1.0) * 100.0
+
+        df_known = df[df["TicketIndex"].notna()].copy()
+        if df_known.empty:
+            st.info("No titles in your list have past ticket history to compare against.")
+        else:
+            corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
+            resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
+            rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
+
+            do_calibrate = st.checkbox(
+                "Adjust the online-signal scores to better match past ticket results (optional)",
+                value=False, key="calibrate_signals"
+            )
+
+            a = b = None
+            if do_calibrate and len(df_known) >= 2:
+                x = df_known["SignalOnly"].values
+                y = df_known["TicketIndex"].values
+                a, b = np.polyfit(x, y, 1)
+                df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
+                resid_cal = df_known["TicketIndex"] - df_known["SignalCalibrated"]
+                rmse_cal = float(np.sqrt(np.mean(resid_cal**2)))
+            else:
+                rmse_cal = None
+
+            st.markdown("### What this means, in plain English")
+            st.markdown(
+                f"- **Overall similarity:** `{corr:.2f}` — closer to **1.00** means the online signals move up/down like ticket results do.\n"
+                f"- **Average miss using online-only scores:** about **{rmse_raw:.1f} index points**.\n"
+                + (f"- **After adjustment:** average miss improves to **{rmse_cal:.1f} index points**." if rmse_cal is not None else "")
+            )
+            st.caption(
+                "“Index points” are the same units you see in the tables and charts (your chosen benchmark = 100). "
+                "For example, a 15-point miss means online signals were off by ~15 on that scale."
+            )
+
+            # Category bias table
+            by_cat = (
+                df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
+                .agg({"SignalOnly":"mean","TicketIndex":"mean","DeltaAbs":"mean","DeltaPct":"mean"})
+                .rename(columns={
+                    "SignalOnly":"Avg online-only score",
+                    "TicketIndex":"Avg ticket-based score",
+                    "DeltaAbs":"Avg difference (points)",
+                    "DeltaPct":"Avg difference (%)"
+                })
+                .sort_values("Avg difference (points)", ascending=False)
+            )
+
+            st.markdown("### Where the model tends to be off (by category)")
+            st.caption("Positive numbers = ticket-informed scores run higher than online-only; negative = they run lower.")
+            st.dataframe(
+                by_cat.style.format({
+                    "Avg online-only score":"{:.1f}",
+                    "Avg ticket-based score":"{:.1f}",
+                    "Avg difference (points)":"{:+.1f}",
+                    "Avg difference (%)":"{:+.1f}%"
+                }),
+                use_container_width=True
+            )
+
+            # Known titles table
+            show_cols = [
+                "Title","Category","Region","Segment",
+                "SignalOnly","TicketIndex","Blended","DeltaAbs","DeltaPct","Source"
+            ]
+            show_cols = [c for c in show_cols if c in df_known.columns]
+            st.markdown("### Titles we can compare (we have ticket history for these)")
+            st.dataframe(
+                df_known[show_cols]
+                    .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False])
+                    .rename(columns={
+                        "SignalOnly":"Online-only score",
+                        "TicketIndex":"Ticket-based score",
+                        "Blended":"Score used (blended)",
+                        "DeltaAbs":"How much tickets moved it (pts)",
+                        "DeltaPct":"How much tickets moved it (%)"
+                    })
+                    .style.format({
+                        "Online-only score":"{:.1f}",
+                        "Ticket-based score":"{:.1f}",
+                        "Score used (blended)":"{:.1f}",
+                        "How much tickets moved it (pts)":"{:+.1f}",
+                        "How much tickets moved it (%)":"{:+.1f}%"
+                    }),
+                use_container_width=True
+            )
+
+            # Residual plot
+            fig_res, ax_res = plt.subplots()
+            ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
+            ax_res.axhline(0, linestyle="--")
+            ax_res.set_xlabel("Online-only score (index)")
+            ax_res.set_ylabel("Ticket-based minus online-only (points)")
+            ax_res.set_title("How much ticket results shift the score (for titles with history)")
+            st.pyplot(fig_res)
+
+    # Grades (unchanged)
+    def _assign_score(v: float) -> str:
+        if v >= 90: return "A"
+        elif v >= 75: return "B"
+        elif v >= 60: return "C"
+        elif v >= 45: return "D"
+        else: return "E"
+    df["Score"] = df["Composite"].apply(_assign_score)
+
+    # Display + charts + download
+    display_cols = [
+        "Title","Region","Segment","Gender","Category",
+        "Familiarity","Motivation","TicketMedian","TicketIndex","Composite","Score",
+        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
+    ]
+    existing = [c for c in display_cols if c in df.columns]
+
+    if "Score" in df.columns:
+        grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
+        st.caption(
+            f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  "
+            f"C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}"
+        )
+
+    st.dataframe(
+        df[existing]
+          .sort_values(by=["Composite","Motivation","Familiarity"], ascending=[False, False, False])
+          .style.map(
+              lambda v: (
+                  "color: green;" if v == "A" else
+                  "color: darkgreen;" if v == "B" else
+                  "color: orange;" if v == "C" else
+                  "color: darkorange;" if v == "D" else
+                  "color: red;" if v == "E" else ""
+              ),
+              subset=["Score"] if "Score" in df.columns else []
+          ),
+        use_container_width=True
+    )
+
+    fig, ax = plt.subplots()
+    ax.scatter(df["Familiarity"], df["Motivation"])
+    for _, r in df.iterrows():
+        ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
+    ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
+    ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
+    ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
+    ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
+    ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
+    st.pyplot(fig)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Familiarity (Indexed)")
+        st.bar_chart(df.set_index("Title")["Familiarity"])
+    with col2:
+        st.subheader("Motivation (Indexed)")
+        st.bar_chart(df.set_index("Title")["Motivation"])
+
+    st.download_button(
+        "⬇️ Download CSV",
+        df.to_csv(index=False).encode("utf-8"),
+        "title_scores_v9_ticket_blend.csv",
+        "text/csv"
+    )
+
+# ======= BUTTON HANDLER =======
 if run:
     if not titles:
         st.warning("Add at least one title to score.")
     else:
-        rows = []
-        unknown_used_live, unknown_used_est = [], []
+        compute_scores_and_store()
 
-        # 1) Build base rows (INCLUDING FamiliarityRaw/MotivationRaw) BEFORE any normalization
-        for title in titles:
-            if title in BASELINES:
-                entry = BASELINES[title]
-                src = "Baseline"
-            else:
-                if use_live:
-                    entry = fetch_live_for_unknown(title, yt_key, sp_id, sp_secret)
-                    src = "Live"
-                    unknown_used_live.append(title)
-                else:
-                    entry = estimate_unknown_title(title)
-                    src = "Estimated"
-                    unknown_used_est.append(title)
-
-            fam_raw, mot_raw = calc_scores(entry, segment, region)
-
-            rows.append({
-                "Title": title,
-                "Region": region,
-                "Segment": segment,
-                "Gender": entry["gender"],
-                "Category": entry["category"],
-                "FamiliarityRaw": fam_raw,
-                "MotivationRaw": mot_raw,
-                "WikiIdx": entry["wiki"],
-                "TrendsIdx": entry["trends"],
-                "YouTubeIdx": entry["youtube"],
-                "SpotifyIdx": entry["spotify"],
-                "Source": src
-            })
-
-        # 2) Create the DataFrame NOW (so df exists for everything else)
-        df = pd.DataFrame(rows)
-
-        # 3) Pick benchmark and normalize signals
-        benchmark_title = st.selectbox(
-            "Choose Benchmark Title for Normalization",
-            options=list(BASELINES.keys()),
-            index=0
-        )
-        bench_entry = BASELINES[benchmark_title]
-        bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
-        bench_fam_raw = bench_fam_raw or 1.0
-        bench_mot_raw = bench_mot_raw or 1.0
-
-        df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
-        df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
-        st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
-
-        # 4) Ticket medians and ticket indices (after benchmark chosen)
-        def _median(xs):
-            xs = sorted([float(x) for x in xs if x is not None])
-            if not xs: return None
-            n = len(xs); mid = n // 2
-            return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
-
-        TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-        BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
-
-        def ticket_index_for_title(title: str) -> Tuple[Optional[float], Optional[float]]:
-            t = title.strip()
-            aliases = {"Handmaid’s Tale": "Handmaid's Tale"}  # punctuation variant
-            key = aliases.get(t, t)
-            med = TICKET_MEDIANS.get(key)
-            if med:
-                idx = (med / BENCHMARK_TICKET_MEDIAN) * 100.0
-                return float(med), float(idx)
-            return None, None
-
-        ticket_medians, ticket_indices = [], []
-        for t in df["Title"]:
-            med, idx = ticket_index_for_title(t)
-            ticket_medians.append(med)
-            ticket_indices.append(idx)
-        df["TicketMedian"] = ticket_medians
-        df["TicketIndex"]  = ticket_indices
-
-        # 5) Info badges for unknowns
-        if unknown_used_est:
-            st.info(f"Estimated (offline) for new titles: {', '.join(unknown_used_est)}")
-        if unknown_used_live:
-            st.success(f"Used LIVE data for new titles: {', '.join(unknown_used_live)}")
-
-        # 6) Build composites
-        TICKET_BLEND_WEIGHT = 0.50  # 50/50 blend
-        signal_composite = df[["Familiarity", "Motivation"]].mean(axis=1)
-        tickets_component = df["TicketIndex"].fillna(signal_composite)
-        df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
-
-        # 7) === Comparison & calibration expander ===
-        # ======================
-        # Plain-English comparison & calibration
-        # ======================
-        with st.expander("🧪 How close are the online-signal scores to your real ticket results?"):
-            # 1) Build the comparison columns
-            df["SignalOnly"] = signal_composite
-            df["Blended"] = df["Composite"]
-            df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
-            df["DeltaPct"] = (df["Blended"] / df["SignalOnly"] - 1.0) * 100.0
-
-            df_known = df[df["TicketIndex"].notna()].copy()
-            if df_known.empty:
-                st.info("No titles in your list have past ticket history to compare against. Add some known titles to see how close the online signals are.")
-            else:
-                # How similar are online-only scores to ticket history?
-                corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
-        
-                # Average miss (in index points) if we used online-only scores
-                resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
-                rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
-        
-                # Optional adjustment: nudge online-only scores to better match history
-                do_calibrate = st.checkbox(
-                    "Adjust the online-signal scores to better match past ticket results (optional)",
-                    value=False
-                )
-        
-                a = b = None
-                if do_calibrate and len(df_known) >= 2:
-                    x = df_known["SignalOnly"].values
-                    y = df_known["TicketIndex"].values
-                    a, b = np.polyfit(x, y, 1)  # simple straight-line adjustment
-                    df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
-                    resid_cal = df_known["TicketIndex"] - df_known["SignalCalibrated"]
-                    rmse_cal = float(np.sqrt(np.mean(resid_cal**2)))
-                else:
-                    rmse_cal = None
-        
-                # Plain-English headlines
-                st.markdown("### What this means, in plain English")
-                st.markdown(
-                    f"- **Overall similarity:** `{corr:.2f}` — closer to **1.00** means the online signals move up/down like ticket results do.\n"
-                    f"- **Average miss using online-only scores:** about **{rmse_raw:.1f} index points**.\n"
-                    + (f"- **After adjustment:** average miss improves to **{rmse_cal:.1f} index points**." if rmse_cal is not None else "")
-                )
-                st.caption(
-                    "“Index points” are the same units you see in the tables and charts (your chosen benchmark = 100). "
-                    "For example, a 15-point miss means online signals were off by ~15 on that 0–150ish scale."
-                )
-        
-                # Where signals tend to over/under-estimate (by category)
-                df_known["OverUnder"] = np.where(df_known["DeltaAbs"] > 0, "Blended higher than signals", "Blended lower than signals")
-                by_cat = (
-                    df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
-                    .agg({
-                        "SignalOnly":"mean",
-                        "TicketIndex":"mean",
-                        "DeltaAbs":"mean",
-                        "DeltaPct":"mean",
-                    })
-                    .rename(columns={
-                        "SignalOnly":"Avg online-only score",
-                        "TicketIndex":"Avg ticket-based score",
-                        "DeltaAbs":"Avg difference (points)",
-                        "DeltaPct":"Avg difference (%)"
-                    })
-                    .sort_values("Avg difference (points)", ascending=False)
-                )
-        
-                st.markdown("### Where the model tends to be off (by category)")
-                st.caption("Positive numbers = ticket-informed scores run higher than online-only; negative = they run lower.")
-                st.dataframe(
-                    by_cat.style.format({
-                        "Avg online-only score":"{:.1f}",
-                        "Avg ticket-based score":"{:.1f}",
-                        "Avg difference (points)":"{:+.1f}",
-                        "Avg difference (%)":"{:+.1f}%"
-                    }),
-                    use_container_width=True
-                )
-        
-                # Simple comparison table for known titles
-                show_cols = [
-                    "Title","Category","Region","Segment",
-                    "SignalOnly","TicketIndex","Blended","DeltaAbs","DeltaPct","Source"
-                ]
-                show_cols = [c for c in show_cols if c in df_known.columns]
-                st.markdown("### Titles we can compare (we have ticket history for these)")
-                st.dataframe(
-                    df_known[show_cols]
-                        .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False])
-                        .rename(columns={
-                            "SignalOnly":"Online-only score",
-                            "TicketIndex":"Ticket-based score",
-                            "Blended":"Score used (blended)",
-                            "DeltaAbs":"How much tickets moved it (pts)",
-                            "DeltaPct":"How much tickets moved it (%)"
-                        })
-                        .style.format({
-                            "Online-only score":"{:.1f}",
-                            "Ticket-based score":"{:.1f}",
-                            "Score used (blended)":"{:.1f}",
-                            "How much tickets moved it (pts)":"{:+.1f}",
-                            "How much tickets moved it (%)":"{:+.1f}%"
-                        }),
-                    use_container_width=True
-                )
-        
-                # Visual: how far off the signals are, per title
-                fig_res, ax_res = plt.subplots()
-                ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
-                ax_res.axhline(0, linestyle="--")
-                ax_res.set_xlabel("Online-only score (index)")
-                ax_res.set_ylabel("Ticket-based minus online-only (points)")
-                ax_res.set_title("How much ticket results shift the score (for titles with history)")
-                st.pyplot(fig_res)
-
-        # 8) Assign letter grades
-        def _assign_score(v: float) -> str:
-            if v >= 90: return "A"
-            elif v >= 75: return "B"
-            elif v >= 60: return "C"
-            elif v >= 45: return "D"
-            else: return "E"
-        df["Score"] = df["Composite"].apply(_assign_score)
-
-        # 9) Display + charts + download
-        display_cols = [
-            "Title","Region","Segment","Gender","Category",
-            "Familiarity","Motivation","TicketMedian","TicketIndex","Composite","Score",
-            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
-        ]
-        existing = [c for c in display_cols if c in df.columns]
-
-        if "Score" in df.columns:
-            grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
-            st.caption(
-                f"Grade distribution — A:{grade_counts['A']}  B:{grade_counts['B']}  "
-                f"C:{grade_counts['C']}  D:{grade_counts['D']}  E:{grade_counts['E']}"
-            )
-
-        st.dataframe(
-            df[existing]
-              .sort_values(by=["Composite","Motivation","Familiarity"], ascending=[False, False, False])
-              .style.map(
-                  lambda v: (
-                      "color: green;" if v == "A" else
-                      "color: darkgreen;" if v == "B" else
-                      "color: orange;" if v == "C" else
-                      "color: darkorange;" if v == "D" else
-                      "color: red;" if v == "E" else ""
-                  ),
-                  subset=["Score"] if "Score" in df.columns else []
-              ),
-            use_container_width=True
-        )
-
-        fig, ax = plt.subplots()
-        ax.scatter(df["Familiarity"], df["Motivation"])
-        for _, r in df.iterrows():
-            ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
-        ax.axvline(df["Familiarity"].median(), color='gray', linestyle='--')
-        ax.axhline(df["Motivation"].median(), color='gray', linestyle='--')
-        ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
-        ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
-        ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
-        st.pyplot(fig)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Familiarity (Indexed)")
-            st.bar_chart(df.set_index("Title")["Familiarity"])
-        with col2:
-            st.subheader("Motivation (Indexed)")
-            st.bar_chart(df.set_index("Title")["Motivation"])
-
-        st.download_button(
-            "⬇️ Download CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            "title_scores_v9_ticket_blend.csv",
-            "text/csv"
-        )
+# ======= ALWAYS RENDER LAST RESULTS IF AVAILABLE =======
+if st.session_state["results"] is not None:
+    render_results()
