@@ -110,25 +110,23 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     ---
 
     ### **Glossary of Terms**
-    | Term | Definition |
-    |------|------------|
-    | **Benchmark** | The title you choose to set the 100 index. All other scores are scaled relative to this under the current segment/region. |
-    | **Familiarity** | Online awareness signal from Wiki, Trends, Spotify (after multipliers), then normalized to the benchmark. |
-    | **Motivation** | Online interest/engagement signal from YouTube, Trends, Spotify, Wiki (after multipliers), then normalized. |
-    | **Online Signals** | The average of the normalized Familiarity and Motivation scores (what the title would score without ticket history). |
-    | **TicketIndex (history)** | Historical median tickets ÷ benchmark median × 100 (actual ticket-based index). |
-    | **TicketIndex (predicted)** | TicketIndex estimated from Online Signals using a learned linear fit (per-category if possible, otherwise overall). |
-    | **TicketIndex source** | Whether we used **History**, a **Category model**, or the **Overall model**. |
-    | **Composite** | 50% Online Signals + 50% TicketIndex (history or predicted). |
-    | **Delta** | Difference between the blended Composite and the Online-only score; shows how much tickets move the score. |
-    | **Segment / Region** | Audience and market context multipliers applied to the online signals. |
-    | **Normalization** | Scaling that sets the benchmark title to 100 under the current segment/region. |
-    | **Calibration (optional)** | Extra straight-line adjustment in the comparison panel to nudge Online-only scores toward TicketIndex on known titles. |
-
-    ---
-
-    **Note:** This tool is not a predictor of exact ticket sales. Use online signals to screen and compare ideas, ticket history (or the predicted TicketIndex) to ground expectations, and the calibration view to learn where signals run high or low—and adjust accordingly.
-    """))
+| Term | Definition |
+|------|------------|
+| **Benchmark** | The title you choose to set the 100 index. All other scores are scaled relative to this under the current segment/region. |
+| **Familiarity** | Online awareness signal from Wiki, Trends, Spotify (after multipliers), then normalized to the benchmark. |
+| **Motivation** | Online interest/engagement signal from YouTube, Trends, Spotify, Wiki (after multipliers), then normalized. |
+| **Online Signals** | The average of the normalized Familiarity and Motivation scores (what the title would score without ticket history). |
+| **TicketIndex (history)** | Historical median tickets ÷ benchmark median × 100 (actual ticket-based index). |
+| **TicketIndex (predicted)** | TicketIndex estimated from Online Signals using a learned linear fit (per-category if possible, otherwise overall). |
+| **Category model** | Linear fit learned from titles in the same category (used when the category has ≥ 3 titles with history). Captures category-specific conversion from online buzz to tickets. |
+| **Overall model** | Linear fit learned from all titles with history across categories. Used when a category lacks enough data; provides a stable fallback. |
+| **TicketIndex source** | Indicates whether we used **History**, the **Category model**, or the **Overall model** to produce the TicketIndex used in blending. |
+| **Composite** | 50% Online Signals + 50% TicketIndex (history or predicted). |
+| **Delta** | Difference between the blended Composite and the Online-only score; shows how much tickets move the score. |
+| **Segment / Region** | Audience and market context multipliers applied to the online signals. |
+| **Normalization** | Scaling that sets the benchmark title to 100 under the current segment/region. |
+| **Calibration (optional)** | Extra straight-line adjustment in the comparison panel to nudge Online-only scores toward TicketIndex on known titles. |
+"""))
 
 # -------------------------
 # BASELINE DATA (subset for test run)
