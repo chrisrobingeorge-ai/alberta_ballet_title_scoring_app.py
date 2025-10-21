@@ -236,15 +236,63 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
 # -------------------------
 # OPTIONAL LIVE FETCHERS (only if toggled ON)
 # -------------------------
+import re  # needed for YouTube title filtering
+
 WIKI_API = "https://en.wikipedia.org/w/api.php"
-WIKI_PAGEVIEW = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
+WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+                 "en.wikipedia/all-access/user/{page}/daily/{start}/{end}")
+
+BALLET_HINTS = ["ballet", "pas", "variation", "act", "scene", "solo", "adagio", "coda"]
+
+def _title_tokens(s: str):
+    """Tokenize a string into simple alphanumeric lowercase tokens."""
+    return re.findall(r"[a-z0-9]+", s.lower())
+
+def _looks_like_our_title(video_title: str, query_title: str) -> bool:
+    """Keep videos where the title contains enough of the query tokens and a ballet hint."""
+    vt = _title_tokens(video_title)
+    qt = _title_tokens(query_title)
+    if not vt or not qt:
+        return False
+    overlap = sum(1 for t in qt if t in vt)
+    has_ballet_hint = any(h in vt for h in BALLET_HINTS)
+    return (overlap >= max(1, len(qt) // 2)) and has_ballet_hint
+
+def _yt_index_from_views(view_list):
+    """Map a robust central view count to an index on ~50..140 using log scale."""
+    if not view_list:
+        return 0.0
+    v = float(np.median(view_list))  # robust vs outliers
+    idx = 50.0 + min(90.0, np.log1p(v) * 9.0)
+    return float(idx)
+
+def _winsorize_youtube_to_baseline(category: str, yt_value: float) -> float:
+    """
+    Clamp YouTube index to the 3rd–97th percentile of the BASELINES distribution,
+    using the given category if available, else overall.
+    NOTE: relies on BASELINES being defined at call time (it is in this app).
+    """
+    try:
+        base_df = pd.DataFrame(BASELINES).T
+        base_df["category"] = [v.get("category", "dramatic") for v in BASELINES.values()]
+        ref = base_df.loc[base_df["category"] == category, "youtube"].dropna()
+        if ref.empty:
+            ref = base_df["youtube"].dropna()
+        if ref.empty:
+            return yt_value  # nothing to clamp against
+        lo = float(np.percentile(ref, 3))
+        hi = float(np.percentile(ref, 97))
+        return float(np.clip(yt_value, lo, hi))
+    except Exception:
+        return yt_value
 
 def wiki_search_best_title(query: str) -> Optional[str]:
     try:
-        params = {"action":"query","list":"search","srsearch":query,"format":"json","srlimit": 5}
+        params = {"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5}
         r = requests.get(WIKI_API, params=params, timeout=10)
-        if r.status_code != 200: return None
-        items = r.json().get("query",{}).get("search",[])
+        if r.status_code != 200:
+            return None
+        items = r.json().get("query", {}).get("search", [])
         return items[0]["title"] if items else None
     except Exception:
         return None
@@ -253,12 +301,13 @@ def fetch_wikipedia_views_for_page(page_title: str) -> float:
     try:
         end = datetime.utcnow().strftime("%Y%m%d")
         start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
-        url = WIKI_PAGEVIEW.format(page=page_title.replace(" ","_"), start=start, end=end)
+        url = WIKI_PAGEVIEW.format(page=page_title.replace(" ", "_"), start=start, end=end)
         r = requests.get(url, timeout=10)
-        if r.status_code != 200: return 0.0
-        items = r.json().get("items",[])
-        views = [it.get("views",0) for it in items]
-        return (sum(views)/365.0) if views else 0.0
+        if r.status_code != 200:
+            return 0.0
+        items = r.json().get("items", [])
+        views = [it.get("views", 0) for it in items]
+        return (sum(views) / 365.0) if views else 0.0
     except Exception:
         return 0.0
 
@@ -271,21 +320,49 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
     # Trends: resilient heuristic (kept local to avoid pytrends dependency here)
     trends_idx = 60.0 + (len(title) % 40)
 
-    # YouTube (optional)
+    # YouTube (optional) — robust, ballet-focused
     yt_idx = 0.0
     if yt_key and build is not None:
         try:
-            yt = build("youtube","v3",developerKey=yt_key)
-            search = yt.search().list(q=title, part="id", type="video", maxResults=25).execute()
-            ids = [it["id"]["videoId"] for it in search.get("items",[])]
-            if ids:
-                stats = yt.videos().list(part="statistics", id=",".join(ids[:50])).execute()
-                views = [int(i.get("statistics",{}).get("viewCount",0)) for i in stats.get("items",[])]
-                yt_idx = float(np.log1p(max(views)) * 12.0)  # map to ~50..140
+            yt = build("youtube", "v3", developerKey=yt_key)
+            q = f"{title} ballet"  # bias to ballet content
+            search = yt.search().list(
+                q=q, part="snippet", type="video", maxResults=30, relevanceLanguage="en"
+            ).execute()
+            items = search.get("items", []) or []
+
+            filtered_ids = []
+            for it in items:
+                vid = it.get("id", {}).get("videoId")
+                vtitle = it.get("snippet", {}).get("title", "") or ""
+                if vid and _looks_like_our_title(vtitle, title):
+                    filtered_ids.append(vid)
+
+            # Fallback: if filtering was too strict, use all found IDs
+            if len(filtered_ids) < 5:
+                filtered_ids = [it.get("id", {}).get("videoId") for it in items if it.get("id", {}).get("videoId")]
+
+            views = []
+            if filtered_ids:
+                stats = yt.videos().list(part="statistics", id=",".join(filtered_ids[:50])).execute()
+                for i in stats.get("items", []) or []:
+                    vc = i.get("statistics", {}).get("viewCount")
+                    if vc is not None:
+                        try:
+                            views.append(int(vc))
+                        except Exception:
+                            pass
+
+            yt_idx = _yt_index_from_views(views) if views else 0.0
         except Exception:
             yt_idx = 0.0
+
+    # Heuristic fallback if API not available or nothing usable was found
     if yt_idx == 0.0:
         yt_idx = 55.0 + (len(title) * 1.2) % 45.0
+
+    # Final safety clipping on the same rough scale as baselines
+    yt_idx = float(np.clip(yt_idx, 45.0, 140.0))
 
     # Spotify (optional)
     sp_idx = 0.0
@@ -294,7 +371,7 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
             auth = SpotifyClientCredentials(client_id=sp_id, client_secret=sp_secret)
             sp = spotipy.Spotify(auth_manager=auth)
             res = sp.search(q=title, type="track,album", limit=10)
-            pops = [t.get("popularity",0) for t in res.get("tracks",{}).get("items",[])]
+            pops = [t.get("popularity", 0) for t in res.get("tracks", {}).get("items", [])]
             sp_idx = float(np.percentile(pops, 80)) if pops else 0.0
         except Exception:
             sp_idx = 0.0
@@ -302,8 +379,18 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
         sp_idx = 50.0 + (len(title) * 1.7) % 40.0
 
     gender, category = infer_gender_and_category(title)
-    return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_idx, "spotify": sp_idx,
-            "gender": gender, "category": category}
+
+    # Winsorize YouTube for unknown titles against baseline distribution (category-aware)
+    yt_idx = _winsorize_youtube_to_baseline(category, yt_idx)
+
+    return {
+        "wiki": wiki_idx,
+        "trends": trends_idx,
+        "youtube": yt_idx,
+        "spotify": sp_idx,
+        "gender": gender,
+        "category": category
+    }
 
 # -------------------------
 # UI — API + OPTIONS + TITLES
@@ -322,7 +409,7 @@ with st.expander("🔑 API Configuration (only used for NEW titles if enabled)")
     """)
     st.caption("Keys are created in your own accounts. The links above are universal; your keys remain private to you.")
 
-region = st.selectbox("Region", ["Province","Calgary","Edmonton"], index=0)
+region = st.selectbox("Region", ["Province", "Calgary", "Edmonton"], index=0)
 segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
 
 default_list = list(BASELINES.keys())[:50]
