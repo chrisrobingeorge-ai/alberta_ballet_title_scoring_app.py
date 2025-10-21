@@ -314,6 +314,14 @@ with st.expander("🔑 API Configuration (only used for NEW titles if enabled)")
     sp_secret = st.text_input("Spotify Client Secret", type="password")
     use_live = st.checkbox("Use Live Data for Unknown Titles", value=False)
 
+    # Helpful docs & where to create keys (universal links)
+    st.markdown("""
+    **Helpful links (universal docs & dashboards):**
+    - **Spotify**: [Web API docs](https://developer.spotify.com/documentation/web-api/) · [Getting started](https://developer.spotify.com/documentation/web-api/tutorials/getting-started) · Create/manage keys in the **Spotify Developer Dashboard** (sign in when prompted).
+    - **YouTube**: [YouTube Data API overview](https://developers.google.com/youtube/v3) · [API reference](https://developers.google.com/youtube/v3/docs) · Create/manage keys in **Google Cloud Console** (APIs & Services → Credentials).
+    """)
+    st.caption("Keys are created in your own accounts. The links above are universal; your keys remain private to you.")
+
 region = st.selectbox("Region", ["Province","Calgary","Edmonton"], index=0)
 segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
 
