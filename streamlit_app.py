@@ -161,7 +161,7 @@ BASELINES = {
     "Unleashed – Mixed Bill": {"wiki": 55, "trends": 50, "youtube": 60, "spotify": 52, "category": "contemporary", "gender": "co"},
     "Botero": {"wiki": 58, "trends": 54, "youtube": 62, "spotify": 57, "category": "contemporary", "gender": "male"},
     "Away We Go – Mixed Bill": {"wiki": 54, "trends": 52, "youtube": 58, "spotify": 50, "category": "contemporary", "gender": "co"},
-    "Fiddle – Joni Mitchell": {"wiki": 60, "trends": 55, "youtube": 62, "spotify": 66, "category": "pop_ip", "gender": "female"},
+    "Fiddle & the Drum – Joni Mitchell": {"wiki": 60, "trends": 55, "youtube": 62, "spotify": 66, "category": "pop_ip", "gender": "female"},
     "Midsummer Night’s Dream": {"wiki": 75, "trends": 70, "youtube": 70, "spotify": 68, "category": "classic_romance", "gender": "co"},
     "Dracula": {"wiki": 74, "trends": 65, "youtube": 70, "spotify": 65, "category": "romantic_tragedy", "gender": "male"},
 }
@@ -456,7 +456,7 @@ TICKET_PRIORS_RAW = {
     "Handmaid's Tale": [6842],
     "Hansel & Gretel": [7290],
     "La Sylphide": [5221],
-    "Midsummer Night's Dream": [6587],
+    "Midsummer Night’s Dream": [6587],
     "Momix": [8391],
     "Our Canada": [10138],
     "Phi - David Bowie": [12336],
