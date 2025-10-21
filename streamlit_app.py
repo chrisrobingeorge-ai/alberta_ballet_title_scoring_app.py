@@ -448,7 +448,11 @@ if run:
         df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
 
         # 7) === Comparison & calibration expander ===
-        with st.expander("🧪 Compare signal-only scores vs ticket-informed scores"):
+        # ======================
+        # Plain-English comparison & calibration
+        # ======================
+        with st.expander("🧪 How close are the online-signal scores to your real ticket results?"):
+            # 1) Build the comparison columns
             df["SignalOnly"] = signal_composite
             df["Blended"] = df["Composite"]
             df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
@@ -456,25 +460,46 @@ if run:
 
             df_known = df[df["TicketIndex"].notna()].copy()
             if df_known.empty:
-                st.info("No titles in your list have ticket history; add some known titles to compare.")
+                st.info("No titles in your list have past ticket history to compare against. Add some known titles to see how close the online signals are.")
             else:
+                # How similar are online-only scores to ticket history?
                 corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
-
-                do_calibrate = st.checkbox("Calibrate signal to tickets with linear fit (overall)", value=False)
+        
+                # Average miss (in index points) if we used online-only scores
+                resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
+                rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
+        
+                # Optional adjustment: nudge online-only scores to better match history
+                do_calibrate = st.checkbox(
+                    "Adjust the online-signal scores to better match past ticket results (optional)",
+                    value=False
+                )
+        
                 a = b = None
                 if do_calibrate and len(df_known) >= 2:
                     x = df_known["SignalOnly"].values
                     y = df_known["TicketIndex"].values
-                    a, b = np.polyfit(x, y, 1)  # y ≈ a*x + b
+                    a, b = np.polyfit(x, y, 1)  # simple straight-line adjustment
                     df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
                     resid_cal = df_known["TicketIndex"] - df_known["SignalCalibrated"]
                     rmse_cal = float(np.sqrt(np.mean(resid_cal**2)))
                 else:
                     rmse_cal = None
-
-                resid_raw = df_known["TicketIndex"] - df_known["SignalOnly"]
-                rmse_raw = float(np.sqrt(np.mean(resid_raw**2)))
-
+        
+                # Plain-English headlines
+                st.markdown("### What this means, in plain English")
+                st.markdown(
+                    f"- **Overall similarity:** `{corr:.2f}` — closer to **1.00** means the online signals move up/down like ticket results do.\n"
+                    f"- **Average miss using online-only scores:** about **{rmse_raw:.1f} index points**.\n"
+                    + (f"- **After adjustment:** average miss improves to **{rmse_cal:.1f} index points**." if rmse_cal is not None else "")
+                )
+                st.caption(
+                    "“Index points” are the same units you see in the tables and charts (your chosen benchmark = 100). "
+                    "For example, a 15-point miss means online signals were off by ~15 on that 0–150ish scale."
+                )
+        
+                # Where signals tend to over/under-estimate (by category)
+                df_known["OverUnder"] = np.where(df_known["DeltaAbs"] > 0, "Blended higher than signals", "Blended lower than signals")
                 by_cat = (
                     df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
                     .agg({
@@ -484,49 +509,60 @@ if run:
                         "DeltaPct":"mean",
                     })
                     .rename(columns={
-                        "SignalOnly":"SignalOnly_mean",
-                        "TicketIndex":"TicketIndex_mean",
-                        "DeltaAbs":"DeltaAbs_mean",
-                        "DeltaPct":"DeltaPct_mean"
+                        "SignalOnly":"Avg online-only score",
+                        "TicketIndex":"Avg ticket-based score",
+                        "DeltaAbs":"Avg difference (points)",
+                        "DeltaPct":"Avg difference (%)"
                     })
-                    .sort_values("DeltaAbs_mean", ascending=False)
+                    .sort_values("Avg difference (points)", ascending=False)
                 )
-
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Correlation (SignalOnly ↔ TicketIndex)", f"{corr:.2f}")
-                c2.metric("RMSE vs TicketIndex (raw signal)", f"{rmse_raw:.1f} index pts")
-                if rmse_cal is not None:
-                    c3.metric("RMSE vs TicketIndex (calibrated)", f"{rmse_cal:.1f} index pts")
-
+        
+                st.markdown("### Where the model tends to be off (by category)")
+                st.caption("Positive numbers = ticket-informed scores run higher than online-only; negative = they run lower.")
+                st.dataframe(
+                    by_cat.style.format({
+                        "Avg online-only score":"{:.1f}",
+                        "Avg ticket-based score":"{:.1f}",
+                        "Avg difference (points)":"{:+.1f}",
+                        "Avg difference (%)":"{:+.1f}%"
+                    }),
+                    use_container_width=True
+                )
+        
+                # Simple comparison table for known titles
                 show_cols = [
                     "Title","Category","Region","Segment",
                     "SignalOnly","TicketIndex","Blended","DeltaAbs","DeltaPct","Source"
                 ]
                 show_cols = [c for c in show_cols if c in df_known.columns]
-                st.markdown("**Titles with ticket history — signal vs blended**")
+                st.markdown("### Titles we can compare (we have ticket history for these)")
                 st.dataframe(
                     df_known[show_cols]
-                        .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False]),
+                        .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False])
+                        .rename(columns={
+                            "SignalOnly":"Online-only score",
+                            "TicketIndex":"Ticket-based score",
+                            "Blended":"Score used (blended)",
+                            "DeltaAbs":"How much tickets moved it (pts)",
+                            "DeltaPct":"How much tickets moved it (%)"
+                        })
+                        .style.format({
+                            "Online-only score":"{:.1f}",
+                            "Ticket-based score":"{:.1f}",
+                            "Score used (blended)":"{:.1f}",
+                            "How much tickets moved it (pts)":"{:+.1f}",
+                            "How much tickets moved it (%)":"{:+.1f}%"
+                        }),
                     use_container_width=True
                 )
-
-                if a is not None and b is not None:
-                    st.caption(f"Calibrated mapping (overall): TicketIndex ≈ **{a:.2f} × SignalOnly + {b:.2f}**")
-
-                st.markdown("**Category-level average bias (known titles)**")
-                st.dataframe(by_cat.style.format({
-                    "SignalOnly_mean":"{:.1f}",
-                    "TicketIndex_mean":"{:.1f}",
-                    "DeltaAbs_mean":"{:+.1f}",
-                    "DeltaPct_mean":"{:+.1f}%"
-                }), use_container_width=True)
-
+        
+                # Visual: how far off the signals are, per title
                 fig_res, ax_res = plt.subplots()
                 ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
-                ax_res.axhline(0, linestyle="--", color="gray")
-                ax_res.set_xlabel("SignalOnly (index)")
-                ax_res.set_ylabel("TicketIndex − SignalOnly (index pts)")
-                ax_res.set_title("Residuals: tickets minus signal (known titles)")
+                ax_res.axhline(0, linestyle="--")
+                ax_res.set_xlabel("Online-only score (index)")
+                ax_res.set_ylabel("Ticket-based minus online-only (points)")
+                ax_res.set_title("How much ticket results shift the score (for titles with history)")
                 st.pyplot(fig_res)
 
         # 8) Assign letter grades
