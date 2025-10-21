@@ -528,7 +528,7 @@ def compute_scores_and_store():
 
 
 def render_results():
-    """Read from session_state['results'] and render UI (checkbox won't clear this)."""
+    """Read from session_state['results'] and render UI (checkbox will not clear this)."""
     R = st.session_state["results"]
     if not R: 
         return
