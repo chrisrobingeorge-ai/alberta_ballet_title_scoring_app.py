@@ -449,7 +449,7 @@ TICKET_PRIORS_RAW = {
     "Don Quixote": [5650],
     "Dona Peron": [5221],
     "Dracula": [11285],
-    "Fiddle & the Drum - Joni Mitchell": [6024],
+    "Fiddle & the Drum – Joni Mitchell": [6024],
     "Frankenstein": [10470],
     "Giselle": [9111],
     "Grimm": [6362],
