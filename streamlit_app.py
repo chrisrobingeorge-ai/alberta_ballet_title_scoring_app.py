@@ -448,6 +448,109 @@ if run:
         tickets_component = df["TicketIndex"].fillna(signal_composite)
         df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_composite + TICKET_BLEND_WEIGHT * tickets_component
 
+        # --- Signal-only vs Tickets-blended comparison & calibration ---
+
+with st.expander("🧪 Compare signal-only scores vs ticket-informed scores"):
+    # 1) Signal-only = the mean of Familiarity and Motivation (already computed above)
+    df["SignalOnly"] = signal_composite
+
+    # 2) Ticket-blended = your existing Composite (already computed)
+    df["Blended"] = df["Composite"]
+
+    # 3) Deltas (only meaningful on titles with ticket history)
+    df["DeltaAbs"] = df["Blended"] - df["SignalOnly"]
+    df["DeltaPct"] = (df["Blended"] / df["SignalOnly"] - 1.0) * 100.0
+
+    # Focus set: titles with ticket history
+    df_known = df[df["TicketIndex"].notna()].copy()
+    if df_known.empty:
+        st.info("No titles in your list have ticket history; add some known titles to compare.")
+    else:
+        # Quick diagnostics
+        # Note: both SignalOnly and TicketIndex are normalized to the chosen benchmark (index = 100),
+        # so correlation and residuals are meaningful.
+        corr = float(df_known[["SignalOnly","TicketIndex"]].corr().iloc[0,1])
+        
+        # Scale check: optionally learn a simple linear calibration TicketIndex ≈ a*SignalOnly + b
+        # (We keep it optional so you can see raw vs calibrated side-by-side.)
+        do_calibrate = st.checkbox("Calibrate signal to tickets with linear fit (overall)", value=False)
+        a = b = None
+        if do_calibrate and len(df_known) >= 2:
+            x = df_known["SignalOnly"].values
+            y = df_known["TicketIndex"].values
+            a, b = np.polyfit(x, y, 1)  # y ≈ a*x + b
+            df_known["SignalCalibrated"] = a * df_known["SignalOnly"] + b
+            # Recompute residuals vs TicketIndex with calibrated signal
+            resid = df_known["TicketIndex"] - df_known["SignalCalibrated"]
+            rmse_cal = float(np.sqrt(np.mean(resid**2)))
+        else:
+            resid = df_known["TicketIndex"] - df_known["SignalOnly"]
+            rmse_cal = None
+
+        rmse_raw = float(np.sqrt(np.mean((df_known["TicketIndex"] - df_known["SignalOnly"])**2)))
+
+        # By-category bias diagnostics (helps you see where signal under/overestimates)
+        by_cat = (
+            df_known.groupby("Category")[["SignalOnly","TicketIndex","DeltaAbs","DeltaPct"]]
+            .agg({
+                "SignalOnly":"mean",
+                "TicketIndex":"mean",
+                "DeltaAbs":"mean",
+                "DeltaPct":"mean",
+            })
+            .rename(columns={
+                "SignalOnly":"SignalOnly_mean",
+                "TicketIndex":"TicketIndex_mean",
+                "DeltaAbs":"DeltaAbs_mean",
+                "DeltaPct":"DeltaPct_mean"
+            })
+            .sort_values("DeltaAbs_mean", ascending=False)
+        )
+
+        # Headline stats
+        cols = st.columns(3)
+        cols[0].metric("Correlation (SignalOnly ↔ TicketIndex)", f"{corr:.2f}")
+        cols[1].metric("RMSE vs TicketIndex (raw signal)", f"{rmse_raw:.1f} index pts")
+        if rmse_cal is not None:
+            cols[2].metric("RMSE vs TicketIndex (calibrated)", f"{rmse_cal:.1f} index pts")
+        else:
+            cols[2].write("")
+
+        # Show side-by-side table for known titles
+        show_cols = [
+            "Title","Category","Region","Segment",
+            "SignalOnly","TicketIndex","Blended","DeltaAbs","DeltaPct","Source"
+        ]
+        show_cols = [c for c in show_cols if c in df_known.columns]
+        st.markdown("**Titles with ticket history — signal vs blended**")
+        st.dataframe(
+            df_known[show_cols]
+                .sort_values(by=["DeltaAbs","Blended","SignalOnly"], ascending=[False, False, False]),
+            use_container_width=True
+        )
+
+        # Optional: show overall calibration parameters
+        if a is not None and b is not None:
+            st.caption(f"Calibrated mapping (overall): TicketIndex ≈ **{a:.2f} × SignalOnly + {b:.2f}**")
+
+        # Category diagnostics
+        st.markdown("**Category-level average bias (known titles)**")
+        st.dataframe(by_cat.style.format({
+            "SignalOnly_mean":"{:.1f}",
+            "TicketIndex_mean":"{:.1f}",
+            "DeltaAbs_mean":"{:+.1f}",
+            "DeltaPct_mean":"{:+.1f}%"
+        }), use_container_width=True)
+
+        # Residual plot: how far off signal is from TicketIndex
+        fig_res, ax_res = plt.subplots()
+        ax_res.scatter(df_known["SignalOnly"], df_known["TicketIndex"] - df_known["SignalOnly"])
+        ax_res.axhline(0, linestyle="--", color="gray")
+        ax_res.set_xlabel("SignalOnly (index)")
+        ax_res.set_ylabel("TicketIndex − SignalOnly (index pts)")
+        ax_res.set_title("Residuals: tickets minus signal (known titles)")
+        st.pyplot(fig_res)
+
         # --- Assign Letter Score (A–E) ---
         def _assign_score(v: float) -> str:
             if v >= 90: return "A"
