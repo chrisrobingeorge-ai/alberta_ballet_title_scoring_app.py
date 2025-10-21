@@ -49,34 +49,78 @@ st.caption("Hard-coded Alberta-wide baselines (normalized to your selected bench
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown("""
 ### **Purpose**
-This tool helps Alberta Ballet estimate how familiar and motivated audiences are likely to be toward specific productions, both current and prospective.  
-It combines cultural familiarity data, historical sales performance, and demographic patterns derived from *Spotlight on Arts Audiences* and Alberta Ballet’s 2017–2025 production results.
+This tool estimates how familiar audiences are with a title and how motivated they are to attend, then blends those “online signal” estimates with Alberta Ballet’s historical ticket results (when available). Use it to compare current and prospective titles under different audience segments and regions.
 
-### **Methodology Overview**
-- **Baselines:** Each existing title is assigned familiarity and motivation scores derived from a combination of:
-  - Wikipedia page views (public awareness)
-  - Google Trends (search interest)
-  - YouTube activity (media engagement)
-  - Spotify popularity (musical familiarity)
-  - Adjusted for Alberta-specific performance data and demographic trends.
-- **Normalization:** All titles are scaled relative to the **benchmark title you select** (index = 100).  
-  Scores above 100 represent titles with greater recognition or motivation potential under the current segment/region; below 100 suggests lesser-known works.
-- **Segments:** Audience segments apply different weightings:
-  - *Core Classical (F35–64):* Prioritizes classic ballets and female or co-leads.
-  - *Family (Parents w/ kids):* Boosts family-oriented, accessible stories and pop IPs.
-  - *Emerging Adults (18–34):* Emphasizes contemporary or visually bold productions.
-- **Regions:** Regional multipliers reflect audience variation across Alberta:
-  - *Calgary:* Slightly higher affinity for classical and family titles.
-  - *Edmonton:* Slightly stronger interest in contemporary or conceptual programs.
-- **Unknown Titles:**  
-  - If *Use Live Data* is enabled and API keys are provided, the app fetches real data from Wikipedia, YouTube, Spotify, and heuristic Trends.  
-  - Otherwise, it estimates based on category medians and historical genre performance.
-- **Benchmarking:** Familiarity and motivation are expressed as a percentage relative to the **currently selected** benchmark, given the chosen segment and region.
+---
 
-### **Interpretation**
-- **Familiarity** reflects brand or story awareness (e.g., “Have people heard of it?”).  
-- **Motivation** reflects the likelihood of ticket purchase interest (e.g., “Would they go see it?”).  
-- Both indicators are best used for comparing titles *against each other* rather than as absolute predictions.
+### **What goes into the scores**
+**Online signals (for each title):**
+- **Wikipedia** page views → awareness
+- **Google Trends** (light heuristic here) → search interest
+- **YouTube** activity → engagement potential
+- **Spotify** popularity → musical familiarity
+
+**Contextual multipliers:**
+- **Audience Segment**: weights and multipliers for gender lead and category (e.g., Core Classical vs. Family vs. Emerging Adults).
+- **Region**: Province / Calgary / Edmonton adjustment.
+
+**Ticket history (if available):**
+- Median tickets sold per title (historical priors) → converted to a **TicketIndex** relative to your selected benchmark title’s median.
+
+---
+
+### **Scoring pipeline (step by step)**
+1) **Compute raw Familiarity & Motivation**  
+   - Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify  
+   - Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki  
+   - Apply segment multipliers (by **gender** and **category**) and a region multiplier.
+
+2) **Normalize to your benchmark ( = 100 )**  
+   You choose a benchmark title. All Familiarity/Motivation numbers are scaled so that the benchmark equals 100 under the current segment and region.
+
+3) **TicketIndex (only when history exists)**  
+   - We take the title’s historical median tickets and divide by the benchmark title’s median tickets, then multiply by 100 to get a **TicketIndex** on the same scale.
+
+4) **Blend signal with tickets**  
+   - **Composite = 50% Online Signals + 50% TicketIndex** (when TicketIndex exists).  
+   - If a title has **no** ticket history, its TicketIndex is treated as missing and the Composite falls back to the online signal value (so it doesn’t get unfairly penalized).
+
+5) **Letter grade**  
+   - A (≥90), B (≥75), C (≥60), D (≥45), E (<45) based on the Composite.
+
+---
+
+### **New titles / unknown titles**
+- We infer **gender lead** and **category** from the title text (e.g., family classic, classic romance, pop IP, contemporary).
+- We use the **median** online-signal values for that category (with a small gender adjustment), clipped to a sensible range.
+- If **Use Live Data** is on and you provide API keys, Wikipedia/YouTube/Spotify lookups are attempted; otherwise we use the offline estimate.
+
+---
+
+### **Reality check & calibration (what the comparison section shows)**
+- **How close are online signals to real ticket results?**  
+  We show an **overall similarity** number (closer to 1.00 means signals move up/down like ticket results) and the **average miss** in index points if you relied on online signals alone.
+- **Optional adjustment:**  
+  You can apply a simple straight-line adjustment to nudge online-only scores closer to history (for known titles).  
+- **Category bias table:**  
+  Highlights where the model tends to under- or over-estimate compared to ticket results; use this insight when evaluating new titles.
+
+---
+
+### **How to interpret**
+- Treat scores as **comparative** indicators for programming, pricing, marketing emphasis, and creative positioning—not as exact sales forecasts.
+- Strong **online signal** but weak **TicketIndex** → promising awareness/appeal that hasn’t converted historically (consider messaging/positioning).  
+- Weaker **online signal** but strong **TicketIndex** → title that outperforms buzz (brand equity, tradition, or word-of-mouth may be at work).
+
+---
+
+### **Limitations**
+- Google Trends here is a lightweight proxy (to avoid heavy dependencies) and YouTube/Spotify may be noisy for niche repertoire.  
+- Historical medians reflect past contexts (pricing, venue, timing, competing events) that may differ in the future.  
+- Category inference for brand-new titles is heuristic—refine the category/gender labels if you see mismatches.
+
+**Bottom line:** Use the online signals to screen and compare ideas, use ticket history to ground expectations, and use the calibration view to learn and adjust where the signals are systematically high or low.
+    """)
 
 ---
 
