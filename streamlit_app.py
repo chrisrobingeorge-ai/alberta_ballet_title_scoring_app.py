@@ -459,12 +459,58 @@ def compute_scores_and_store():
         medians.append(med); indices.append(idx)
     df["TicketMedian"] = medians
     df["TicketIndex"]  = indices
-
-    # Composite
-    signal_only = df[["Familiarity", "Motivation"]].mean(axis=1)
-    tickets_component = df["TicketIndex"].fillna(signal_only)
-    df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * signal_only + TICKET_BLEND_WEIGHT * tickets_component
-
+    
+    # === Learn ticket adjustment from known titles and apply to unknowns ===
+    # Build the online-only signal (used for fitting and blending)
+    df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
+    
+    df_known = df[df["TicketIndex"].notna()].copy()
+    
+    def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
+        """Return (overall_a, overall_b, cat_to_(a,b)). Fallback is identity if too little data."""
+        overall_a, overall_b = 1.0, 0.0
+        if len(df_known_in) >= 2:
+            x = df_known_in["SignalOnly"].values
+            y = df_known_in["TicketIndex"].values
+            overall_a, overall_b = np.polyfit(x, y, 1)
+    
+        cat_coefs = {}
+        for cat, g in df_known_in.groupby("Category"):
+            if len(g) >= 3:
+                xs = g["SignalOnly"].values
+                ys = g["TicketIndex"].values
+                a, b = np.polyfit(xs, ys, 1)
+                cat_coefs[cat] = (float(a), float(b))
+        return float(overall_a), float(overall_b), cat_coefs
+    
+    overall_a, overall_b, cat_coefs = _fit_overall_and_by_category(df_known)
+    
+    def _predict_ticket_index(signal_only: float, category: str) -> float:
+        """Predict TicketIndex via per-category (a,b) when available; otherwise overall (a,b)."""
+        a, b = cat_coefs.get(category, (overall_a, overall_b))
+        pred = a * signal_only + b
+        return float(np.clip(pred, 20.0, 180.0))  # keep within a sensible index range
+    
+    # Impute TicketIndex for titles without history
+    df["TicketIndexImputed"] = df.apply(
+        lambda r: r["TicketIndex"] if pd.notna(r["TicketIndex"]) else _predict_ticket_index(r["SignalOnly"], r["Category"]),
+        axis=1
+    )
+    
+    # Transparency: where the imputation came from
+    def _imputation_source(row) -> str:
+        if pd.notna(row["TicketIndex"]):
+            return "History"
+        return "Category model" if row["Category"] in cat_coefs else "Overall model"
+    
+    df["TicketIndexSource"] = df.apply(_imputation_source, axis=1)
+    
+    # --- Blend with ticket history (or predicted history) ---
+    # Keep your existing blend weight
+    # (Make sure TICKET_BLEND_WEIGHT is defined above, e.g., TICKET_BLEND_WEIGHT = 0.50)
+    tickets_component = df["TicketIndexImputed"]
+    df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
+    
     # Stash everything needed for rendering
     st.session_state["results"] = {
         "df": df,
@@ -474,6 +520,7 @@ def compute_scores_and_store():
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
     }
+
 
 def render_results():
     """Read from session_state['results'] and render UI (checkbox won’t clear this)."""
@@ -612,10 +659,13 @@ def render_results():
     # Display + charts + download
     display_cols = [
         "Title","Region","Segment","Gender","Category",
-        "Familiarity","Motivation","TicketMedian","TicketIndex","Composite","Score",
+        "Familiarity","Motivation",
+        "TicketMedian","TicketIndex","TicketIndexImputed","TicketIndexSource",
+        "Composite","Score",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
     ]
     existing = [c for c in display_cols if c in df.columns]
+
 
     if "Score" in df.columns:
         grade_counts = df["Score"].value_counts().reindex(["A","B","C","D","E"]).fillna(0).astype(int)
