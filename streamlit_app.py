@@ -781,34 +781,37 @@ def render_results():
 
     # Helper to render full results table
     def _render_full_results_table(df_in: pd.DataFrame):
+        # 1) Rename TicketMedian -> TicketHistory (display only)
         df_show = df_in.rename(columns={"TicketMedian": "TicketHistory"}).copy()
-
+    
+        # 2) Desired column order (includes segment mix + segment ticket splits)
         display_cols = [
             "Title", "Region", "Segment", "Gender", "Category",
-            "LikelySegment",
-            "Mix_GP", "Mix_Core", "Mix_Family", "Mix_EA",
             "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx",
             "Familiarity", "Motivation",
             "TicketHistory",
-            "EffectiveTicketIndex",  # will be renamed to 'TicketIndex used'
+            "EffectiveTicketIndex",      # will be shown as "TicketIndex used"
             "TicketIndexSource",
             "Composite", "Score",
             "EstimatedTickets",
-            "PredictedPrimarySegment", "PredictedSecondarySegment",
-            "SegShare_General Population", "SegShare_Core Classical (F35–64)",
-            "SegShare_Family (Parents w/ kids)", "SegShare_Emerging Adults (18–34)",
-            "EstTix_General Population", "EstTix_Core Classical (F35–64)",
-            "EstTix_Family (Parents w/ kids)", "EstTix_Emerging Adults (18–34)",
-            "SegmentMixNote",
+    
+            # New segment-mix % columns
+            "Mix_GP", "Mix_Core", "Mix_Family", "Mix_EA",
+    
+            # New per-segment ticket split columns
+            "Seg_GP_Tickets", "Seg_Core_Tickets", "Seg_Family_Tickets", "Seg_EA_Tickets",
+    
             "Source",
         ]
-
-        # Do not show raw TicketIndex and TicketIndexImputed columns (kept for CSV if you like)
+    
+        # 3) Drop internal columns you don’t want users to see (optional)
         drop_if_present = ["TicketIndex", "TicketIndexImputed"]
         df_show = df_show.drop(columns=[c for c in drop_if_present if c in df_show.columns], errors="ignore")
-
+    
+        # 4) Only keep columns that actually exist
         present = [c for c in display_cols if c in df_show.columns]
-
+    
+        # 5) Render table (with correct format dict) and hide the left index
         st.dataframe(
             df_show[present]
               .sort_values(
@@ -818,7 +821,9 @@ def render_results():
                   ],
                   ascending=[False, False, False, False]
               )
-              .rename(columns={"EffectiveTicketIndex": "TicketIndex used"})
+              .rename(columns={
+                  "EffectiveTicketIndex": "TicketIndex used"
+              })
               .style
                 .format({
                     "WikiIdx": "{:.0f}", "TrendsIdx": "{:.0f}", "YouTubeIdx": "{:.0f}", "SpotifyIdx": "{:.0f}",
@@ -827,16 +832,13 @@ def render_results():
                     "TicketIndex used": "{:.1f}",
                     "EstimatedTickets": "{:,.0f}",
                     "TicketHistory": "{:,.0f}",
-                    "SegShare_General Population": "{:.0f}%",
-                    "SegShare_Core Classical (F35–64)": "{:.0f}%",
-                    "SegShare_Family (Parents w/ kids)": "{:.0f}%",
-                    "SegShare_Emerging Adults (18–34)": "{:.0f}%",
-                    "EstTix_General Population": "{:,.0f}",
-                    "EstTix_Core Classical (F35–64)": "{:,.0f}",
-                    "EstTix_Family (Parents w/ kids)": "{:,.0f}",
-                    "EstTix_Emerging Adults (18–34)": "{:,.0f}",
-                    "Mix_GP","Mix_Core","Mix_Family","Mix_EA",
-                    "Seg_GP_Tickets","Seg_Core_Tickets","Seg_Family_Tickets","Seg_EA_Tickets",
+    
+                    # ✅ Segment mix as percentages
+                    "Mix_GP": "{:.0%}", "Mix_Core": "{:.0%}", "Mix_Family": "{:.0%}", "Mix_EA": "{:.0%}",
+    
+                    # ✅ Per-segment ticket splits as integers
+                    "Seg_GP_Tickets": "{:,.0f}", "Seg_Core_Tickets": "{:,.0f}",
+                    "Seg_Family_Tickets": "{:,.0f}", "Seg_EA_Tickets": "{:,.0f}",
                 })
                 .map(
                     lambda v: (
@@ -851,6 +853,7 @@ def render_results():
             use_container_width=True,
             hide_index=True
         )
+
 
     # Header + full table
     st.subheader("🎟️ Estimated ticket sales and segment mix")
