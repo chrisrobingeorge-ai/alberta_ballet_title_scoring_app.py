@@ -213,7 +213,7 @@ CATEGORY_TO_PROGRAM = {
     "family_classic":    "Family Ballet",
     "romantic_tragedy":  "CSNA",                  # Classical Story Narrative (Adult)
     "dramatic":          "Contemporary Narrative" # could also map some to "Cultural Narrative"
-    "romantic_comedy":   "Classic Ballet",
+    "romantic_comedy": "Classic Ballet",
 }
 
 # Percent values from your Live Analytics table (per program type).
