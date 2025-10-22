@@ -34,8 +34,6 @@ except Exception:
 # Persist results across reruns so toggles/dropdowns don't wipe them
 if "results" not in st.session_state:
     st.session_state["results"] = None  # {"df": ..., "benchmark": ..., "segment": ..., "region": ...}
-if "la_payload" not in st.session_state:
-    st.session_state["la_payload"] = None  # will hold your LA report (df, dict, or raw text)
 
 # -------------------------
 # PAGE / SPLASH
@@ -511,29 +509,6 @@ st.markdown("**Titles to score** (one per line). Add NEW titles freely:")
 titles_input = st.text_area("Enter titles", value="\n".join(default_list), height=220)
 titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
 
-with st.expander("📎 Live Analytics report (optional) — paste or upload"):
-    up = st.file_uploader("Upload LA report (CSV or Excel)", type=["csv", "xlsx", "xls"])
-    txt = st.text_area("…or paste a TSV/CSV-like block (Label<TAB>Value per line)", height=160)
-
-    la_obj = None
-    if up is not None:
-        try:
-            if up.name.lower().endswith(".csv"):
-                la_obj = pd.read_csv(up)
-            else:
-                la_obj = pd.read_excel(up)
-            st.success(f"Loaded LA report: {up.name} ({la_obj.shape[0]} rows × {la_obj.shape[1]} cols)")
-        except Exception as e:
-            st.error(f"Could not read file: {e}")
-
-    if not la_obj and txt.strip():
-        # Keep raw text; parser in attach_la_report_columns can handle TSV-ish blocks
-        la_obj = txt
-        st.info("Loaded LA report from pasted text.")
-
-    if la_obj is not None:
-        st.session_state["la_payload"] = la_obj
-
 run = st.button("Score Titles", type="primary")
 
 # -------------------------
@@ -808,8 +783,6 @@ def compute_scores_and_store():
         "region": region,
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
-        # NEW: pass the LA report through the results dict so the exporter can use it
-        "la_report": st.session_state.get("la_payload"),
     }
 
 import re
@@ -965,28 +938,6 @@ def _san(s: str) -> str:
     s = re.sub(r"[^A-Za-z0-9_<>=\-]+", "_", s)  # non-alnum (keep <,>,= for ranges as-is)
     s = re.sub(r"_+", "_", s).strip("_")
     return s
-
-def _series_from_any(la_any) -> pd.Series:
-    """Turn various LA payloads into a flat Series of label->value."""
-    if la_any is None:
-        return pd.Series(dtype="object")
-    # Case 1: dict-like {label: value}
-    if isinstance(la_any, dict):
-        return pd.Series(la_any, dtype="object")
-    # Case 2: DataFrame with 2 columns (label, value)
-    if isinstance(la_any, pd.DataFrame) and la_any.shape[1] >= 2:
-        lab = la_any.columns[0]; val = la_any.columns[1]
-        return pd.Series(la_any[val].values, index=la_any[lab].values, dtype="object")
-    # Case 3: raw text/TSV blob (label \t value per line)
-    if isinstance(la_any, str):
-        rows = []
-        for line in la_any.splitlines():
-            if "\t" in line:
-                k, v = line.split("\t", 1)
-                rows.append((k.strip(), v.strip()))
-        if rows:
-            return pd.Series(dict(rows), dtype="object")
-    return pd.Series(dtype="object")
 
 def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
