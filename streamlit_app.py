@@ -714,43 +714,52 @@ def render_results():
 
     # Helper to render the full results table with all original columns + new estimate columns
     def _render_full_results_table(df_in: pd.DataFrame):
-        display_cols = [
-            "Title","Region","Segment","Gender","Category",
-            "Familiarity","Motivation",
-            "TicketMedian","TicketIndex","TicketIndexImputed","TicketIndexSource",
-            "EstimatedTickets","TicketEstimateSource","EffectiveTicketIndex",
-            "Composite","Score",
-            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx","Source"
-        ]
-        present = [c for c in display_cols if c in df_in.columns]
+        # 1) Rename TicketMedian -> TicketHistory (display only)
+        df_show = df_in.rename(columns={"TicketMedian": "TicketHistory"}).copy()
 
+        # 2) Build the exact column order you asked for
+        display_cols = [
+            "Title", "Region", "Segment", "Gender", "Category",
+            "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx",
+            "Familiarity", "Motivation",
+            "TicketHistory",                 # (renamed from TicketMedian)
+            "EffectiveTicketIndex",          # will be shown as "TicketIndex used"
+            "TicketIndexSource",             # keep the source label
+            "Composite", "Score",
+            "EstimatedTickets",
+            "Source",
+        ]
+
+        # 3) Drop columns you don’t want to show (TicketIndex, TicketIndexImputed)
+        #    (Not strictly necessary since we don't include them in display_cols,
+        #     but this makes it obvious.)
+        drop_if_present = ["TicketIndex", "TicketIndexImputed"]
+        df_show = df_show.drop(columns=[c for c in drop_if_present if c in df_show.columns], errors="ignore")
+
+        # 4) Filter to the columns that exist (won’t crash if a column is missing)
+        present = [c for c in display_cols if c in df_show.columns]
+
+        # 5) Render, with pretty names and formats; hide the left index column
         st.dataframe(
-            df_in[present]
+            df_show[present]
               .sort_values(
                   by=[
-                      "EstimatedTickets" if "EstimatedTickets" in df_in.columns else "Composite",
-                      "Composite","Motivation","Familiarity"
+                      "EstimatedTickets" if "EstimatedTickets" in df_show.columns else "Composite",
+                      "Composite", "Motivation", "Familiarity"
                   ],
                   ascending=[False, False, False, False]
               )
               .rename(columns={
-                  "EffectiveTicketIndex": "TicketIndex used",
-                  "TicketEstimateSource": "Ticket estimate source"
+                  "EffectiveTicketIndex": "TicketIndex used"
               })
               .style
                 .format({
-                    "Familiarity": "{:.1f}",
-                    "Motivation": "{:.1f}",
+                    "WikiIdx": "{:.0f}", "TrendsIdx": "{:.0f}", "YouTubeIdx": "{:.0f}", "SpotifyIdx": "{:.0f}",
+                    "Familiarity": "{:.1f}", "Motivation": "{:.1f}",
                     "Composite": "{:.1f}",
-                    "TicketIndex": "{:.1f}",
-                    "TicketIndexImputed": "{:.1f}",
                     "TicketIndex used": "{:.1f}",
                     "EstimatedTickets": "{:,.0f}",
-                    "TicketMedian": "{:,.0f}",
-                    "WikiIdx": "{:.0f}",
-                    "TrendsIdx": "{:.0f}",
-                    "YouTubeIdx": "{:.0f}",
-                    "SpotifyIdx": "{:.0f}",
+                    "TicketHistory": "{:,.0f}",
                 })
                 .map(
                     lambda v: (
@@ -760,17 +769,10 @@ def render_results():
                         "color: darkorange;" if v == "D" else
                         "color: red;" if v == "E" else ""
                     ),
-                    subset=["Score"] if "Score" in df_in.columns else []
-                )
-                .map(  # visually downplay low-confidence estimates
-                    lambda v: "opacity: 0.75;" if v == "Online-only (proxy: low confidence)" else "",
-                    subset=["Ticket estimate source"] if "Ticket estimate source" in df_in.columns else []
-                )
-                .map(  # highlight where we couldn't learn a mapping
-                    lambda v: "color: #b23b3b; font-weight: 600;" if v == "Not enough data" else "",
-                    subset=["TicketIndexSource"] if "TicketIndexSource" in df_in.columns else []
+                    subset=["Score"] if "Score" in df_show.columns else []
                 ),
-            use_container_width=True
+            use_container_width=True,
+            hide_index=True  # <- hides the unlabeled left index column
         )
 
     # --- Estimated ticket sales header + optional grade summary, then the full table once ---
