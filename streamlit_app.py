@@ -204,75 +204,86 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
-# --- Live Analytics overlay mapping (program-type ↔ your categories) ---
-# --- Live Analytics overlay mapping (program-type ↔ your categories) ---
-CATEGORY_TO_PROGRAM = {
-    "pop_ip":            "Pop Music Ballet",
-    "classic_romance":   "Classic Ballet",
-    "classic_comedy":    "Classic Ballet",
-    "contemporary":      "Contemporary Mixed Bill",
-    "family_classic":    "Family Ballet",
-    "romantic_tragedy":  "CSNA",                  # Classical Story Narrative (Adult)
-    "romantic_comedy":   "Classic Ballet",        # <-- added mapping
-    "dramatic":          "Contemporary Narrative" # could also map some to "Cultural Narrative"
-}
-
-# Percent values from your Live Analytics table (per program type).
-# All numbers are PERCENTAGES (we’ll divide by 100 below).
-LA_BY_PROGRAM = {
-    "Pop Music Ballet": {
+# --- TEMP: disable program-based mapping (we'll switch to category-based next) ---
+CATEGORY_TO_PROGRAM = {}
+LA_BY_PROGRAM = {}
+# --- CATEGORY-BASED Live Analytics overlays (directly keyed by your app categories) ---
+LA_BY_CATEGORY = {
+    # pop_ip ≈ Pop Music Ballet
+    "pop_ip": {
         "Presale": 12, "FirstDay": 7, "FirstWeek": 5, "WeekOf": 20,
         "Internet": 58, "Mobile": 41, "Phone": 1,
         "Tix_1_2": 73, "Tix_3_4": 22, "Tix_5_8": 5,
         "Premium": 4.5, "LT10mi": 71,
         "Price_Low": 18, "Price_Fair": 32, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
     },
-    "Classic Ballet": {
+
+    # classic_* and romantic_comedy ≈ Classic Ballet
+    "classic_romance": {
         "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
         "Internet": 55, "Mobile": 44, "Phone": 1,
         "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
         "Premium": 4.1, "LT10mi": 69,
         "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
     },
-    "Contemporary Mixed Bill": {
+    "classic_comedy": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
+        "Internet": 55, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
+        "Premium": 4.1, "LT10mi": 69,
+        "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+    "romantic_comedy": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
+        "Internet": 55, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
+        "Premium": 4.1, "LT10mi": 69,
+        "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+
+    # contemporary ≈ Contemporary Mixed Bill
+    "contemporary": {
         "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 21,
         "Internet": 59, "Mobile": 40, "Phone": 1,
         "Tix_1_2": 72, "Tix_3_4": 23, "Tix_5_8": 5,
         "Premium": 3.9, "LT10mi": 70,
         "Price_Low": 18, "Price_Fair": 32, "Price_Good": 25, "Price_VeryGood": 15, "Price_Best": 11,
     },
-    "Family Ballet": {
+
+    # family_classic ≈ Family Ballet
+    "family_classic": {
         "Presale": 10, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 19,
         "Internet": 53, "Mobile": 45, "Phone": 1,
         "Tix_1_2": 67, "Tix_3_4": 27, "Tix_5_8": 6,
         "Premium": 4.0, "LT10mi": 66,
         "Price_Low": 21, "Price_Fair": 28, "Price_Good": 24, "Price_VeryGood": 17, "Price_Best": 10,
     },
-    "CSNA": {
+
+    # romantic_tragedy ≈ CSNA (Classical Story Narrative - Adult)
+    "romantic_tragedy": {
         "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 20,
         "Internet": 59, "Mobile": 39, "Phone": 2,
         "Tix_1_2": 72, "Tix_3_4": 22, "Tix_5_8": 5,
         "Premium": 4.2, "LT10mi": 71,
         "Price_Low": 18, "Price_Fair": 28, "Price_Good": 27, "Price_VeryGood": 16, "Price_Best": 11,
     },
-    "Contemporary Narrative": {
+
+    # dramatic ≈ Contemporary Narrative (you can switch to Cultural Narrative if preferred)
+    "dramatic": {
         "Presale": 12, "FirstDay": 7, "FirstWeek": 5, "WeekOf": 20,
         "Internet": 54, "Mobile": 44, "Phone": 1,
         "Tix_1_2": 72, "Tix_3_4": 23, "Tix_5_8": 5,
         "Premium": 4.3, "LT10mi": 68,
         "Price_Low": 18, "Price_Fair": 31, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 11,
     },
-    "Cultural Narrative": {
-        "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 21,
-        "Internet": 61, "Mobile": 37, "Phone": 2,
-        "Tix_1_2": 71, "Tix_3_4": 23, "Tix_5_8": 5,
-        "Premium": 4.2, "LT10mi": 74,
-        "Price_Low": 19, "Price_Fair": 28, "Price_Good": 26, "Price_VeryGood": 17, "Price_Best": 10,
-    },
 }
 
+def _la_for_category(cat: str) -> dict:
+    """Return the LA overlay dict for a given app category, or empty dict if unknown."""
+    return LA_BY_CATEGORY.get(str(cat), {})
+
 def _program_for_category(cat: str) -> Optional[str]:
-    return CATEGORY_TO_PROGRAM.get(cat)
+    return None
 
 def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
     """Join LA behavior/price overlays onto each title row using Category→Program mapping."""
@@ -964,19 +975,18 @@ def _san(s: str) -> str:
 
 def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Build LA_* columns for EVERY row, using the Category→Program mapping and LA_BY_PROGRAM.
-    Only fields we can infer from your overlays are filled; others remain NaN.
+    Build LA_* columns for EVERY row, using category-based overlays (LA_BY_CATEGORY).
+    Only fields we have are filled; others remain NaN for now.
     """
     df_full = df.copy()
 
-    # Helper: map one program’s overlay to the big label space
-    def _template_for_program(prog: Optional[str]) -> dict:
-        la = LA_BY_PROGRAM.get(prog or "", {})
+    # Helper: map one category’s overlay to the big label space
+    def _template_for_category(cat: Optional[str]) -> dict:
+        la = _la_for_category(str(cat))
         if not la:
             return {}
 
-        # Everything below is in PERCENT form in LA_BY_PROGRAM, so keep it as-is.
-        # (Your CSV will show these as numbers; if you want decimals 0–1, divide by 100.0.)
+        # Everything below is in PERCENT form in LA_BY_CATEGORY, so keep as-is for the CSV.
         m: dict[str, float] = {}
 
         # --- Purchase Timing ---
@@ -989,40 +999,36 @@ def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
         m["Internet"] = la.get("Internet")
         m["Mobile"] = la.get("Mobile")
         m["Phone"] = la.get("Phone")
-        # We don’t have these; leave NaN:
-        # "Box Office", "Retail Outlet"
+        # "Box Office" and "Retail Outlet" not available yet
 
         # --- Ticket Quantity ---
         m["1-2 Tickets"] = la.get("Tix_1_2")
         m["3-4 Tickets"] = la.get("Tix_3_4")
         m["5-8 Tickets"] = la.get("Tix_5_8")
-        # If you want, you can compute residual into "9+ Tickets"; here we leave NaN.
+        # "9+ Tickets" left NaN for now
 
         # --- Price Percentile Ranking ---
-        m["Low (Bottom 25%)"]   = la.get("Price_Low")
+        m["Low (Bottom 25%)"]     = la.get("Price_Low")
         m["Fair (Bottom 26-49%)"] = la.get("Price_Fair")
-        m["Good (Top 50-75%)"]  = la.get("Price_Good")
+        m["Good (Top 50-75%)"]    = la.get("Price_Good")
         m["Very Good (Top 75-89%)"] = la.get("Price_VeryGood")
-        m["Best (Top 90%)"]     = la.get("Price_Best")
+        m["Best (Top 90%)"]       = la.get("Price_Best")
 
-        # --- Travel Distance (we only know <10mi) ---
+        # --- Travel Distance ---
         m["<10 Miles"] = la.get("LT10mi")
-        # Others ("11-25 Miles", ... "201+ Miles") stay NaN.
+        # Other distance buckets will stay NaN
 
         # --- Premium/Resale/Upsell ---
-        # We only have "Premium". The report asks for "Platinum", "Resale", "Parking", "Upsell/Ancil".
-        # If you'd like "Premium" to populate "Platinum", uncomment the next line:
-        # m["Platinum"] = la.get("Premium")
+        # We only have "Premium" (not in the big LA_FIELDS list). If you want, we can map it to "Platinum" later.
 
         return m
 
-    # For every row, derive a dict of label → value from its Category’s program
+    # Build a row-specific label→value dict for each title
     per_row_maps: list[dict] = []
     for _, r in df.iterrows():
-        prog = _program_for_category(str(r["Category"]))
-        per_row_maps.append(_template_for_program(prog))
+        per_row_maps.append(_template_for_category(r.get("Category")))
 
-    # Now materialize every requested LA field into df_full
+    # Materialize every requested LA field into df_full
     for label in LA_FIELDS:
         col = f"LA_{_san(label)}"
         vals = []
