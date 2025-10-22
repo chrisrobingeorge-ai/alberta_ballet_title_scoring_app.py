@@ -786,7 +786,7 @@ def render_results():
         display_cols = [
             "Title", "Region", "Segment", "Gender", "Category",
             "LikelySegment",
-            "Mix_GP","Mix_Core","Mix_Family","Mix_EA",
+            "Mix_GP", "Mix_Core", "Mix_Family", "Mix_EA",
             "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx",
             "Familiarity", "Motivation",
             "TicketHistory",
