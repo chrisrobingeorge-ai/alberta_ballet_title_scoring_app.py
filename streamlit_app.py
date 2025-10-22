@@ -174,6 +174,19 @@ SEGMENT_MULT = {
 REGION_MULT = {"Province": 1.00, "Calgary": 1.05, "Edmonton": 0.95}
 # Region-level priors: category-by-segment weights (1.0 = neutral).
 # Tweak these to match your Live Analytics report.
+
+# -------------------------
+# LIKELY AUDIENCE MIX SETUP
+# -------------------------
+
+# The four segments we’ll allocate tickets into (keep these exact labels)
+SEGMENT_KEYS_IN_ORDER = [
+    "General Population",
+    "Core Classical (F35–64)",
+    "Family (Parents w/ kids)",
+    "Emerging Adults (18–34)",
+]
+
 SEGMENT_PRIORS = {
     "Province": {
         "classic_romance":   {"General Population": 1.00, "Core Classical (F35–64)": 1.20, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 0.95},
@@ -218,6 +231,35 @@ def _prior_weights_for(region_key: str, category: str) -> dict:
         w = pri.get(k, 1.0)
         tempered[k] = (w ** p) if w > 0 else 1.0
     return tempered
+
+def _softmax_like(d: dict[str, float], temperature: float = 1.0) -> dict[str, float]:
+    """
+    Turn positive weights into a normalized distribution (sums to 1).
+    temperature < 1.0 -> more peaked; > 1.0 -> flatter. 1.0 is neutral.
+    """
+    import math
+    if not d:
+        return {}
+    # Ensure strictly positive
+    vals = {k: max(1e-9, float(v)) for k, v in d.items()}
+    # log + temperature → stable exponentiation
+    logs = {k: math.log(v) / max(1e-6, temperature) for k, v in vals.items()}
+    mx = max(logs.values())
+    exps = {k: math.exp(v - mx) for k, v in logs.items()}
+    Z = sum(exps.values())
+    return {k: exps[k] / Z for k in exps}
+
+def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 1.0) -> dict[str, float]:
+    """
+    Use SEGMENT_PRIORS for (region, category), tempered by SEGMENT_PRIOR_STRENGTH,
+    then convert to a probability-like mix with _softmax_like.
+    Returns dict of {segment_name: share in [0..1]} summing to ~1.
+    """
+    pri = _prior_weights_for(region_key, category)
+    if not pri:
+        # fall back to equal weights if we have nothing
+        pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
+    return _softmax_like(pri, temperature=temperature)
 
 # -------------------------
 # HEURISTICS for OFFLINE estimation of NEW titles
@@ -562,6 +604,30 @@ def compute_scores_and_store():
 
     df = pd.DataFrame(rows)
 
+# --- Likely audience mix per title (shares sum to ~1) ---
+mix_rows = []
+for _, r in df.iterrows():
+    mix = _infer_segment_mix_for(r["Category"], region_key=region, temperature=1.0)
+    mix_rows.append(mix)
+
+mix_df = pd.DataFrame(mix_rows)
+# Short, chart-friendly column names for shares
+share_map = {
+    "General Population": "Mix_GP",
+    "Core Classical (F35–64)": "Mix_Core",
+    "Family (Parents w/ kids)": "Mix_Family",
+    "Emerging Adults (18–34)": "Mix_EA",
+}
+mix_df = mix_df.rename(columns=share_map)
+df = pd.concat([df.reset_index(drop=True), mix_df.reset_index(drop=True)], axis=1)
+
+# Most-likely segment label
+seg_cols_in_order = ["General Population", "Core Classical (F35–64)", "Family (Parents w/ kids)", "Emerging Adults (18–34)"]
+df["LikelySegment"] = [
+    max(_infer_segment_mix_for(cat, region), key=_infer_segment_mix_for(cat, region).get)
+    for cat in df["Category"]
+]
+
     # 2) Pick benchmark & normalize Familiarity/Motivation
     benchmark_title = st.selectbox(
         "Choose Benchmark Title for Normalization",
@@ -670,6 +736,13 @@ def compute_scores_and_store():
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
 
+# --- Split estimated tickets by segment using precomputed shares ---
+if all(c in df.columns for c in ["EstimatedTickets","Mix_GP","Mix_Core","Mix_Family","Mix_EA"]):
+    df["Seg_GP_Tickets"]     = (df["EstimatedTickets"] * df["Mix_GP"]).round(0)
+    df["Seg_Core_Tickets"]   = (df["EstimatedTickets"] * df["Mix_Core"]).round(0)
+    df["Seg_Family_Tickets"] = (df["EstimatedTickets"] * df["Mix_Family"]).round(0)
+    df["Seg_EA_Tickets"]     = (df["EstimatedTickets"] * df["Mix_EA"]).round(0)
+
     # 8) Segment propensity as OUTPUT (primary/secondary + shares + tickets)
     seg_primary = []
     seg_secondary = []
@@ -774,6 +847,8 @@ def render_results():
 
         display_cols = [
             "Title", "Region", "Segment", "Gender", "Category",
+            "LikelySegment",
+            "Mix_GP","Mix_Core","Mix_Family","Mix_EA",
             "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx",
             "Familiarity", "Motivation",
             "TicketHistory",
@@ -822,6 +897,8 @@ def render_results():
                     "EstTix_Core Classical (F35–64)": "{:,.0f}",
                     "EstTix_Family (Parents w/ kids)": "{:,.0f}",
                     "EstTix_Emerging Adults (18–34)": "{:,.0f}",
+                    "Mix_GP","Mix_Core","Mix_Family","Mix_EA",
+                    "Seg_GP_Tickets","Seg_Core_Tickets","Seg_Family_Tickets","Seg_EA_Tickets",
                 })
                 .map(
                     lambda v: (
