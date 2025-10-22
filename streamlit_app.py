@@ -525,24 +525,6 @@ benchmark_title = st.selectbox(
 if not titles:
     titles = list(BASELINES.keys())
 
-run = st.button("Score Titles", type="primary")
-
-if run:
-    if not titles:
-        st.warning("Add at least one title to score.")
-    else:
-        compute_scores_and_store(
-            titles=titles,
-            segment=segment,
-            region=region,
-            use_live=use_live,
-            yt_key=yt_key,
-            sp_id=sp_id,
-            sp_secret=sp_secret,
-            benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
-        )
-
-
 # -------------------------
 # SCORING
 # -------------------------
@@ -1183,11 +1165,22 @@ def render_results():
         pass
 
 # ======= BUTTON HANDLER =======
+run = st.button("Score Titles", type="primary")
+
 if run:
     if not titles:
         st.warning("Add at least one title to score.")
     else:
-        compute_scores_and_store()
+        compute_scores_and_store(
+            titles=titles,
+            segment=segment,
+            region=region,
+            use_live=use_live,
+            yt_key=yt_key,
+            sp_id=sp_id,
+            sp_secret=sp_secret,
+            benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+        )
 
 # ======= ALWAYS RENDER LAST RESULTS IF AVAILABLE =======
 if st.session_state["results"] is not None:
