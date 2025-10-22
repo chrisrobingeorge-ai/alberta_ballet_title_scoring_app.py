@@ -790,177 +790,48 @@ def compute_scores_and_store():
 # -------------------------
 def render_results():
     R = st.session_state["results"]
-    if not R: return
+    if not R:
+        return
     df = R["df"].copy()
     benchmark_title = R["benchmark"]
     segment = R["segment"]
     region = R["region"]
 
-    if R["unknown_est"]:
-        st.info("Estimated (offline) for new titles: " + ", ".join(R["unknown_est"]))
-    if R["unknown_live"]:
-        st.success("Used LIVE data for new titles: " + ", ".join(R["unknown_live"]))
+    # …any notices…
 
-    if "TicketIndexSource" in df.columns:
-        src_counts = (
-            df["TicketIndexSource"]
-            .value_counts(dropna=False)
-            .reindex(["History", "Category model", "Overall model", "Not enough data"])
-            .fillna(0).astype(int)
-        )
-        hist_count    = int(src_counts.get("History", 0))
-        cat_count     = int(src_counts.get("Category model", 0))
-        overall_count = int(src_counts.get("Overall model", 0))
-        ned_count     = int(src_counts.get("Not enough data", 0))
-        st.caption(
-            f"TicketIndex source — History: {hist_count} · Category model: {cat_count} · "
-            f"Overall model: {overall_count} · Not enough data: {ned_count}"
-        )
-        if ned_count > 0:
-            st.info("Some titles fell back to online-only because there wasn't enough data to learn a reliable ticket mapping.")
+    # add Score column, etc.
+    # …
 
-    def _assign_score(v: float) -> str:
-        if v >= 90: return "A"
-        elif v >= 75: return "B"
-        elif v >= 60: return "C"
-        elif v >= 45: return "D"
-        else: return "E"
-    df["Score"] = df["Composite"].apply(_assign_score)
+    # 1) Show the on-screen table (only your 17 columns)
+    _render_full_results_table(df)
 
-    def _render_full_results_table(df_in: pd.DataFrame):
-        df_show = df_in.rename(columns={"TicketMedian": "TicketHistory"}).copy()
-        display_cols = [
+    # 2) Build the two exports
+    df_table = (
+        df.rename(columns={
+            "TicketMedian": "TicketHistory",
+            "EffectiveTicketIndex": "TicketIndex used",
+        })[[
             "Title","Region","Segment","Gender","Category",
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
             "Familiarity","Motivation",
             "TicketHistory",
-            "EffectiveTicketIndex","TicketIndexSource",
-            "Composite","Score",
-            "EstimatedTickets",
+            "TicketIndex used","TicketIndexSource",
+            "Composite","Score","EstimatedTickets",
+        ]]
+    )
+    df_full = df.copy()  # everything, including LA_* and segment split columns
 
-            # Segment mix + splits
-            "Mix_GP","Mix_Core","Mix_Family","Mix_EA",
-            "Seg_GP_Tickets","Seg_Core_Tickets","Seg_Family_Tickets","Seg_EA_Tickets",
-
-            # Live Analytics overlays
-            "LA_EarlyBuyerPct","LA_WeekOfPct",
-            "LA_MobilePct","LA_InternetPct","LA_PhonePct",
-            "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
-            "LA_PremiumPct","LA_LocalLT10Pct",
-            "LA_PriceHiPct","LA_PriceFlag",
-
-            "Source",
-        ]
-        drop_if_present = ["TicketIndex","TicketIndexImputed"]
-        df_show = df_show.drop(columns=[c for c in drop_if_present if c in df_show.columns], errors="ignore")
-        present = [c for c in display_cols if c in df_show.columns]
-
-        st.dataframe(
-            df_show[present]
-              .sort_values(
-                  by=[
-                      "EstimatedTickets" if "EstimatedTickets" in df_show.columns else "Composite",
-                      "Composite","Motivation","Familiarity"
-                  ],
-                  ascending=[False, False, False, False]
-              )
-              .rename(columns={"EffectiveTicketIndex": "TicketIndex used"})
-              .style
-                .format({
-                    "WikiIdx": "{:.0f}", "TrendsIdx": "{:.0f}", "YouTubeIdx": "{:.0f}", "SpotifyIdx": "{:.0f}",
-                    "Familiarity": "{:.1f}", "Motivation": "{:.1f}",
-                    "Composite": "{:.1f}",
-                    "TicketIndex used": "{:.1f}",
-                    "EstimatedTickets": "{:,.0f}",
-                    "TicketHistory": "{:,.0f}",
-
-                    # Segment mix as percentages
-                    "Mix_GP": "{:.0%}", "Mix_Core": "{:.0%}", "Mix_Family": "{:.0%}", "Mix_EA": "{:.0%}",
-
-                    # Per-segment ticket splits
-                    "Seg_GP_Tickets": "{:,.0f}", "Seg_Core_Tickets": "{:,.0f}",
-                    "Seg_Family_Tickets": "{:,.0f}", "Seg_EA_Tickets": "{:,.0f}",
-
-                    # Live Analytics overlays
-                    "LA_EarlyBuyerPct":"{:.0%}","LA_WeekOfPct":"{:.0%}",
-                    "LA_MobilePct":"{:.0%}","LA_InternetPct":"{:.0%}","LA_PhonePct":"{:.0%}",
-                    "LA_Tix12Pct":"{:.0%}","LA_Tix34Pct":"{:.0%}","LA_Tix58Pct":"{:.0%}",
-                    "LA_PremiumPct":"{:.0%}","LA_LocalLT10Pct":"{:.0%}",
-                    "LA_PriceHiPct":"{:.0%}",
-                })
-                .map(
-                    lambda v: (
-                        "color: green;" if v == "A" else
-                        "color: darkgreen;" if v == "B" else
-                        "color: orange;" if v == "C" else
-                        "color: darkorange;" if v == "D" else
-                        "color: red;" if v == "E" else ""
-                    ),
-                    subset=["Score"] if "Score" in df_show.columns else []
-                ),
-            use_container_width=True,
-            hide_index=True
-        )
-
-    # Header + full table
-    st.subheader("🎟️ Estimated ticket sales, segment mix & Live Analytics overlays")
-    _render_full_results_table(df)
-
-    # Typical tickets by grade (based on shows with history)
-    if "TicketMedian" in df.columns:
-        known_mask = df["TicketMedian"].notna()
-        if known_mask.any():
-            grade_ticket_stats = (
-                df.loc[known_mask]
-                  .groupby("Score")["TicketMedian"]
-                  .agg(
-                      median="median",
-                      p25=lambda s: np.percentile(s, 25),
-                      p75=lambda s: np.percentile(s, 75),
-                      n="count"
-                  )
-                  .reindex(["A","B","C","D","E"])
-            )
-            st.markdown("**Typical tickets by grade** (based on shows with history)")
-            st.dataframe(
-                grade_ticket_stats.rename(columns={
-                    "median":"Median tickets",
-                    "p25":"25th percentile",
-                    "p75":"75th percentile",
-                    "n":"# titles"
-                }).style.format({
-                    "Median tickets":"{:,.0f}",
-                    "25th percentile":"{:,.0f}",
-                    "75th percentile":"{:,.0f}",
-                    "# titles":"{:,.0f}"
-                }),
-                use_container_width=True
-            )
-
-    # Charts
-    fig, ax = plt.subplots()
-    ax.scatter(df["Familiarity"], df["Motivation"])
-    for _, r in df.iterrows():
-        ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
-    ax.axvline(df["Familiarity"].median(), color="gray", linestyle="--")
-    ax.axhline(df["Motivation"].median(), color="gray", linestyle="--")
-    ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
-    ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
-    ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
-    st.pyplot(fig)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Familiarity (Indexed)")
-        st.bar_chart(df.set_index("Title")["Familiarity"])
-    with col2:
-        st.subheader("Motivation (Indexed)")
-        st.bar_chart(df.set_index("Title")["Motivation"])
-
+    # 3) Place BOTH download buttons here
     st.download_button(
-        "⬇️ Download CSV",
-        df.to_csv(index=False).encode("utf-8"),
-        "title_scores_v9_ticket_blend.csv",
+        "⬇️ Download Scores CSV (table columns only)",
+        df_table.to_csv(index=False).encode("utf-8"),
+        "title_scores_table_view.csv",
+        "text/csv"
+    )
+    st.download_button(
+        "⬇️ Download Full CSV (includes all LA data)",
+        df_full.to_csv(index=False).encode("utf-8"),
+        "title_scores_full_with_LA.csv",
         "text/csv"
     )
 
