@@ -629,7 +629,7 @@ df["LikelySegment"] = [
 ]
 
     # 2) Pick benchmark & normalize Familiarity/Motivation
-benchmark_title = st.selectbox(
+    benchmark_title = st.selectbox(
         "Choose Benchmark Title for Normalization",
         options=list(BASELINES.keys()),
         index=0
@@ -722,17 +722,20 @@ benchmark_title = st.selectbox(
 
     # 7) EstimatedTickets (index → tickets using benchmark's historical median)
     BENCHMARK_TICKET_MEDIAN_LOCAL = BENCHMARK_TICKET_MEDIAN or 1.0
+
     # Choose the TicketIndex to use for counts
     df["EffectiveTicketIndex"] = np.where(
         df["TicketIndex"].notna(), df["TicketIndex"],
         np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
     )
+
     def _est_src(row):
         if pd.notna(row.get("TicketMedian", np.nan)):
             return "History (actual median)"
         if pd.notna(row.get("TicketIndexImputed", np.nan)):
             return f'Predicted ({row.get("TicketIndexSource","model")})'
         return "Online-only (proxy: low confidence)"
+
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
 
