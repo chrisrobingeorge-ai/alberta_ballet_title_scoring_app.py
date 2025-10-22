@@ -513,7 +513,7 @@ titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
 if not titles:
     titles = list(BASELINES.keys())
 
-# Choose benchmark once (outside the compute function)
+# --- BENCHMARK SELECTOR (outside the function, above the Run button) ---
 benchmark_title = st.selectbox(
     "Choose Benchmark Title for Normalization",
     options=list(BASELINES.keys()),
@@ -521,16 +521,27 @@ benchmark_title = st.selectbox(
     key="benchmark_title"
 )
 
+# Fallback so we never end up with zero titles
+if not titles:
+    titles = list(BASELINES.keys())
+
 run = st.button("Score Titles", type="primary")
 
 if run:
     if not titles:
         st.warning("Add at least one title to score.")
     else:
-        compute_scores_and_store()
-        R = st.session_state.get("results")
-        if not R or R["df"] is None or R["df"].empty:
-            st.error("No rows generated — check titles input and try again.")
+        compute_scores_and_store(
+            titles=titles,
+            segment=segment,
+            region=region,
+            use_live=use_live,
+            yt_key=yt_key,
+            sp_id=sp_id,
+            sp_secret=sp_secret,
+            benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+        )
+
 
 # -------------------------
 # SCORING
@@ -615,11 +626,20 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
 # -------------------------
 # CORE: compute + store
 # -------------------------
-def compute_scores_and_store():
+def compute_scores_and_store(
+    titles,
+    segment,
+    region,
+    use_live,
+    yt_key,
+    sp_id,
+    sp_secret,
+    benchmark_title,
+):
     rows = []
     unknown_used_live, unknown_used_est = [], []
 
-    # 1) Build base rows from baselines or live/estimated
+    # 1) Build base rows
     for title in titles:
         if title in BASELINES:
             entry = BASELINES[title]; src = "Baseline"
@@ -646,8 +666,7 @@ def compute_scores_and_store():
         st.error("No titles to score — check the Titles box.")
         return
 
-    # 2) Pick benchmark & normalize Familiarity/Motivation
-    benchmark_title = st.session_state.get("benchmark_title", list(BASELINES.keys())[0])
+    # 2) Normalize using the PASSED benchmark_title
     bench_entry = BASELINES[benchmark_title]
     bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
     bench_fam_raw = bench_fam_raw or 1.0
