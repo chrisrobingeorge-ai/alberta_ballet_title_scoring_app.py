@@ -205,6 +205,7 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
     return _softmax_like(pri, temperature=temperature)
 
 # --- Live Analytics overlay mapping (program-type ↔ your categories) ---
+# --- Live Analytics overlay mapping (program-type ↔ your categories) ---
 CATEGORY_TO_PROGRAM = {
     "pop_ip":            "Pop Music Ballet",
     "classic_romance":   "Classic Ballet",
@@ -212,8 +213,8 @@ CATEGORY_TO_PROGRAM = {
     "contemporary":      "Contemporary Mixed Bill",
     "family_classic":    "Family Ballet",
     "romantic_tragedy":  "CSNA",                  # Classical Story Narrative (Adult)
+    "romantic_comedy":   "Classic Ballet",        # <-- added mapping
     "dramatic":          "Contemporary Narrative" # could also map some to "Cultural Narrative"
-    "romantic_comedy": "Classic Ballet",
 }
 
 # Percent values from your Live Analytics table (per program type).
