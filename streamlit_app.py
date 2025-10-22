@@ -832,125 +832,504 @@ def compute_scores_and_store(
 import re
 import pandas as pd
 
-# The LA labels you want in the CSV (from your list)
-LA_FIELDS = [
-    # --- DATA ATTRIBUTE ---
-    "Customers", "Customers with Live Events", "Customers with Demo (CAN)",
+# =========================
+# LIVE ANALYTICS: FULL TABLE (deep)
+# - Keys are your app categories (pop_ip, classic_romance, etc.)
+# - Values are dicts of unique, namespaced metrics so columns never collide
+# - Fill what you have; anything missing will remain NaN
+# =========================
 
-    # --- CLIENT EVENT SUMMARY / Gender ---
-    "Male", "Female",
+LA_DEEP_BY_CATEGORY = {
+    # Use the six categories you provided numbers for.
+    # If you later get romantic_comedy or dramatic, add them here the same way.
 
-    # --- CLIENT EVENT SUMMARY / Age (at Time of Event) ---
-    "Age", "18-24", "25-34", "35-44", "45-54", "55-64", "65+",
+    "pop_ip": {
+        # --- DATA ATTRIBUTE ---
+        "DA_Customers": 15861,
+        "DA_CustomersWithLiveEvents": 13813,
+        "DA_CustomersWithDemo_CAN": 14995,
 
-    # --- Client Events Purchased (Lifetime) ---
-    "Never Purchased", "1 Event", "2-3 Events", "4-5 Events", "6-10 Events", "11+ Events",
+        # --- CLIENT EVENT SUMMARY / Gender ---
+        "CES_Gender_Male_pct": 44,
+        "CES_Gender_Female_pct": 56,
 
-    # --- Client Events Spend (Lifetime) ---
-    "≤ $250", "$251-$500", "$501-$1000", "$1001-$2000", "$2001+",
+        # --- CLIENT EVENT SUMMARY / Age ---
+        "CES_Age_Mean": 49.6,
+        "CES_Age_18_24_pct": 8,
+        "CES_Age_25_34_pct": 5,
+        "CES_Age_35_44_pct": 26,
+        "CES_Age_45_54_pct": 20,
+        "CES_Age_55_64_pct": 26,
+        "CES_Age_65_plus_pct": 15,
 
-    # --- Share of Wallet ---
-    "Client Events", "Non-Client Events",
+        # --- Client Events Purchased (Lifetime) ---
+        "CEP_NeverPurchased_pct": 25.9,
+        "CEP_1Event_pct": 43.2,
+        "CEP_2_3Events_pct": 22.0,
+        "CEP_4_5Events_pct": 5.7,
+        "CEP_6_10Events_pct": 2.8,
+        "CEP_11plusEvents_pct": 0.3,
 
-    # --- Lifetime Spend ---
-    "Client Events", "Non-Client Events",
+        # --- Client Events Spend (Lifetime) ---
+        "CESpend_le_250_pct": 64.7,
+        "CESpend_251_500_pct": 19.8,
+        "CESpend_501_1000_pct": 11.2,
+        "CESpend_1001_2000_pct": 3.6,
+        "CESpend_2001plus_pct": 0.6,
 
-    # --- Tickets per Event ---
-    "Client Events", "Non-Client Events",
+        # --- Share of Wallet ---
+        "SOW_ClientEvents_pct": 26,
+        "SOW_NonClientEvents_pct": 74,
 
-    # --- Spend per Event ---
-    "Client Events", "Non-Client Events",
+        # --- Lifetime Spend (absolute $) ---
+        "LS_ClientEvents_usd": 268,
+        "LS_NonClientEvents_usd": 2207,
 
-    # --- Average Ticket Price ---
-    "Client Events", "Non-Client Events",
+        # --- Tickets per Event ---
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
 
-    # --- DIMENSIONS ---
-    "Generation: Millennials", "Generation: X", "Generation: Babyboomers", "Generation: Z",
-    "Occupation: Professionals", "Occupation: Self Employed", "Occupation: Retired",
-    "Occupation: Students", "Household: Working Moms", "Financial: Affluent",
-    "Live: Major: Concerts", "Live: Major: Arts", "Live: Major: Sports",
-    "Live: Major: Family", "Live Major: Multi Categories",
-    "Live: Frequency: Active Buyers", "Live: Frequency: Repeat Buyers",
-    "Live: Timing: Early Buyers", "Live: Timing: Late Buyers",
-    "Live: Product: Premium Buyers", "Live: Product: Ancillary Upsell Buyers",
-    "Live: Spend: High Spenders (>$1K)",
-    "Live: Distance: Travelers (>500 Miles)",
+        # --- Spend per Event ---
+        "SPE_ClientEvents_usd": 187,
+        "SPE_NonClientEvents_usd": 209,
+
+        # --- Average Ticket Price ---
+        "ATP_ClientEvents_usd": 83,
+        "ATP_NonClientEvents_usd": 84,
+
+        # --- DIMENSIONS ---
+        "DIM_Generation_Millennials_pct": 24,
+        "DIM_Generation_X_pct": 34,
+        "DIM_Generation_Babyboomers_pct": 31,
+        "DIM_Generation_Z_pct": 5,
+
+        "DIM_Occ_Professionals_pct": 64,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 3,
+        "DIM_Occ_Students_pct": 0,
+
+        "DIM_Household_WorkingMoms_pct": 8,
+        "DIM_Financial_Affluent_pct": 9,
+
+        "DIM_Live_Major_Concerts_pct": 47,
+        "DIM_Live_Major_Arts_pct": 76,
+        "DIM_Live_Major_Sports_pct": 27,
+        "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 45,
+
+        "DIM_Live_Freq_ActiveBuyers_pct": 60,
+        "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 37,
+        "DIM_Live_Timing_LateBuyers_pct": 38,
+
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
+    },
+
+    "classic_romance": {
+        "DA_Customers": 15294,
+        "DA_CustomersWithLiveEvents": 11881,
+        "DA_CustomersWithDemo_CAN": 12832,
+        "CES_Gender_Male_pct": 47,
+        "CES_Gender_Female_pct": 53,
+        "CES_Age_Mean": 46.5,
+        "CES_Age_18_24_pct": 14,
+        "CES_Age_25_34_pct": 5,
+        "CES_Age_35_44_pct": 23,
+        "CES_Age_45_54_pct": 27,
+        "CES_Age_55_64_pct": 19,
+        "CES_Age_65_plus_pct": 13,
+        "CEP_NeverPurchased_pct": 23.2,
+        "CEP_1Event_pct": 39.1,
+        "CEP_2_3Events_pct": 26.1,
+        "CEP_4_5Events_pct": 7.3,
+        "CEP_6_10Events_pct": 3.9,
+        "CEP_11plusEvents_pct": 0.4,
+        "CESpend_le_250_pct": 58.4,
+        "CESpend_251_500_pct": 21.4,
+        "CESpend_501_1000_pct": 13.8,
+        "CESpend_1001_2000_pct": 5.4,
+        "CESpend_2001plus_pct": 1.1,
+        "SOW_ClientEvents_pct": 35,
+        "SOW_NonClientEvents_pct": 65,
+        "LS_ClientEvents_usd": 325,
+        "LS_NonClientEvents_usd": 1832,
+        "TPE_ClientEvents": 2.4,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 195,
+        "SPE_NonClientEvents_usd": 212,
+        "ATP_ClientEvents_usd": 82,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 29,
+        "DIM_Generation_X_pct": 37,
+        "DIM_Generation_Babyboomers_pct": 26,
+        "DIM_Generation_Z_pct": 5,
+        "DIM_Occ_Professionals_pct": 83,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 0,
+        "DIM_Occ_Students_pct": 0,
+        "DIM_Household_WorkingMoms_pct": 13,
+        "DIM_Financial_Affluent_pct": 9,
+        "DIM_Live_Major_Concerts_pct": 38,
+        "DIM_Live_Major_Arts_pct": 82,
+        "DIM_Live_Major_Sports_pct": 25,
+        "DIM_Live_Major_Family_pct": 8,
+        "DIM_Live_Major_MultiCategories_pct": 42,
+        "DIM_Live_Freq_ActiveBuyers_pct": 66,
+        "DIM_Live_Freq_RepeatBuyers_pct": 66,
+        "DIM_Live_Timing_EarlyBuyers_pct": 32,
+        "DIM_Live_Timing_LateBuyers_pct": 38,
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+
+    "classic_comedy": {
+        "DA_Customers": 10402,
+        "DA_CustomersWithLiveEvents": 8896,
+        "DA_CustomersWithDemo_CAN": 9912,
+        "CES_Gender_Male_pct": 46,
+        "CES_Gender_Female_pct": 54,
+        "CES_Age_Mean": 51.7,
+        "CES_Age_18_24_pct": 6,
+        "CES_Age_25_34_pct": 12,
+        "CES_Age_35_44_pct": 12,
+        "CES_Age_45_54_pct": 24,
+        "CES_Age_55_64_pct": 25,
+        "CES_Age_65_plus_pct": 22,
+        "CEP_NeverPurchased_pct": 28.0,
+        "CEP_1Event_pct": 38.2,
+        "CEP_2_3Events_pct": 22.3,
+        "CEP_4_5Events_pct": 7.1,
+        "CEP_6_10Events_pct": 4.0,
+        "CEP_11plusEvents_pct": 0.5,
+        "CESpend_le_250_pct": 66.6,
+        "CESpend_251_500_pct": 17.0,
+        "CESpend_501_1000_pct": 11.1,
+        "CESpend_1001_2000_pct": 4.5,
+        "CESpend_2001plus_pct": 0.8,
+        "SOW_ClientEvents_pct": 28,
+        "SOW_NonClientEvents_pct": 72,
+        "LS_ClientEvents_usd": 273,
+        "LS_NonClientEvents_usd": 1916,
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 170,
+        "SPE_NonClientEvents_usd": 206,
+        "ATP_ClientEvents_usd": 74,
+        "ATP_NonClientEvents_usd": 82,
+        "DIM_Generation_Millennials_pct": 22,
+        "DIM_Generation_X_pct": 36,
+        "DIM_Generation_Babyboomers_pct": 31,
+        "DIM_Generation_Z_pct": 6,
+        "DIM_Occ_Professionals_pct": 55,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 5,
+        "DIM_Occ_Students_pct": 5,
+        "DIM_Household_WorkingMoms_pct": 3,
+        "DIM_Financial_Affluent_pct": 9,
+        "DIM_Live_Major_Concerts_pct": 43,
+        "DIM_Live_Major_Arts_pct": 76,
+        "DIM_Live_Major_Sports_pct": 26,
+        "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 43,
+        "DIM_Live_Freq_ActiveBuyers_pct": 56,
+        "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 34,
+        "DIM_Live_Timing_LateBuyers_pct": 39,
+        "DIM_Live_Product_PremiumBuyers_pct": 19,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 13,
+    },
+
+    "contemporary": {
+        "DA_Customers": 14987,
+        "DA_CustomersWithLiveEvents": 13051,
+        "DA_CustomersWithDemo_CAN": 13872,
+        "CES_Gender_Male_pct": 56,
+        "CES_Gender_Female_pct": 44,
+        "CES_Age_Mean": 47.2,
+        "CES_Age_18_24_pct": 10,
+        "CES_Age_25_34_pct": 10,
+        "CES_Age_35_44_pct": 27,
+        "CES_Age_45_54_pct": 13,
+        "CES_Age_55_64_pct": 31,
+        "CES_Age_65_plus_pct": 9,
+        "CEP_NeverPurchased_pct": 24.9,
+        "CEP_1Event_pct": 43.1,
+        "CEP_2_3Events_pct": 22.2,
+        "CEP_4_5Events_pct": 6.2,
+        "CEP_6_10Events_pct": 3.2,
+        "CEP_11plusEvents_pct": 0.4,
+        "CESpend_le_250_pct": 64.5,
+        "CESpend_251_500_pct": 18.9,
+        "CESpend_501_1000_pct": 11.4,
+        "CESpend_1001_2000_pct": 4.5,
+        "CESpend_2001plus_pct": 0.8,
+        "SOW_ClientEvents_pct": 31,
+        "SOW_NonClientEvents_pct": 69,
+        "LS_ClientEvents_usd": 285,
+        "LS_NonClientEvents_usd": 1875,
+        "TPE_ClientEvents": 2.5,
+        "TPE_NonClientEvents": 2.7,
+        "SPE_ClientEvents_usd": 188,
+        "SPE_NonClientEvents_usd": 213,
+        "ATP_ClientEvents_usd": 77,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 33,
+        "DIM_Generation_X_pct": 35,
+        "DIM_Generation_Babyboomers_pct": 27,
+        "DIM_Generation_Z_pct": 2,
+        "DIM_Occ_Professionals_pct": 62,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 0,
+        "DIM_Occ_Students_pct": 4,
+        "DIM_Household_WorkingMoms_pct": 8,
+        "DIM_Financial_Affluent_pct": 8,
+        "DIM_Live_Major_Concerts_pct": 40,
+        "DIM_Live_Major_Arts_pct": 78,
+        "DIM_Live_Major_Sports_pct": 28,
+        "DIM_Live_Major_Family_pct": 10,
+        "DIM_Live_Major_MultiCategories_pct": 44,
+        "DIM_Live_Freq_ActiveBuyers_pct": 61,
+        "DIM_Live_Freq_RepeatBuyers_pct": 66,
+        "DIM_Live_Timing_EarlyBuyers_pct": 34,
+        "DIM_Live_Timing_LateBuyers_pct": 36,
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+
+    "family_classic": {
+        "DA_Customers": 5800,
+        "DA_CustomersWithLiveEvents": 4878,
+        "DA_CustomersWithDemo_CAN": 5605,
+        "CES_Gender_Male_pct": 42,
+        "CES_Gender_Female_pct": 58,
+        "CES_Age_Mean": 34.0,
+        "CES_Age_18_24_pct": 36,
+        "CES_Age_25_34_pct": 21,
+        "CES_Age_35_44_pct": 21,
+        "CES_Age_45_54_pct": 7,
+        "CES_Age_55_64_pct": 14,
+        "CES_Age_65_plus_pct": 0,
+        "CEP_NeverPurchased_pct": 33.5,
+        "CEP_1Event_pct": 33.0,
+        "CEP_2_3Events_pct": 21.4,
+        "CEP_4_5Events_pct": 6.7,
+        "CEP_6_10Events_pct": 4.6,
+        "CEP_11plusEvents_pct": 0.8,
+        "CESpend_le_250_pct": 67.7,
+        "CESpend_251_500_pct": 15.7,
+        "CESpend_501_1000_pct": 10.7,
+        "CESpend_1001_2000_pct": 4.9,
+        "CESpend_2001plus_pct": 1.1,
+        "SOW_ClientEvents_pct": 27,
+        "SOW_NonClientEvents_pct": 73,
+        "LS_ClientEvents_usd": 274,
+        "LS_NonClientEvents_usd": 2041,
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 170,
+        "SPE_NonClientEvents_usd": 209,
+        "ATP_ClientEvents_usd": 75,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 40,
+        "DIM_Generation_X_pct": 20,
+        "DIM_Generation_Babyboomers_pct": 16,
+        "DIM_Generation_Z_pct": 20,
+        "DIM_Occ_Professionals_pct": 44,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 0,
+        "DIM_Occ_Students_pct": 11,
+        "DIM_Household_WorkingMoms_pct": 0,
+        "DIM_Financial_Affluent_pct": 10,
+        "DIM_Live_Major_Concerts_pct": 42,
+        "DIM_Live_Major_Arts_pct": 75,
+        "DIM_Live_Major_Sports_pct": 26,
+        "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 40,
+        "DIM_Live_Freq_ActiveBuyers_pct": 50,
+        "DIM_Live_Freq_RepeatBuyers_pct": 65,
+        "DIM_Live_Timing_EarlyBuyers_pct": 33,
+        "DIM_Live_Timing_LateBuyers_pct": 37,
+        "DIM_Live_Product_PremiumBuyers_pct": 19,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+
+    "romantic_tragedy": {
+        "DA_Customers": 7781,
+        "DA_CustomersWithLiveEvents": 6661,
+        "DA_CustomersWithDemo_CAN": 7265,
+        "CES_Gender_Male_pct": 0,   # not provided → leave 0 or remove to NaN
+        "CES_Gender_Female_pct": 0, # not provided → leave 0 or remove to NaN
+        "CES_Age_Mean": 47.9,
+        "CES_Age_18_24_pct": 14,
+        "CES_Age_25_34_pct": 14,
+        "CES_Age_35_44_pct": 23,
+        "CES_Age_45_54_pct": 9,
+        "CES_Age_55_64_pct": 15,
+        "CES_Age_65_plus_pct": 26,
+        "CEP_NeverPurchased_pct": 28.6,
+        "CEP_1Event_pct": 40.1,
+        "CEP_2_3Events_pct": 21.2,
+        "CEP_4_5Events_pct": 5.8,
+        "CEP_6_10Events_pct": 3.7,
+        "CEP_11plusEvents_pct": 0.5,
+        "CESpend_le_250_pct": 65.3,
+        "CESpend_251_500_pct": 18.4,
+        "CESpend_501_1000_pct": 11.1,
+        "CESpend_1001_2000_pct": 4.2,
+        "CESpend_2001plus_pct": 0.9,
+        "SOW_ClientEvents_pct": 27,
+        "SOW_NonClientEvents_pct": 73,
+        "LS_ClientEvents_usd": 277,
+        "LS_NonClientEvents_usd": 2247,
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 186,
+        "SPE_NonClientEvents_usd": 213,
+        "ATP_ClientEvents_usd": 81,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 29,
+        "DIM_Generation_X_pct": 28,
+        "DIM_Generation_Babyboomers_pct": 29,
+        "DIM_Generation_Z_pct": 9,
+        "DIM_Occ_Professionals_pct": 49,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 4,
+        "DIM_Occ_Students_pct": 15,
+        "DIM_Household_WorkingMoms_pct": 8,
+        "DIM_Financial_Affluent_pct": 10,
+        "DIM_Live_Major_Concerts_pct": 43,
+        "DIM_Live_Major_Arts_pct": 77,
+        "DIM_Live_Major_Sports_pct": 26,
+        "DIM_Live_Major_Family_pct": 8,
+        "DIM_Live_Major_MultiCategories_pct": 43,
+        "DIM_Live_Freq_ActiveBuyers_pct": 64,
+        "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 35,
+        "DIM_Live_Timing_LateBuyers_pct": 38,
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
+    },
+}
+
+# Canonical schema/order for export — each tuple: (column_name_in_csv, deep_key)
+LA_DEEP_SCHEMA = [
+    # DATA ATTRIBUTE
+    ("LA_DA_Customers", "DA_Customers"),
+    ("LA_DA_CustomersWithLiveEvents", "DA_CustomersWithLiveEvents"),
+    ("LA_DA_CustomersWithDemo_CAN", "DA_CustomersWithDemo_CAN"),
+
+    # CLIENT EVENT SUMMARY / Gender
+    ("LA_CES_Gender_Male_pct", "CES_Gender_Male_pct"),
+    ("LA_CES_Gender_Female_pct", "CES_Gender_Female_pct"),
+
+    # CLIENT EVENT SUMMARY / Age
+    ("LA_CES_Age_Mean", "CES_Age_Mean"),
+    ("LA_CES_Age_18_24_pct", "CES_Age_18_24_pct"),
+    ("LA_CES_Age_25_34_pct", "CES_Age_25_34_pct"),
+    ("LA_CES_Age_35_44_pct", "CES_Age_35_44_pct"),
+    ("LA_CES_Age_45_54_pct", "CES_Age_45_54_pct"),
+    ("LA_CES_Age_55_64_pct", "CES_Age_55_64_pct"),
+    ("LA_CES_Age_65_plus_pct", "CES_Age_65_plus_pct"),
+
+    # Client Events Purchased (Lifetime)
+    ("LA_CEP_NeverPurchased_pct", "CEP_NeverPurchased_pct"),
+    ("LA_CEP_1Event_pct", "CEP_1Event_pct"),
+    ("LA_CEP_2_3Events_pct", "CEP_2_3Events_pct"),
+    ("LA_CEP_4_5Events_pct", "CEP_4_5Events_pct"),
+    ("LA_CEP_6_10Events_pct", "CEP_6_10Events_pct"),
+    ("LA_CEP_11plusEvents_pct", "CEP_11plusEvents_pct"),
+
+    # Client Events Spend (Lifetime)
+    ("LA_CESpend_le_250_pct", "CESpend_le_250_pct"),
+    ("LA_CESpend_251_500_pct", "CESpend_251_500_pct"),
+    ("LA_CESpend_501_1000_pct", "CESpend_501_1000_pct"),
+    ("LA_CESpend_1001_2000_pct", "CESpend_1001_2000_pct"),
+    ("LA_CESpend_2001plus_pct", "CESpend_2001plus_pct"),
+
+    # Share of Wallet
+    ("LA_SOW_ClientEvents_pct", "SOW_ClientEvents_pct"),
+    ("LA_SOW_NonClientEvents_pct", "SOW_NonClientEvents_pct"),
+
+    # Lifetime Spend ($)
+    ("LA_LS_ClientEvents_usd", "LS_ClientEvents_usd"),
+    ("LA_LS_NonClientEvents_usd", "LS_NonClientEvents_usd"),
+
+    # Tickets per Event
+    ("LA_TPE_ClientEvents", "TPE_ClientEvents"),
+    ("LA_TPE_NonClientEvents", "TPE_NonClientEvents"),
+
+    # Spend per Event ($)
+    ("LA_SPE_ClientEvents_usd", "SPE_ClientEvents_usd"),
+    ("LA_SPE_NonClientEvents_usd", "SPE_NonClientEvents_usd"),
+
+    # Average Ticket Price ($)
+    ("LA_ATP_ClientEvents_usd", "ATP_ClientEvents_usd"),
+    ("LA_ATP_NonClientEvents_usd", "ATP_NonClientEvents_usd"),
+
+    # DIMENSIONS
+    ("LA_DIM_Generation_Millennials_pct", "DIM_Generation_Millennials_pct"),
+    ("LA_DIM_Generation_X_pct", "DIM_Generation_X_pct"),
+    ("LA_DIM_Generation_Babyboomers_pct", "DIM_Generation_Babyboomers_pct"),
+    ("LA_DIM_Generation_Z_pct", "DIM_Generation_Z_pct"),
+
+    ("LA_DIM_Occ_Professionals_pct", "DIM_Occ_Professionals_pct"),
+    ("LA_DIM_Occ_SelfEmployed_pct", "DIM_Occ_SelfEmployed_pct"),
+    ("LA_DIM_Occ_Retired_pct", "DIM_Occ_Retired_pct"),
+    ("LA_DIM_Occ_Students_pct", "DIM_Occ_Students_pct"),
+
+    ("LA_DIM_Household_WorkingMoms_pct", "DIM_Household_WorkingMoms_pct"),
+    ("LA_DIM_Financial_Affluent_pct", "DIM_Financial_Affluent_pct"),
+
+    ("LA_DIM_Live_Major_Concerts_pct", "DIM_Live_Major_Concerts_pct"),
+    ("LA_DIM_Live_Major_Arts_pct", "DIM_Live_Major_Arts_pct"),
+    ("LA_DIM_Live_Major_Sports_pct", "DIM_Live_Major_Sports_pct"),
+    ("LA_DIM_Live_Major_Family_pct", "DIM_Live_Major_Family_pct"),
+    ("LA_DIM_Live_Major_MultiCategories_pct", "DIM_Live_Major_MultiCategories_pct"),
+
+    ("LA_DIM_Live_Freq_ActiveBuyers_pct", "DIM_Live_Freq_ActiveBuyers_pct"),
+    ("LA_DIM_Live_Freq_RepeatBuyers_pct", "DIM_Live_Freq_RepeatBuyers_pct"),
+    ("LA_DIM_Live_Timing_EarlyBuyers_pct", "DIM_Live_Timing_EarlyBuyers_pct"),
+    ("LA_DIM_Live_Timing_LateBuyers_pct", "DIM_Live_Timing_LateBuyers_pct"),
+
+    ("LA_DIM_Live_Product_PremiumBuyers_pct", "DIM_Live_Product_PremiumBuyers_pct"),
+    ("LA_DIM_Live_Product_AncillaryUpsellBuyers_pct", "DIM_Live_Product_AncillaryUpsellBuyers_pct"),
+
+    ("LA_DIM_Live_Spend_HighSpenders_gt1k_pct", "DIM_Live_Spend_HighSpenders_gt1k_pct"),
+    ("LA_DIM_Live_Distance_Travelers_gt500mi_pct", "DIM_Live_Distance_Travelers_gt500mi_pct"),
 ]
-
-def _san(s: str) -> str:
-    """Normalize a label to a safe column name."""
-    s = s.strip()
-    s = re.sub(r"\s*[:()]\s*", "_", s)      # colons/parentheses to underscores
-    s = s.replace("&", "and").replace("+", "plus").replace("/", "_")
-    s = re.sub(r"[^A-Za-z0-9_<>=\-]+", "_", s)  # non-alnum (keep <,>,= for ranges as-is)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s
 
 def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Build LA_* columns for EVERY row, using category-based overlays (LA_BY_CATEGORY).
-    Only fields we have are filled; others remain NaN for now.
+    Attach deep LiveAnalytics columns (LA_DEEP_SCHEMA) by Category.
+    Keeps any earlier LA_* columns you've already added (timing/channels/price).
     """
-    df_full = df.copy()
+    df_out = df.copy()
 
-    # Helper: map one category’s overlay to the big label space
-    def _template_for_category(cat: Optional[str]) -> dict:
-        la = _la_for_category(str(cat))
-        if not la:
-            return {}
-
-        # Everything below is in PERCENT form in LA_BY_CATEGORY, so keep as-is for the CSV.
-        m: dict[str, float] = {}
-
-        # --- Purchase Timing ---
-        m["Presale"] = la.get("Presale")
-        m["1st Day Onsale"] = la.get("FirstDay")
-        m["First Week"] = la.get("FirstWeek")
-        m["Week of Event"] = la.get("WeekOf")
-
-        # --- Purchase Channel ---
-        m["Internet"] = la.get("Internet")
-        m["Mobile"] = la.get("Mobile")
-        m["Phone"] = la.get("Phone")
-        # "Box Office" and "Retail Outlet" not available yet
-
-        # --- Ticket Quantity ---
-        m["1-2 Tickets"] = la.get("Tix_1_2")
-        m["3-4 Tickets"] = la.get("Tix_3_4")
-        m["5-8 Tickets"] = la.get("Tix_5_8")
-        # "9+ Tickets" left NaN for now
-
-        # --- Price Percentile Ranking ---
-        m["Low (Bottom 25%)"]     = la.get("Price_Low")
-        m["Fair (Bottom 26-49%)"] = la.get("Price_Fair")
-        m["Good (Top 50-75%)"]    = la.get("Price_Good")
-        m["Very Good (Top 75-89%)"] = la.get("Price_VeryGood")
-        m["Best (Top 90%)"]       = la.get("Price_Best")
-
-        # --- Travel Distance ---
-        m["<10 Miles"] = la.get("LT10mi")
-        # Other distance buckets will stay NaN
-
-        # --- Premium/Resale/Upsell ---
-        # We only have "Premium" (not in the big LA_FIELDS list). If you want, we can map it to "Platinum" later.
-
-        return m
-
-    # Build a row-specific label→value dict for each title
-    per_row_maps: list[dict] = []
-    for _, r in df.iterrows():
-        per_row_maps.append(_template_for_category(r.get("Category")))
-
-    # Materialize every requested LA field into df_full
-    for label in LA_FIELDS:
-        col = f"LA_{_san(label)}"
+    # Fill in the deep columns (unique, no collisions)
+    for col, key in LA_DEEP_SCHEMA:
         vals = []
-        for rowmap in per_row_maps:
-            v = rowmap.get(label)
-            vals.append(v if v is not None else np.nan)
-        df_full[col] = vals
+        for _, r in df.iterrows():
+            cat = str(r.get("Category"))
+            deep = LA_DEEP_BY_CATEGORY.get(cat, {})
+            v = deep.get(key, np.nan)
+            vals.append(v)
+        df_out[col] = vals
 
-    return df_full
+    return df_out
 
 # -------------------------
 # RENDER
