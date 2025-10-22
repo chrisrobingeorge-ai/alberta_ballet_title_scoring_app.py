@@ -629,7 +629,7 @@ df["LikelySegment"] = [
 ]
 
     # 2) Pick benchmark & normalize Familiarity/Motivation
-    benchmark_title = st.selectbox(
+benchmark_title = st.selectbox(
         "Choose Benchmark Title for Normalization",
         options=list(BASELINES.keys()),
         index=0
