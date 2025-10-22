@@ -628,116 +628,116 @@ df["LikelySegment"] = [
     for cat in df["Category"]
 ]
 
-        # 2) Pick benchmark & normalize Familiarity/Motivation
-        benchmark_title = st.selectbox(
-            "Choose Benchmark Title for Normalization",
-            options=list(BASELINES.keys()),
-            index=0
-        )
-        bench_entry = BASELINES[benchmark_title]
-        bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
-        bench_fam_raw = bench_fam_raw or 1.0
-        bench_mot_raw = bench_mot_raw or 1.0
-    
-        df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
-        df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
-        st.caption(f"Scores normalized to benchmark: {benchmark_title}")
-    
-        # 3) Ticket medians & TicketIndex (history) relative to chosen benchmark
-        TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-        BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
-    
-        def ticket_index_for_title(title: str):
-            aliases = {"Handmaid’s Tale": "Handmaid's Tale"}  # normalize common variant if it's ever entered
-            key = aliases.get(title.strip(), title.strip())
-            med = TICKET_MEDIANS.get(key)
-            if med:
-                return float(med), float((med / BENCHMARK_TICKET_MEDIAN) * 100.0)
-            return None, None
-    
-        medians, indices = [], []
-        for t in df["Title"]:
-            med, idx = ticket_index_for_title(t)
-            medians.append(med); indices.append(idx)
-        df["TicketMedian"] = medians
-        df["TicketIndex"]  = indices
-    
-        # 4) Build SignalOnly and learn mapping TicketIndex ≈ a*SignalOnly + b
-        df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
-        df_known = df[df["TicketIndex"].notna()].copy()
-    
-        def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
-            overall = None  # (a, b) if enough data, else None
-            if len(df_known_in) >= 5:
-                x = df_known_in["SignalOnly"].values
-                y = df_known_in["TicketIndex"].values
-                a, b = np.polyfit(x, y, 1)
-                overall = (float(a), float(b))
-    
-            cat_coefs = {}
-            for cat, g in df_known_in.groupby("Category"):
-                if len(g) >= 3:
-                    xs = g["SignalOnly"].values
-                    ys = g["TicketIndex"].values
-                    a, b = np.polyfit(xs, ys, 1)
-                    cat_coefs[cat] = (float(a), float(b))
-            return overall, cat_coefs
-    
-        overall_coef, cat_coefs = _fit_overall_and_by_category(df_known)
-    
-        # 5) Impute TicketIndex for titles without history
-        def _predict_ticket_index(signal_only: float, category: str) -> tuple[float, str]:
-            if category in cat_coefs:
-                a, b = cat_coefs[category]
-                src = "Category model"
-            elif overall_coef is not None:
-                a, b = overall_coef
-                src = "Overall model"
-            else:
-                return np.nan, "Not enough data"
-            pred = a * signal_only + b
-            pred = float(np.clip(pred, 20.0, 180.0))
-            return pred, src
-    
-        imputed_vals, imputed_srcs = [], []
-        for _, r in df.iterrows():
-            if pd.notna(r["TicketIndex"]):
-                imputed_vals.append(r["TicketIndex"])
-                imputed_srcs.append("History")
-            else:
-                pred, src = _predict_ticket_index(r["SignalOnly"], r["Category"])
-                imputed_vals.append(pred)
-                imputed_srcs.append(src)
-    
-        df["TicketIndexImputed"] = imputed_vals
-        df["TicketIndexSource"]  = imputed_srcs
-    
-        # 6) Composite: blend signals with (history or imputed) TicketIndex
-        tickets_component = np.where(
-            df["TicketIndexSource"].eq("Not enough data"),
-            df["SignalOnly"],
-            df["TicketIndexImputed"]
-        )
-        df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
-    
-        # 7) EstimatedTickets (index → tickets using benchmark's historical median)
-        BENCHMARK_TICKET_MEDIAN_LOCAL = BENCHMARK_TICKET_MEDIAN or 1.0
-    
-        # Choose the TicketIndex to use for counts
-        df["EffectiveTicketIndex"] = np.where(
-            df["TicketIndex"].notna(), df["TicketIndex"],
-            np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
-        )
-    
-        def _est_src(row):
-            if pd.notna(row.get("TicketMedian", np.nan)):
-                return "History (actual median)"
-            if pd.notna(row.get("TicketIndexImputed", np.nan)):
-                return f'Predicted ({row.get("TicketIndexSource","model")})'
-            return "Online-only (proxy: low confidence)"
-    
-        df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
-        df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
+    # 2) Pick benchmark & normalize Familiarity/Motivation
+    benchmark_title = st.selectbox(
+        "Choose Benchmark Title for Normalization",
+        options=list(BASELINES.keys()),
+        index=0
+    )
+    bench_entry = BASELINES[benchmark_title]
+    bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
+    bench_fam_raw = bench_fam_raw or 1.0
+    bench_mot_raw = bench_mot_raw or 1.0
+
+    df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
+    df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
+    st.caption(f"Scores normalized to benchmark: {benchmark_title}")
+
+    # 3) Ticket medians & TicketIndex (history) relative to chosen benchmark
+    TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+    BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
+
+    def ticket_index_for_title(title: str):
+        aliases = {"Handmaid’s Tale": "Handmaid's Tale"}  # normalize common variant if it's ever entered
+        key = aliases.get(title.strip(), title.strip())
+        med = TICKET_MEDIANS.get(key)
+        if med:
+            return float(med), float((med / BENCHMARK_TICKET_MEDIAN) * 100.0)
+        return None, None
+
+    medians, indices = [], []
+    for t in df["Title"]:
+        med, idx = ticket_index_for_title(t)
+        medians.append(med); indices.append(idx)
+    df["TicketMedian"] = medians
+    df["TicketIndex"]  = indices
+
+    # 4) Build SignalOnly and learn mapping TicketIndex ≈ a*SignalOnly + b
+    df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
+    df_known = df[df["TicketIndex"].notna()].copy()
+
+    def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
+        overall = None  # (a, b) if enough data, else None
+        if len(df_known_in) >= 5:
+            x = df_known_in["SignalOnly"].values
+            y = df_known_in["TicketIndex"].values
+            a, b = np.polyfit(x, y, 1)
+            overall = (float(a), float(b))
+
+        cat_coefs = {}
+        for cat, g in df_known_in.groupby("Category"):
+            if len(g) >= 3:
+                xs = g["SignalOnly"].values
+                ys = g["TicketIndex"].values
+                a, b = np.polyfit(xs, ys, 1)
+                cat_coefs[cat] = (float(a), float(b))
+        return overall, cat_coefs
+
+    overall_coef, cat_coefs = _fit_overall_and_by_category(df_known)
+
+    # 5) Impute TicketIndex for titles without history
+    def _predict_ticket_index(signal_only: float, category: str) -> tuple[float, str]:
+        if category in cat_coefs:
+            a, b = cat_coefs[category]
+            src = "Category model"
+        elif overall_coef is not None:
+            a, b = overall_coef
+            src = "Overall model"
+        else:
+            return np.nan, "Not enough data"
+        pred = a * signal_only + b
+        pred = float(np.clip(pred, 20.0, 180.0))
+        return pred, src
+
+    imputed_vals, imputed_srcs = [], []
+    for _, r in df.iterrows():
+        if pd.notna(r["TicketIndex"]):
+            imputed_vals.append(r["TicketIndex"])
+            imputed_srcs.append("History")
+        else:
+            pred, src = _predict_ticket_index(r["SignalOnly"], r["Category"])
+            imputed_vals.append(pred)
+            imputed_srcs.append(src)
+
+    df["TicketIndexImputed"] = imputed_vals
+    df["TicketIndexSource"]  = imputed_srcs
+
+    # 6) Composite: blend signals with (history or imputed) TicketIndex
+    tickets_component = np.where(
+        df["TicketIndexSource"].eq("Not enough data"),
+        df["SignalOnly"],
+        df["TicketIndexImputed"]
+    )
+    df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
+
+    # 7) EstimatedTickets (index → tickets using benchmark's historical median)
+    BENCHMARK_TICKET_MEDIAN_LOCAL = BENCHMARK_TICKET_MEDIAN or 1.0
+
+    # Choose the TicketIndex to use for counts
+    df["EffectiveTicketIndex"] = np.where(
+        df["TicketIndex"].notna(), df["TicketIndex"],
+        np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
+    )
+
+    def _est_src(row):
+        if pd.notna(row.get("TicketMedian", np.nan)):
+            return "History (actual median)"
+        if pd.notna(row.get("TicketIndexImputed", np.nan)):
+            return f'Predicted ({row.get("TicketIndexSource","model")})'
+        return "Online-only (proxy: low confidence)"
+
+    df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
+    df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
 
 # --- Split estimated tickets by segment using precomputed shares ---
 if all(c in df.columns for c in ["EstimatedTickets","Mix_GP","Mix_Core","Mix_Family","Mix_EA"]):
