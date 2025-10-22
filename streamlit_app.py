@@ -1,4 +1,3 @@
-# streamlit_app_v9_new_titles_fix.py
 # Alberta Ballet — Title Familiarity & Motivation Scorer (v9 with segment-propensity outputs)
 # - Hard-coded baselines (normalized to a user-selected benchmark = 100)
 # - Add NEW titles; optional live fetch (Wikipedia/YouTube/Spotify) with outlier-safety
@@ -277,6 +276,17 @@ LA_BY_CATEGORY = {
         "Price_Low": 18, "Price_Fair": 31, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 11,
     },
 }
+
+# --- Add age overlays for one category (test) ---
+LA_BY_CATEGORY.setdefault("pop_ip", {}).update({
+    "Age": 49.6,
+    "Age_18_24": 8,
+    "Age_25_34": 5,
+    "Age_35_44": 26,
+    "Age_45_54": 20,
+    "Age_55_64": 26,
+    "Age_65_plus": 15,
+})
 
 def _la_for_category(cat: str) -> dict:
     """Return the LA overlay dict for a given app category, or empty dict if unknown."""
