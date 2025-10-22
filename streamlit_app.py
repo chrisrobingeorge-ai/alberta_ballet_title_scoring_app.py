@@ -643,8 +643,8 @@ def compute_scores_and_store():
 
     df = pd.DataFrame(rows)
     if df.empty:
-    st.error("No titles to score — check the Titles box.")
-    return
+        st.error("No titles to score — check the Titles box.")
+        return
 
     # 2) Pick benchmark & normalize Familiarity/Motivation
     benchmark_title = st.session_state.get("benchmark_title", list(BASELINES.keys())[0])
