@@ -260,6 +260,132 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         # fall back to equal weights if we have nothing
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
+# --- Live Analytics overlay mapping (program-type ↔ your categories) ---
+# Heuristic mapping from your 7 categories → LA program types from the table you shared.
+CATEGORY_TO_PROGRAM = {
+    "pop_ip":            "Pop Music Ballet",
+    "classic_romance":   "Classic Ballet",
+    "classic_comedy":    "Classic Ballet",
+    "contemporary":      "Contemporary Mixed Bill",
+    "family_classic":    "Family Ballet",
+    "romantic_tragedy":  "CSNA",                  # Classical Story Narrative (Adult)
+    "dramatic":          "Contemporary Narrative" # if you prefer, map some to "Cultural Narrative"
+}
+
+# Percent values from your Live Analytics table (per program type).
+# All numbers are PERCENTAGES (we’ll divide by 100 below).
+LA_BY_PROGRAM = {
+    "Pop Music Ballet": {
+        "Presale": 12, "FirstDay": 7, "FirstWeek": 5, "WeekOf": 20,
+        "Internet": 58, "Mobile": 41, "Phone": 1,
+        "Tix_1_2": 73, "Tix_3_4": 22, "Tix_5_8": 5,
+        "Premium": 4.5,
+        "LT10mi": 71,
+        "Price_Low": 18, "Price_Fair": 32, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+    "Classic Ballet": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
+        "Internet": 55, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
+        "Premium": 4.1,
+        "LT10mi": 69,
+        "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+    "Contemporary Mixed Bill": {
+        "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 21,
+        "Internet": 59, "Mobile": 40, "Phone": 1,
+        "Tix_1_2": 72, "Tix_3_4": 23, "Tix_5_8": 5,
+        "Premium": 3.9,
+        "LT10mi": 70,
+        "Price_Low": 18, "Price_Fair": 32, "Price_Good": 25, "Price_VeryGood": 15, "Price_Best": 11,
+    },
+    "Family Ballet": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 19,
+        "Internet": 53, "Mobile": 45, "Phone": 1,
+        "Tix_1_2": 67, "Tix_3_4": 27, "Tix_5_8": 6,
+        "Premium": 4.0,
+        "LT10mi": 66,
+        "Price_Low": 21, "Price_Fair": 28, "Price_Good": 24, "Price_VeryGood": 17, "Price_Best": 10,
+    },
+    "CSNA": {
+        "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 20,
+        "Internet": 59, "Mobile": 39, "Phone": 2,
+        "Tix_1_2": 72, "Tix_3_4": 22, "Tix_5_8": 5,
+        "Premium": 4.2,
+        "LT10mi": 71,
+        "Price_Low": 18, "Price_Fair": 28, "Price_Good": 27, "Price_VeryGood": 16, "Price_Best": 11,
+    },
+    "Contemporary Narrative": {
+        "Presale": 12, "FirstDay": 7, "FirstWeek": 5, "WeekOf": 20,
+        "Internet": 54, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 72, "Tix_3_4": 23, "Tix_5_8": 5,
+        "Premium": 4.3,
+        "LT10mi": 68,
+        "Price_Low": 18, "Price_Fair": 31, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 11,
+    },
+    "Cultural Narrative": {
+        "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 21,
+        "Internet": 61, "Mobile": 37, "Phone": 2,
+        "Tix_1_2": 71, "Tix_3_4": 23, "Tix_5_8": 5,
+        "Premium": 4.2,
+        "LT10mi": 74,
+        "Price_Low": 19, "Price_Fair": 28, "Price_Good": 26, "Price_VeryGood": 17, "Price_Best": 10,
+    },
+}
+
+def _program_for_category(cat: str) -> str | None:
+    return CATEGORY_TO_PROGRAM.get(cat)
+
+def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
+    """Join LA behavior/price overlays onto each title row using Category→Program mapping."""
+    df = df_in.copy()
+
+    # Container columns (as proportions 0..1)
+    cols = [
+        "LA_EarlyBuyerPct","LA_WeekOfPct",
+        "LA_MobilePct","LA_InternetPct","LA_PhonePct",
+        "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
+        "LA_PremiumPct","LA_LocalLT10Pct",
+        "LA_PriceHiPct",  # (VeryGood + Best)
+    ]
+    for c in cols:
+        if c not in df.columns:
+            df[c] = np.nan
+
+    def _overlay_row(cat: str) -> dict:
+        prog = _program_for_category(cat)
+        if not prog or prog not in LA_BY_PROGRAM:
+            return {}
+        la = LA_BY_PROGRAM[prog]
+        early = (la["Presale"] + la["FirstDay"] + la["FirstWeek"]) / 100.0
+        price_hi = (la["Price_VeryGood"] + la["Price_Best"]) / 100.0
+        return {
+            "LA_EarlyBuyerPct": early,
+            "LA_WeekOfPct": la["WeekOf"] / 100.0,
+            "LA_MobilePct": la["Mobile"] / 100.0,
+            "LA_InternetPct": la["Internet"] / 100.0,
+            "LA_PhonePct": la["Phone"] / 100.0,
+            "LA_Tix12Pct": la["Tix_1_2"] / 100.0,
+            "LA_Tix34Pct": la["Tix_3_4"] / 100.0,
+            "LA_Tix58Pct": la["Tix_5_8"] / 100.0,
+            "LA_PremiumPct": la["Premium"] / 100.0,
+            "LA_LocalLT10Pct": la["LT10mi"] / 100.0,
+            "LA_PriceHiPct": price_hi,
+        }
+
+    overlays = df["Category"].map(lambda c: _overlay_row(c))
+    overlays_df = pd.DataFrame(list(overlays)).reindex(df.index)
+    df.update(overlays_df)
+
+    # Optional: a simple “Price Elasticity” label (based only on LA price mix)
+    def _price_flag(p_hi: float) -> str:
+        if pd.isna(p_hi): return "n/a"
+        # <25% in top price bands → more elastic; >30% → more premium-tolerant
+        return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
+
+    df["LA_PriceFlag"] = df["LA_PriceHiPct"].apply(_price_flag)
+
+    return df
 
 # -------------------------
 # HEURISTICS for OFFLINE estimation of NEW titles
@@ -714,6 +840,39 @@ def compute_scores_and_store():
 
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
+    # --- Segment mix (as OUTPUT) using your priors → shares + per-segment ticket splits ---
+    mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
+    seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
+
+    for _, r in df.iterrows():
+        cat = r.get("Category", "dramatic")
+        shares = _infer_segment_mix_for(cat, region_key=region, temperature=1.0)  # uses SEGMENT_PRIORS
+        # shares are in the same order (keys) as SEGMENT_KEYS_IN_ORDER
+        gp = float(shares.get("General Population", 0.0))
+        cc = float(shares.get("Core Classical (F35–64)", 0.0))
+        fm = float(shares.get("Family (Parents w/ kids)", 0.0))
+        ea = float(shares.get("Emerging Adults (18–34)", 0.0))
+
+        mix_gp.append(gp); mix_core.append(cc); mix_family.append(fm); mix_ea.append(ea)
+
+        est_tix = float(r.get("EstimatedTickets", 0.0) or 0.0)
+        seg_gp_tix.append(round(est_tix * gp))
+        seg_core_tix.append(round(est_tix * cc))
+        seg_family_tix.append(round(est_tix * fm))
+        seg_ea_tix.append(round(est_tix * ea))
+
+    df["Mix_GP"] = mix_gp
+    df["Mix_Core"] = mix_core
+    df["Mix_Family"] = mix_family
+    df["Mix_EA"] = mix_ea
+
+    df["Seg_GP_Tickets"] = seg_gp_tix
+    df["Seg_Core_Tickets"] = seg_core_tix
+    df["Seg_Family_Tickets"] = seg_family_tix
+    df["Seg_EA_Tickets"] = seg_ea_tix
+
+    # --- Live Analytics overlays (behavior, channel, price, distance) ---
+    df = _add_live_analytics_overlays(df)
 
         # --- Segment propensity & ticket allocation (adds Mix_* and Seg_* columns) ---
     bench_entry_for_mix = BASELINES[benchmark_title]
@@ -859,7 +1018,14 @@ def render_results():
     
             # New per-segment ticket split columns
             "Seg_GP_Tickets", "Seg_Core_Tickets", "Seg_Family_Tickets", "Seg_EA_Tickets",
-    
+
+            # Live Analytics overlays
+            "LA_EarlyBuyerPct","LA_WeekOfPct",
+            "LA_MobilePct","LA_InternetPct","LA_PhonePct",
+            "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
+            "LA_PremiumPct","LA_LocalLT10Pct",
+            "LA_PriceHiPct","LA_PriceFlag",
+
             "Source",
         ]
     
@@ -891,14 +1057,22 @@ def render_results():
                     "TicketIndex used": "{:.1f}",
                     "EstimatedTickets": "{:,.0f}",
                     "TicketHistory": "{:,.0f}",
-    
+
                     # ✅ Segment mix as percentages
                     "Mix_GP": "{:.0%}", "Mix_Core": "{:.0%}", "Mix_Family": "{:.0%}", "Mix_EA": "{:.0%}",
-    
+
                     # ✅ Per-segment ticket splits as integers
                     "Seg_GP_Tickets": "{:,.0f}", "Seg_Core_Tickets": "{:,.0f}",
                     "Seg_Family_Tickets": "{:,.0f}", "Seg_EA_Tickets": "{:,.0f}",
+
+                    # ✅ Live Analytics overlays
+                    "LA_EarlyBuyerPct":"{:.0%}","LA_WeekOfPct":"{:.0%}",
+                    "LA_MobilePct":"{:.0%}","LA_InternetPct":"{:.0%}","LA_PhonePct":"{:.0%}",
+                    "LA_Tix12Pct":"{:.0%}","LA_Tix34Pct":"{:.0%}","LA_Tix58Pct":"{:.0%}",
+                    "LA_PremiumPct":"{:.0%}","LA_LocalLT10Pct":"{:.0%}",
+                    "LA_PriceHiPct":"{:.0%}",
                 })
+
                 .map(
                     lambda v: (
                         "color: green;" if v == "A" else
