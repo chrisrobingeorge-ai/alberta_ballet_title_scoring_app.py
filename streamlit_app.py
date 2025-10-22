@@ -988,30 +988,76 @@ def _series_from_any(la_any) -> pd.Series:
             return pd.Series(dict(rows), dtype="object")
     return pd.Series(dtype="object")
 
-def attach_la_report_columns(df: pd.DataFrame, R: dict) -> pd.DataFrame:
+def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Attach all LA fields to df as columns (same values for every row in the current result set).
-    Looks for LA data in R under common keys.
+    Build LA_* columns for EVERY row, using the Category→Program mapping and LA_BY_PROGRAM.
+    Only fields we can infer from your overlays are filled; others remain NaN.
     """
     df_full = df.copy()
 
-    # Try a few common places you might be storing the LA payload
-    la_payload = (
-        R.get("la_report") or
-        R.get("la") or
-        R.get("la_df") or
-        R.get("la_text")
-    )
-    la_series = _series_from_any(la_payload)
+    # Helper: map one program’s overlay to the big label space
+    def _template_for_program(prog: Optional[str]) -> dict:
+        la = LA_BY_PROGRAM.get(prog or "", {})
+        if not la:
+            return {}
 
-    # Map every requested field into df_full (prefix 'LA_' and sanitize header)
+        # Everything below is in PERCENT form in LA_BY_PROGRAM, so keep it as-is.
+        # (Your CSV will show these as numbers; if you want decimals 0–1, divide by 100.0.)
+        m: dict[str, float] = {}
+
+        # --- Purchase Timing ---
+        m["Presale"] = la.get("Presale")
+        m["1st Day Onsale"] = la.get("FirstDay")
+        m["First Week"] = la.get("FirstWeek")
+        m["Week of Event"] = la.get("WeekOf")
+
+        # --- Purchase Channel ---
+        m["Internet"] = la.get("Internet")
+        m["Mobile"] = la.get("Mobile")
+        m["Phone"] = la.get("Phone")
+        # We don’t have these; leave NaN:
+        # "Box Office", "Retail Outlet"
+
+        # --- Ticket Quantity ---
+        m["1-2 Tickets"] = la.get("Tix_1_2")
+        m["3-4 Tickets"] = la.get("Tix_3_4")
+        m["5-8 Tickets"] = la.get("Tix_5_8")
+        # If you want, you can compute residual into "9+ Tickets"; here we leave NaN.
+
+        # --- Price Percentile Ranking ---
+        m["Low (Bottom 25%)"]   = la.get("Price_Low")
+        m["Fair (Bottom 26-49%)"] = la.get("Price_Fair")
+        m["Good (Top 50-75%)"]  = la.get("Price_Good")
+        m["Very Good (Top 75-89%)"] = la.get("Price_VeryGood")
+        m["Best (Top 90%)"]     = la.get("Price_Best")
+
+        # --- Travel Distance (we only know <10mi) ---
+        m["<10 Miles"] = la.get("LT10mi")
+        # Others ("11-25 Miles", ... "201+ Miles") stay NaN.
+
+        # --- Premium/Resale/Upsell ---
+        # We only have "Premium". The report asks for "Platinum", "Resale", "Parking", "Upsell/Ancil".
+        # If you'd like "Premium" to populate "Platinum", uncomment the next line:
+        # m["Platinum"] = la.get("Premium")
+
+        return m
+
+    # For every row, derive a dict of label → value from its Category’s program
+    per_row_maps: list[dict] = []
+    for _, r in df.iterrows():
+        prog = _program_for_category(str(r["Category"]))
+        per_row_maps.append(_template_for_program(prog))
+
+    # Now materialize every requested LA field into df_full
     for label in LA_FIELDS:
         col = f"LA_{_san(label)}"
-        value = la_series.get(label)
-        df_full[col] = value
+        vals = []
+        for rowmap in per_row_maps:
+            v = rowmap.get(label)
+            vals.append(v if v is not None else np.nan)
+        df_full[col] = vals
 
     return df_full
-
 
 # -------------------------
 # RENDER
@@ -1111,10 +1157,9 @@ def render_results():
         hide_index=True
     )
 
-    # Build the “full” export by attaching every LA field we have
-    R = st.session_state.get("results", {})  # if you haven’t already
-    df_full = attach_la_report_columns(df, R)
-    
+    # Build the “full” export by deriving LA fields from category→program overlays
+    df_full = attach_la_report_columns(df)
+
     # CSV with just the table columns (your 17)
     st.download_button(
         "⬇️ Download Scores CSV (table columns only)",
