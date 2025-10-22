@@ -509,7 +509,28 @@ st.markdown("**Titles to score** (one per line). Add NEW titles freely:")
 titles_input = st.text_area("Enter titles", value="\n".join(default_list), height=220)
 titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
 
+# Fallback so we never end up with zero titles
+if not titles:
+    titles = list(BASELINES.keys())
+
+# Choose benchmark once (outside the compute function)
+benchmark_title = st.selectbox(
+    "Choose Benchmark Title for Normalization",
+    options=list(BASELINES.keys()),
+    index=0,
+    key="benchmark_title"
+)
+
 run = st.button("Score Titles", type="primary")
+
+if run:
+    if not titles:
+        st.warning("Add at least one title to score.")
+    else:
+        compute_scores_and_store()
+        R = st.session_state.get("results")
+        if not R or R["df"] is None or R["df"].empty:
+            st.error("No rows generated — check titles input and try again.")
 
 # -------------------------
 # SCORING
@@ -621,13 +642,12 @@ def compute_scores_and_store():
         })
 
     df = pd.DataFrame(rows)
+    if df.empty:
+    st.error("No titles to score — check the Titles box.")
+    return
 
     # 2) Pick benchmark & normalize Familiarity/Motivation
-    benchmark_title = st.selectbox(
-        "Choose Benchmark Title for Normalization",
-        options=list(BASELINES.keys()),
-        index=0
-    )
+    benchmark_title = st.session_state.get("benchmark_title", list(BASELINES.keys())[0])
     bench_entry = BASELINES[benchmark_title]
     bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
     bench_fam_raw = bench_fam_raw or 1.0
