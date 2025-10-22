@@ -835,143 +835,46 @@ import pandas as pd
 # The LA labels you want in the CSV (from your list)
 LA_FIELDS = [
     # --- DATA ATTRIBUTE ---
-    "Customers","Customers with Live Events","Customers with Demo (US)","Customers with Demo (CAN)",
-    # --- DEMOGRAPHICS (US) / Gender ---
-    "Male","Female",
-    # --- DEMOGRAPHICS (US) / Current Age ---
-    "Age","18-24","25-34","35-44","45-54","55-64","65+",
-    # --- Race/Ethnicity ---
-    "Caucasian","Afr Am","Hispanic","Asian",
-    # --- Education ---
-    "High School","College Degree","Graduate Degree",
-    # --- Occupation ---
-    "Professional/Technical","Admin/Managerial","Clerical/White Collar","Crafts/Blue Collar","Sale/Services",
-    "Self Employed","Retired","Home Maker","Student","Other",
-    # --- Household Summary ---
-    "Married","Presence of Children in Household","Presence of Children: Age ≤ 2","Presence of Children: Age 3-5",
-    "Presence of Children: Age 6-10","Presence of Children: Age 11-15","Presence of Children: Age 16-17",
-    "Working Woman in Household",
-    # --- Household Income ---
-    "Household Income","<$30K","$30-$49K","$50-$74K","$75-$99K","$100K-$149K","$150K-$199K","$200K-$249K","$250K+",
-    # --- Net Worth ---
-    "Net Worth","$0","$1K-$49K","$50K-$99K","$100K-$249K","$250K-$499K","$500K-$999K","$1M-$2M","$2M plus",
-    # --- DII ---
-    "DII Score","0","1-50","51-100","101-150","151-200","201-500","501+",
-    # --- Financial Score ---
-    "Financial Score","Bottom 25%","Bottom 26-35%","Bottom 36-50%","Top 51-60%","Top 61-75%","Top 76-90%","Top 91-100%",
-    # --- Vehicle Type ---
-    "Compact Car","Mid/Full Size Car","Luxury Car","Sports Car","SUV","SUV (Luxury)","Pickup/Truck","Van",
-    # --- Lifestyle Interest ---
-    "Theatre","Arts","Travel Domestic","Upscale Living","Music Grouping","Home Stereo","Music Player","Avid Music Listener",
-    "Music Collector","Movie Collector","Sports Grouping","Football","Baseball","Basketball","Hockey","Racing","NASCAR",
-    # --- PersonicX Clusters (many) ---
-    "Summit Estates","Established Elite","Corporate Connected","Top Professionals","Active & Involved","Casual Comfort",
-    "Active Lifestyles","Solid Surroundings","Busy Schedules","Careers & Travel","Schools & Shopping","On the Go",
-    "Work & Play","Career Centered","Country Ways","Country Enthusiasts","Firmly Established","Climbing the Ladder",
-    "Country Comfort","Carving Out Time","Children First","Comfortable Cornerstones","Good Neighbors","Career Building",
-    "Clubs & Causes","Getting Established","Tenured Proprietors","Community Pillars","City Mixers","Out & About",
-    "Mid-Americana","Metro Mix","Urban Diversity","Outward Bound","Working & Active","Persistent & Productive",
-    "Firm Foundations","Occupational Mix","Setting Goals","Great Outdoors","Rural Adventure","Creative Variety",
-    "Work & Causes","Open Houses","Offices & Entertainment","Rural & Active","Rural Parents","Farm & Home",
-    "Home & Garden","Rural Community","Role Models","Stylish & Striving","Metro Strivers","Work & Outdoors",
-    "Community Life","Metro Active","Collegiate Crowd","Outdoor Fervor","Mobile Mixers","Rural & Mobile","City Life",
-    "Movies & Sports","Staying Home","Practical & Careful","Hobbies & Shopping","Helping Hands","First Steps",
-    "Staying Healthy","Productive Havens","Favorably Frugal",
-    # --- PersonicX Groups (many) ---
-    "Starting Out","Taking Hold","Settling Down","Social Connectors","Busy Households","Working & Studying",
-    "Career Oriented","Large Households","Comfortable Independence","Rural-Metro Mix","Affluent Households",
-    "Comfortable Households","Working Households","Diverging Paths","Top Wealth ","Living Well","Bargain Hunters",
-    "Thrifty & Active","Solid Prestige","Community Minded","Leisure Seekers",
-    # --- DEMOGRAPHICS (Canada) / Income & Spend ---
-    "Average Household Income","Disposable Income","Discretionary Income",
-    # --- Recreation Expenditure ---
-    "Total Recreation Expenditure","Entertainment","Live Arts","Live Sports",
-    # --- Household Composition ---
-    "Married Households","% of Household with No Children","% of Household with 1 Child",
-    "% of Household with 2 Children","% of Household with 3+ Children",
-    # --- Occupation (Canada) ---
-    "Sales & Services","Bus Finance & Admin","Social Sci, Educ, & Govt","Trades & Transport","Management","Sciences",
-    "Health","Art, Culture, Recreation","Agriculture","Manufacturer & Utilities",
-    # --- Education (Canada) ---
-    "No College Degree","College Degree",
-    # --- Prizm5 Group (many) ---
-    "Cosmopolitan Elite","Urbane Villagers","Arts & Affluence","Suburban Success","Asian Sophisticates","Kids & Careers",
-    "Nouveaux Riches","Boomerang City","Satellite Burbs","Emptying Nests","Urban Digerati","Street Scenes","Asian Avenues",
-    "Diversity Heights","Heritage Hubs","Pets & PCs","Exurban Wonderland","Management Material","Grey Pride",
-    "South Asian Achievers","Beau Monde","Aging in Suburbia","Asian New Wave","Fresh Air Families","South Asian Society",
-    "Second City Retirees","Diverse City","Metro Multiculturals","Silver Linings","La Vie est Belle","New World Symphony",
-    "Mini Van & Vin Rouge","Heartland Retirees","Rooms with a View","Country Acres","Exurban Homesteaders","Trucks & Trades",
-    "Grads & Pads","Our Time","Wide Open Spaces","Vieille École","Home Sweet Rows","Newcomers Rising","Jeunes et Actifs",
-    "Jeunes d'Esprit","Villes Tranquilles","Traditional Town Living","Variété Suburbaine","Enclaves Multiethniques",
-    "Suburban Scramble","Aging & Active","Striving Startups","Outdoor Originals","Serenity Springs","La Vie Bucolique",
-    "Single City Jazz","First Nations Families","Rustic Roads","Locataires en Banlieues","Bons Vivants","Les Seniors",
-    "Terre à Terre","Lunch at Tim's","Fête au Village","Young & Connected","Sunset Towers","Survivre en Ville","Low-Rise Renters",
-    # --- Prizm Social Group (Urbanity) ---
-    "Urban","Suburban","Exurban","Town","Rural",
-    # --- Prizm Social Group (SES) ---
-    "Exurban Elite","Exurban Middle-Aged","Exurban Francophone","Rural Midscale","Rural Downscale","Rural/Town Francophone",
-    "Suburban Elite","Suburban Younger","Suburban Upscale Ethnic","Suburban Older","Suburban Francophone","Town Mix",
-    "Urban Elite","Urban Upscale Ethnic","Urban Young","Urban Younger Ethnic","Urban Older","Urban Downscale","Urban Francophone",
-    # --- Prizm LifeStage ---
-    "Younger","Family","Mature",
-    # --- Prizm LifeStage Group (many) ---
-    "Young Diverse Families","Growing Families","Older Parents, Younger Kids","Families with Tweens","Midlife Families",
-    "Midlife Quebec Families","Midlife Ethnic Families","Prosperous Parents","Older Families","Nearly Retired","Country Seniors",
-    "Later Years","Singles Scene","Starter Nests",
-    # --- LIVE EVENT SUMMARY / Transaction Summary ---
-    "Number of Attractions","Number of Events","Number of Venues","Total Spend","Spend per Event","Tickets per Event",
-    "Avg. Ticket Price","Ticket Price Pctile Ranking","Distance to Venue (Miles)","Distance to Local Venue (Miles)",
-    # --- PERCENTANGE OF CUSTOMERS / Major Category ---
-    "Concerts","Arts","Sports","Family","Misc",
-    # --- Premium/Resale/Upsell ---
-    "Platinum","Resale","Parking","Upsell/Ancil",
-    # --- MAJOR CATEGORY STATISTICS / Ticket Price & Spend per Event ---
-    # (We already included per-category above; reuse those labels for price/spend series)
-    # --- Share of Wallet (per category) ---
-    # (Reuses category labels)
-    # --- PREFERENCES / Major Category ---
-    # (Reuses category labels)
-    # --- Ticket Quantity ---
-    "1-2 Tickets","3-4 Tickets","5-8 Tickets","9+ Tickets",
-    # --- Ticket Price Percentile Ranking ---
-    "Low (Bottom 25%)","Fair (Bottom 26-49%)","Good (Top 50-75%)","Very Good (Top 75-89%)","Best (Top 90%)",
-    # --- Purchase Timing ---
-    "Presale","1st Day Onsale","First Week","In-Between","Week of Event",
-    # --- Purchase Channel ---
-    "Internet","Phone","Mobile","Box Office","Retail Outlet",
-    # --- Payment Method ---
-    "Visa","MC","AmEx","Discover","Other",
-    # --- Travel Distance ---
-    "<10 Miles","11-25 Miles","26-50 Miles","51-100 Miles","101-200 Miles","201+ Miles",
-    # --- Event Location ---
-    "US Events","Canada Events",
-    # --- RFM ---
-    "Last 6 Months","Last 12 Months","Last 18 Months","Last 24 Months","Inactive 24+ Months",
-    "1 Event","2 Events","3 Events","4 Events","5+ Events",
-    "≤ $100","$101-$250","$251-$500","$501-$1000","$1001+",
-    "RFM Score","551-1000","451-550","351-450","0-351",
-    # --- PROPENSITY SCORES (many) ---
-    "Adult Contemporary","Alternative Rock","Country","EDM","Hard Rock/Metal","Jazz/Blues","Latin","Hip Hop","R&B/Soul",
-    "Rock/Pop","Concert Festival","Other Concerts","Broadway Musical","Comedy","Classical/Opera","Theatre Plays","Ballet/Dance",
-    "Arts Festival","Magic","Other Arts","Circus","Family Shows","Other Family","Boxing","MMA","Wrestling","Baseball","MLB",
-    "College Baseball","Basketball","NBA","WNBA","College Basketball","Football","NFL","College Football","Hockey","NHL",
-    "College Hockey","Soccer","MLS","Motorsport","Rodeo","Golf","PGA","Tennis","Other Sports",
-    # --- CLIENT CUSTOMER SUMMARY / CURRENT RESIDENCE distances (labels reused above) ---
-    # --- CLIENT EVENT SUMMARY / Age at Event ---
-    "Age (at time of Event)","Age of Cohort (Retrospectively Computed)",
-    # --- CLIENT EVENT SUMMARY / Travel Distance to Client Events (distances reused) ---
-    "Distance to Client Events (Miles)","Client Events","Non-Client Events",
-    "Client Events Purchased (Lifetime) - Never Purchased","Client Events Purchased (Lifetime) - 1 Event",
-    "Client Events Purchased (Lifetime) - 2-3 Events","Client Events Purchased (Lifetime) - 4-5 Events",
-    "Client Events Purchased (Lifetime) - 6-10 Events","Client Events Purchased (Lifetime) - 11+ Events",
-    "Client Events Spend (Lifetime) - ≤ $250","Client Events Spend (Lifetime) - $251-$500",
-    "Client Events Spend (Lifetime) - $501-$1000","Client Events Spend (Lifetime) - $1001-$2000",
-    "Client Events Spend (Lifetime) - $2001+",
-    "Tickets per Event - Client Events","Tickets per Event - Non-Client Events",
-    "Spend per Event - Client Events","Spend per Event - Non-Client Events",
-    "Average Ticket Price - Client Events","Average Ticket Price - Non-Client Events",
-    # --- NON-CLIENT EVENT SUMMARY (per-category spend/avg ticket ‘All/Concerts/Arts/Sports/Family/Misc’) ---
-    "Spend per Event - All","Average Ticket Price - All",
+    "Customers", "Customers with Live Events", "Customers with Demo (CAN)",
+
+    # --- CLIENT EVENT SUMMARY / Gender ---
+    "Male", "Female",
+
+    # --- CLIENT EVENT SUMMARY / Age (at Time of Event) ---
+    "Age", "18-24", "25-34", "35-44", "45-54", "55-64", "65+",
+
+    # --- Client Events Purchased (Lifetime) ---
+    "Never Purchased", "1 Event", "2-3 Events", "4-5 Events", "6-10 Events", "11+ Events",
+
+    # --- Client Events Spend (Lifetime) ---
+    "≤ $250", "$251-$500", "$501-$1000", "$1001-$2000", "$2001+",
+
+    # --- Share of Wallet ---
+    "Client Events", "Non-Client Events",
+
+    # --- Lifetime Spend ---
+    "Client Events", "Non-Client Events",
+
+    # --- Tickets per Event ---
+    "Client Events", "Non-Client Events",
+
+    # --- Spend per Event ---
+    "Client Events", "Non-Client Events",
+
+    # --- Average Ticket Price ---
+    "Client Events", "Non-Client Events",
+
+    # --- DIMENSIONS ---
+    "Generation: Millennials", "Generation: X", "Generation: Babyboomers", "Generation: Z",
+    "Occupation: Professionals", "Occupation: Self Employed", "Occupation: Retired",
+    "Occupation: Students", "Household: Working Moms", "Financial: Affluent",
+    "Live: Major: Concerts", "Live: Major: Arts", "Live: Major: Sports",
+    "Live: Major: Family", "Live Major: Multi Categories",
+    "Live: Frequency: Active Buyers", "Live: Frequency: Repeat Buyers",
+    "Live: Timing: Early Buyers", "Live: Timing: Late Buyers",
+    "Live: Product: Premium Buyers", "Live: Product: Ancillary Upsell Buyers",
+    "Live: Spend: High Spenders (>$1K)",
+    "Live: Distance: Travelers (>500 Miles)",
 ]
 
 def _san(s: str) -> str:
