@@ -296,7 +296,7 @@ def _program_for_category(cat: str) -> Optional[str]:
     return None
 
 def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
-    """Join LA behavior/price overlays onto each title row using Category→Program mapping."""
+    """Join timing/channel/price overlays onto each title row USING LA_BY_CATEGORY directly."""
     df = df_in.copy()
 
     cols = [
@@ -304,37 +304,42 @@ def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
         "LA_MobilePct","LA_InternetPct","LA_PhonePct",
         "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
         "LA_PremiumPct","LA_LocalLT10Pct",
-        "LA_PriceHiPct","LA_PriceFlag"
+        "LA_PriceHiPct","LA_PriceFlag",
     ]
     for c in cols:
         if c not in df.columns:
             df[c] = np.nan
 
-    def _overlay_row(cat: str) -> dict:
-        prog = _program_for_category(cat)
-        if not prog or prog not in LA_BY_PROGRAM:
+    def _overlay_row_from_category(cat: str) -> dict:
+        la = _la_for_category(cat)  # pulls from LA_BY_CATEGORY
+        if not la:
             return {}
-        la = LA_BY_PROGRAM[prog]
-        early = (la["Presale"] + la["FirstDay"] + la["FirstWeek"]) / 100.0
-        price_hi = (la["Price_VeryGood"] + la["Price_Best"]) / 100.0
+
+        early = (float(la.get("Presale", 0)) + float(la.get("FirstDay", 0)) + float(la.get("FirstWeek", 0))) / 100.0
+        price_hi = (float(la.get("Price_VeryGood", 0)) + float(la.get("Price_Best", 0))) / 100.0
+
         return {
             "LA_EarlyBuyerPct": early,
-            "LA_WeekOfPct": la["WeekOf"] / 100.0,
-            "LA_MobilePct": la["Mobile"] / 100.0,
-            "LA_InternetPct": la["Internet"] / 100.0,
-            "LA_PhonePct": la["Phone"] / 100.0,
-            "LA_Tix12Pct": la["Tix_1_2"] / 100.0,
-            "LA_Tix34Pct": la["Tix_3_4"] / 100.0,
-            "LA_Tix58Pct": la["Tix_5_8"] / 100.0,
-            "LA_PremiumPct": la["Premium"] / 100.0,
-            "LA_LocalLT10Pct": la["LT10mi"] / 100.0,
+            "LA_WeekOfPct": float(la.get("WeekOf", 0)) / 100.0,
+            "LA_MobilePct": float(la.get("Mobile", 0)) / 100.0,
+            "LA_InternetPct": float(la.get("Internet", 0)) / 100.0,
+            "LA_PhonePct": float(la.get("Phone", 0)) / 100.0,
+            "LA_Tix12Pct": float(la.get("Tix_1_2", 0)) / 100.0,
+            "LA_Tix34Pct": float(la.get("Tix_3_4", 0)) / 100.0,
+            "LA_Tix58Pct": float(la.get("Tix_5_8", 0)) / 100.0,
+            "LA_PremiumPct": float(la.get("Premium", 0)) / 100.0,
+            "LA_LocalLT10Pct": float(la.get("LT10mi", 0)) / 100.0,
             "LA_PriceHiPct": price_hi,
         }
 
-    overlays = df["Category"].map(_overlay_row)
+    overlays = df["Category"].map(lambda c: _overlay_row_from_category(str(c)))
     overlays_df = pd.DataFrame(list(overlays)).reindex(df.index)
-    df.update(overlays_df)
 
+    # Update df with computed overlay columns
+    for c in [c for c in cols if c in overlays_df.columns]:
+        df[c] = overlays_df[c]
+
+    # Human-readable price flag
     def _price_flag(p_hi: float) -> str:
         if pd.isna(p_hi): return "n/a"
         return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
