@@ -277,11 +277,11 @@ def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
     df = df_in.copy()
 
     cols = [
-        "LA_EarlyBuyer%","LA_WeekOf%",
-        "LA_Mobile%","LA_Internet%","LA_Phone%",
-        "LA_Tix12%","LA_Tix34%","LA_Tix58%",
-        "LA_Premium%","LA_LocalLT10%",
-        "LA_PriceHi%","LA_PriceFlag"
+        "LA_EarlyBuyerPct","LA_WeekOfPct",
+        "LA_MobilePct","LA_InternetPct","LA_PhonePct",
+        "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
+        "LA_PremiumPct","LA_LocalLT10Pct",
+        "LA_PriceHiPct","LA_PriceFlag"
     ]
     for c in cols:
         if c not in df.columns:
@@ -295,17 +295,17 @@ def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
         early = (la["Presale"] + la["FirstDay"] + la["FirstWeek"]) / 100.0
         price_hi = (la["Price_VeryGood"] + la["Price_Best"]) / 100.0
         return {
-            "LA_EarlyBuyer%": early,
-            "LA_WeekOf%": la["WeekOf"] / 100.0,
-            "LA_Mobile%": la["Mobile"] / 100.0,
-            "LA_Internet%": la["Internet"] / 100.0,
-            "LA_Phone%": la["Phone"] / 100.0,
-            "LA_1-2Tix%": la["Tix_1_2"] / 100.0,
-            "LA_3-4Tix%": la["Tix_3_4"] / 100.0,
-            "LA_5-8Tix%": la["Tix_5_8"] / 100.0,
-            "LA_Premium%": la["Premium"] / 100.0,
-            "LA_LocalLT10%": la["LT10mi"] / 100.0,
-            "LA_PriceHi%": price_hi,
+            "LA_EarlyBuyerPct": early,
+            "LA_WeekOfPct": la["WeekOf"] / 100.0,
+            "LA_MobilePct": la["Mobile"] / 100.0,
+            "LA_InternetPct": la["Internet"] / 100.0,
+            "LA_PhonePct": la["Phone"] / 100.0,
+            "LA_Tix12Pct": la["Tix_1_2"] / 100.0,
+            "LA_Tix34Pct": la["Tix_3_4"] / 100.0,
+            "LA_Tix58Pct": la["Tix_5_8"] / 100.0,
+            "LA_PremiumPct": la["Premium"] / 100.0,
+            "LA_LocalLT10Pct": la["LT10mi"] / 100.0,
+            "LA_PriceHiPct": price_hi,
         }
 
     overlays = df["Category"].map(_overlay_row)
@@ -316,7 +316,7 @@ def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
         if pd.isna(p_hi): return "n/a"
         return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
 
-    df["LA_PriceFlag"] = df["LA_PriceHi%"].apply(_price_flag)
+    df["LA_PriceFlag"] = df["LA_PriceHiPct"].apply(_price_flag)
     return df
 
 # -------------------------
@@ -843,11 +843,11 @@ def render_results():
             "Seg_GP_Tickets","Seg_Core_Tickets","Seg_Family_Tickets","Seg_EA_Tickets",
 
             # Live Analytics overlays
-            "LA_EarlyBuyer%","LA_WeekOf%",
-            "LA_Mobile%","LA_Internet%","LA_Phone%",
-            "LA_Tix12%","LA_Tix34%","LA_Tix58%",
-            "LA_Premium%","LA_LocalLT10%",
-            "LA_PriceHi%","LA_PriceFlag",
+            "LA_EarlyBuyerPct","LA_WeekOfPct",
+            "LA_MobilePct","LA_InternetPct","LA_PhonePct",
+            "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
+            "LA_PremiumPct","LA_LocalLT10Pct",
+            "LA_PriceHiPct","LA_PriceFlag",
 
             "Source",
         ]
@@ -882,11 +882,11 @@ def render_results():
                     "Seg_Family_Tickets": "{:,.0f}", "Seg_EA_Tickets": "{:,.0f}",
 
                     # Live Analytics overlays
-                    "LA_EarlyBuyer%":"{:.0%}","LA_WeekOf%":"{:.0%}",
-                    "LA_Mobile%":"{:.0%}","LA_Internet%":"{:.0%}","LA_Phone%":"{:.0%}",
-                    "LA_Tix12%":"{:.0%}","LA_Tix34%":"{:.0%}","LA_Tix58%":"{:.0%}",
-                    "LA_Premium%":"{:.0%}","LA_LocalLT10%":"{:.0%}",
-                    "LA_PriceHi%":"{:.0%}",
+                    "LA_EarlyBuyerPct":"{:.0%}","LA_WeekOfPct":"{:.0%}",
+                    "LA_MobilePct":"{:.0%}","LA_InternetPct":"{:.0%}","LA_PhonePct":"{:.0%}",
+                    "LA_Tix12Pct":"{:.0%}","LA_Tix34%":"{:.0%}","LA_Tix58Pct":"{:.0%}",
+                    "LA_PremiumPct":"{:.0%}","LA_LocalLT10Pct":"{:.0%}",
+                    "LA_PriceHiPct":"{:.0%}",
                 })
                 .map(
                     lambda v: (
