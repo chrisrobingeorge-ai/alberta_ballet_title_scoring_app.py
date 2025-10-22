@@ -884,7 +884,7 @@ def render_results():
                     # Live Analytics overlays
                     "LA_EarlyBuyerPct":"{:.0%}","LA_WeekOfPct":"{:.0%}",
                     "LA_MobilePct":"{:.0%}","LA_InternetPct":"{:.0%}","LA_PhonePct":"{:.0%}",
-                    "LA_Tix12Pct":"{:.0%}","LA_Tix34":"{:.0%}","LA_Tix58Pct":"{:.0%}",
+                    "LA_Tix12Pct":"{:.0%}","LA_Tix34Pct":"{:.0%}","LA_Tix58Pct":"{:.0%}",
                     "LA_PremiumPct":"{:.0%}","LA_LocalLT10Pct":"{:.0%}",
                     "LA_PriceHiPct":"{:.0%}",
                 })
