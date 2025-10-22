@@ -566,13 +566,6 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
         seg_to_indexed_signal[seg_key] = (fam_idx + mot_idx) / 2.0
     return seg_to_indexed_signal
 
-def _softmax_like(values: dict, temperature: float = 15.0) -> dict:
-    arr = np.array(list(values.values()), dtype=float)
-    exps = np.exp(arr / float(temperature))
-    denom = exps.sum() if exps.sum() > 0 else 1.0
-    shares = exps / denom
-    return {k: float(v) for k, v in zip(values.keys(), shares)}
-
 # -------------------------
 # CORE: compute + store
 # -------------------------
@@ -721,6 +714,72 @@ def compute_scores_and_store():
 
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
+
+        # --- Segment propensity & ticket allocation (adds Mix_* and Seg_* columns) ---
+    bench_entry_for_mix = BASELINES[benchmark_title]
+
+    prim_list, sec_list = [], []
+    mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
+    seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
+
+    for _, r in df.iterrows():
+        # Rebuild the entry dict for this row from the stored indices
+        entry_r = {
+            "wiki": float(r["WikiIdx"]),
+            "trends": float(r["TrendsIdx"]),
+            "youtube": float(r["YouTubeIdx"]),
+            "spotify": float(r["SpotifyIdx"]),
+            "gender": r["Gender"],
+            "category": r["Category"],
+        }
+
+        # Online signal per segment (raw) → normalize to benchmark (per segment)
+        seg_to_raw = _signal_for_all_segments(entry_r, region)
+        seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
+
+        # Live-Analytics prior weights for (region, category)
+        pri = _prior_weights_for(region, r["Category"])
+
+        # Combine: prior * signal index (keep strictly positive), then normalize to shares
+        combined = {k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
+                    for k in SEGMENT_KEYS_IN_ORDER}
+        total = sum(combined.values()) or 1.0
+        shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
+
+        # Primary / Secondary
+        ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
+        primary = ordered[0][0]
+        secondary = ordered[1][0] if len(ordered) > 1 else ""
+
+        prim_list.append(primary)
+        sec_list.append(secondary)
+
+        # Store share columns in fixed order
+        mix_gp.append(shares["General Population"])
+        mix_core.append(shares["Core Classical (F35–64)"])
+        mix_family.append(shares["Family (Parents w/ kids)"])
+        mix_ea.append(shares["Emerging Adults (18–34)"])
+
+        # Allocate estimated tickets by share
+        est = float(r["EstimatedTickets"] or 0.0)
+        seg_gp_tix.append(round(est * shares["General Population"]))
+        seg_core_tix.append(round(est * shares["Core Classical (F35–64)"]))
+        seg_family_tix.append(round(est * shares["Family (Parents w/ kids)"]))
+        seg_ea_tix.append(round(est * shares["Emerging Adults (18–34)"]))
+
+    # Add new columns to df
+    df["PredictedPrimarySegment"] = prim_list
+    df["PredictedSecondarySegment"] = sec_list
+
+    df["Mix_GP"] = mix_gp
+    df["Mix_Core"] = mix_core
+    df["Mix_Family"] = mix_family
+    df["Mix_EA"] = mix_ea
+
+    df["Seg_GP_Tickets"] = seg_gp_tix
+    df["Seg_Core_Tickets"] = seg_core_tix
+    df["Seg_Family_Tickets"] = seg_family_tix
+    df["Seg_EA_Tickets"] = seg_ea_tix
 
     # 8) Stash
     st.session_state["results"] = {
