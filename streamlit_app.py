@@ -577,6 +577,7 @@ def _softmax_like(values: dict, temperature: float = 15.0) -> dict:
 # CORE: compute + store
 # -------------------------
 def compute_scores_and_store():
+    """Compute scores and stash results in session_state['results']."""
     rows = []
     unknown_used_live, unknown_used_est = [], []
 
@@ -604,30 +605,6 @@ def compute_scores_and_store():
 
     df = pd.DataFrame(rows)
 
-# --- Likely audience mix per title (shares sum to ~1) ---
-mix_rows = []
-for _, r in df.iterrows():
-    mix = _infer_segment_mix_for(r["Category"], region_key=region, temperature=1.0)
-    mix_rows.append(mix)
-
-mix_df = pd.DataFrame(mix_rows)
-# Short, chart-friendly column names for shares
-share_map = {
-    "General Population": "Mix_GP",
-    "Core Classical (F35–64)": "Mix_Core",
-    "Family (Parents w/ kids)": "Mix_Family",
-    "Emerging Adults (18–34)": "Mix_EA",
-}
-mix_df = mix_df.rename(columns=share_map)
-df = pd.concat([df.reset_index(drop=True), mix_df.reset_index(drop=True)], axis=1)
-
-# Most-likely segment label
-seg_cols_in_order = ["General Population", "Core Classical (F35–64)", "Family (Parents w/ kids)", "Emerging Adults (18–34)"]
-df["LikelySegment"] = [
-    max(_infer_segment_mix_for(cat, region), key=_infer_segment_mix_for(cat, region).get)
-    for cat in df["Category"]
-]
-
     # 2) Pick benchmark & normalize Familiarity/Motivation
     benchmark_title = st.selectbox(
         "Choose Benchmark Title for Normalization",
@@ -641,9 +618,15 @@ df["LikelySegment"] = [
 
     df["Familiarity"] = (df["FamiliarityRaw"] / bench_fam_raw) * 100.0
     df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
-    st.caption(f"Scores normalized to benchmark: {benchmark_title}")
+    st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
 
     # 3) Ticket medians & TicketIndex (history) relative to chosen benchmark
+    def _median(xs):
+        xs = sorted([float(x) for x in xs if x is not None])
+        if not xs: return None
+        n = len(xs); mid = n // 2
+        return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
+
     TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
     BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
 
@@ -739,55 +722,7 @@ df["LikelySegment"] = [
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
 
-# --- Split estimated tickets by segment using precomputed shares ---
-if all(c in df.columns for c in ["EstimatedTickets","Mix_GP","Mix_Core","Mix_Family","Mix_EA"]):
-    df["Seg_GP_Tickets"]     = (df["EstimatedTickets"] * df["Mix_GP"]).round(0)
-    df["Seg_Core_Tickets"]   = (df["EstimatedTickets"] * df["Mix_Core"]).round(0)
-    df["Seg_Family_Tickets"] = (df["EstimatedTickets"] * df["Mix_Family"]).round(0)
-    df["Seg_EA_Tickets"]     = (df["EstimatedTickets"] * df["Mix_EA"]).round(0)
-
-    # 8) Segment propensity as OUTPUT (primary/secondary + shares + tickets)
-    seg_primary = []
-    seg_secondary = []
-    seg_shares_cols = {k: [] for k in SEGMENT_KEYS_IN_ORDER}
-    seg_tix_cols   = {k: [] for k in SEGMENT_KEYS_IN_ORDER}
-    benchmark_entry = bench_entry  # use the same benchmark title's baseline for per-segment normalization
-
-    for _, r in df.iterrows():
-        # reconstruct an "entry" for this title
-        entry_like = {
-            "wiki":     float(r["WikiIdx"]),
-            "trends":   float(r["TrendsIdx"]),
-            "youtube":  float(r["YouTubeIdx"]),
-            "spotify":  float(r["SpotifyIdx"]),
-            "gender":   r["Gender"],
-            "category": r["Category"],
-        }
-        seg_to_raw = _signal_for_all_segments(entry_like, r["Region"])
-        seg_to_idx_signal = _normalize_signals_by_benchmark(seg_to_raw, benchmark_entry, r["Region"])
-        shares = _softmax_like(seg_to_idx_signal, temperature=15.0)
-
-        ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
-        seg_primary.append(ordered[0][0] if ordered else None)
-        seg_secondary.append(ordered[1][0] if len(ordered) > 1 else None)
-
-        est_tix = float(r.get("EstimatedTickets", np.nan)) if pd.notna(r.get("EstimatedTickets", np.nan)) else np.nan
-        for seg_key in SEGMENT_KEYS_IN_ORDER:
-            share = shares.get(seg_key, 0.0)
-            seg_shares_cols[seg_key].append(share * 100.0)  # percent
-            seg_tix_cols[seg_key].append(est_tix * share if pd.notna(est_tix) else np.nan)
-
-    df["PredictedPrimarySegment"]   = seg_primary
-    df["PredictedSecondarySegment"] = seg_secondary
-    for seg_key in SEGMENT_KEYS_IN_ORDER:
-        df[f"SegShare_{seg_key}"] = np.round(seg_shares_cols[seg_key], 0)
-        df[f"EstTix_{seg_key}"]   = np.round(seg_tix_cols[seg_key], 0)
-    df["SegmentMixNote"] = (
-        df["PredictedPrimarySegment"].fillna("")
-        + np.where(df["PredictedSecondarySegment"].notna(), " (secondary: " + df["PredictedSecondarySegment"] + ")", "")
-    )
-
-    # 9) Stash results
+    # 8) Stash
     st.session_state["results"] = {
         "df": df,
         "benchmark": benchmark_title,
