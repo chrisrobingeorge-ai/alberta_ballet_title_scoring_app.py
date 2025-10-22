@@ -792,48 +792,131 @@ def render_results():
     R = st.session_state["results"]
     if not R:
         return
+
     df = R["df"].copy()
     benchmark_title = R["benchmark"]
     segment = R["segment"]
     region = R["region"]
 
-    # …any notices…
+    # Notices about data sources
+    if R.get("unknown_est"):
+        st.info("Estimated (offline) for new titles: " + ", ".join(R["unknown_est"]))
+    if R.get("unknown_live"):
+        st.success("Used LIVE data for new titles: " + ", ".join(R["unknown_live"]))
 
-    # add Score column, etc.
-    # …
+    # TicketIndex source status
+    if "TicketIndexSource" in df.columns:
+        src_counts = (
+            df["TicketIndexSource"]
+            .value_counts(dropna=False)
+            .reindex(["History", "Category model", "Overall model", "Not enough data"])
+            .fillna(0)
+            .astype(int)
+        )
+        st.caption(
+            f"TicketIndex source — History: {int(src_counts.get('History',0))} · "
+            f"Category model: {int(src_counts.get('Category model',0))} · "
+            f"Overall model: {int(src_counts.get('Overall model',0))} · "
+            f"Not enough data: {int(src_counts.get('Not enough data',0))}"
+        )
 
-    # 1) Show the on-screen table (only your 17 columns)
-    _render_full_results_table(df)
+    # Letter grades
+    def _assign_score(v: float) -> str:
+        if v >= 90: return "A"
+        elif v >= 75: return "B"
+        elif v >= 60: return "C"
+        elif v >= 45: return "D"
+        else: return "E"
 
-    # 2) Build the two exports
-    df_table = (
-        df.rename(columns={
-            "TicketMedian": "TicketHistory",
-            "EffectiveTicketIndex": "TicketIndex used",
-        })[[
-            "Title","Region","Segment","Gender","Category",
-            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-            "Familiarity","Motivation",
-            "TicketHistory",
-            "TicketIndex used","TicketIndexSource",
-            "Composite","Score","EstimatedTickets",
-        ]]
+    if "Score" not in df.columns:
+        df["Score"] = df["Composite"].apply(_assign_score)
+
+    # ---------- TABLE (only your 17 columns) ----------
+    # Build the display dataframe in-place (TicketMedian -> TicketHistory; EffectiveTicketIndex -> TicketIndex used)
+    df_show = df.rename(columns={
+        "TicketMedian": "TicketHistory",
+        "EffectiveTicketIndex": "TicketIndex used",
+    }).copy()
+
+    table_cols = [
+        "Title","Region","Segment","Gender","Category",
+        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+        "Familiarity","Motivation",
+        "TicketHistory",
+        "TicketIndex used","TicketIndexSource",
+        "Composite","Score","EstimatedTickets",
+    ]
+
+    # Keep only columns that are present (avoids KeyErrors if something is missing)
+    present_cols = [c for c in table_cols if c in df_show.columns]
+
+    st.subheader("🎟️ Estimated ticket sales (table view)")
+    st.dataframe(
+        df_show[present_cols]
+            .sort_values(
+                by=[
+                    "EstimatedTickets" if "EstimatedTickets" in df_show.columns else "Composite",
+                    "Composite", "Motivation", "Familiarity"
+                ],
+                ascending=[False, False, False, False]
+            )
+            .style
+            .format({
+                "WikiIdx": "{:.0f}", "TrendsIdx": "{:.0f}", "YouTubeIdx": "{:.0f}", "SpotifyIdx": "{:.0f}",
+                "Familiarity": "{:.1f}", "Motivation": "{:.1f}",
+                "Composite": "{:.1f}",
+                "TicketIndex used": "{:.1f}",
+                "EstimatedTickets": "{:,.0f}",
+                "TicketHistory": "{:,.0f}",
+            })
+            .map(
+                lambda v: (
+                    "color: green;" if v == "A" else
+                    "color: darkgreen;" if v == "B" else
+                    "color: orange;" if v == "C" else
+                    "color: darkorange;" if v == "D" else
+                    "color: red;" if v == "E" else ""
+                ),
+                subset=["Score"] if "Score" in df_show.columns else []
+            ),
+        use_container_width=True,
+        hide_index=True
     )
-    df_full = df.copy()  # everything, including LA_* and segment split columns
 
-    # 3) Place BOTH download buttons here
+    # ---------- DOWNLOADS ----------
+    # 1) CSV with just the table columns (exactly those 17)
+    df_table = df_show[present_cols]
     st.download_button(
         "⬇️ Download Scores CSV (table columns only)",
         df_table.to_csv(index=False).encode("utf-8"),
         "title_scores_table_view.csv",
         "text/csv"
     )
+
+    # 2) CSV with EVERYTHING (full analysis, LA_* overlays, segment mixes, splits, etc.)
+    df_full = df.copy()
     st.download_button(
         "⬇️ Download Full CSV (includes all LA data)",
         df_full.to_csv(index=False).encode("utf-8"),
         "title_scores_full_with_LA.csv",
         "text/csv"
     )
+
+    # ---------- OPTIONAL CHARTS (unchanged) ----------
+    try:
+        fig, ax = plt.subplots()
+        ax.scatter(df["Familiarity"], df["Motivation"])
+        for _, r in df.iterrows():
+            ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
+        ax.axvline(df["Familiarity"].median(), color="gray", linestyle="--")
+        ax.axhline(df["Motivation"].median(), color="gray", linestyle="--")
+        ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
+        ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
+        ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
+        st.pyplot(fig)
+    except Exception:
+        # keep UI resilient if any chart inputs are missing
+        pass
 
 # ======= BUTTON HANDLER =======
 if run:
