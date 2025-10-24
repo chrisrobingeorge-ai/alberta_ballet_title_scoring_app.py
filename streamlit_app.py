@@ -1552,22 +1552,34 @@ def render_results():
         df["Score"] = df["Composite"].apply(_assign_score)
 
     # ---------- TABLE (now includes seasonality columns when present) ----------
+    # Build the display dataframe in-place (TicketMedian -> TicketHistory; EffectiveTicketIndex -> TicketIndex used)
     df_show = df.rename(columns={
         "TicketMedian": "TicketHistory",
         "EffectiveTicketIndex": "TicketIndex used",
     }).copy()
 
-    # Add human-readable RunMonth for display if available
-    if "SeasonalityApplied" in df_show.columns and df_show["SeasonalityApplied"].notna().any():
-        def _run_month_name(v):
-            try:
-                m = int(v)
-                return calendar.month_name[m] if 1 <= m <= 12 else ""
-            except Exception:
+    # Ensure RunMonth is always a nice month name in the table
+    import calendar
+    def _to_month_name(v):
+        # Accept int/float month numbers, or pass through an existing string
+        try:
+            if pd.isna(v):
                 return ""
-        if "SeasonalityMonthUsed" in df_show.columns and "RunMonth" not in df_show.columns:
-            df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_run_month_name)
+        except Exception:
+            pass
+        if isinstance(v, (int, float)):
+            m = int(v)
+            return calendar.month_name[m] if 1 <= m <= 12 else ""
+        if isinstance(v, str):
+            return v
+        return ""
 
+    if "RunMonth" in df_show.columns:
+        df_show["RunMonth"] = df_show["RunMonth"].apply(_to_month_name)
+    elif "SeasonalityMonthUsed" in df_show.columns:
+        df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
+
+    # Preferred table columns (only shown if present)
     table_cols = [
         "Title","Region","Segment","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
@@ -1577,6 +1589,7 @@ def render_results():
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
         "Composite","Score","EstimatedTickets",
     ]
+
     present_cols = [c for c in table_cols if c in df_show.columns]
 
     st.subheader("🎟️ Estimated ticket sales (table view)")
