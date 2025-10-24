@@ -707,6 +707,13 @@ for title, s, e in PAST_RUNS:
     })
 
 RUNS_DF = pd.DataFrame(_runs_rows)
+# Fast lookup: title -> mid-run date (or None)
+TITLE_TO_MIDDATE = {}
+try:
+    for _, r in RUNS_DF.iterrows():
+        TITLE_TO_MIDDATE[str(r["Title"]).strip()] = r["MidDate"]
+except Exception:
+    TITLE_TO_MIDDATE = {}
 
 # 3) Compute Category×Month seasonality factors
 #    Factor(cat, month) = median(Tickets for cat in month) / median(Tickets for cat overall)
@@ -768,7 +775,7 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
     return seg_to_indexed_signal
 
 # -------------------------
-# CORE: compute + store
+# CORE: compute + store  (REPLACE THE ENTIRE FUNCTION WITH THIS)
 # -------------------------
 def compute_scores_and_store(
     titles,
@@ -908,23 +915,45 @@ def compute_scores_and_store(
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
 
-# --- Seasonality application (global month) ---
-if proposed_run_date is not None:
-    try:
-        df["SeasonalityFactor"] = df.apply(
-            lambda r: seasonality_factor(r.get("Category", "dramatic"), proposed_run_date),
-            axis=1
-        ).astype(float)
-    except Exception:
-        df["SeasonalityFactor"] = 1.0
-    df["EstimatedTickets"] = (df["EstimatedTickets"].astype(float) * df["SeasonalityFactor"]).round(0)
-else:
-    df["SeasonalityFactor"] = 1.0
+    # 8) Seasonality (global month or per-title historical month)
+    #    - If proposed_run_date is provided (UI had "Apply seasonality"), apply factors.
+    #    - If the UI checkbox "Use each title’s historical month…" is on, use TITLE_TO_MIDDATE when available.
+    if proposed_run_date is not None:
+        use_pt = bool(globals().get("use_per_title_months", False))
 
-    # --- Live Analytics overlays ---
+        def _season_date_for_row(row):
+            if use_pt:
+                t = str(row.get("Title", "")).strip()
+                d = globals().get("TITLE_TO_MIDDATE", {}).get(t)
+                if d:
+                    return d
+            return proposed_run_date
+
+        try:
+            df["SeasonalityDateUsed"] = df.apply(_season_date_for_row, axis=1)
+            df["SeasonalityFactor"] = df.apply(
+                lambda r: seasonality_factor(
+                    r.get("Category", "dramatic"),
+                    r.get("SeasonalityDateUsed", None)
+                ),
+                axis=1
+            ).astype(float)
+            df["SeasonalityMonthUsed"] = df["SeasonalityDateUsed"].apply(
+                lambda d: int(d.month) if pd.notna(d) else np.nan
+            )
+        except Exception:
+            df["SeasonalityFactor"] = 1.0
+            df["SeasonalityMonthUsed"] = np.nan
+
+        df["EstimatedTickets"] = (df["EstimatedTickets"].astype(float) * df["SeasonalityFactor"]).round(0)
+    else:
+        df["SeasonalityFactor"] = 1.0
+        df["SeasonalityMonthUsed"] = np.nan
+
+    # 9) Live Analytics overlays
     df = _add_live_analytics_overlays(df)
 
-    # --- Segment propensity & ticket allocation (adds Mix_* and Seg_* columns) ---
+    # 10) Segment propensity & ticket allocation
     bench_entry_for_mix = BASELINES[benchmark_title]
 
     prim_list, sec_list = [], []
@@ -972,7 +1001,7 @@ else:
     df["Seg_GP_Tickets"] = seg_gp_tix; df["Seg_Core_Tickets"] = seg_core_tix
     df["Seg_Family_Tickets"] = seg_family_tix; df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # 8) Stash
+    # 11) Stash
     st.session_state["results"] = {
         "df": df,
         "benchmark": benchmark_title,
