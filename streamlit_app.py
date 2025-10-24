@@ -1028,9 +1028,10 @@ def compute_scores_and_store(
     df["Seg_GP_Tickets"] = seg_gp_tix; df["Seg_Core_Tickets"] = seg_core_tix
     df["Seg_Family_Tickets"] = seg_family_tix; df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # For transparency in the UI/CSV
+        # For transparency in the UI/CSV
     df["SeasonalityApplied"] = bool(seasonality_on)
-    df["SeasonalityMonthUsed"] = proposed_run_date.month if seasonality_on else np.nan
+    df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on else np.nan
+    df["RunMonth"] = df["SeasonalityMonthUsed"]
 
     # -------- 12) Stash --------
     st.session_state["results"] = {
