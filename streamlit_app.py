@@ -629,7 +629,7 @@ def _median(xs):
 TICKET_BLEND_WEIGHT = 0.50  # 50% tickets, 50% familiarity/motivation composite
 
 # =========================
-# SEASONALITY (Step 1 — compute table; no integration yet)
+# SEASONALITY (build table for Category×Month factors)
 # =========================
 from datetime import date
 
@@ -731,30 +731,9 @@ for cat, g_cat in RUNS_DF.groupby("Category"):
 
 SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
 SEASONALITY_TABLE = {(r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows()}
-    # === Seasonality columns (run month + factors) ===
-    # RunMonth = the month you selected (if any)
-    df["RunMonth"] = int(proposed_run_date.month) if proposed_run_date else np.nan
-
-    # Historical mid-run date/month for each title (if we have it)
-    def _hist_middate_for(title: str):
-        d = TITLE_TO_MIDDATE.get(str(title).strip())
-        return d if isinstance(d, date) else None
-
-    df["HistMidDate"] = df["Title"].map(_hist_middate_for)
-    df["HistMonth"] = df["HistMidDate"].map(lambda d: d.month if isinstance(d, date) else np.nan)
-
-    # Factors: future-month (from the selector) and historical-month (per title)
-    df["FutureSeasonalityFactor"] = df.apply(
-        lambda r: seasonality_factor(r.get("Category"), proposed_run_date) if proposed_run_date else np.nan,
-        axis=1
-    )
-    df["HistSeasonalityFactor"] = df.apply(
-        lambda r: seasonality_factor(r.get("Category"), r.get("HistMidDate")) if isinstance(r.get("HistMidDate"), date) else np.nan,
-        axis=1
-    )
 
 # 4) Helper to fetch factor (defaults to 1.0 when unknown)
-def seasonality_factor(category: str, when: date | None) -> float:
+def seasonality_factor(category: str, when: Optional[date]) -> float:
     """
     Returns multiplicative factor for a given category and date.
     Uses month-of-year. Falls back to 1.0 if we lack data.
@@ -796,7 +775,7 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
     return seg_to_indexed_signal
 
 # -------------------------
-# CORE: compute + store  (REPLACE THE ENTIRE FUNCTION WITH THIS)
+# CORE: compute + store
 # -------------------------
 def compute_scores_and_store(
     titles,
@@ -865,21 +844,17 @@ def compute_scores_and_store(
             return d.month
         return None
 
+    # Seasonality switch
+    seasonality_on = proposed_run_date is not None
 
-    # Seasonality switches
-    seasonality_on = proposed_run_date is not None  # controlled by the "Apply seasonality by month" UI in your code
-
-    # De-seasonalize both: benchmark median and each title’s history median (if present)
+    # De-seasonalize benchmark
     bench_cat = BASELINES[benchmark_title]["category"]
-    bench_hist_month = _hist_month_for_title(benchmark_title)
     bench_hist_factor = seasonality_factor(bench_cat, TITLE_TO_MIDDATE.get(benchmark_title)) if seasonality_on else 1.0
     bench_med_hist = TICKET_MEDIANS.get(benchmark_title, None)
-
-    # If no bench median, guard with 1.0 so indices stay defined
     bench_med_hist = float(bench_med_hist) if bench_med_hist else 1.0
     bench_med_deseason = bench_med_hist / (bench_hist_factor if bench_hist_factor else 1.0)
 
-    # Helper: get de-seasonalized median for a given title if history exists
+    # Helper: de-seasonalize a title’s median (if exists)
     aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
     def _deseason_title_median(t: str, cat: str):
         key = aliases.get(t.strip(), t.strip())
@@ -890,7 +865,7 @@ def compute_scores_and_store(
         factor = seasonality_factor(cat, hist_date) if seasonality_on else 1.0
         return float(med), float(med) / (factor if factor else 1.0), factor
 
-    # -------- 4) TicketIndex (de-seasonalized) vs benchmark (also de-seasonalized) --------
+    # -------- 4) TicketIndex (de-seasonalized) vs de-seasonalized benchmark --------
     med_list, idx_list, hist_factor_list = [], [], []
     for _, r in df.iterrows():
         title = r["Title"]; cat = r["Category"]
@@ -898,17 +873,16 @@ def compute_scores_and_store(
         med_list.append(med)
         hist_factor_list.append(hist_factor if hist_factor is not None else np.nan)
         if med_deseason is None:
-            idx_list.append(None)  # no history
+            idx_list.append(None)
         else:
             idx_list.append((med_deseason / (bench_med_deseason or 1.0)) * 100.0)
 
-    df["TicketMedian"] = med_list                      # raw historical median (if any)
-    df["TicketIndex_DeSeason"] = idx_list              # history index, de-seasonalized
-    df["HistSeasonalityFactor"] = hist_factor_list     # factor used to de-seasonalize (per history month)
+    df["TicketMedian"] = med_list
+    df["TicketIndex_DeSeason"] = idx_list
+    df["HistSeasonalityFactor"] = hist_factor_list
 
-    # -------- 5) Signal-only and model fit on de-seasonalized indices --------
+    # -------- 5) Signal-only and model fit (on de-seasonalized indices) --------
     df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
-
     df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
     def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
@@ -952,36 +926,31 @@ def compute_scores_and_store(
     df["TicketIndex_DeSeason_Used"] = imputed_vals
     df["TicketIndexSource"] = imputed_srcs
 
-    # -------- 7) Re-seasonalize to FUTURE month (proposed_run_date) for the *index* --------
+    # -------- 7) Re-seasonalize to FUTURE month (proposed_run_date) for the index --------
     def _future_factor(cat: str):
         return seasonality_factor(cat, proposed_run_date) if seasonality_on else 1.0
 
     df["FutureSeasonalityFactor"] = df["Category"].map(_future_factor).astype(float)
-
-    # This is the TicketIndex we want to use going forward (season-adjusted for the chosen month)
     df["EffectiveTicketIndex"] = df["TicketIndex_DeSeason_Used"] * df["FutureSeasonalityFactor"]
 
     # -------- 8) Composite: blend signals with (season-adjusted) TicketIndex --------
     tickets_component = np.where(
         df["TicketIndexSource"].eq("Not enough data"),
-        df["SignalOnly"],  # fallback: signals only
+        df["SignalOnly"],
         df["EffectiveTicketIndex"]
     )
     TICKET_BLEND_WEIGHT = 0.50
     df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
 
-    # -------- 9) EstimatedTickets using a season-adjusted benchmark median for the FUTURE month --------
-    # De-seasonalize benchmark median (already computed above), then apply future-month factor for benchmark category
+    # -------- 9) EstimatedTickets using season-adjusted benchmark for FUTURE month --------
     bench_future_factor = _future_factor(bench_cat)
-    bench_med_future = bench_med_deseason * bench_future_factor  # what the benchmark would be in the proposed month
-
-    # Estimated tickets = (EffectiveTicketIndex / 100) * benchmark future median
+    bench_med_future = bench_med_deseason * bench_future_factor
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
 
-    # -------- 10) Live Analytics overlays (unchanged) --------
+    # -------- 10) Live Analytics overlays --------
     df = _add_live_analytics_overlays(df)
 
-    # -------- 11) Segment propensity & tickets by segment (unchanged logic) --------
+    # -------- 11) Segment propensity & tickets by segment --------
     bench_entry_for_mix = BASELINES[benchmark_title]
     prim_list, sec_list = [], []
     mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
@@ -1028,12 +997,11 @@ def compute_scores_and_store(
     df["Seg_GP_Tickets"] = seg_gp_tix; df["Seg_Core_Tickets"] = seg_core_tix
     df["Seg_Family_Tickets"] = seg_family_tix; df["Seg_EA_Tickets"] = seg_ea_tix
 
-        # For transparency in the UI/CSV
+    # -------- 12) Transparency + stash --------
     df["SeasonalityApplied"] = bool(seasonality_on)
     df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on else np.nan
     df["RunMonth"] = df["SeasonalityMonthUsed"]
 
-    # -------- 12) Stash --------
     st.session_state["results"] = {
         "df": df,
         "benchmark": benchmark_title,
@@ -1048,26 +1016,15 @@ import pandas as pd
 
 # =========================
 # LIVE ANALYTICS: FULL TABLE (deep)
-# - Keys are your app categories (pop_ip, classic_romance, etc.)
-# - Values are dicts of unique, namespaced metrics so columns never collide
-# - Fill what you have; anything missing will remain NaN
 # =========================
 
 LA_DEEP_BY_CATEGORY = {
-    # Use the six categories you provided numbers for.
-    # If you later get romantic_comedy or dramatic, add them here the same way.
-
     "pop_ip": {
-        # --- DATA ATTRIBUTE ---
         "DA_Customers": 15861,
         "DA_CustomersWithLiveEvents": 13813,
         "DA_CustomersWithDemo_CAN": 14995,
-
-        # --- CLIENT EVENT SUMMARY / Gender ---
         "CES_Gender_Male_pct": 44,
         "CES_Gender_Female_pct": 56,
-
-        # --- CLIENT EVENT SUMMARY / Age ---
         "CES_Age_Mean": 49.6,
         "CES_Age_18_24_pct": 8,
         "CES_Age_25_34_pct": 5,
@@ -1075,74 +1032,51 @@ LA_DEEP_BY_CATEGORY = {
         "CES_Age_45_54_pct": 20,
         "CES_Age_55_64_pct": 26,
         "CES_Age_65_plus_pct": 15,
-
-        # --- Client Events Purchased (Lifetime) ---
         "CEP_NeverPurchased_pct": 25.9,
         "CEP_1Event_pct": 43.2,
         "CEP_2_3Events_pct": 22.0,
         "CEP_4_5Events_pct": 5.7,
         "CEP_6_10Events_pct": 2.8,
         "CEP_11plusEvents_pct": 0.3,
-
-        # --- Client Events Spend (Lifetime) ---
         "CESpend_le_250_pct": 64.7,
         "CESpend_251_500_pct": 19.8,
         "CESpend_501_1000_pct": 11.2,
         "CESpend_1001_2000_pct": 3.6,
         "CESpend_2001plus_pct": 0.6,
-
-        # --- Share of Wallet ---
         "SOW_ClientEvents_pct": 26,
         "SOW_NonClientEvents_pct": 74,
-
-        # --- Lifetime Spend (absolute $) ---
         "LS_ClientEvents_usd": 268,
         "LS_NonClientEvents_usd": 2207,
-
-        # --- Tickets per Event ---
         "TPE_ClientEvents": 2.3,
         "TPE_NonClientEvents": 2.6,
-
-        # --- Spend per Event ---
         "SPE_ClientEvents_usd": 187,
         "SPE_NonClientEvents_usd": 209,
-
-        # --- Average Ticket Price ---
         "ATP_ClientEvents_usd": 83,
         "ATP_NonClientEvents_usd": 84,
-
-        # --- DIMENSIONS ---
         "DIM_Generation_Millennials_pct": 24,
         "DIM_Generation_X_pct": 34,
         "DIM_Generation_Babyboomers_pct": 31,
         "DIM_Generation_Z_pct": 5,
-
         "DIM_Occ_Professionals_pct": 64,
         "DIM_Occ_SelfEmployed_pct": 0,
         "DIM_Occ_Retired_pct": 3,
         "DIM_Occ_Students_pct": 0,
-
         "DIM_Household_WorkingMoms_pct": 8,
         "DIM_Financial_Affluent_pct": 9,
-
         "DIM_Live_Major_Concerts_pct": 47,
         "DIM_Live_Major_Arts_pct": 76,
         "DIM_Live_Major_Sports_pct": 27,
         "DIM_Live_Major_Family_pct": 7,
         "DIM_Live_Major_MultiCategories_pct": 45,
-
         "DIM_Live_Freq_ActiveBuyers_pct": 60,
         "DIM_Live_Freq_RepeatBuyers_pct": 67,
         "DIM_Live_Timing_EarlyBuyers_pct": 37,
         "DIM_Live_Timing_LateBuyers_pct": 38,
-
         "DIM_Live_Product_PremiumBuyers_pct": 18,
         "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
-
         "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
         "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
     },
-
     "classic_romance": {
         "DA_Customers": 15294,
         "DA_CustomersWithLiveEvents": 11881,
@@ -1201,7 +1135,6 @@ LA_DEEP_BY_CATEGORY = {
         "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
         "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
     },
-
     "classic_comedy": {
         "DA_Customers": 10402,
         "DA_CustomersWithLiveEvents": 8896,
@@ -1260,7 +1193,6 @@ LA_DEEP_BY_CATEGORY = {
         "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
         "DIM_Live_Distance_Travelers_gt500mi_pct": 13,
     },
-
     "contemporary": {
         "DA_Customers": 14987,
         "DA_CustomersWithLiveEvents": 13051,
@@ -1319,7 +1251,6 @@ LA_DEEP_BY_CATEGORY = {
         "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
         "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
     },
-
     "family_classic": {
         "DA_Customers": 5800,
         "DA_CustomersWithLiveEvents": 4878,
@@ -1378,13 +1309,12 @@ LA_DEEP_BY_CATEGORY = {
         "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
         "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
     },
-
     "romantic_tragedy": {
         "DA_Customers": 7781,
         "DA_CustomersWithLiveEvents": 6661,
         "DA_CustomersWithDemo_CAN": 7265,
-        "CES_Gender_Male_pct": 0,   # not provided → leave 0 or remove to NaN
-        "CES_Gender_Female_pct": 0, # not provided → leave 0 or remove to NaN
+        "CES_Gender_Male_pct": 0,
+        "CES_Gender_Female_pct": 0,
         "CES_Age_Mean": 47.9,
         "CES_Age_18_24_pct": 14,
         "CES_Age_25_34_pct": 14,
@@ -1441,16 +1371,11 @@ LA_DEEP_BY_CATEGORY = {
 
 # Canonical schema/order for export — each tuple: (column_name_in_csv, deep_key)
 LA_DEEP_SCHEMA = [
-    # DATA ATTRIBUTE
     ("LA_DA_Customers", "DA_Customers"),
     ("LA_DA_CustomersWithLiveEvents", "DA_CustomersWithLiveEvents"),
     ("LA_DA_CustomersWithDemo_CAN", "DA_CustomersWithDemo_CAN"),
-
-    # CLIENT EVENT SUMMARY / Gender
     ("LA_CES_Gender_Male_pct", "CES_Gender_Male_pct"),
     ("LA_CES_Gender_Female_pct", "CES_Gender_Female_pct"),
-
-    # CLIENT EVENT SUMMARY / Age
     ("LA_CES_Age_Mean", "CES_Age_Mean"),
     ("LA_CES_Age_18_24_pct", "CES_Age_18_24_pct"),
     ("LA_CES_Age_25_34_pct", "CES_Age_25_34_pct"),
@@ -1458,70 +1383,48 @@ LA_DEEP_SCHEMA = [
     ("LA_CES_Age_45_54_pct", "CES_Age_45_54_pct"),
     ("LA_CES_Age_55_64_pct", "CES_Age_55_64_pct"),
     ("LA_CES_Age_65_plus_pct", "CES_Age_65_plus_pct"),
-
-    # Client Events Purchased (Lifetime)
     ("LA_CEP_NeverPurchased_pct", "CEP_NeverPurchased_pct"),
     ("LA_CEP_1Event_pct", "CEP_1Event_pct"),
     ("LA_CEP_2_3Events_pct", "CEP_2_3Events_pct"),
     ("LA_CEP_4_5Events_pct", "CEP_4_5Events_pct"),
     ("LA_CEP_6_10Events_pct", "CEP_6_10Events_pct"),
     ("LA_CEP_11plusEvents_pct", "CEP_11plusEvents_pct"),
-
-    # Client Events Spend (Lifetime)
     ("LA_CESpend_le_250_pct", "CESpend_le_250_pct"),
     ("LA_CESpend_251_500_pct", "CESpend_251_500_pct"),
     ("LA_CESpend_501_1000_pct", "CESpend_501_1000_pct"),
     ("LA_CESpend_1001_2000_pct", "CESpend_1001_2000_pct"),
     ("LA_CESpend_2001plus_pct", "CESpend_2001plus_pct"),
-
-    # Share of Wallet
     ("LA_SOW_ClientEvents_pct", "SOW_ClientEvents_pct"),
     ("LA_SOW_NonClientEvents_pct", "SOW_NonClientEvents_pct"),
-
-    # Lifetime Spend ($)
     ("LA_LS_ClientEvents_usd", "LS_ClientEvents_usd"),
     ("LA_LS_NonClientEvents_usd", "LS_NonClientEvents_usd"),
-
-    # Tickets per Event
     ("LA_TPE_ClientEvents", "TPE_ClientEvents"),
     ("LA_TPE_NonClientEvents", "TPE_NonClientEvents"),
-
-    # Spend per Event ($)
     ("LA_SPE_ClientEvents_usd", "SPE_ClientEvents_usd"),
     ("LA_SPE_NonClientEvents_usd", "SPE_NonClientEvents_usd"),
-
-    # Average Ticket Price ($)
     ("LA_ATP_ClientEvents_usd", "ATP_ClientEvents_usd"),
     ("LA_ATP_NonClientEvents_usd", "ATP_NonClientEvents_usd"),
-
-    # DIMENSIONS
     ("LA_DIM_Generation_Millennials_pct", "DIM_Generation_Millennials_pct"),
     ("LA_DIM_Generation_X_pct", "DIM_Generation_X_pct"),
     ("LA_DIM_Generation_Babyboomers_pct", "DIM_Generation_Babyboomers_pct"),
     ("LA_DIM_Generation_Z_pct", "DIM_Generation_Z_pct"),
-
     ("LA_DIM_Occ_Professionals_pct", "DIM_Occ_Professionals_pct"),
     ("LA_DIM_Occ_SelfEmployed_pct", "DIM_Occ_SelfEmployed_pct"),
     ("LA_DIM_Occ_Retired_pct", "DIM_Occ_Retired_pct"),
     ("LA_DIM_Occ_Students_pct", "DIM_Occ_Students_pct"),
-
     ("LA_DIM_Household_WorkingMoms_pct", "DIM_Household_WorkingMoms_pct"),
     ("LA_DIM_Financial_Affluent_pct", "DIM_Financial_Affluent_pct"),
-
     ("LA_DIM_Live_Major_Concerts_pct", "DIM_Live_Major_Concerts_pct"),
     ("LA_DIM_Live_Major_Arts_pct", "DIM_Live_Major_Arts_pct"),
     ("LA_DIM_Live_Major_Sports_pct", "DIM_Live_Major_Sports_pct"),
     ("LA_DIM_Live_Major_Family_pct", "DIM_Live_Major_Family_pct"),
     ("LA_DIM_Live_Major_MultiCategories_pct", "DIM_Live_Major_MultiCategories_pct"),
-
     ("LA_DIM_Live_Freq_ActiveBuyers_pct", "DIM_Live_Freq_ActiveBuyers_pct"),
     ("LA_DIM_Live_Freq_RepeatBuyers_pct", "DIM_Live_Freq_RepeatBuyers_pct"),
     ("LA_DIM_Live_Timing_EarlyBuyers_pct", "DIM_Live_Timing_EarlyBuyers_pct"),
     ("LA_DIM_Live_Timing_LateBuyers_pct", "DIM_Live_Timing_LateBuyers_pct"),
-
     ("LA_DIM_Live_Product_PremiumBuyers_pct", "DIM_Live_Product_PremiumBuyers_pct"),
     ("LA_DIM_Live_Product_AncillaryUpsellBuyers_pct", "DIM_Live_Product_AncillaryUpsellBuyers_pct"),
-
     ("LA_DIM_Live_Spend_HighSpenders_gt1k_pct", "DIM_Live_Spend_HighSpenders_gt1k_pct"),
     ("LA_DIM_Live_Distance_Travelers_gt500mi_pct", "DIM_Live_Distance_Travelers_gt500mi_pct"),
 ]
@@ -1532,8 +1435,6 @@ def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
     Keeps any earlier LA_* columns you've already added (timing/channels/price).
     """
     df_out = df.copy()
-
-    # Fill in the deep columns (unique, no collisions)
     for col, key in LA_DEEP_SCHEMA:
         vals = []
         for _, r in df.iterrows():
@@ -1542,7 +1443,6 @@ def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
             v = deep.get(key, np.nan)
             vals.append(v)
         df_out[col] = vals
-
     return df_out
 
 # -------------------------
@@ -1602,7 +1502,6 @@ def render_results():
         df["Score"] = df["Composite"].apply(_assign_score)
 
     # ---------- TABLE (now includes seasonality columns when present) ----------
-    # Build the display dataframe in-place (TicketMedian -> TicketHistory; EffectiveTicketIndex -> TicketIndex used)
     df_show = df.rename(columns={
         "TicketMedian": "TicketHistory",
         "EffectiveTicketIndex": "TicketIndex used",
@@ -1619,18 +1518,15 @@ def render_results():
         if "SeasonalityMonthUsed" in df_show.columns and "RunMonth" not in df_show.columns:
             df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_run_month_name)
 
-    # Preferred table columns (only shown if present)
     table_cols = [
         "Title","Region","Segment","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory",
         "TicketIndex used","TicketIndexSource",
-        # Seasonality extras:
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
         "Composite","Score","EstimatedTickets",
     ]
-
     present_cols = [c for c in table_cols if c in df_show.columns]
 
     st.subheader("🎟️ Estimated ticket sales (table view)")
