@@ -731,6 +731,27 @@ for cat, g_cat in RUNS_DF.groupby("Category"):
 
 SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
 SEASONALITY_TABLE = {(r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows()}
+    # === Seasonality columns (run month + factors) ===
+    # RunMonth = the month you selected (if any)
+    df["RunMonth"] = int(proposed_run_date.month) if proposed_run_date else np.nan
+
+    # Historical mid-run date/month for each title (if we have it)
+    def _hist_middate_for(title: str):
+        d = TITLE_TO_MIDDATE.get(str(title).strip())
+        return d if isinstance(d, date) else None
+
+    df["HistMidDate"] = df["Title"].map(_hist_middate_for)
+    df["HistMonth"] = df["HistMidDate"].map(lambda d: d.month if isinstance(d, date) else np.nan)
+
+    # Factors: future-month (from the selector) and historical-month (per title)
+    df["FutureSeasonalityFactor"] = df.apply(
+        lambda r: seasonality_factor(r.get("Category"), proposed_run_date) if proposed_run_date else np.nan,
+        axis=1
+    )
+    df["HistSeasonalityFactor"] = df.apply(
+        lambda r: seasonality_factor(r.get("Category"), r.get("HistMidDate")) if isinstance(r.get("HistMidDate"), date) else np.nan,
+        axis=1
+    )
 
 # 4) Helper to fetch factor (defaults to 1.0 when unknown)
 def seasonality_factor(category: str, when: date | None) -> float:
