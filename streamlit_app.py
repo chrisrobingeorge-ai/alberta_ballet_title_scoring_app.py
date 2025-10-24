@@ -715,22 +715,53 @@ try:
 except Exception:
     TITLE_TO_MIDDATE = {}
 
-# 3) Compute Category×Month seasonality factors
-#    Factor(cat, month) = median(Tickets for cat in month) / median(Tickets for cat overall)
+# 3) Compute Category×Month seasonality factors with shrinkage + clipping
+# Factor_raw(cat, m) = median(Tickets for cat in m) / median(Tickets for cat overall)
+# Then shrink toward 1.0 by n/(n+k) and clip to [MINF, MAXF]
+
+K_SHRINK = 3.0         # shrinkage strength (higher = stronger pull to 1.0 when n is small)
+MINF, MAXF = 0.85, 1.25  # safety cap
+
 _season_rows = []
 for cat, g_cat in RUNS_DF.groupby("Category"):
-    # ignore rows with no ticket history
     g_cat_hist = g_cat[g_cat["TicketMedian"].notna()].copy()
     if g_cat_hist.empty:
         continue
+
     cat_overall_med = g_cat_hist["TicketMedian"].median()
     for m, g_cm in g_cat_hist.groupby("Month"):
-        m_med = g_cm["TicketMedian"].median()
-        factor = float(m_med / cat_overall_med) if cat_overall_med else 1.0
-        _season_rows.append({"Category": cat, "Month": int(m), "Factor": factor})
+        vals = g_cm["TicketMedian"].dropna().values
+        n = int(len(vals))
+        if n == 0 or not cat_overall_med:
+            continue
 
-SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
-SEASONALITY_TABLE = {(r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows()}
+        m_med = float(np.median(vals))
+        factor_raw = float(m_med / cat_overall_med)
+
+        # --- Shrink toward 1.0 by sample size ---
+        w = n / (n + K_SHRINK)
+        factor_shrunk = 1.0 + w * (factor_raw - 1.0)
+
+        # --- Clip extremes ---
+        factor_final = float(np.clip(factor_shrunk, MINF, MAXF))
+
+        _season_rows.append({
+            "Category": cat,
+            "Month": int(m),
+            "Factor": factor_final,
+            "FactorRaw": factor_raw,
+            "N": n
+        })
+
+SEASONALITY_DF = (
+    pd.DataFrame(_season_rows)
+      .sort_values(["Category","Month"])
+      .reset_index(drop=True)
+)
+SEASONALITY_TABLE = {
+    (r["Category"], int(r["Month"])): float(r["Factor"])
+    for _, r in SEASONALITY_DF.iterrows()
+}
 
 # 4) Helper to fetch factor (defaults to 1.0 when unknown)
 def seasonality_factor(category: str, when: Optional[date]) -> float:
@@ -746,10 +777,23 @@ def seasonality_factor(category: str, when: Optional[date]) -> float:
 # 5) Optional: show the derived table in the app (expander)
 with st.expander("🗓️ Derived seasonality (Category × Month)"):
     if not SEASONALITY_DF.empty:
+        st.write("Shrunk & clipped factors shown as **Factor**. Also displaying raw factor and N by cell.")
         st.dataframe(
             SEASONALITY_DF.pivot(index="Month", columns="Category", values="Factor")
                 .sort_index()
                 .style.format("{:.2f}"),
+            use_container_width=True
+        )
+        st.caption("Raw (unshrunk) factors and sample sizes (N):")
+        st.dataframe(
+            SEASONALITY_DF.pivot(index="Month", columns="Category", values="FactorRaw")
+                .sort_index()
+                .style.format("{:.2f}"),
+            use_container_width=True
+        )
+        st.dataframe(
+            SEASONALITY_DF.pivot(index="Month", columns="Category", values="N")
+                .sort_index(),
             use_container_width=True
         )
     else:
