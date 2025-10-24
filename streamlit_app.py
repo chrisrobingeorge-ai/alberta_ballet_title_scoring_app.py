@@ -424,7 +424,7 @@ def compute_scores_and_store(
                 label = "n/a"
                 source = "No time slot provided"
 
-        factor = 1.0
+        factor = np.nan
         has_data = False
         factor_lookup = TIME_SLOT_FACTORS.get(category, {}).get(month) if month else None
         if factor_lookup is not None:
@@ -440,7 +440,7 @@ def compute_scores_and_store(
         time_slot_labels.append(label)
         seasonality_factors.append(factor)
         seasonality_sources.append(source)
-        seasonality_has_data.append(has_data and month is not None)
+        seasonality_has_data.append(has_data)
 
     df["TimeSlotMonthNumber"] = time_slot_months
     df["TimeSlot"] = time_slot_labels
@@ -714,7 +714,7 @@ def render_results():
                 "SeasonalityFactor": "{:.2f}",
                 "EstimatedTickets": "{:,.0f}",
                 "TicketHistory": "{:,.0f}",
-            })
+            }, na_rep="—")
             .map(
                 lambda v: (
                     "color: green;" if v == "A" else
