@@ -608,6 +608,7 @@ TICKET_PRIORS_RAW = {
     "La Sylphide": [5221],
     "Midsummer Night’s Dream": [6587],
     "Momix": [8391],
+    "Nijinsky": [4295],
     "Our Canada - Gordon Lightfoot": [10138],
     "Phi - David Bowie": [12336],
     "Shaping Sound": [10208],
