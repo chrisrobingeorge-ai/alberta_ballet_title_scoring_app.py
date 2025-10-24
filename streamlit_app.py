@@ -788,10 +788,15 @@ def compute_scores_and_store(
     benchmark_title,
     proposed_run_date=None,
 ):
+    """
+    - Uses seasonality Category×Month factors computed from PAST_RUNS.
+    - De-seasonalizes history before model fit.
+    - Re-seasonalizes outputs to the chosen future month (proposed_run_date) if seasonality UI is ON.
+    """
     rows = []
     unknown_used_live, unknown_used_est = [], []
 
-    # 1) Build base rows
+    # -------- 1) Base rows: build online-signal + raw calc --------
     for title in titles:
         if title in BASELINES:
             entry = BASELINES[title]; src = "Baseline"
@@ -818,7 +823,7 @@ def compute_scores_and_store(
         st.error("No titles to score — check the Titles box.")
         return
 
-    # 2) Normalize using the PASSED benchmark_title
+    # -------- 2) Normalize signals to benchmark --------
     bench_entry = BASELINES[benchmark_title]
     bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
     bench_fam_raw = bench_fam_raw or 1.0
@@ -828,48 +833,79 @@ def compute_scores_and_store(
     df["Motivation"]  = (df["MotivationRaw"]  / bench_mot_raw)  * 100.0
     st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
 
-    # 3) Ticket medians & TicketIndex (history) relative to chosen benchmark
+    # -------- 3) Ticket history → medians --------
     TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
-    BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
 
-    def ticket_index_for_title(title: str):
-        aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
-        key = aliases.get(title.strip(), title.strip())
+    # Resolve titles that have a historical run month (via RUNS_DF/TITLE_TO_MIDDATE)
+    def _hist_month_for_title(t: str):
+        d = TITLE_TO_MIDDATE.get(t.strip())
+        return d.month if isinstance(d, datetime.date) else (d.month if d else None)
+
+    # Seasonality switches
+    seasonality_on = proposed_run_date is not None  # controlled by the "Apply seasonality by month" UI in your code
+
+    # De-seasonalize both: benchmark median and each title’s history median (if present)
+    bench_cat = BASELINES[benchmark_title]["category"]
+    bench_hist_month = _hist_month_for_title(benchmark_title)
+    bench_hist_factor = seasonality_factor(bench_cat, TITLE_TO_MIDDATE.get(benchmark_title)) if seasonality_on else 1.0
+    bench_med_hist = TICKET_MEDIANS.get(benchmark_title, None)
+
+    # If no bench median, guard with 1.0 so indices stay defined
+    bench_med_hist = float(bench_med_hist) if bench_med_hist else 1.0
+    bench_med_deseason = bench_med_hist / (bench_hist_factor if bench_hist_factor else 1.0)
+
+    # Helper: get de-seasonalized median for a given title if history exists
+    aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
+    def _deseason_title_median(t: str, cat: str):
+        key = aliases.get(t.strip(), t.strip())
         med = TICKET_MEDIANS.get(key)
-        if med: return float(med), float((med / BENCHMARK_TICKET_MEDIAN) * 100.0)
-        return None, None
+        if med is None:
+            return None, None, None  # no history
+        hist_date = TITLE_TO_MIDDATE.get(t.strip())
+        factor = seasonality_factor(cat, hist_date) if seasonality_on else 1.0
+        return float(med), float(med) / (factor if factor else 1.0), factor
 
-    medians, indices = [], []
-    for t in df["Title"]:
-        med, idx = ticket_index_for_title(t)
-        medians.append(med); indices.append(idx)
-    df["TicketMedian"] = medians
-    df["TicketIndex"]  = indices
+    # -------- 4) TicketIndex (de-seasonalized) vs benchmark (also de-seasonalized) --------
+    med_list, idx_list, hist_factor_list = [], [], []
+    for _, r in df.iterrows():
+        title = r["Title"]; cat = r["Category"]
+        med, med_deseason, hist_factor = _deseason_title_median(title, cat)
+        med_list.append(med)
+        hist_factor_list.append(hist_factor if hist_factor is not None else np.nan)
+        if med_deseason is None:
+            idx_list.append(None)  # no history
+        else:
+            idx_list.append((med_deseason / (bench_med_deseason or 1.0)) * 100.0)
 
-    # 4) Build SignalOnly and learn mapping TicketIndex ≈ a*SignalOnly + b
+    df["TicketMedian"] = med_list                      # raw historical median (if any)
+    df["TicketIndex_DeSeason"] = idx_list              # history index, de-seasonalized
+    df["HistSeasonalityFactor"] = hist_factor_list     # factor used to de-seasonalize (per history month)
+
+    # -------- 5) Signal-only and model fit on de-seasonalized indices --------
     df["SignalOnly"] = df[["Familiarity", "Motivation"]].mean(axis=1)
-    df_known = df[df["TicketIndex"].notna()].copy()
+
+    df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
     def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
         overall = None
         if len(df_known_in) >= 5:
             x = df_known_in["SignalOnly"].values
-            y = df_known_in["TicketIndex"].values
+            y = df_known_in["TicketIndex_DeSeason"].values
             a, b = np.polyfit(x, y, 1)
             overall = (float(a), float(b))
         cat_coefs = {}
         for cat, g in df_known_in.groupby("Category"):
             if len(g) >= 3:
                 xs = g["SignalOnly"].values
-                ys = g["TicketIndex"].values
+                ys = g["TicketIndex_DeSeason"].values
                 a, b = np.polyfit(xs, ys, 1)
                 cat_coefs[cat] = (float(a), float(b))
         return overall, cat_coefs
 
     overall_coef, cat_coefs = _fit_overall_and_by_category(df_known)
 
-    # 5) Impute TicketIndex for titles without history
-    def _predict_ticket_index(signal_only: float, category: str) -> tuple[float, str]:
+    # -------- 6) Impute de-seasonalized TicketIndex where history is missing --------
+    def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
         if category in cat_coefs:
             a, b = cat_coefs[category]; src = "Category model"
         elif overall_coef is not None:
@@ -882,80 +918,46 @@ def compute_scores_and_store(
 
     imputed_vals, imputed_srcs = [], []
     for _, r in df.iterrows():
-        if pd.notna(r["TicketIndex"]):
-            imputed_vals.append(r["TicketIndex"]); imputed_srcs.append("History")
+        if pd.notna(r["TicketIndex_DeSeason"]):
+            imputed_vals.append(r["TicketIndex_DeSeason"]); imputed_srcs.append("History")
         else:
-            pred, src = _predict_ticket_index(r["SignalOnly"], r["Category"])
+            pred, src = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"])
             imputed_vals.append(pred); imputed_srcs.append(src)
 
-    df["TicketIndexImputed"] = imputed_vals
-    df["TicketIndexSource"]  = imputed_srcs
+    df["TicketIndex_DeSeason_Used"] = imputed_vals
+    df["TicketIndexSource"] = imputed_srcs
 
-    # 6) Composite: blend signals with (history or imputed) TicketIndex
+    # -------- 7) Re-seasonalize to FUTURE month (proposed_run_date) for the *index* --------
+    def _future_factor(cat: str):
+        return seasonality_factor(cat, proposed_run_date) if seasonality_on else 1.0
+
+    df["FutureSeasonalityFactor"] = df["Category"].map(_future_factor).astype(float)
+
+    # This is the TicketIndex we want to use going forward (season-adjusted for the chosen month)
+    df["EffectiveTicketIndex"] = df["TicketIndex_DeSeason_Used"] * df["FutureSeasonalityFactor"]
+
+    # -------- 8) Composite: blend signals with (season-adjusted) TicketIndex --------
     tickets_component = np.where(
         df["TicketIndexSource"].eq("Not enough data"),
-        df["SignalOnly"],
-        df["TicketIndexImputed"]
+        df["SignalOnly"],  # fallback: signals only
+        df["EffectiveTicketIndex"]
     )
+    TICKET_BLEND_WEIGHT = 0.50
     df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
 
-    # 7) EstimatedTickets (index → tickets using benchmark's historical median)
-    BENCHMARK_TICKET_MEDIAN_LOCAL = BENCHMARK_TICKET_MEDIAN or 1.0
+    # -------- 9) EstimatedTickets using a season-adjusted benchmark median for the FUTURE month --------
+    # De-seasonalize benchmark median (already computed above), then apply future-month factor for benchmark category
+    bench_future_factor = _future_factor(bench_cat)
+    bench_med_future = bench_med_deseason * bench_future_factor  # what the benchmark would be in the proposed month
 
-    df["EffectiveTicketIndex"] = np.where(
-        df["TicketIndex"].notna(), df["TicketIndex"],
-        np.where(df["TicketIndexImputed"].notna(), df["TicketIndexImputed"], df["SignalOnly"])
-    )
+    # Estimated tickets = (EffectiveTicketIndex / 100) * benchmark future median
+    df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
 
-    def _est_src(row):
-        if pd.notna(row.get("TicketMedian", np.nan)): return "History (actual median)"
-        if pd.notna(row.get("TicketIndexImputed", np.nan)): return f'Predicted ({row.get("TicketIndexSource","model")})'
-        return "Online-only (proxy: low confidence)"
-
-    df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
-    df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
-
-    # 8) Seasonality (global month or per-title historical month)
-    #    - If proposed_run_date is provided (UI had "Apply seasonality"), apply factors.
-    #    - If the UI checkbox "Use each title’s historical month…" is on, use TITLE_TO_MIDDATE when available.
-    if proposed_run_date is not None:
-        use_pt = bool(globals().get("use_per_title_months", False))
-
-        def _season_date_for_row(row):
-            if use_pt:
-                t = str(row.get("Title", "")).strip()
-                d = globals().get("TITLE_TO_MIDDATE", {}).get(t)
-                if d:
-                    return d
-            return proposed_run_date
-
-        try:
-            df["SeasonalityDateUsed"] = df.apply(_season_date_for_row, axis=1)
-            df["SeasonalityFactor"] = df.apply(
-                lambda r: seasonality_factor(
-                    r.get("Category", "dramatic"),
-                    r.get("SeasonalityDateUsed", None)
-                ),
-                axis=1
-            ).astype(float)
-            df["SeasonalityMonthUsed"] = df["SeasonalityDateUsed"].apply(
-                lambda d: int(d.month) if pd.notna(d) else np.nan
-            )
-        except Exception:
-            df["SeasonalityFactor"] = 1.0
-            df["SeasonalityMonthUsed"] = np.nan
-
-        df["EstimatedTickets"] = (df["EstimatedTickets"].astype(float) * df["SeasonalityFactor"]).round(0)
-    else:
-        df["SeasonalityFactor"] = 1.0
-        df["SeasonalityMonthUsed"] = np.nan
-
-    # 9) Live Analytics overlays
+    # -------- 10) Live Analytics overlays (unchanged) --------
     df = _add_live_analytics_overlays(df)
 
-    # 10) Segment propensity & ticket allocation
+    # -------- 11) Segment propensity & tickets by segment (unchanged logic) --------
     bench_entry_for_mix = BASELINES[benchmark_title]
-
     prim_list, sec_list = [], []
     mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
     seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
@@ -1001,7 +1003,11 @@ def compute_scores_and_store(
     df["Seg_GP_Tickets"] = seg_gp_tix; df["Seg_Core_Tickets"] = seg_core_tix
     df["Seg_Family_Tickets"] = seg_family_tix; df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # 11) Stash
+    # For transparency in the UI/CSV
+    df["SeasonalityApplied"] = bool(seasonality_on)
+    df["SeasonalityMonthUsed"] = proposed_run_date.month if seasonality_on else np.nan
+
+    # -------- 12) Stash --------
     st.session_state["results"] = {
         "df": df,
         "benchmark": benchmark_title,
