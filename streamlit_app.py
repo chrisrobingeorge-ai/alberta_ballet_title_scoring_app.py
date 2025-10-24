@@ -775,31 +775,6 @@ def seasonality_factor(category: str, when: Optional[date]) -> float:
     key = (str(category), int(when.month))
     return float(SEASONALITY_TABLE.get(key, 1.0))
 
-# 5) Optional: show the derived table in the app (expander)
-with st.expander("🗓️ Derived seasonality (Category × Month)"):
-    if not SEASONALITY_DF.empty:
-        st.write("Shrunk & clipped factors shown as **Factor**. Also displaying raw factor and N by cell.")
-        st.dataframe(
-            SEASONALITY_DF.pivot(index="Month", columns="Category", values="Factor")
-                .sort_index()
-                .style.format("{:.2f}"),
-            use_container_width=True
-        )
-        st.caption("Raw (unshrunk) factors and sample sizes (N):")
-        st.dataframe(
-            SEASONALITY_DF.pivot(index="Month", columns="Category", values="FactorRaw")
-                .sort_index()
-                .style.format("{:.2f}"),
-            use_container_width=True
-        )
-        st.dataframe(
-            SEASONALITY_DF.pivot(index="Month", columns="Category", values="N")
-                .sort_index(),
-            use_container_width=True
-        )
-    else:
-        st.caption("No ticket-history rows available to compute seasonality yet.")
-
 # --- Helpers for segment propensity (output) ---
 def _signal_for_all_segments(entry: Dict[str, float | str], region_key: str) -> dict:
     seg_to_signal = {}
