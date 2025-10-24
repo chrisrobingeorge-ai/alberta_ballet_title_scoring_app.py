@@ -1050,7 +1050,6 @@ def compute_scores_and_store(
     # -------- 12) Transparency + stash --------
     df["SeasonalityApplied"] = bool(seasonality_on)
     df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on else np.nan
-    df["RunMonth"] = df["SeasonalityMonthUsed"]
 
     st.session_state["results"] = {
         "df": df,
