@@ -836,10 +836,14 @@ def compute_scores_and_store(
     # -------- 3) Ticket history → medians --------
     TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
 
-    # Resolve titles that have a historical run month (via RUNS_DF/TITLE_TO_MIDDATE)
-    def _hist_month_for_title(t: str):
-        d = TITLE_TO_MIDDATE.get(t.strip())
-        return d.month if isinstance(d, datetime.date) else (d.month if d else None)
+    # Helper: get the historical mid-run month for a title (if we have one)
+    def _hist_month_for_title(title: str) -> Optional[int]:
+        d = TITLE_TO_MIDDATE.get(title)
+        # 'd' is built using datetime.date objects in RUNS_DF
+        if isinstance(d, date):
+            return d.month
+        return None
+
 
     # Seasonality switches
     seasonality_on = proposed_run_date is not None  # controlled by the "Apply seasonality by month" UI in your code
