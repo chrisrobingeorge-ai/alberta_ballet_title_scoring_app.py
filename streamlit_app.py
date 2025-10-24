@@ -585,7 +585,7 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
 TICKET_PRIORS_RAW = {
     "Alice in Wonderland": [11216],
     "All of Us - Tragically Hip": [15488],
-    "Away We Go - Mixed Bill": [4649],
+    "Away We Go – Mixed Bill": [4649],
     "Ballet BC": [4013],
     "Ballet Boyz": [7401],
     "BJM - Leonard Cohen": [7819],
@@ -638,7 +638,7 @@ from datetime import date
 PAST_RUNS = [
     ("Alice in Wonderland","2017-03-16","2017-03-25"),
     ("All of Us - Tragically Hip","2018-05-02","2018-05-12"),
-    ("Away We Go - Mixed Bill","2022-10-27","2022-11-05"),
+    ("Away We Go – Mixed Bill","2022-10-27","2022-11-05"),
     ("Ballet BC","2019-01-19","2019-01-23"),
     ("Ballet Boyz","2017-02-16","2017-02-25"),
     ("BJM - Leonard Cohen","2018-09-20","2018-09-22"),
