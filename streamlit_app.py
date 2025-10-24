@@ -33,6 +33,65 @@ except Exception:
 
 # Persist results across reruns so toggles/dropdowns don't wipe them
 @@ -93,50 +94,106 @@ BASELINES = {
+if "results" not in st.session_state:
+    st.session_state["results"] = None  # {"df": ..., "benchmark": ..., "segment": ..., "region": ...}
+
+# -------------------------
+# PAGE / SPLASH
+# -------------------------
+st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
+with st.spinner("🎭 Preparing Alberta Ballet Familiarity Baselines..."):
+    time.sleep(1.0)
+
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9 — New Titles, Segment Outputs & LA overlays)")
+st.caption("Hard-coded Alberta-wide baselines (normalized to your selected benchmark = 100). Add new titles; choose live fetch or offline estimate.")
+
+# -------------------------
+# METHODOLOGY & GLOSSARY SECTION
+# -------------------------
+with st.expander("📘 About This App — Methodology & Glossary"):
+    st.markdown(dedent("""
+    ### Purpose
+    This tool estimates how familiar audiences are with a title and how motivated they are to attend, then blends those "online signal" estimates with ticket-informed scores. If a title has past ticket history, we use it; if it doesn’t, we predict a TicketIndex from similar shows so new titles get a fair, history-like adjustment. It also predicts which audience segments are most likely to respond, so segments become an output you can use for planning.
+
+    ### What goes into the scores
+    **Online signals (per title):** Wikipedia (awareness), Google Trends (search), YouTube (engagement, with outlier safety), Spotify (musical familiarity).  
+    **Contextual multipliers:** by Audience Segment & Region.  
+    **Ticket history & prediction:** convert medians to TicketIndex vs. benchmark; predict when missing.  
+    **Segment propensity (output):** primary/secondary segments, shares, ticket splits.  
+    **Live Analytics overlay:** attach behavior/channel/price/distance patterns by program type mapped from your categories.
+
+    ### How the score is calculated
+    1) Raw signals → Familiarity & Motivation  
+       - Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify  
+       - Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki  
+       - Apply segment and region multipliers.
+    2) Normalize to your benchmark (= 100)  
+    3) TicketIndex (history or predicted) — per-category model preferred, else overall  
+    4) Composite = 50% Online Signals + 50% TicketIndex  
+    5) Letter grade A/B/C/D/E
+
+    ### Segment propensity (output)
+    - Compute segment-specific online signal (normalized to the benchmark per segment)
+    - Multiply by LiveAnalytics-informed segment priors for (region, category)
+    - Normalize to shares; split EstimatedTickets accordingly
+
+    **Note:** Use online signals to screen ideas, ticket history (or predicted TicketIndex) to ground expectations, and segment outputs+LA overlays to plan creative/price/channel tactics.
+    """))
+
+# -------------------------
+# BASELINE DATA (subset for test run)
+# -------------------------
+BASELINES = {
+    "Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "category": "family_classic", "gender": "female"},
+    "Swan Lake": {"wiki": 95, "trends": 90, "youtube": 88, "spotify": 84, "category": "classic_romance", "gender": "female"},
+    "Sleeping Beauty": {"wiki": 92, "trends": 85, "youtube": 78, "spotify": 74, "category": "classic_romance", "gender": "female"},
+    "Hansel & Gretel": {"wiki": 78, "trends": 70, "youtube": 65, "spotify": 62, "category": "family_classic", "gender": "co"},
+    "Don Quixote": {"wiki": 88, "trends": 75, "youtube": 72, "spotify": 68, "category": "classic_comedy", "gender": "male"},
+    "Giselle": {"wiki": 82, "trends": 72, "youtube": 65, "spotify": 60, "category": "classic_romance", "gender": "female"},
+    "La Sylphide": {"wiki": 75, "trends": 68, "youtube": 60, "spotify": 55, "category": "classic_romance", "gender": "female"},
+    "Beauty and the Beast": {"wiki": 94, "trends": 97, "youtube": 92, "spotify": 90, "category": "family_classic", "gender": "female"},
+    "Romeo and Juliet": {"wiki": 90, "trends": 82, "youtube": 79, "spotify": 77, "category": "romantic_tragedy", "gender": "co"},
     "The Merry Widow": {"wiki": 70, "trends": 60, "youtube": 55, "spotify": 50, "category": "romantic_comedy", "gender": "female"},
     "Peter Pan": {"wiki": 80, "trends": 78, "youtube": 85, "spotify": 82, "category": "family_classic", "gender": "male"},
     "Pinocchio": {"wiki": 72, "trends": 68, "youtube": 70, "spotify": 66, "category": "family_classic", "gender": "male"},
@@ -140,6 +199,234 @@ SEGMENT_KEYS_IN_ORDER = [
     "General Population",
     "Core Classical (F35–64)",
 @@ -371,50 +428,104 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
+    "Family (Parents w/ kids)",
+    "Emerging Adults (18–34)",
+]
+
+SEGMENT_PRIORS = {
+    "Province": {
+        "classic_romance":   {"General Population": 1.00, "Core Classical (F35–64)": 1.20, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 0.95},
+        "family_classic":    {"General Population": 1.00, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.20, "Emerging Adults (18–34)": 0.95},
+        "contemporary":      {"General Population": 0.98, "Core Classical (F35–64)": 0.90, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.25},
+        "pop_ip":            {"General Population": 1.05, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.15, "Emerging Adults (18–34)": 1.10},
+        "romantic_tragedy":  {"General Population": 1.00, "Core Classical (F35–64)": 1.10, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.98},
+        "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 0.98},
+        "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},
+    },
+    "Calgary": {
+        "classic_romance":   {"General Population": 0.98, "Core Classical (F35–64)": 1.25, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.95},
+        "family_classic":    {"General Population": 1.00, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.18, "Emerging Adults (18–34)": 0.95},
+        "contemporary":      {"General Population": 0.98, "Core Classical (F35–64)": 0.88, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.28},
+        "pop_ip":            {"General Population": 1.05, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.12, "Emerging Adults (18–34)": 1.10},
+        "romantic_tragedy":  {"General Population": 0.98, "Core Classical (F35–64)": 1.15, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.98},
+        "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.02, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 0.98},
+        "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.08, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},
+    },
+    "Edmonton": {
+        "classic_romance":   {"General Population": 1.02, "Core Classical (F35–64)": 1.15, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 0.98},
+        "family_classic":    {"General Population": 1.00, "Core Classical (F35–64)": 0.98, "Family (Parents w/ kids)": 1.15, "Emerging Adults (18–34)": 0.95},
+        "contemporary":      {"General Population": 1.00, "Core Classical (F35–64)": 0.92, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 1.22},
+        "pop_ip":            {"General Population": 1.05, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.10, "Emerging Adults (18–34)": 1.10},
+        "romantic_tragedy":  {"General Population": 1.02, "Core Classical (F35–64)": 1.10, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},
+        "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 1.00},
+        "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},
+    },
+}
+
+# Optional global knob: how strongly to apply priors (1.0 = exactly as above)
+SEGMENT_PRIOR_STRENGTH = 1.0
+def _prior_weights_for(region_key: str, category: str) -> dict:
+    pri = SEGMENT_PRIORS.get(region_key, {}).get(category, {})
+    if SEGMENT_PRIOR_STRENGTH == 1.0 or not pri:
+        return pri or {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
+    tempered = {}
+    p = float(SEGMENT_PRIOR_STRENGTH)
+    for k in SEGMENT_KEYS_IN_ORDER:
+        w = pri.get(k, 1.0)
+        tempered[k] = (w ** p) if w > 0 else 1.0
+    return tempered
+
+def _softmax_like(d: dict[str, float], temperature: float = 1.0) -> dict[str, float]:
+    """Turn positive weights into a normalized distribution (sums to 1)."""
+    if not d: return {}
+    vals = {k: max(1e-9, float(v)) for k, v in d.items()}
+    logs = {k: math.log(v) / max(1e-6, temperature) for k, v in vals.items()}
+    mx = max(logs.values())
+    exps = {k: math.exp(v - mx) for k, v in logs.items()}
+    Z = sum(exps.values())
+    return {k: exps[k] / Z for k in exps}
+
+def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 1.0) -> dict[str, float]:
+    pri = _prior_weights_for(region_key, category)
+    if not pri:
+        pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
+    return _softmax_like(pri, temperature=temperature)
+
+# --- TEMP: disable program-based mapping (we'll switch to category-based next) ---
+CATEGORY_TO_PROGRAM = {}
+LA_BY_PROGRAM = {}
+# --- CATEGORY-BASED Live Analytics overlays (directly keyed by your app categories) ---
+LA_BY_CATEGORY = {
+    # pop_ip ≈ Pop Music Ballet
+    "pop_ip": {
+        "Presale": 12, "FirstDay": 7, "FirstWeek": 5, "WeekOf": 20,
+        "Internet": 58, "Mobile": 41, "Phone": 1,
+        "Tix_1_2": 73, "Tix_3_4": 22, "Tix_5_8": 5,
+        "Premium": 4.5, "LT10mi": 71,
+        "Price_Low": 18, "Price_Fair": 32, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+
+    # classic_* and romantic_comedy ≈ Classic Ballet
+    "classic_romance": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
+        "Internet": 55, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
+        "Premium": 4.1, "LT10mi": 69,
+        "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+    "classic_comedy": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
+        "Internet": 55, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
+        "Premium": 4.1, "LT10mi": 69,
+        "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+    "romantic_comedy": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 4, "WeekOf": 20,
+        "Internet": 55, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 69, "Tix_3_4": 25, "Tix_5_8": 5,
+        "Premium": 4.1, "LT10mi": 69,
+        "Price_Low": 20, "Price_Fair": 29, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 10,
+    },
+
+    # contemporary ≈ Contemporary Mixed Bill
+    "contemporary": {
+        "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 21,
+        "Internet": 59, "Mobile": 40, "Phone": 1,
+        "Tix_1_2": 72, "Tix_3_4": 23, "Tix_5_8": 5,
+        "Premium": 3.9, "LT10mi": 70,
+        "Price_Low": 18, "Price_Fair": 32, "Price_Good": 25, "Price_VeryGood": 15, "Price_Best": 11,
+    },
+
+    # family_classic ≈ Family Ballet
+    "family_classic": {
+        "Presale": 10, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 19,
+        "Internet": 53, "Mobile": 45, "Phone": 1,
+        "Tix_1_2": 67, "Tix_3_4": 27, "Tix_5_8": 6,
+        "Premium": 4.0, "LT10mi": 66,
+        "Price_Low": 21, "Price_Fair": 28, "Price_Good": 24, "Price_VeryGood": 17, "Price_Best": 10,
+    },
+
+    # romantic_tragedy ≈ CSNA (Classical Story Narrative - Adult)
+    "romantic_tragedy": {
+        "Presale": 11, "FirstDay": 6, "FirstWeek": 5, "WeekOf": 20,
+        "Internet": 59, "Mobile": 39, "Phone": 2,
+        "Tix_1_2": 72, "Tix_3_4": 22, "Tix_5_8": 5,
+        "Premium": 4.2, "LT10mi": 71,
+        "Price_Low": 18, "Price_Fair": 28, "Price_Good": 27, "Price_VeryGood": 16, "Price_Best": 11,
+    },
+
+    # dramatic ≈ Contemporary Narrative (you can switch to Cultural Narrative if preferred)
+    "dramatic": {
+        "Presale": 12, "FirstDay": 7, "FirstWeek": 5, "WeekOf": 20,
+        "Internet": 54, "Mobile": 44, "Phone": 1,
+        "Tix_1_2": 72, "Tix_3_4": 23, "Tix_5_8": 5,
+        "Premium": 4.3, "LT10mi": 68,
+        "Price_Low": 18, "Price_Fair": 31, "Price_Good": 24, "Price_VeryGood": 16, "Price_Best": 11,
+    },
+}
+
+# --- Add age overlays for one category (test) ---
+LA_BY_CATEGORY.setdefault("pop_ip", {}).update({
+    "Age": 49.6,
+    "Age_18_24": 8,
+    "Age_25_34": 5,
+    "Age_35_44": 26,
+    "Age_45_54": 20,
+    "Age_55_64": 26,
+    "Age_65_plus": 15,
+})
+
+def _la_for_category(cat: str) -> dict:
+    """Return the LA overlay dict for a given app category, or empty dict if unknown."""
+    return LA_BY_CATEGORY.get(str(cat), {})
+
+def _program_for_category(cat: str) -> Optional[str]:
+    return None
+
+def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
+    """Join timing/channel/price overlays onto each title row USING LA_BY_CATEGORY directly."""
+    df = df_in.copy()
+
+    cols = [
+        "LA_EarlyBuyerPct","LA_WeekOfPct",
+        "LA_MobilePct","LA_InternetPct","LA_PhonePct",
+        "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
+        "LA_PremiumPct","LA_LocalLT10Pct",
+        "LA_PriceHiPct","LA_PriceFlag",
+    ]
+    for c in cols:
+        if c not in df.columns:
+            df[c] = np.nan
+
+    def _overlay_row_from_category(cat: str) -> dict:
+        la = _la_for_category(cat)  # pulls from LA_BY_CATEGORY
+        if not la:
+            return {}
+
+        early = (float(la.get("Presale", 0)) + float(la.get("FirstDay", 0)) + float(la.get("FirstWeek", 0))) / 100.0
+        price_hi = (float(la.get("Price_VeryGood", 0)) + float(la.get("Price_Best", 0))) / 100.0
+
+        return {
+            "LA_EarlyBuyerPct": early,
+            "LA_WeekOfPct": float(la.get("WeekOf", 0)) / 100.0,
+            "LA_MobilePct": float(la.get("Mobile", 0)) / 100.0,
+            "LA_InternetPct": float(la.get("Internet", 0)) / 100.0,
+            "LA_PhonePct": float(la.get("Phone", 0)) / 100.0,
+            "LA_Tix12Pct": float(la.get("Tix_1_2", 0)) / 100.0,
+            "LA_Tix34Pct": float(la.get("Tix_3_4", 0)) / 100.0,
+            "LA_Tix58Pct": float(la.get("Tix_5_8", 0)) / 100.0,
+            "LA_PremiumPct": float(la.get("Premium", 0)) / 100.0,
+            "LA_LocalLT10Pct": float(la.get("LT10mi", 0)) / 100.0,
+            "LA_PriceHiPct": price_hi,
+        }
+
+    overlays = df["Category"].map(lambda c: _overlay_row_from_category(str(c)))
+    overlays_df = pd.DataFrame(list(overlays)).reindex(df.index)
+
+    # Update df with computed overlay columns
+    for c in [c for c in cols if c in overlays_df.columns]:
+        df[c] = overlays_df[c]
+
+    # Human-readable price flag
+    def _price_flag(p_hi: float) -> str:
+        if pd.isna(p_hi): return "n/a"
+        return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
+
+    df["LA_PriceFlag"] = df["LA_PriceHiPct"].apply(_price_flag)
+    return df
+
+# -------------------------
+# HEURISTICS for OFFLINE estimation of NEW titles
+# -------------------------
+def infer_gender_and_category(title: str) -> Tuple[str, str]:
+    t = title.lower()
+    gender = "na"
+    female_keys = ["cinderella","sleeping","beauty and the beast","beauty","giselle","swan","widow","alice","juliet","sylphide"]
+    male_keys = ["pinocchio","peter pan","don quixote","hunchback","hamlet","frankenstein","romeo","nijinsky"]
+    if "romeo" in t and "juliet" in t: gender = "co"
+    elif any(k in t for k in female_keys): gender = "female"
+    elif any(k in t for k in male_keys): gender = "male"
+
+    if any(k in t for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
+        cat = "family_classic"
+    elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
+        cat = "classic_romance"
+    elif any(k in t for k in ["romeo","hunchback","notre dame","hamlet","frankenstein"]):
+        cat = "romantic_tragedy"
+    elif any(k in t for k in ["don quixote","merry widow"]):
+        cat = "classic_comedy"
+    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi"]):
         cat = "contemporary"
     elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen"]):
         cat = "pop_ip"
@@ -245,6 +532,95 @@ def _yt_index_from_views(view_list):
         return 0.0
     v = float(np.median(view_list))
 @@ -510,50 +621,60 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
+    idx = 50.0 + min(90.0, np.log1p(v) * 9.0)
+    return float(idx)
+
+def _winsorize_youtube_to_baseline(category: str, yt_value: float) -> float:
+    try:
+        base_df = pd.DataFrame(BASELINES).T
+        base_df["category"] = [v.get("category", "dramatic") for v in BASELINES.values()]
+        ref = base_df.loc[base_df["category"] == category, "youtube"].dropna()
+        if ref.empty: ref = base_df["youtube"].dropna()
+        if ref.empty: return yt_value
+        lo = float(np.percentile(ref, 3))
+        hi = float(np.percentile(ref, 97))
+        return float(np.clip(yt_value, lo, hi))
+    except Exception:
+        return yt_value
+
+def wiki_search_best_title(query: str) -> Optional[str]:
+    try:
+        params = {"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5}
+        r = requests.get(WIKI_API, params=params, timeout=10)
+        if r.status_code != 200: return None
+        items = r.json().get("query", {}).get("search", [])
+        return items[0]["title"] if items else None
+    except Exception:
+        return None
+
+def fetch_wikipedia_views_for_page(page_title: str) -> float:
+    try:
+        end = datetime.utcnow().strftime("%Y%m%d")
+        start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
+        url = WIKI_PAGEVIEW.format(page=page_title.replace(" ", "_"), start=start, end=end)
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200: return 0.0
+        items = r.json().get("items", [])
+        views = [it.get("views", 0) for it in items]
+        return (sum(views) / 365.0) if views else 0.0
+    except Exception:
+        return 0.0
+
+def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[str], sp_secret: Optional[str]) -> Dict[str, float | str]:
+    w_title = wiki_search_best_title(title) or title
+    wiki_raw = fetch_wikipedia_views_for_page(w_title)
+    wiki_idx = 40.0 + min(110.0, (math.log1p(max(0.0, wiki_raw)) * 20.0))  # ~40..150
+    trends_idx = 60.0 + (len(title) % 40)
+
+    yt_idx = 0.0
+    if yt_key and build is not None:
+        try:
+            yt = build("youtube", "v3", developerKey=yt_key)
+            q = f"{title} ballet"
+            search = yt.search().list(q=q, part="snippet", type="video", maxResults=30, relevanceLanguage="en").execute()
+            items = search.get("items", []) or []
+            filtered_ids = []
+            for it in items:
+                vid = it.get("id", {}).get("videoId")
+                vtitle = it.get("snippet", {}).get("title", "") or ""
+                if vid and _looks_like_our_title(vtitle, title):
+                    filtered_ids.append(vid)
+            if len(filtered_ids) < 5:
+                filtered_ids = [it.get("id", {}).get("videoId") for it in items if it.get("id", {}).get("videoId")]
+            views = []
+            if filtered_ids:
+                stats = yt.videos().list(part="statistics", id=",".join(filtered_ids[:60])).execute()
+                for i in stats.get("items", []) or []:
+                    vc = i.get("statistics", {}).get("viewCount")
+                    if vc is not None:
+                        try: views.append(int(vc))
+                        except Exception: pass
+            yt_idx = _yt_index_from_views(views) if views else 0.0
+        except Exception:
+            yt_idx = 0.0
+
+    if yt_idx == 0.0:
+        yt_idx = 55.0 + (len(title) * 1.2) % 45.0
+    yt_idx = float(np.clip(yt_idx, 45.0, 140.0))
+
+    sp_idx = 0.0
+    if sp_id and sp_secret and spotipy is not None:
+        try:
+            auth = SpotifyClientCredentials(client_id=sp_id, client_secret=sp_secret)
+            sp = spotipy.Spotify(auth_manager=auth)
+            res = sp.search(q=title, type="track,album", limit=10)
+            pops = [t.get("popularity", 0) for t in res.get("tracks", {}).get("items", [])]
+            sp_idx = float(np.percentile(pops, 80)) if pops else 0.0
+        except Exception:
+            sp_idx = 0.0
+    if sp_idx == 0.0:
+        sp_idx = 50.0 + (len(title) * 1.7) % 40.0
+
     gender, category = infer_gender_and_category(title)
     yt_idx = _winsorize_youtube_to_baseline(category, yt_idx)
 
@@ -306,6 +682,36 @@ if not titles:
 # -------------------------
 def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tuple[float,float]:
 @@ -590,126 +711,174 @@ TICKET_PRIORS_RAW = {
+    gender = entry["gender"]; cat = entry["category"]
+    fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + entry["spotify"] * 0.15
+    mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + entry["spotify"] * 0.15 + entry["wiki"] * 0.15
+    seg = SEGMENT_MULT[seg_key]
+    fam *= seg.get(gender,1.0) * seg.get(cat,1.0)
+    mot *= seg.get(gender,1.0) * seg.get(cat,1.0)
+    fam *= REGION_MULT[reg_key]
+    mot *= REGION_MULT[reg_key]
+    return fam, mot
+
+# --- Hard-coded ticket priors (lists -> we use median to be robust) ---
+TICKET_PRIORS_RAW = {
+    "Alice in Wonderland": [11216],
+    "All of Us - Tragically Hip": [15488],
+    "Away We Go - Mixed Bill": [4649],
+    "Ballet BC": [4013],
+    "Ballet Boyz": [7401],
+    "BJM - Leonard Cohen": [7819],
+    "Botero": [5460],
+    "Cinderella": [16304],
+    "Complexions - Lenny Kravitz": [7096],
+    "Dance Theatre of Harlem": [7269],
+    "Dangerous Liaisons": [6875],
+    "deViate - Mixed Bill": [5144],
+    "Diavolo": [10673],
+    "Don Quixote": [5650],
+    "Dona Peron": [5221],
+    "Dracula": [11285],
+    "Fiddle & the Drum – Joni Mitchell": [6024],
+    "Frankenstein": [10470],
     "Giselle": [9111],
     "Grimm": [6362],
     "Handmaid's Tale": [6842],
@@ -482,6 +888,17 @@ def compute_scores_and_store(
             x = df_known_in["SignalOnly"].values
             y = df_known_in["TicketIndex"].values
 @@ -727,50 +896,71 @@ def compute_scores_and_store(
+            a, b = np.polyfit(x, y, 1)
+            overall = (float(a), float(b))
+        cat_coefs = {}
+        for cat, g in df_known_in.groupby("Category"):
+            if len(g) >= 3:
+                xs = g["SignalOnly"].values
+                ys = g["TicketIndex"].values
+                a, b = np.polyfit(xs, ys, 1)
+                cat_coefs[cat] = (float(a), float(b))
+        return overall, cat_coefs
+
     overall_coef, cat_coefs = _fit_overall_and_by_category(df_known)
 
     # 5) Impute TicketIndex for titles without history
@@ -554,6 +971,39 @@ def compute_scores_and_store(
 
     # --- Live Analytics overlays ---
 @@ -810,50 +1000,52 @@ def compute_scores_and_store(
+    df = _add_live_analytics_overlays(df)
+
+    # --- Segment propensity & ticket allocation (adds Mix_* and Seg_* columns) ---
+    bench_entry_for_mix = BASELINES[benchmark_title]
+
+    prim_list, sec_list = [], []
+    mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
+    seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
+
+    for _, r in df.iterrows():
+        entry_r = {
+            "wiki": float(r["WikiIdx"]),
+            "trends": float(r["TrendsIdx"]),
+            "youtube": float(r["YouTubeIdx"]),
+            "spotify": float(r["SpotifyIdx"]),
+            "gender": r["Gender"],
+            "category": r["Category"],
+        }
+
+        seg_to_raw = _signal_for_all_segments(entry_r, region)
+        seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
+
+        pri = _prior_weights_for(region, r["Category"])
+        combined = {k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
+                    for k in SEGMENT_KEYS_IN_ORDER}
+        total = sum(combined.values()) or 1.0
+        shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
+
+        ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
+        primary = ordered[0][0]
+        secondary = ordered[1][0] if len(ordered) > 1 else ""
+        prim_list.append(primary); sec_list.append(secondary)
+
         mix_gp.append(shares["General Population"])
         mix_core.append(shares["Core Classical (F35–64)"])
         mix_family.append(shares["Family (Parents w/ kids)"])
@@ -607,6 +1057,472 @@ LA_DEEP_BY_CATEGORY = {
         "CES_Gender_Male_pct": 44,
         "CES_Gender_Female_pct": 56,
 @@ -1326,167 +1518,204 @@ def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
+
+        # --- CLIENT EVENT SUMMARY / Age ---
+        "CES_Age_Mean": 49.6,
+        "CES_Age_18_24_pct": 8,
+        "CES_Age_25_34_pct": 5,
+        "CES_Age_35_44_pct": 26,
+        "CES_Age_45_54_pct": 20,
+        "CES_Age_55_64_pct": 26,
+        "CES_Age_65_plus_pct": 15,
+
+        # --- Client Events Purchased (Lifetime) ---
+        "CEP_NeverPurchased_pct": 25.9,
+        "CEP_1Event_pct": 43.2,
+        "CEP_2_3Events_pct": 22.0,
+        "CEP_4_5Events_pct": 5.7,
+        "CEP_6_10Events_pct": 2.8,
+        "CEP_11plusEvents_pct": 0.3,
+
+        # --- Client Events Spend (Lifetime) ---
+        "CESpend_le_250_pct": 64.7,
+        "CESpend_251_500_pct": 19.8,
+        "CESpend_501_1000_pct": 11.2,
+        "CESpend_1001_2000_pct": 3.6,
+        "CESpend_2001plus_pct": 0.6,
+
+        # --- Share of Wallet ---
+        "SOW_ClientEvents_pct": 26,
+        "SOW_NonClientEvents_pct": 74,
+
+        # --- Lifetime Spend (absolute $) ---
+        "LS_ClientEvents_usd": 268,
+        "LS_NonClientEvents_usd": 2207,
+
+        # --- Tickets per Event ---
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+
+        # --- Spend per Event ---
+        "SPE_ClientEvents_usd": 187,
+        "SPE_NonClientEvents_usd": 209,
+
+        # --- Average Ticket Price ---
+        "ATP_ClientEvents_usd": 83,
+        "ATP_NonClientEvents_usd": 84,
+
+        # --- DIMENSIONS ---
+        "DIM_Generation_Millennials_pct": 24,
+        "DIM_Generation_X_pct": 34,
+        "DIM_Generation_Babyboomers_pct": 31,
+        "DIM_Generation_Z_pct": 5,
+
+        "DIM_Occ_Professionals_pct": 64,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 3,
+        "DIM_Occ_Students_pct": 0,
+
+        "DIM_Household_WorkingMoms_pct": 8,
+        "DIM_Financial_Affluent_pct": 9,
+
+        "DIM_Live_Major_Concerts_pct": 47,
+        "DIM_Live_Major_Arts_pct": 76,
+        "DIM_Live_Major_Sports_pct": 27,
+        "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 45,
+
+        "DIM_Live_Freq_ActiveBuyers_pct": 60,
+        "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 37,
+        "DIM_Live_Timing_LateBuyers_pct": 38,
+
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
+    },
+
+    "classic_romance": {
+        "DA_Customers": 15294,
+        "DA_CustomersWithLiveEvents": 11881,
+        "DA_CustomersWithDemo_CAN": 12832,
+        "CES_Gender_Male_pct": 47,
+        "CES_Gender_Female_pct": 53,
+        "CES_Age_Mean": 46.5,
+        "CES_Age_18_24_pct": 14,
+        "CES_Age_25_34_pct": 5,
+        "CES_Age_35_44_pct": 23,
+        "CES_Age_45_54_pct": 27,
+        "CES_Age_55_64_pct": 19,
+        "CES_Age_65_plus_pct": 13,
+        "CEP_NeverPurchased_pct": 23.2,
+        "CEP_1Event_pct": 39.1,
+        "CEP_2_3Events_pct": 26.1,
+        "CEP_4_5Events_pct": 7.3,
+        "CEP_6_10Events_pct": 3.9,
+        "CEP_11plusEvents_pct": 0.4,
+        "CESpend_le_250_pct": 58.4,
+        "CESpend_251_500_pct": 21.4,
+        "CESpend_501_1000_pct": 13.8,
+        "CESpend_1001_2000_pct": 5.4,
+        "CESpend_2001plus_pct": 1.1,
+        "SOW_ClientEvents_pct": 35,
+        "SOW_NonClientEvents_pct": 65,
+        "LS_ClientEvents_usd": 325,
+        "LS_NonClientEvents_usd": 1832,
+        "TPE_ClientEvents": 2.4,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 195,
+        "SPE_NonClientEvents_usd": 212,
+        "ATP_ClientEvents_usd": 82,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 29,
+        "DIM_Generation_X_pct": 37,
+        "DIM_Generation_Babyboomers_pct": 26,
+        "DIM_Generation_Z_pct": 5,
+        "DIM_Occ_Professionals_pct": 83,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 0,
+        "DIM_Occ_Students_pct": 0,
+        "DIM_Household_WorkingMoms_pct": 13,
+        "DIM_Financial_Affluent_pct": 9,
+        "DIM_Live_Major_Concerts_pct": 38,
+        "DIM_Live_Major_Arts_pct": 82,
+        "DIM_Live_Major_Sports_pct": 25,
+        "DIM_Live_Major_Family_pct": 8,
+        "DIM_Live_Major_MultiCategories_pct": 42,
+        "DIM_Live_Freq_ActiveBuyers_pct": 66,
+        "DIM_Live_Freq_RepeatBuyers_pct": 66,
+        "DIM_Live_Timing_EarlyBuyers_pct": 32,
+        "DIM_Live_Timing_LateBuyers_pct": 38,
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+
+    "classic_comedy": {
+        "DA_Customers": 10402,
+        "DA_CustomersWithLiveEvents": 8896,
+        "DA_CustomersWithDemo_CAN": 9912,
+        "CES_Gender_Male_pct": 46,
+        "CES_Gender_Female_pct": 54,
+        "CES_Age_Mean": 51.7,
+        "CES_Age_18_24_pct": 6,
+        "CES_Age_25_34_pct": 12,
+        "CES_Age_35_44_pct": 12,
+        "CES_Age_45_54_pct": 24,
+        "CES_Age_55_64_pct": 25,
+        "CES_Age_65_plus_pct": 22,
+        "CEP_NeverPurchased_pct": 28.0,
+        "CEP_1Event_pct": 38.2,
+        "CEP_2_3Events_pct": 22.3,
+        "CEP_4_5Events_pct": 7.1,
+        "CEP_6_10Events_pct": 4.0,
+        "CEP_11plusEvents_pct": 0.5,
+        "CESpend_le_250_pct": 66.6,
+        "CESpend_251_500_pct": 17.0,
+        "CESpend_501_1000_pct": 11.1,
+        "CESpend_1001_2000_pct": 4.5,
+        "CESpend_2001plus_pct": 0.8,
+        "SOW_ClientEvents_pct": 28,
+        "SOW_NonClientEvents_pct": 72,
+        "LS_ClientEvents_usd": 273,
+        "LS_NonClientEvents_usd": 1916,
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 170,
+        "SPE_NonClientEvents_usd": 206,
+        "ATP_ClientEvents_usd": 74,
+        "ATP_NonClientEvents_usd": 82,
+        "DIM_Generation_Millennials_pct": 22,
+        "DIM_Generation_X_pct": 36,
+        "DIM_Generation_Babyboomers_pct": 31,
+        "DIM_Generation_Z_pct": 6,
+        "DIM_Occ_Professionals_pct": 55,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 5,
+        "DIM_Occ_Students_pct": 5,
+        "DIM_Household_WorkingMoms_pct": 3,
+        "DIM_Financial_Affluent_pct": 9,
+        "DIM_Live_Major_Concerts_pct": 43,
+        "DIM_Live_Major_Arts_pct": 76,
+        "DIM_Live_Major_Sports_pct": 26,
+        "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 43,
+        "DIM_Live_Freq_ActiveBuyers_pct": 56,
+        "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 34,
+        "DIM_Live_Timing_LateBuyers_pct": 39,
+        "DIM_Live_Product_PremiumBuyers_pct": 19,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 13,
+    },
+
+    "contemporary": {
+        "DA_Customers": 14987,
+        "DA_CustomersWithLiveEvents": 13051,
+        "DA_CustomersWithDemo_CAN": 13872,
+        "CES_Gender_Male_pct": 56,
+        "CES_Gender_Female_pct": 44,
+        "CES_Age_Mean": 47.2,
+        "CES_Age_18_24_pct": 10,
+        "CES_Age_25_34_pct": 10,
+        "CES_Age_35_44_pct": 27,
+        "CES_Age_45_54_pct": 13,
+        "CES_Age_55_64_pct": 31,
+        "CES_Age_65_plus_pct": 9,
+        "CEP_NeverPurchased_pct": 24.9,
+        "CEP_1Event_pct": 43.1,
+        "CEP_2_3Events_pct": 22.2,
+        "CEP_4_5Events_pct": 6.2,
+        "CEP_6_10Events_pct": 3.2,
+        "CEP_11plusEvents_pct": 0.4,
+        "CESpend_le_250_pct": 64.5,
+        "CESpend_251_500_pct": 18.9,
+        "CESpend_501_1000_pct": 11.4,
+        "CESpend_1001_2000_pct": 4.5,
+        "CESpend_2001plus_pct": 0.8,
+        "SOW_ClientEvents_pct": 31,
+        "SOW_NonClientEvents_pct": 69,
+        "LS_ClientEvents_usd": 285,
+        "LS_NonClientEvents_usd": 1875,
+        "TPE_ClientEvents": 2.5,
+        "TPE_NonClientEvents": 2.7,
+        "SPE_ClientEvents_usd": 188,
+        "SPE_NonClientEvents_usd": 213,
+        "ATP_ClientEvents_usd": 77,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 33,
+        "DIM_Generation_X_pct": 35,
+        "DIM_Generation_Babyboomers_pct": 27,
+        "DIM_Generation_Z_pct": 2,
+        "DIM_Occ_Professionals_pct": 62,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 0,
+        "DIM_Occ_Students_pct": 4,
+        "DIM_Household_WorkingMoms_pct": 8,
+        "DIM_Financial_Affluent_pct": 8,
+        "DIM_Live_Major_Concerts_pct": 40,
+        "DIM_Live_Major_Arts_pct": 78,
+        "DIM_Live_Major_Sports_pct": 28,
+        "DIM_Live_Major_Family_pct": 10,
+        "DIM_Live_Major_MultiCategories_pct": 44,
+        "DIM_Live_Freq_ActiveBuyers_pct": 61,
+        "DIM_Live_Freq_RepeatBuyers_pct": 66,
+        "DIM_Live_Timing_EarlyBuyers_pct": 34,
+        "DIM_Live_Timing_LateBuyers_pct": 36,
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+
+    "family_classic": {
+        "DA_Customers": 5800,
+        "DA_CustomersWithLiveEvents": 4878,
+        "DA_CustomersWithDemo_CAN": 5605,
+        "CES_Gender_Male_pct": 42,
+        "CES_Gender_Female_pct": 58,
+        "CES_Age_Mean": 34.0,
+        "CES_Age_18_24_pct": 36,
+        "CES_Age_25_34_pct": 21,
+        "CES_Age_35_44_pct": 21,
+        "CES_Age_45_54_pct": 7,
+        "CES_Age_55_64_pct": 14,
+        "CES_Age_65_plus_pct": 0,
+        "CEP_NeverPurchased_pct": 33.5,
+        "CEP_1Event_pct": 33.0,
+        "CEP_2_3Events_pct": 21.4,
+        "CEP_4_5Events_pct": 6.7,
+        "CEP_6_10Events_pct": 4.6,
+        "CEP_11plusEvents_pct": 0.8,
+        "CESpend_le_250_pct": 67.7,
+        "CESpend_251_500_pct": 15.7,
+        "CESpend_501_1000_pct": 10.7,
+        "CESpend_1001_2000_pct": 4.9,
+        "CESpend_2001plus_pct": 1.1,
+        "SOW_ClientEvents_pct": 27,
+        "SOW_NonClientEvents_pct": 73,
+        "LS_ClientEvents_usd": 274,
+        "LS_NonClientEvents_usd": 2041,
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 170,
+        "SPE_NonClientEvents_usd": 209,
+        "ATP_ClientEvents_usd": 75,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 40,
+        "DIM_Generation_X_pct": 20,
+        "DIM_Generation_Babyboomers_pct": 16,
+        "DIM_Generation_Z_pct": 20,
+        "DIM_Occ_Professionals_pct": 44,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 0,
+        "DIM_Occ_Students_pct": 11,
+        "DIM_Household_WorkingMoms_pct": 0,
+        "DIM_Financial_Affluent_pct": 10,
+        "DIM_Live_Major_Concerts_pct": 42,
+        "DIM_Live_Major_Arts_pct": 75,
+        "DIM_Live_Major_Sports_pct": 26,
+        "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 40,
+        "DIM_Live_Freq_ActiveBuyers_pct": 50,
+        "DIM_Live_Freq_RepeatBuyers_pct": 65,
+        "DIM_Live_Timing_EarlyBuyers_pct": 33,
+        "DIM_Live_Timing_LateBuyers_pct": 37,
+        "DIM_Live_Product_PremiumBuyers_pct": 19,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+
+    "romantic_tragedy": {
+        "DA_Customers": 7781,
+        "DA_CustomersWithLiveEvents": 6661,
+        "DA_CustomersWithDemo_CAN": 7265,
+        "CES_Gender_Male_pct": 0,   # not provided → leave 0 or remove to NaN
+        "CES_Gender_Female_pct": 0, # not provided → leave 0 or remove to NaN
+        "CES_Age_Mean": 47.9,
+        "CES_Age_18_24_pct": 14,
+        "CES_Age_25_34_pct": 14,
+        "CES_Age_35_44_pct": 23,
+        "CES_Age_45_54_pct": 9,
+        "CES_Age_55_64_pct": 15,
+        "CES_Age_65_plus_pct": 26,
+        "CEP_NeverPurchased_pct": 28.6,
+        "CEP_1Event_pct": 40.1,
+        "CEP_2_3Events_pct": 21.2,
+        "CEP_4_5Events_pct": 5.8,
+        "CEP_6_10Events_pct": 3.7,
+        "CEP_11plusEvents_pct": 0.5,
+        "CESpend_le_250_pct": 65.3,
+        "CESpend_251_500_pct": 18.4,
+        "CESpend_501_1000_pct": 11.1,
+        "CESpend_1001_2000_pct": 4.2,
+        "CESpend_2001plus_pct": 0.9,
+        "SOW_ClientEvents_pct": 27,
+        "SOW_NonClientEvents_pct": 73,
+        "LS_ClientEvents_usd": 277,
+        "LS_NonClientEvents_usd": 2247,
+        "TPE_ClientEvents": 2.3,
+        "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 186,
+        "SPE_NonClientEvents_usd": 213,
+        "ATP_ClientEvents_usd": 81,
+        "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 29,
+        "DIM_Generation_X_pct": 28,
+        "DIM_Generation_Babyboomers_pct": 29,
+        "DIM_Generation_Z_pct": 9,
+        "DIM_Occ_Professionals_pct": 49,
+        "DIM_Occ_SelfEmployed_pct": 0,
+        "DIM_Occ_Retired_pct": 4,
+        "DIM_Occ_Students_pct": 15,
+        "DIM_Household_WorkingMoms_pct": 8,
+        "DIM_Financial_Affluent_pct": 10,
+        "DIM_Live_Major_Concerts_pct": 43,
+        "DIM_Live_Major_Arts_pct": 77,
+        "DIM_Live_Major_Sports_pct": 26,
+        "DIM_Live_Major_Family_pct": 8,
+        "DIM_Live_Major_MultiCategories_pct": 43,
+        "DIM_Live_Freq_ActiveBuyers_pct": 64,
+        "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 35,
+        "DIM_Live_Timing_LateBuyers_pct": 38,
+        "DIM_Live_Product_PremiumBuyers_pct": 18,
+        "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5,
+        "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
+    },
+}
+
+# Canonical schema/order for export — each tuple: (column_name_in_csv, deep_key)
+LA_DEEP_SCHEMA = [
+    # DATA ATTRIBUTE
+    ("LA_DA_Customers", "DA_Customers"),
+    ("LA_DA_CustomersWithLiveEvents", "DA_CustomersWithLiveEvents"),
+    ("LA_DA_CustomersWithDemo_CAN", "DA_CustomersWithDemo_CAN"),
+
+    # CLIENT EVENT SUMMARY / Gender
+    ("LA_CES_Gender_Male_pct", "CES_Gender_Male_pct"),
+    ("LA_CES_Gender_Female_pct", "CES_Gender_Female_pct"),
+
+    # CLIENT EVENT SUMMARY / Age
+    ("LA_CES_Age_Mean", "CES_Age_Mean"),
+    ("LA_CES_Age_18_24_pct", "CES_Age_18_24_pct"),
+    ("LA_CES_Age_25_34_pct", "CES_Age_25_34_pct"),
+    ("LA_CES_Age_35_44_pct", "CES_Age_35_44_pct"),
+    ("LA_CES_Age_45_54_pct", "CES_Age_45_54_pct"),
+    ("LA_CES_Age_55_64_pct", "CES_Age_55_64_pct"),
+    ("LA_CES_Age_65_plus_pct", "CES_Age_65_plus_pct"),
+
+    # Client Events Purchased (Lifetime)
+    ("LA_CEP_NeverPurchased_pct", "CEP_NeverPurchased_pct"),
+    ("LA_CEP_1Event_pct", "CEP_1Event_pct"),
+    ("LA_CEP_2_3Events_pct", "CEP_2_3Events_pct"),
+    ("LA_CEP_4_5Events_pct", "CEP_4_5Events_pct"),
+    ("LA_CEP_6_10Events_pct", "CEP_6_10Events_pct"),
+    ("LA_CEP_11plusEvents_pct", "CEP_11plusEvents_pct"),
+
+    # Client Events Spend (Lifetime)
+    ("LA_CESpend_le_250_pct", "CESpend_le_250_pct"),
+    ("LA_CESpend_251_500_pct", "CESpend_251_500_pct"),
+    ("LA_CESpend_501_1000_pct", "CESpend_501_1000_pct"),
+    ("LA_CESpend_1001_2000_pct", "CESpend_1001_2000_pct"),
+    ("LA_CESpend_2001plus_pct", "CESpend_2001plus_pct"),
+
+    # Share of Wallet
+    ("LA_SOW_ClientEvents_pct", "SOW_ClientEvents_pct"),
+    ("LA_SOW_NonClientEvents_pct", "SOW_NonClientEvents_pct"),
+
+    # Lifetime Spend ($)
+    ("LA_LS_ClientEvents_usd", "LS_ClientEvents_usd"),
+    ("LA_LS_NonClientEvents_usd", "LS_NonClientEvents_usd"),
+
+    # Tickets per Event
+    ("LA_TPE_ClientEvents", "TPE_ClientEvents"),
+    ("LA_TPE_NonClientEvents", "TPE_NonClientEvents"),
+
+    # Spend per Event ($)
+    ("LA_SPE_ClientEvents_usd", "SPE_ClientEvents_usd"),
+    ("LA_SPE_NonClientEvents_usd", "SPE_NonClientEvents_usd"),
+
+    # Average Ticket Price ($)
+    ("LA_ATP_ClientEvents_usd", "ATP_ClientEvents_usd"),
+    ("LA_ATP_NonClientEvents_usd", "ATP_NonClientEvents_usd"),
+
+    # DIMENSIONS
+    ("LA_DIM_Generation_Millennials_pct", "DIM_Generation_Millennials_pct"),
+    ("LA_DIM_Generation_X_pct", "DIM_Generation_X_pct"),
+    ("LA_DIM_Generation_Babyboomers_pct", "DIM_Generation_Babyboomers_pct"),
+    ("LA_DIM_Generation_Z_pct", "DIM_Generation_Z_pct"),
+
+    ("LA_DIM_Occ_Professionals_pct", "DIM_Occ_Professionals_pct"),
+    ("LA_DIM_Occ_SelfEmployed_pct", "DIM_Occ_SelfEmployed_pct"),
+    ("LA_DIM_Occ_Retired_pct", "DIM_Occ_Retired_pct"),
+    ("LA_DIM_Occ_Students_pct", "DIM_Occ_Students_pct"),
+
+    ("LA_DIM_Household_WorkingMoms_pct", "DIM_Household_WorkingMoms_pct"),
+    ("LA_DIM_Financial_Affluent_pct", "DIM_Financial_Affluent_pct"),
+
+    ("LA_DIM_Live_Major_Concerts_pct", "DIM_Live_Major_Concerts_pct"),
+    ("LA_DIM_Live_Major_Arts_pct", "DIM_Live_Major_Arts_pct"),
+    ("LA_DIM_Live_Major_Sports_pct", "DIM_Live_Major_Sports_pct"),
+    ("LA_DIM_Live_Major_Family_pct", "DIM_Live_Major_Family_pct"),
+    ("LA_DIM_Live_Major_MultiCategories_pct", "DIM_Live_Major_MultiCategories_pct"),
+
+    ("LA_DIM_Live_Freq_ActiveBuyers_pct", "DIM_Live_Freq_ActiveBuyers_pct"),
+    ("LA_DIM_Live_Freq_RepeatBuyers_pct", "DIM_Live_Freq_RepeatBuyers_pct"),
+    ("LA_DIM_Live_Timing_EarlyBuyers_pct", "DIM_Live_Timing_EarlyBuyers_pct"),
+    ("LA_DIM_Live_Timing_LateBuyers_pct", "DIM_Live_Timing_LateBuyers_pct"),
+
+    ("LA_DIM_Live_Product_PremiumBuyers_pct", "DIM_Live_Product_PremiumBuyers_pct"),
+    ("LA_DIM_Live_Product_AncillaryUpsellBuyers_pct", "DIM_Live_Product_AncillaryUpsellBuyers_pct"),
+
+    ("LA_DIM_Live_Spend_HighSpenders_gt1k_pct", "DIM_Live_Spend_HighSpenders_gt1k_pct"),
+    ("LA_DIM_Live_Distance_Travelers_gt500mi_pct", "DIM_Live_Distance_Travelers_gt500mi_pct"),
+]
+
+def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Attach deep LiveAnalytics columns (LA_DEEP_SCHEMA) by Category.
+    Keeps any earlier LA_* columns you've already added (timing/channels/price).
+    """
+    df_out = df.copy()
 
     # Fill in the deep columns (unique, no collisions)
     for col, key in LA_DEEP_SCHEMA:
