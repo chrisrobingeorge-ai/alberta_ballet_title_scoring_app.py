@@ -1036,6 +1036,11 @@ def compute_scores_and_store(
         seg_family_tix.append(round(est * shares["Family (Parents w/ kids)"]))
         seg_ea_tix.append(round(est * shares["Emerging Adults (18–34)"]))
 
+    # --- Seasonality meta for display/CSV ---
+    df["SeasonalityApplied"] = bool(seasonality_on)
+    df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on else np.nan  # numeric (1–12) if ON, else NaN
+    df["RunMonth"] = proposed_run_date.strftime("%B") if seasonality_on else ""              # friendly month name (e.g., "May")
+    
     df["PredictedPrimarySegment"] = prim_list
     df["PredictedSecondarySegment"] = sec_list
     df["Mix_GP"] = mix_gp; df["Mix_Core"] = mix_core; df["Mix_Family"] = mix_family; df["Mix_EA"] = mix_ea
