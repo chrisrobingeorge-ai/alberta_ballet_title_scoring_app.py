@@ -100,7 +100,7 @@ BASELINES = {
     "Ballet Boyz": {"wiki": 45, "trends": 40, "youtube": 60, "spotify": 58, "category": "contemporary", "gender": "male"},
     "Contemporary Classical": {"wiki": 60, "trends": 55, "youtube": 58, "spotify": 50, "category": "contemporary", "gender": "na"},
     "Ballet BC": {"wiki": 50, "trends": 45, "youtube": 53, "spotify": 49, "category": "contemporary", "gender": "na"},
-    "Complexions": {"wiki": 62, "trends": 58, "youtube": 66, "spotify": 60, "category": "contemporary", "gender": "na"},
+    "Complexions - Lenny Kravitz": {"wiki": 62, "trends": 58, "youtube": 66, "spotify": 60, "category": "contemporary", "gender": "na"},
     "Phi – David Bowie": {"wiki": 70, "trends": 65, "youtube": 72, "spotify": 75, "category": "pop_ip", "gender": "male"},
     "All of Us - Tragically Hip": {"wiki": 72, "trends": 68, "youtube": 78, "spotify": 80, "category": "pop_ip", "gender": "male"},
     "Dance Theatre of Harlem": {"wiki": 75, "trends": 68, "youtube": 74, "spotify": 68, "category": "pop_ip", "gender": "co"},
@@ -617,7 +617,7 @@ TICKET_PRIORS_RAW = {
     "Taj Express": [10314],
     "Tango Fire": [7251],
     "Trockadero": [5476],
-    "Unleashed - Mixed Bill": [5221],
+    "Unleashed – Mixed Bill": [5221],
     "Winter Gala": [1321],
     "Wizard of Oz": [8468],
 }
@@ -671,7 +671,7 @@ PAST_RUNS = [
     ("Taj Express","2019-09-12","2019-09-21"),
     ("Tango Fire","2017-09-21","2017-09-28"),
     ("Trockadero","2017-01-12","2017-01-14"),
-    ("Unleashed - Mixed Bill","2020-02-13","2020-02-22"),
+    ("Unleashed – Mixed Bill","2020-02-13","2020-02-22"),
     ("Winter Gala","2025-01-18","2025-01-25"),
     ("Wizard of Oz","2025-03-13","2025-03-22"),
 ]
