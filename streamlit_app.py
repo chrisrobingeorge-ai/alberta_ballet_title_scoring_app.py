@@ -943,8 +943,8 @@ def compute_scores_and_store(
     df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
 
     # -------- 9) EstimatedTickets using season-adjusted benchmark for FUTURE month --------
-    bench_future_factor = _future_factor(bench_cat)
-    bench_med_future = bench_med_deseason * bench_future_factor
+    # ✅ benchmark stays de-seasonalized; only the title gets future factor
+    bench_med_future = bench_med_deseason
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
 
     # -------- 10) Live Analytics overlays --------
