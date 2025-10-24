@@ -6,6 +6,7 @@
 # - NEW: Segment propensity as an OUTPUT (primary/secondary, shares, tickets by segment)
 # - NEW: Live Analytics overlays by program type
 
+import calendar
 import math, time, re
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
@@ -114,6 +115,64 @@ BASELINES = {
     "Midsummer Night’s Dream": {"wiki": 75, "trends": 70, "youtube": 70, "spotify": 68, "category": "classic_romance", "gender": "co"},
     "Dracula": {"wiki": 74, "trends": 65, "youtube": 70, "spotify": 65, "category": "romantic_tragedy", "gender": "male"},
 }
+
+PRODUCTION_SCHEDULE = [
+    {"title": "Alice in Wonderland", "start_date": "2017-03-16", "end_date": "2017-03-25"},
+    {"title": "All of Us - Tragically Hip", "start_date": "2018-05-02", "end_date": "2018-05-12"},
+    {"title": "Away We Go - Mixed Bill", "start_date": "2022-10-27", "end_date": "2022-11-05"},
+    {"title": "Ballet BC", "start_date": "2019-01-19", "end_date": "2019-01-23"},
+    {"title": "Ballet Boyz", "start_date": "2017-02-16", "end_date": "2017-02-25"},
+    {"title": "BJM - Leonard Cohen", "start_date": "2018-09-20", "end_date": "2018-09-22"},
+    {"title": "Botero", "start_date": "2023-05-05", "end_date": "2023-05-13"},
+    {"title": "Cinderella", "start_date": "2022-04-28", "end_date": "2022-05-14"},
+    {"title": "Complexions - Lenny Kravitz", "start_date": "2023-02-10", "end_date": "2023-02-18"},
+    {"title": "Dance Theatre of Harlem", "start_date": "2025-02-13", "end_date": "2025-02-22"},
+    {"title": "Dangerous Liaisons", "start_date": "2017-10-26", "end_date": "2017-11-04"},
+    {"title": "deViate - Mixed Bill", "start_date": "2019-02-15", "end_date": "2019-02-16"},
+    {"title": "Diavolo", "start_date": "2020-01-21", "end_date": "2020-01-22"},
+    {"title": "Don Quixote", "start_date": "2025-05-01", "end_date": "2025-05-10"},
+    {"title": "Dona Peron", "start_date": "2023-09-14", "end_date": "2023-09-23"},
+    {"title": "Dracula", "start_date": "2016-10-27", "end_date": "2016-11-05"},
+    {"title": "Fiddle & the Drum – Joni Mitchell", "start_date": "2019-05-01", "end_date": "2019-05-11"},
+    {"title": "Frankenstein", "start_date": "2019-10-23", "end_date": "2019-11-02"},
+    {"title": "Giselle", "start_date": "2023-03-09", "end_date": "2023-03-25"},
+    {"title": "Grimm", "start_date": "2024-10-17", "end_date": "2024-10-26"},
+    {"title": "Handmaid's Tale", "start_date": "2022-09-14", "end_date": "2022-09-24"},
+    {"title": "Hansel & Gretel", "start_date": "2024-03-07", "end_date": "2024-03-23"},
+    {"title": "La Sylphide", "start_date": "2024-09-12", "end_date": "2024-09-21"},
+    {"title": "Midsummer Night’s Dream", "start_date": "2019-03-13", "end_date": "2019-03-16"},
+    {"title": "Momix", "start_date": "2018-02-15", "end_date": "2018-02-22"},
+    {"title": "Nijinsky", "start_date": "2025-10-16", "end_date": "2025-10-25"},
+    {"title": "Nutcracker", "start_date": "2023-12-06", "end_date": "2023-12-24"},
+    {"title": "Our Canada - Gordon Lightfoot", "start_date": "2017-05-04", "end_date": "2017-05-13"},
+    {"title": "Phi - David Bowie", "start_date": "2022-03-10", "end_date": "2022-03-19"},
+    {"title": "Shaping Sound", "start_date": "2018-01-19", "end_date": "2018-01-20"},
+    {"title": "Sleeping Beauty", "start_date": "2023-10-26", "end_date": "2023-11-04"},
+    {"title": "Swan Lake", "start_date": "2021-10-21", "end_date": "2021-11-07"},
+    {"title": "Taj Express", "start_date": "2019-09-12", "end_date": "2019-09-21"},
+    {"title": "Tango Fire", "start_date": "2017-09-21", "end_date": "2017-09-28"},
+    {"title": "Trockadero", "start_date": "2017-01-12", "end_date": "2017-01-14"},
+    {"title": "Unleashed - Mixed Bill", "start_date": "2020-02-13", "end_date": "2020-02-22"},
+    {"title": "Winter Gala", "start_date": "2025-01-18", "end_date": "2025-01-25"},
+    {"title": "Wizard of Oz", "start_date": "2025-03-13", "end_date": "2025-03-22"},
+]
+
+SCHEDULE_LOOKUP = {}
+for _item in PRODUCTION_SCHEDULE:
+    start = pd.to_datetime(_item.get("start_date"), errors="coerce")
+    if pd.isna(start):
+        continue
+    month = int(start.month)
+    end_raw = pd.to_datetime(_item.get("end_date"), errors="coerce") if _item.get("end_date") else None
+    end_date = end_raw.date() if end_raw is not None and not pd.isna(end_raw) else None
+    SCHEDULE_LOOKUP[_item["title"]] = {
+        "month": month,
+        "month_name": calendar.month_name[month],
+        "start_date": start.date(),
+        "end_date": end_date,
+    }
+
+MONTH_NAME_LOOKUP = {i: calendar.month_name[i] for i in range(1, 13)}
 
 # -------------------------
 # SEGMENTS & REGIONS
@@ -393,6 +452,60 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
     return {"wiki": est["wiki"], "trends": est["trends"], "youtube": est["youtube"], "spotify": est["spotify"],
             "gender": gender, "category": category}
 
+
+def _compute_time_slot_factors(schedule: list[dict], ticket_medians: dict[str, Optional[float]], baselines: dict) -> tuple[dict, pd.DataFrame]:
+    rows: list[dict] = []
+    for item in schedule:
+        title = item.get("title")
+        if not title:
+            continue
+        med = ticket_medians.get(title)
+        if med is None:
+            continue
+        start = pd.to_datetime(item.get("start_date"), errors="coerce")
+        if pd.isna(start):
+            continue
+        month = int(start.month)
+        base_meta = baselines.get(title, {})
+        category = base_meta.get("category")
+        if not category:
+            _, category = infer_gender_and_category(title)
+        rows.append({
+            "title": title,
+            "category": category,
+            "month": month,
+            "month_name": calendar.month_name[month],
+            "ticket_median": float(med),
+        })
+
+    if not rows:
+        return {}, pd.DataFrame(columns=["category", "month", "month_name", "SeasonalityFactor", "TicketsMedian", "SampleSize"])
+
+    df = pd.DataFrame(rows)
+    category_medians = df.groupby("category")["ticket_median"].median().to_dict()
+    df["category_baseline"] = df["category"].map(category_medians)
+    df["seasonality_factor"] = df.apply(
+        lambda r: float(r["ticket_median"] / r["category_baseline"]) if r["category_baseline"] else 1.0,
+        axis=1,
+    )
+
+    summary = (
+        df.groupby(["category", "month", "month_name"], as_index=False)
+        .agg(
+            SeasonalityFactor=("seasonality_factor", "median"),
+            TicketsMedian=("ticket_median", "median"),
+            SampleSize=("title", "count"),
+        )
+    )
+
+    factors: dict[str, dict[int, float]] = {}
+    for _, row in summary.iterrows():
+        cat = row["category"]
+        month = int(row["month"])
+        factors.setdefault(cat, {})[month] = float(row["SeasonalityFactor"])
+
+    return factors, summary
+
 # -------------------------
 # OPTIONAL LIVE FETCHERS (only if toggled ON) — with safer YouTube mapping
 # -------------------------
@@ -532,6 +645,18 @@ with st.expander("🔑 API Configuration (only used for NEW titles if enabled)")
 region = st.selectbox("Region", ["Province", "Calgary", "Edmonton"], index=0)
 segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
 
+_month_names = [calendar.month_name[i] for i in range(1, 13)]
+month_choice_options = ["Auto (use schedule / no override)"] + _month_names
+if "default_month_override" not in st.session_state:
+    st.session_state["default_month_override"] = month_choice_options[0]
+default_month_label = st.selectbox(
+    "Default month for NEW titles (seasonality adjustment)",
+    options=month_choice_options,
+    key="default_month_override",
+)
+MONTH_NAME_TO_NUMBER = {name: idx + 1 for idx, name in enumerate(_month_names)}
+default_month_number = MONTH_NAME_TO_NUMBER.get(default_month_label)
+
 default_list = list(BASELINES.keys())[:50]
 st.markdown("**Titles to score** (one per line). Add NEW titles freely:")
 titles_input = st.text_area("Enter titles", value="\n".join(default_list), height=220)
@@ -612,6 +737,10 @@ def _median(xs):
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
+TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
+
+TIME_SLOT_FACTORS, TIME_SLOT_SUMMARY = _compute_time_slot_factors(PRODUCTION_SCHEDULE, TICKET_MEDIANS, BASELINES)
+
 TICKET_BLEND_WEIGHT = 0.50  # 50% tickets, 50% familiarity/motivation composite
 
 # --- Helpers for segment propensity (output) ---
@@ -645,6 +774,8 @@ def compute_scores_and_store(
     sp_id,
     sp_secret,
     benchmark_title,
+    default_month_for_new_titles,
+    default_month_label,
 ):
     rows = []
     unknown_used_live, unknown_used_est = [], []
@@ -676,6 +807,49 @@ def compute_scores_and_store(
         st.error("No titles to score — check the Titles box.")
         return
 
+    time_slot_months, time_slot_labels, seasonality_factors = [], [], []
+    seasonality_sources, seasonality_has_data = [], []
+    for _, r in df.iterrows():
+        title = r["Title"]
+        category = r["Category"]
+        sched = SCHEDULE_LOOKUP.get(title)
+        if sched:
+            month = sched["month"]
+            label = sched["month_name"]
+            source = f"Historical schedule ({sched['start_date']})"
+        else:
+            month = default_month_for_new_titles
+            if month:
+                label = MONTH_NAME_LOOKUP.get(month, "n/a")
+                source = "User default month"
+            else:
+                label = "n/a"
+                source = "No time slot provided"
+
+        factor = 1.0
+        has_data = False
+        factor_lookup = TIME_SLOT_FACTORS.get(category, {}).get(month) if month else None
+        if factor_lookup is not None:
+            factor = float(factor_lookup)
+            has_data = True
+            source += " · factor from historical tickets"
+        elif month:
+            source += " · no historical sample for this category-month"
+        else:
+            source += " · seasonality inactive"
+
+        time_slot_months.append(month)
+        time_slot_labels.append(label)
+        seasonality_factors.append(factor)
+        seasonality_sources.append(source)
+        seasonality_has_data.append(has_data and month is not None)
+
+    df["TimeSlotMonthNumber"] = time_slot_months
+    df["TimeSlot"] = time_slot_labels
+    df["SeasonalityFactor"] = seasonality_factors
+    df["SeasonalitySource"] = seasonality_sources
+    df["SeasonalityHasData"] = seasonality_has_data
+
     # 2) Normalize using the PASSED benchmark_title
     bench_entry = BASELINES[benchmark_title]
     bench_fam_raw, bench_mot_raw = calc_scores(bench_entry, segment, region)
@@ -687,7 +861,6 @@ def compute_scores_and_store(
     st.caption(f"Scores normalized to benchmark: **{benchmark_title}**")
 
     # 3) Ticket medians & TicketIndex (history) relative to chosen benchmark
-    TICKET_MEDIANS = {k: _median(v) for k, v in TICKET_PRIORS_RAW.items()}
     BENCHMARK_TICKET_MEDIAN = TICKET_MEDIANS.get(benchmark_title, None) or 1.0
 
     def ticket_index_for_title(title: str):
@@ -748,6 +921,27 @@ def compute_scores_and_store(
 
     df["TicketIndexImputed"] = imputed_vals
     df["TicketIndexSource"]  = imputed_srcs
+
+    adjusted_ticket_index = []
+    seasonality_applied = []
+    for val, src, factor, has_data in zip(
+        df["TicketIndexImputed"],
+        df["TicketIndexSource"],
+        df["SeasonalityFactor"],
+        df["SeasonalityHasData"],
+    ):
+        if src != "History" and pd.notna(val) and pd.notna(factor):
+            adjusted_ticket_index.append(float(val) * float(factor))
+            seasonality_applied.append(bool(has_data))
+        else:
+            adjusted_ticket_index.append(val)
+            seasonality_applied.append(False)
+
+    df["TicketIndexImputed"] = adjusted_ticket_index
+    df["SeasonalityApplied"] = seasonality_applied
+    df["SeasonalitySource"] = df["SeasonalitySource"] + df["SeasonalityApplied"].map(
+        lambda applied: " · applied to prediction" if applied else " · not applied (history or no model)"
+    )
 
     # 6) Composite: blend signals with (history or imputed) TicketIndex
     tickets_component = np.where(
@@ -832,10 +1026,9 @@ def compute_scores_and_store(
         "region": region,
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
+        "default_month_label": default_month_label,
+        "default_month_number": default_month_for_new_titles,
     }
-
-import re
-import pandas as pd
 
 # =========================
 # LIVE ANALYTICS: FULL TABLE (deep)
@@ -1348,12 +1541,15 @@ def render_results():
     benchmark_title = R["benchmark"]
     segment = R["segment"]
     region = R["region"]
+    default_month_label = R.get("default_month_label")
 
     # Notices about data sources
     if R.get("unknown_est"):
         st.info("Estimated (offline) for new titles: " + ", ".join(R["unknown_est"]))
     if R.get("unknown_live"):
         st.success("Used LIVE data for new titles: " + ", ".join(R["unknown_live"]))
+    if default_month_label and default_month_label != "Auto (use schedule / no override)":
+        st.caption(f"Default month override for new titles: **{default_month_label}**")
 
     # TicketIndex source status
     if "TicketIndexSource" in df.columns:
@@ -1387,6 +1583,7 @@ def render_results():
     df_show = df.rename(columns={
         "TicketMedian": "TicketHistory",
         "EffectiveTicketIndex": "TicketIndex used",
+        "SeasonalitySource": "SeasonalityNotes",
     }).copy()
 
     table_cols = [
@@ -1395,6 +1592,7 @@ def render_results():
         "Familiarity","Motivation",
         "TicketHistory",
         "TicketIndex used","TicketIndexSource",
+        "TimeSlot","SeasonalityFactor","SeasonalityNotes",
         "Composite","Score","EstimatedTickets",
     ]
 
@@ -1417,6 +1615,7 @@ def render_results():
                 "Familiarity": "{:.1f}", "Motivation": "{:.1f}",
                 "Composite": "{:.1f}",
                 "TicketIndex used": "{:.1f}",
+                "SeasonalityFactor": "{:.2f}",
                 "EstimatedTickets": "{:,.0f}",
                 "TicketHistory": "{:,.0f}",
             })
@@ -1453,6 +1652,35 @@ def render_results():
         "text/csv"
     )
 
+    if not TIME_SLOT_SUMMARY.empty:
+        with st.expander("📅 Category seasonality insights", expanded=False):
+            st.markdown(
+                "Seasonality factors &gt; 1.0 indicate months where that category outperformed its own ticket median; "
+                "factors &lt; 1.0 underperformed."
+            )
+            cat_options = ["All categories"] + sorted(TIME_SLOT_SUMMARY["category"].unique())
+            selected_cat = st.selectbox(
+                "Filter by category",
+                options=cat_options,
+                index=0,
+                key="seasonality_category_filter",
+            )
+            summary_df = TIME_SLOT_SUMMARY.copy()
+            if selected_cat != "All categories":
+                summary_df = summary_df[summary_df["category"] == selected_cat]
+            summary_df = summary_df.sort_values(["category", "month"]).reset_index(drop=True)
+            summary_display = summary_df.rename(columns={
+                "category": "Category",
+                "month": "Month #",
+                "month_name": "Month",
+                "SeasonalityFactor": "SeasonalityFactor",
+                "TicketsMedian": "MedianTickets",
+                "SampleSize": "SampleSize",
+            }).copy()
+            summary_display["SeasonalityFactor"] = summary_display["SeasonalityFactor"].round(2)
+            summary_display["MedianTickets"] = summary_display["MedianTickets"].round(0)
+            st.dataframe(summary_display, use_container_width=True, hide_index=True)
+
     # ---------- OPTIONAL CHARTS (unchanged) ----------
     try:
         fig, ax = plt.subplots()
@@ -1485,6 +1713,8 @@ if run:
             sp_id=sp_id,
             sp_secret=sp_secret,
             benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+            default_month_for_new_titles=default_month_number,
+            default_month_label=default_month_label,
         )
 
 # ======= ALWAYS RENDER LAST RESULTS IF AVAILABLE =======
