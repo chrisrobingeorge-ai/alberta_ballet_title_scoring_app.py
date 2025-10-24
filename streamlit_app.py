@@ -1523,6 +1523,8 @@ def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
 # RENDER
 # -------------------------
 def render_results():
+    import calendar
+
     R = st.session_state["results"]
     if not R:
         return
@@ -1554,6 +1556,14 @@ def render_results():
             f"Not enough data: {int(src_counts.get('Not enough data',0))}"
         )
 
+    # Seasonality status banner
+    if "SeasonalityApplied" in df.columns and bool(df["SeasonalityApplied"].iloc[0]):
+        run_month_num = int(df["SeasonalityMonthUsed"].iloc[0]) if not pd.isna(df["SeasonalityMonthUsed"].iloc[0]) else None
+        run_month_name = calendar.month_name[run_month_num] if run_month_num and 1 <= run_month_num <= 12 else "n/a"
+        st.caption(f"Seasonality: **ON** · Run month: **{run_month_name}**")
+    else:
+        st.caption("Seasonality: **OFF**")
+
     # Letter grades
     def _assign_score(v: float) -> str:
         if v >= 90: return "A"
@@ -1565,23 +1575,36 @@ def render_results():
     if "Score" not in df.columns:
         df["Score"] = df["Composite"].apply(_assign_score)
 
-    # ---------- TABLE (only your 17 columns) ----------
+    # ---------- TABLE (now includes seasonality columns when present) ----------
     # Build the display dataframe in-place (TicketMedian -> TicketHistory; EffectiveTicketIndex -> TicketIndex used)
     df_show = df.rename(columns={
         "TicketMedian": "TicketHistory",
         "EffectiveTicketIndex": "TicketIndex used",
     }).copy()
 
+    # Add human-readable RunMonth for display if available
+    if "SeasonalityApplied" in df_show.columns and df_show["SeasonalityApplied"].notna().any():
+        def _run_month_name(v):
+            try:
+                m = int(v)
+                return calendar.month_name[m] if 1 <= m <= 12 else ""
+            except Exception:
+                return ""
+        if "SeasonalityMonthUsed" in df_show.columns and "RunMonth" not in df_show.columns:
+            df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_run_month_name)
+
+    # Preferred table columns (only shown if present)
     table_cols = [
         "Title","Region","Segment","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory",
         "TicketIndex used","TicketIndexSource",
+        # Seasonality extras:
+        "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
         "Composite","Score","EstimatedTickets",
     ]
 
-    # Keep only columns that are present (avoids KeyErrors if something is missing)
     present_cols = [c for c in table_cols if c in df_show.columns]
 
     st.subheader("🎟️ Estimated ticket sales (table view)")
@@ -1602,6 +1625,8 @@ def render_results():
                 "TicketIndex used": "{:.1f}",
                 "EstimatedTickets": "{:,.0f}",
                 "TicketHistory": "{:,.0f}",
+                "FutureSeasonalityFactor": "{:.3f}",
+                "HistSeasonalityFactor": "{:.3f}",
             })
             .map(
                 lambda v: (
@@ -1620,15 +1645,15 @@ def render_results():
     # Build the “full” export by deriving LA fields from category→program overlays
     df_full = attach_la_report_columns(df)
 
-    # CSV with just the table columns (your 17)
+    # CSV with just the table columns (as displayed)
     st.download_button(
         "⬇️ Download Scores CSV (table columns only)",
         df_show[present_cols].to_csv(index=False).encode("utf-8"),
         "title_scores_table_view.csv",
         "text/csv"
     )
-    
-    # CSV with ALL columns (now includes the complete LA report fields)
+
+    # CSV with ALL columns (now includes the complete LA report fields + seasonality meta)
     st.download_button(
         "⬇️ Download Full CSV (includes all LA data)",
         df_full.to_csv(index=False).encode("utf-8"),
@@ -1636,20 +1661,19 @@ def render_results():
         "text/csv"
     )
 
-    # ---------- OPTIONAL CHARTS (unchanged) ----------
+    # ---------- OPTIONAL CHARTS ----------
     try:
         fig, ax = plt.subplots()
         ax.scatter(df["Familiarity"], df["Motivation"])
         for _, r in df.iterrows():
             ax.annotate(r["Title"], (r["Familiarity"], r["Motivation"]), fontsize=8)
-        ax.axvline(df["Familiarity"].median(), color="gray", linestyle="--")
-        ax.axhline(df["Motivation"].median(), color="gray", linestyle="--")
+        ax.axvline(df["Familiarity"].median(), linestyle="--")
+        ax.axhline(df["Motivation"].median(), linestyle="--")
         ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
         ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
         ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
         st.pyplot(fig)
     except Exception:
-        # keep UI resilient if any chart inputs are missing
         pass
 
 # ======= BUTTON HANDLER =======
