@@ -1,10 +1,10 @@
 # Core
-streamlit>=1.34
-pandas>=2.0
-numpy>=1.24
-matplotlib>=3.7
+streamlit>=1.36
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
 requests>=2.31
 
-# Live data (optional)
-google-api-python-client>=2.120   # YouTube Data API (used with API key)
-spotipy>=2.23.0                   # Spotify Web API (client credentials)
+# Optional: only needed if you toggle "Use Live Data"
+google-api-python-client>=2.129
+spotipy>=2.23
