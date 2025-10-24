@@ -531,6 +531,20 @@ with st.expander("🔑 API Configuration (only used for NEW titles if enabled)")
 
 region = st.selectbox("Region", ["Province", "Calgary", "Edmonton"], index=0)
 segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
+# --- Seasonality control (global) ---
+apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
+proposed_run_date = None
+if apply_seasonality:
+    _months = [
+        ("January", 1), ("February", 2), ("March", 3), ("April", 4),
+        ("May", 5), ("June", 6), ("July", 7), ("August", 8),
+        ("September", 9), ("October", 10), ("November", 11), ("December", 12),
+    ]
+    _month_names = [m[0] for m in _months]
+    sel = st.selectbox("Assumed run month (applies seasonality factor)", _month_names, index=2)  # default March
+    month_idx = dict(_months)[sel]
+    # Neutral mid-month date for factor lookups
+    proposed_run_date = datetime(datetime.utcnow().year, month_idx, 15).date()
 
 default_list = list(BASELINES.keys())[:50]
 st.markdown("**Titles to score** (one per line). Add NEW titles freely:")
@@ -765,6 +779,7 @@ def compute_scores_and_store(
     sp_id,
     sp_secret,
     benchmark_title,
+    proposed_run_date=None,
 ):
     rows = []
     unknown_used_live, unknown_used_est = [], []
@@ -892,6 +907,19 @@ def compute_scores_and_store(
 
     df["TicketEstimateSource"] = df.apply(_est_src, axis=1)
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * BENCHMARK_TICKET_MEDIAN_LOCAL).round(0)
+
+# --- Seasonality application (global month) ---
+if proposed_run_date is not None:
+    try:
+        df["SeasonalityFactor"] = df.apply(
+            lambda r: seasonality_factor(r.get("Category", "dramatic"), proposed_run_date),
+            axis=1
+        ).astype(float)
+    except Exception:
+        df["SeasonalityFactor"] = 1.0
+    df["EstimatedTickets"] = (df["EstimatedTickets"].astype(float) * df["SeasonalityFactor"]).round(0)
+else:
+    df["SeasonalityFactor"] = 1.0
 
     # --- Live Analytics overlays ---
     df = _add_live_analytics_overlays(df)
@@ -1605,6 +1633,7 @@ if run:
             sp_id=sp_id,
             sp_secret=sp_secret,
             benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+            proposed_run_date=proposed_run_date,
         )
 
 # ======= ALWAYS RENDER LAST RESULTS IF AVAILABLE =======
