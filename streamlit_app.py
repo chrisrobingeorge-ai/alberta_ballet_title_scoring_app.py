@@ -996,92 +996,94 @@ def compute_scores_and_store(
     df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
 
     # -------- 9) EstimatedTickets using season-adjusted benchmark for FUTURE month --------
-    # ✅ benchmark stays de-seasonalized; only the title gets future factor
     bench_med_future = bench_med_deseason
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
-# --- Remount novelty penalty (repeat staging fatigue) ---
-remount_factors = []
-adj_tickets = []
-for _, r in df.iterrows():
-    nm_factor = remount_novelty_factor(r["Title"], proposed_run_date)
-    remount_factors.append(nm_factor)
-    # scale the tickets DOWN by novelty factor
-    raw_est = float(r["EstimatedTickets"] or 0.0)
-    adj_tickets.append(round(raw_est * nm_factor))
-
-df["RemountNoveltyFactor"] = remount_factors
-df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
 
     # -------- 10) Live Analytics overlays --------
-df = _add_live_analytics_overlays(df)
+    df = _add_live_analytics_overlays(df)
 
     # -------- 11) Segment propensity & tickets by segment --------
-df = df.copy()
-bench_entry_for_mix = BASELINES[benchmark_title]
-prim_list, sec_list = [], []
-mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
-seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
+    df = df.copy()
+    bench_entry_for_mix = BASELINES[benchmark_title]
 
-for _, r in df.iterrows():
-    entry_r = {
-        "wiki": float(r["WikiIdx"]),
-        "trends": float(r["TrendsIdx"]),
-        "youtube": float(r["YouTubeIdx"]),
-        "spotify": float(r["SpotifyIdx"]),
-        "gender": r["Gender"],
-        "category": r["Category"],
-    }
+    prim_list, sec_list = [], []
+    mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
+    seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
 
-    seg_to_raw = _signal_for_all_segments(entry_r, region)
-    seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
+    for _, r in df.iterrows():
+        entry_r = {
+            "wiki": float(r["WikiIdx"]),
+            "trends": float(r["TrendsIdx"]),
+            "youtube": float(r["YouTubeIdx"]),
+            "spotify": float(r["SpotifyIdx"]),
+            "gender": r["Gender"],
+            "category": r["Category"],
+        }
 
-    pri = _prior_weights_for(region, r["Category"])
-    combined = {
-        k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
-        for k in SEGMENT_KEYS_IN_ORDER
-    }
-    total = sum(combined.values()) or 1.0
-    shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
+        # signal per segment
+        seg_to_raw = _signal_for_all_segments(entry_r, region)
+        seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
 
-    ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
-    primary = ordered[0][0]
-    secondary = ordered[1][0] if len(ordered) > 1 else ""
-    prim_list.append(primary)
-    sec_list.append(secondary)
+        # audience mix priors
+        pri = _prior_weights_for(region, r["Category"])
+        combined = {
+            k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
+            for k in SEGMENT_KEYS_IN_ORDER
+        }
+        total = sum(combined.values()) or 1.0
+        shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
 
-    mix_gp.append(shares["General Population"])
-    mix_core.append(shares["Core Classical (F35–64)"])
-    mix_family.append(shares["Family (Parents w/ kids)"])
-    mix_ea.append(shares["Emerging Adults (18–34)"])
+        # primary / secondary segments
+        ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
+        primary = ordered[0][0]
+        secondary = ordered[1][0] if len(ordered) > 1 else ""
 
-    est = float(r["EstimatedTickets"] or 0.0)
-    seg_gp_tix.append(round(est * shares["General Population"]))
-    seg_core_tix.append(round(est * shares["Core Classical (F35–64)"]))
-    seg_family_tix.append(round(est * shares["Family (Parents w/ kids)"]))
-    seg_ea_tix.append(round(est * shares["Emerging Adults (18–34)"]))
+        prim_list.append(primary)
+        sec_list.append(secondary)
 
-    # --- Seasonality meta for display/CSV ---
-    df["SeasonalityApplied"] = bool(seasonality_on)
-    df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on else np.nan  # numeric (1–12) if ON, else NaN
-    df["RunMonth"] = proposed_run_date.strftime("%B") if seasonality_on else ""              # friendly month name (e.g., "May")
-    
+        # store share columns
+        mix_gp.append(shares["General Population"])
+        mix_core.append(shares["Core Classical (F35–64)"])
+        mix_family.append(shares["Family (Parents w/ kids)"])
+        mix_ea.append(shares["Emerging Adults (18–34)"])
+
+        # segment ticket splits
+        est_tix = float(r["EstimatedTickets"] or 0.0)
+        seg_gp_tix.append(round(est_tix * shares["General Population"]))
+        seg_core_tix.append(round(est_tix * shares["Core Classical (F35–64)"]))
+        seg_family_tix.append(round(est_tix * shares["Family (Parents w/ kids)"]))
+        seg_ea_tix.append(round(est_tix * shares["Emerging Adults (18–34)"]))
+
+    # attach those new columns back to df
     df["PredictedPrimarySegment"] = prim_list
     df["PredictedSecondarySegment"] = sec_list
-    df["Mix_GP"] = mix_gp; df["Mix_Core"] = mix_core; df["Mix_Family"] = mix_family; df["Mix_EA"] = mix_ea
-    df["Seg_GP_Tickets"] = seg_gp_tix; df["Seg_Core_Tickets"] = seg_core_tix
-    df["Seg_Family_Tickets"] = seg_family_tix; df["Seg_EA_Tickets"] = seg_ea_tix
+    df["Mix_GP"] = mix_gp
+    df["Mix_Core"] = mix_core
+    df["Mix_Family"] = mix_family
+    df["Mix_EA"] = mix_ea
+    df["Seg_GP_Tickets"] = seg_gp_tix
+    df["Seg_Core_Tickets"] = seg_core_tix
+    df["Seg_Family_Tickets"] = seg_family_tix
+    df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # -------- 12) Transparency + stash --------
+    # -------- 12) Seasonality meta for display/CSV --------
+    seasonality_on = proposed_run_date is not None
     df["SeasonalityApplied"] = bool(seasonality_on)
-    df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on else np.nan
+    df["SeasonalityMonthUsed"] = (
+        int(proposed_run_date.month) if seasonality_on else np.nan
+    )
+    df["RunMonth"] = (
+        proposed_run_date.strftime("%B") if seasonality_on else ""
+    )
 
+    # -------- 13) stash results in session --------
     st.session_state["results"] = {
         "df": df,
         "benchmark": benchmark_title,
         "segment": segment,
         "region": region,
-        "unknown_est": unknown_used_est,
-        "unknown_live": unknown_used_live,
+        "unknown_est": [],  # fill with your unknown_used_est if you track it above
+        "unknown_live": [], # fill with your unknown_used_live if you track it above
     }
 
 import re
