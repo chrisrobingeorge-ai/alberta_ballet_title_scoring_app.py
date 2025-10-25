@@ -999,6 +999,18 @@ def compute_scores_and_store(
     # ✅ benchmark stays de-seasonalized; only the title gets future factor
     bench_med_future = bench_med_deseason
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
+# --- Remount novelty penalty (repeat staging fatigue) ---
+remount_factors = []
+adj_tickets = []
+for _, r in df.iterrows():
+    nm_factor = remount_novelty_factor(r["Title"], proposed_run_date)
+    remount_factors.append(nm_factor)
+    # scale the tickets DOWN by novelty factor
+    raw_est = float(r["EstimatedTickets"] or 0.0)
+    adj_tickets.append(round(raw_est * nm_factor))
+
+df["RemountNoveltyFactor"] = remount_factors
+df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
 
     # -------- 10) Live Analytics overlays --------
     df = _add_live_analytics_overlays(df)
