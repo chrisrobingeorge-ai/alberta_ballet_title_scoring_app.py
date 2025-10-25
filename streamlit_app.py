@@ -1018,19 +1018,19 @@ df = _add_live_analytics_overlays(df)
     # -------- 11) Segment propensity & tickets by segment --------
 df = df.copy()
 bench_entry_for_mix = BASELINES[benchmark_title]
-    prim_list, sec_list = [], []
-    mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
-    seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
+prim_list, sec_list = [], []
+mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
+seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
 
-    for _, r in df.iterrows():
-        entry_r = {
-            "wiki": float(r["WikiIdx"]),
-            "trends": float(r["TrendsIdx"]),
-            "youtube": float(r["YouTubeIdx"]),
-            "spotify": float(r["SpotifyIdx"]),
-            "gender": r["Gender"],
-            "category": r["Category"],
-        }
+for _, r in df.iterrows():
+    entry_r = {
+        "wiki": float(r["WikiIdx"]),
+        "trends": float(r["TrendsIdx"]),
+        "youtube": float(r["YouTubeIdx"]),
+        "spotify": float(r["SpotifyIdx"]),
+        "gender": r["Gender"],
+        "category": r["Category"],
+    }
 
         seg_to_raw = _signal_for_all_segments(entry_r, region)
         seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
