@@ -1013,7 +1013,7 @@ df["RemountNoveltyFactor"] = remount_factors
 df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
 
     # -------- 10) Live Analytics overlays --------
-    df = _add_live_analytics_overlays(df)
+df = _add_live_analytics_overlays(df)
 
     # -------- 11) Segment propensity & tickets by segment --------
     df = df.copy()
@@ -1059,6 +1059,7 @@ df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
         seg_core_tix.append(round(est * shares["Core Classical (F35–64)"]))
         seg_family_tix.append(round(est * shares["Family (Parents w/ kids)"]))
         seg_ea_tix.append(round(est * shares["Emerging Adults (18–34)"]))
+
 
     # --- Seasonality meta for display/CSV ---
     df["SeasonalityApplied"] = bool(seasonality_on)
