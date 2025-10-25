@@ -1530,18 +1530,19 @@ def render_results():
     if not R:
         return
 
+    # pull model output
     df = R["df"].copy()
     benchmark_title = R["benchmark"]
     segment = R["segment"]
     region = R["region"]
 
-    # Notices about data sources
+    # 1. Notices about data sources
     if R.get("unknown_est"):
         st.info("Estimated (offline) for new titles: " + ", ".join(R["unknown_est"]))
     if R.get("unknown_live"):
         st.success("Used LIVE data for new titles: " + ", ".join(R["unknown_live"]))
 
-    # TicketIndex source status
+    # 2. TicketIndex source status
     if "TicketIndexSource" in df.columns:
         src_counts = (
             df["TicketIndexSource"]
@@ -1557,7 +1558,7 @@ def render_results():
             f"Not enough data: {int(src_counts.get('Not enough data',0))}"
         )
 
-    # Seasonality status banner
+    # 3. Seasonality status banner
     if "SeasonalityApplied" in df.columns and bool(df["SeasonalityApplied"].iloc[0]):
         run_month_num = int(df["SeasonalityMonthUsed"].iloc[0]) if not pd.isna(df["SeasonalityMonthUsed"].iloc[0]) else None
         run_month_name = calendar.month_name[run_month_num] if run_month_num and 1 <= run_month_num <= 12 else "n/a"
@@ -1565,7 +1566,7 @@ def render_results():
     else:
         st.caption("Seasonality: **OFF**")
 
-    # Letter grades
+    # 4. Letter grades (Score)
     def _assign_score(v: float) -> str:
         if v >= 90: return "A"
         elif v >= 75: return "B"
@@ -1576,15 +1577,14 @@ def render_results():
     if "Score" not in df.columns:
         df["Score"] = df["Composite"].apply(_assign_score)
 
-    # ---------- TABLE (now includes seasonality columns when present) ----------
-    # Build the display dataframe in-place (TicketMedian -> TicketHistory; EffectiveTicketIndex -> TicketIndex used)
+    # ---------- TABLE VIEW ----------
+    # Rename for display
     df_show = df.rename(columns={
         "TicketMedian": "TicketHistory",
         "EffectiveTicketIndex": "TicketIndex used",
     }).copy()
 
-    # Make RunMonth pretty (string month name instead of number)
-    import calendar
+    # helper to convert numeric month -> month name
     def _to_month_name(v):
         try:
             if pd.isna(v):
@@ -1598,24 +1598,23 @@ def render_results():
             return v
         return ""
 
-    # If RunMonth exists, convert it. Otherwise derive from SeasonalityMonthUsed.
+    # prettify RunMonth column if present
     if "RunMonth" in df_show.columns:
         df_show["RunMonth"] = df_show["RunMonth"].apply(_to_month_name)
     elif "SeasonalityMonthUsed" in df_show.columns:
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
-    # 👇 DEFINE table_cols BEFORE we reference it
+    # preferred columns (some may not exist depending on options)
     table_cols = [
         "Title","Region","Segment","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
-        "TicketHistory",              # renamed from TicketMedian
+        "TicketHistory",
         "TicketIndex used","TicketIndexSource",
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
         "Composite","Score","EstimatedTickets",
     ]
 
-    # keep only columns that actually exist (some won't if seasonality is off etc.)
     present_cols = [c for c in table_cols if c in df_show.columns]
 
     st.subheader("🎟️ Estimated ticket sales (table view)")
@@ -1657,11 +1656,10 @@ def render_results():
         hide_index=True
     )
 
-    # ------- CSV EXPORTS -------
-    # Build the “full” export by deriving Live Analytics fields
+    # ---------- EXPORTS ----------
+    # Deep Live Analytics attachment for full CSV
     df_full = attach_la_report_columns(df)
 
-    # CSV with just what you're showing in the table
     st.download_button(
         "⬇️ Download Scores CSV (table columns only)",
         df_show[present_cols].to_csv(index=False).encode("utf-8"),
@@ -1669,7 +1667,6 @@ def render_results():
         "text/csv"
     )
 
-    # CSV with ALL columns (complete internal model output)
     st.download_button(
         "⬇️ Download Full CSV (includes all LA data)",
         df_full.to_csv(index=False).encode("utf-8"),
@@ -1677,7 +1674,7 @@ def render_results():
         "text/csv"
     )
 
-    # ---------- OPTIONAL CHARTS ----------
+    # ---------- OPTIONAL CHART ----------
     try:
         fig, ax = plt.subplots()
         ax.scatter(df["Familiarity"], df["Motivation"])
