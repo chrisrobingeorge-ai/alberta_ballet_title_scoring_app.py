@@ -1016,7 +1016,7 @@ df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
 df = _add_live_analytics_overlays(df)
 
     # -------- 11) Segment propensity & tickets by segment --------
-    df = df.copy()
+df = df.copy()
     bench_entry_for_mix = BASELINES[benchmark_title]
     prim_list, sec_list = [], []
     mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
