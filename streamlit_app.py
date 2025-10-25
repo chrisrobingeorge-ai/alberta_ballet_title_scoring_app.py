@@ -1583,10 +1583,9 @@ def render_results():
         "EffectiveTicketIndex": "TicketIndex used",
     }).copy()
 
-    # Ensure RunMonth is always a nice month name in the table
+    # Make RunMonth pretty (string month name instead of number)
     import calendar
     def _to_month_name(v):
-        # Accept int/float month numbers, or pass through an existing string
         try:
             if pd.isna(v):
                 return ""
@@ -1599,24 +1598,24 @@ def render_results():
             return v
         return ""
 
+    # If RunMonth exists, convert it. Otherwise derive from SeasonalityMonthUsed.
     if "RunMonth" in df_show.columns:
         df_show["RunMonth"] = df_show["RunMonth"].apply(_to_month_name)
     elif "SeasonalityMonthUsed" in df_show.columns:
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
-    # Preferred table columns (only shown if present)
-        table_cols = [
+    # 👇 DEFINE table_cols BEFORE we reference it
+    table_cols = [
         "Title","Region","Segment","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
-        "TicketHistory",
+        "TicketHistory",              # renamed from TicketMedian
         "TicketIndex used","TicketIndexSource",
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score",
-        "RemountNoveltyFactor",
-        "EstimatedTickets",
+        "Composite","Score","EstimatedTickets",
     ]
 
+    # keep only columns that actually exist (some won't if seasonality is off etc.)
     present_cols = [c for c in table_cols if c in df_show.columns]
 
     st.subheader("🎟️ Estimated ticket sales (table view)")
@@ -1631,17 +1630,19 @@ def render_results():
             )
             .style
             .format({
-                "WikiIdx": "{:.0f}", "TrendsIdx": "{:.0f}", "YouTubeIdx": "{:.0f}", "SpotifyIdx": "{:.0f}",
-                "Familiarity": "{:.1f}", "Motivation": "{:.1f}",
+                "WikiIdx": "{:.0f}",
+                "TrendsIdx": "{:.0f}",
+                "YouTubeIdx": "{:.0f}",
+                "SpotifyIdx": "{:.0f}",
+                "Familiarity": "{:.1f}",
+                "Motivation": "{:.1f}",
                 "Composite": "{:.1f}",
                 "TicketIndex used": "{:.1f}",
+                "EstimatedTickets": "{:,.0f}",
                 "TicketHistory": "{:,.0f}",
                 "FutureSeasonalityFactor": "{:.3f}",
                 "HistSeasonalityFactor": "{:.3f}",
-                "RemountNoveltyFactor": "{:.2f}",
-                "EstimatedTickets": "{:,.0f}",
             })
-
             .map(
                 lambda v: (
                     "color: green;" if v == "A" else
@@ -1656,10 +1657,11 @@ def render_results():
         hide_index=True
     )
 
-    # Build the “full” export by deriving LA fields from category→program overlays
+    # ------- CSV EXPORTS -------
+    # Build the “full” export by deriving Live Analytics fields
     df_full = attach_la_report_columns(df)
 
-    # CSV with just the table columns (as displayed)
+    # CSV with just what you're showing in the table
     st.download_button(
         "⬇️ Download Scores CSV (table columns only)",
         df_show[present_cols].to_csv(index=False).encode("utf-8"),
@@ -1667,7 +1669,7 @@ def render_results():
         "text/csv"
     )
 
-    # CSV with ALL columns (now includes the complete LA report fields + seasonality meta)
+    # CSV with ALL columns (complete internal model output)
     st.download_button(
         "⬇️ Download Full CSV (includes all LA data)",
         df_full.to_csv(index=False).encode("utf-8"),
