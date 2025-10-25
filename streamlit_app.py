@@ -1599,14 +1599,16 @@ def render_results():
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
     # Preferred table columns (only shown if present)
-    table_cols = [
+        table_cols = [
         "Title","Region","Segment","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory",
         "TicketIndex used","TicketIndexSource",
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score","EstimatedTickets",
+        "Composite","Score",
+        "RemountNoveltyFactor",
+        "EstimatedTickets",
     ]
 
     present_cols = [c for c in table_cols if c in df_show.columns]
@@ -1627,11 +1629,13 @@ def render_results():
                 "Familiarity": "{:.1f}", "Motivation": "{:.1f}",
                 "Composite": "{:.1f}",
                 "TicketIndex used": "{:.1f}",
-                "EstimatedTickets": "{:,.0f}",
                 "TicketHistory": "{:,.0f}",
                 "FutureSeasonalityFactor": "{:.3f}",
                 "HistSeasonalityFactor": "{:.3f}",
+                "RemountNoveltyFactor": "{:.2f}",
+                "EstimatedTickets": "{:,.0f}",
             })
+
             .map(
                 lambda v: (
                     "color: green;" if v == "A" else
