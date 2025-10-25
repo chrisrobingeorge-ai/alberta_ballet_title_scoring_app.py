@@ -1016,6 +1016,7 @@ df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
     df = _add_live_analytics_overlays(df)
 
     # -------- 11) Segment propensity & tickets by segment --------
+    df = df.copy()
     bench_entry_for_mix = BASELINES[benchmark_title]
     prim_list, sec_list = [], []
     mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
@@ -1035,15 +1036,18 @@ df["EstimatedTickets"] = adj_tickets  # overwrite with penalized forecast
         seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
 
         pri = _prior_weights_for(region, r["Category"])
-        combined = {k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
-                    for k in SEGMENT_KEYS_IN_ORDER}
+        combined = {
+            k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
+            for k in SEGMENT_KEYS_IN_ORDER
+        }
         total = sum(combined.values()) or 1.0
         shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
 
         ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
         primary = ordered[0][0]
         secondary = ordered[1][0] if len(ordered) > 1 else ""
-        prim_list.append(primary); sec_list.append(secondary)
+        prim_list.append(primary)
+        sec_list.append(secondary)
 
         mix_gp.append(shares["General Population"])
         mix_core.append(shares["Core Classical (F35–64)"])
