@@ -794,6 +794,39 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
         seg_to_indexed_signal[seg_key] = (fam_idx + mot_idx) / 2.0
     return seg_to_indexed_signal
 
+def remount_novelty_factor(title: str, proposed_run_date) -> float:
+    """
+    Returns a multiplier (<=1.0) to reduce demand if we're remounting something
+    that was staged recently.
+
+    Logic (tiered):
+      <=2 seasons since last run  -> 0.70  (30% reduction)
+      <=4 seasons                -> 0.80  (20% reduction)
+      <=9 seasons                -> 0.90  (10% reduction)
+      else                       -> 1.00  (no reduction)
+
+    If we have no historical date for this title (i.e. it's 'new'), return 1.0.
+    """
+    # If we don't know when it last ran, treat as new
+    last_middate = TITLE_TO_MIDDATE.get(title.strip())
+    if last_middate is None or proposed_run_date is None:
+        return 1.0
+
+    # How long since last run (in years, fractional)
+    # We'll call "season gap" basically year gap
+    delta_years = (proposed_run_date.year - last_middate.year) + \
+                  ((proposed_run_date.timetuple().tm_yday - last_middate.timetuple().tm_yday) / 365.25)
+
+    # Apply tiered decay
+    if delta_years <= 2:
+        return 0.70
+    elif delta_years <= 4:
+        return 0.80
+    elif delta_years <= 9:
+        return 0.90
+    else:
+        return 1.00
+
 # -------------------------
 # CORE: compute + store
 # -------------------------
