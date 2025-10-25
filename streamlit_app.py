@@ -1017,7 +1017,7 @@ df = _add_live_analytics_overlays(df)
 
     # -------- 11) Segment propensity & tickets by segment --------
 df = df.copy()
-    bench_entry_for_mix = BASELINES[benchmark_title]
+bench_entry_for_mix = BASELINES[benchmark_title]
     prim_list, sec_list = [], []
     mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
     seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
