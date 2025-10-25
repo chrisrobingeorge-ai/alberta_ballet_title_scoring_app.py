@@ -1066,6 +1066,48 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
+    # --- 11b. Remount decay adjustment ---
+    # needs: Title -> last run mid-date, which we already have in TITLE_TO_MIDDATE
+    
+    decay_pcts = []
+    decay_factors = []
+    est_after_decay = []
+    
+    today_year = datetime.utcnow().year  # or your proposed_run_date.year
+    
+    for _, r in df.iterrows():
+        title = r["Title"]
+        est_base = float(r["EstimatedTickets"] or 0.0)
+    
+        last_mid = TITLE_TO_MIDDATE.get(title)
+        if isinstance(last_mid, date):
+            yrs_since = (proposed_run_date.year - last_mid.year) if proposed_run_date else (today_year - last_mid.year)
+        else:
+            yrs_since = None
+    
+        # simple rules of thumb (tune these later):
+        if yrs_since is None:
+            decay_pct = 0.00  # we haven't done it, so no decay
+        elif yrs_since >= 5:
+            decay_pct = 0.05  # 5% haircut if it’s been a long time (audience has "reset")
+        elif yrs_since >= 3:
+            decay_pct = 0.12  # medium haircut
+        elif yrs_since >= 1:
+            decay_pct = 0.20  # high haircut if it's basically a quick remount
+        else:
+            decay_pct = 0.25  # extremely fast turnaround, assume fatigue
+    
+        factor = 1.0 - decay_pct
+        est_final = round(est_base * factor)
+    
+        decay_pcts.append(decay_pct)
+        decay_factors.append(factor)
+        est_after_decay.append(est_final)
+    
+    df["ReturnDecayPct"] = decay_pcts               # e.g. 0.12
+    df["ReturnDecayFactor"] = decay_factors         # e.g. 0.88
+    df["EstimatedTickets_Final"] = est_after_decay  # <- THIS is what you actually budget
+
     # -------- 12) Seasonality meta for display/CSV --------
     seasonality_on = proposed_run_date is not None
     df["SeasonalityApplied"] = bool(seasonality_on)
@@ -1612,7 +1654,9 @@ def render_results():
         "TicketHistory",
         "TicketIndex used","TicketIndexSource",
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score","EstimatedTickets",
+        "Composite","Score",
+        "EstimatedTickets",
+        "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
     ]
 
     present_cols = [c for c in table_cols if c in df_show.columns]
@@ -1641,6 +1685,9 @@ def render_results():
                 "TicketHistory": "{:,.0f}",
                 "FutureSeasonalityFactor": "{:.3f}",
                 "HistSeasonalityFactor": "{:.3f}",
+                "ReturnDecayPct": "{:.0%}",
+                "ReturnDecayFactor": "{:.2f}",
+                "EstimatedTickets_Final": "{:,.0f}",
             })
             .map(
                 lambda v: (
