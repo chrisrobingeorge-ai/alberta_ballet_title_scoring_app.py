@@ -1032,34 +1032,33 @@ for _, r in df.iterrows():
         "category": r["Category"],
     }
 
-        seg_to_raw = _signal_for_all_segments(entry_r, region)
-        seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
+    seg_to_raw = _signal_for_all_segments(entry_r, region)
+    seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
 
-        pri = _prior_weights_for(region, r["Category"])
-        combined = {
-            k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
-            for k in SEGMENT_KEYS_IN_ORDER
-        }
-        total = sum(combined.values()) or 1.0
-        shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
+    pri = _prior_weights_for(region, r["Category"])
+    combined = {
+        k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
+        for k in SEGMENT_KEYS_IN_ORDER
+    }
+    total = sum(combined.values()) or 1.0
+    shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
 
-        ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
-        primary = ordered[0][0]
-        secondary = ordered[1][0] if len(ordered) > 1 else ""
-        prim_list.append(primary)
-        sec_list.append(secondary)
+    ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
+    primary = ordered[0][0]
+    secondary = ordered[1][0] if len(ordered) > 1 else ""
+    prim_list.append(primary)
+    sec_list.append(secondary)
 
-        mix_gp.append(shares["General Population"])
-        mix_core.append(shares["Core Classical (F35–64)"])
-        mix_family.append(shares["Family (Parents w/ kids)"])
-        mix_ea.append(shares["Emerging Adults (18–34)"])
+    mix_gp.append(shares["General Population"])
+    mix_core.append(shares["Core Classical (F35–64)"])
+    mix_family.append(shares["Family (Parents w/ kids)"])
+    mix_ea.append(shares["Emerging Adults (18–34)"])
 
-        est = float(r["EstimatedTickets"] or 0.0)
-        seg_gp_tix.append(round(est * shares["General Population"]))
-        seg_core_tix.append(round(est * shares["Core Classical (F35–64)"]))
-        seg_family_tix.append(round(est * shares["Family (Parents w/ kids)"]))
-        seg_ea_tix.append(round(est * shares["Emerging Adults (18–34)"]))
-
+    est = float(r["EstimatedTickets"] or 0.0)
+    seg_gp_tix.append(round(est * shares["General Population"]))
+    seg_core_tix.append(round(est * shares["Core Classical (F35–64)"]))
+    seg_family_tix.append(round(est * shares["Family (Parents w/ kids)"]))
+    seg_ea_tix.append(round(est * shares["Emerging Adults (18–34)"]))
 
     # --- Seasonality meta for display/CSV ---
     df["SeasonalityApplied"] = bool(seasonality_on)
