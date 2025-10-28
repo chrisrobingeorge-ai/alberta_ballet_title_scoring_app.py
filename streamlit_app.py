@@ -1086,12 +1086,27 @@ def compute_scores_and_store(
         mix_family.append(shares["Family (Parents w/ kids)"])
         mix_ea.append(shares["Emerging Adults (18–34)"])
 
-        # segment ticket splits
-        est_tix = float(r["EstimatedTickets"] or 0.0)
-        seg_gp_tix.append(round(est_tix * shares["General Population"]))
-        seg_core_tix.append(round(est_tix * shares["Core Classical (F35–64)"]))
-        seg_family_tix.append(round(est_tix * shares["Family (Parents w/ kids)"]))
-        seg_ea_tix.append(round(est_tix * shares["Emerging Adults (18–34)"]))
+    # segment ticket splits (robust to NaN / missing keys)
+    est_tix_raw = r.get("EstimatedTickets", 0.0)
+
+    # if it's NaN or not a number, force to 0.0
+    try:
+        est_tix = float(est_tix_raw)
+        if math.isnan(est_tix) or math.isinf(est_tix):
+            est_tix = 0.0
+    except Exception:
+        est_tix = 0.0
+
+    def _seg_tix(seg_name: str) -> int:
+        share_val = float(shares.get(seg_name, 0.0))
+        if math.isnan(share_val) or math.isinf(share_val):
+            share_val = 0.0
+        return int(round(est_tix * share_val))
+
+    seg_gp_tix.append(_seg_tix("General Population"))
+    seg_core_tix.append(_seg_tix("Core Classical (F35–64)"))
+    seg_family_tix.append(_seg_tix("Family (Parents w/ kids)"))
+    seg_ea_tix.append(_seg_tix("Emerging Adults (18–34)"))
 
     # attach those new columns back to df
     df["PredictedPrimarySegment"] = prim_list
