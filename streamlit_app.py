@@ -941,7 +941,11 @@ def compute_scores_and_store(
 
     # De-seasonalize benchmark
     bench_cat = BASELINES[benchmark_title]["category"]
-    bench_hist_factor = seasonality_factor(bench_cat, TITLE_TO_MIDDATE.get(benchmark_title)) if seasonality_on else 1.0
+    bench_hist_factor = seasonality_factor(
+        bench_cat,
+        TITLE_TO_MIDDATE.get(benchmark_title)
+    ) if seasonality_on else 1.0
+
     bench_med_hist = TICKET_MEDIANS.get(benchmark_title, None)
     bench_med_hist = float(bench_med_hist) if bench_med_hist else 1.0
     bench_med_deseason = bench_med_hist / (bench_hist_factor if bench_hist_factor else 1.0)
@@ -1041,7 +1045,7 @@ def compute_scores_and_store(
     # -------- 10) Live Analytics overlays --------
     df = _add_live_analytics_overlays(df)
 
-    # -------- 11) Segment propensity & tickets by segment --------
+    # -------- 11) Segment propensity & tickets by segment (robust) --------
     df = df.copy()
     bench_entry_for_mix = BASELINES[benchmark_title]
 
@@ -1050,65 +1054,71 @@ def compute_scores_and_store(
     seg_gp_tix, seg_core_tix, seg_family_tix, seg_ea_tix = [], [], [], []
 
     for _, r in df.iterrows():
+        # helper to safely coerce numbers
+        def _safe_float(x, default=0.0):
+            try:
+                v = float(x)
+                if math.isnan(v) or math.isinf(v):
+                    return default
+                return v
+            except Exception:
+                return default
+
         entry_r = {
-            "wiki": float(r["WikiIdx"]),
-            "trends": float(r["TrendsIdx"]),
-            "youtube": float(r["YouTubeIdx"]),
-            "spotify": float(r["SpotifyIdx"]),
-            "gender": r["Gender"],
-            "category": r["Category"],
+            "wiki": _safe_float(r.get("WikiIdx", 0.0)),
+            "trends": _safe_float(r.get("TrendsIdx", 0.0)),
+            "youtube": _safe_float(r.get("YouTubeIdx", 0.0)),
+            "spotify": _safe_float(r.get("SpotifyIdx", 0.0)),
+            "gender": r.get("Gender", "na"),
+            "category": r.get("Category", "dramatic"),
         }
 
-        # signal per segment
+        # 1. signal per segment
         seg_to_raw = _signal_for_all_segments(entry_r, region)
         seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
 
-        # audience mix priors
-        pri = _prior_weights_for(region, r["Category"])
-        combined = {
-            k: max(1e-9, float(pri.get(k, 1.0)) * float(seg_to_idx.get(k, 0.0)))
-            for k in SEGMENT_KEYS_IN_ORDER
-        }
+        # 2. audience mix priors, make sure all 4 keys exist
+        pri = _prior_weights_for(region, entry_r["category"])
+        if (not pri) or any(k not in pri for k in SEGMENT_KEYS_IN_ORDER):
+            pri = {k: (pri.get(k, 1.0) if pri else 1.0) for k in SEGMENT_KEYS_IN_ORDER}
+
+        # 3. combine prior * signal, always >= tiny positive
+        combined = {}
+        for k in SEGMENT_KEYS_IN_ORDER:
+            prior_k = _safe_float(pri.get(k, 1.0), 1.0)
+            sig_k = _safe_float(seg_to_idx.get(k, 0.0), 0.0)
+            combined[k] = max(1e-9, prior_k * sig_k)
+
         total = sum(combined.values()) or 1.0
         shares = {k: combined[k] / total for k in SEGMENT_KEYS_IN_ORDER}
 
-        # primary / secondary segments
+        # 4. primary / secondary
         ordered = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)
-        primary = ordered[0][0]
+        primary = ordered[0][0] if len(ordered) > 0 else ""
         secondary = ordered[1][0] if len(ordered) > 1 else ""
 
         prim_list.append(primary)
         sec_list.append(secondary)
 
-        # store share columns
-        mix_gp.append(shares["General Population"])
-        mix_core.append(shares["Core Classical (F35–64)"])
-        mix_family.append(shares["Family (Parents w/ kids)"])
-        mix_ea.append(shares["Emerging Adults (18–34)"])
+        # 5. share cols
+        mix_gp.append(_safe_float(shares.get("General Population", 0.0), 0.0))
+        mix_core.append(_safe_float(shares.get("Core Classical (F35–64)", 0.0), 0.0))
+        mix_family.append(_safe_float(shares.get("Family (Parents w/ kids)", 0.0), 0.0))
+        mix_ea.append(_safe_float(shares.get("Emerging Adults (18–34)", 0.0), 0.0))
 
-    # segment ticket splits (robust to NaN / missing keys)
-    est_tix_raw = r.get("EstimatedTickets", 0.0)
+        # 6. segment ticket splits
+        est_tix_val = _safe_float(r.get("EstimatedTickets", 0.0), 0.0)
 
-    # if it's NaN or not a number, force to 0.0
-    try:
-        est_tix = float(est_tix_raw)
-        if math.isnan(est_tix) or math.isinf(est_tix):
-            est_tix = 0.0
-    except Exception:
-        est_tix = 0.0
+        def _seg_tix(seg_name: str) -> int:
+            share_val = _safe_float(shares.get(seg_name, 0.0), 0.0)
+            return int(round(est_tix_val * share_val))
 
-    def _seg_tix(seg_name: str) -> int:
-        share_val = float(shares.get(seg_name, 0.0))
-        if math.isnan(share_val) or math.isinf(share_val):
-            share_val = 0.0
-        return int(round(est_tix * share_val))
+        seg_gp_tix.append(_seg_tix("General Population"))
+        seg_core_tix.append(_seg_tix("Core Classical (F35–64)"))
+        seg_family_tix.append(_seg_tix("Family (Parents w/ kids)"))
+        seg_ea_tix.append(_seg_tix("Emerging Adults (18–34)"))
 
-    seg_gp_tix.append(_seg_tix("General Population"))
-    seg_core_tix.append(_seg_tix("Core Classical (F35–64)"))
-    seg_family_tix.append(_seg_tix("Family (Parents w/ kids)"))
-    seg_ea_tix.append(_seg_tix("Emerging Adults (18–34)"))
-
-    # attach those new columns back to df
+    # attach segment outputs back to df
     df["PredictedPrimarySegment"] = prim_list
     df["PredictedSecondarySegment"] = sec_list
     df["Mix_GP"] = mix_gp
@@ -1121,43 +1131,41 @@ def compute_scores_and_store(
     df["Seg_EA_Tickets"] = seg_ea_tix
 
     # --- 11b. Remount decay adjustment ---
-    # needs: Title -> last run mid-date, which we already have in TITLE_TO_MIDDATE
-    
     decay_pcts = []
     decay_factors = []
     est_after_decay = []
-    
-    today_year = datetime.utcnow().year  # or your proposed_run_date.year
-    
+
+    today_year = datetime.utcnow().year
+
     for _, r in df.iterrows():
         title = r["Title"]
         est_base = float(r["EstimatedTickets"] or 0.0)
-    
+
         last_mid = TITLE_TO_MIDDATE.get(title)
         if isinstance(last_mid, date):
             yrs_since = (proposed_run_date.year - last_mid.year) if proposed_run_date else (today_year - last_mid.year)
         else:
             yrs_since = None
-    
-        # simple rules of thumb (tune these later):
+
+        # tiered decay
         if yrs_since is None:
-            decay_pct = 0.00  # we haven't done it, so no decay
+            decay_pct = 0.00
         elif yrs_since >= 5:
-            decay_pct = 0.05  # 5% haircut if it’s been a long time (audience has "reset")
+            decay_pct = 0.05
         elif yrs_since >= 3:
-            decay_pct = 0.12  # medium haircut
+            decay_pct = 0.12
         elif yrs_since >= 1:
-            decay_pct = 0.20  # high haircut if it's basically a quick remount
+            decay_pct = 0.20
         else:
-            decay_pct = 0.25  # extremely fast turnaround, assume fatigue
-    
+            decay_pct = 0.25
+
         factor = 1.0 - decay_pct
         est_final = round(est_base * factor)
-    
+
         decay_pcts.append(decay_pct)
         decay_factors.append(factor)
         est_after_decay.append(est_final)
-    
+
     df["ReturnDecayPct"] = decay_pcts               # e.g. 0.12
     df["ReturnDecayFactor"] = decay_factors         # e.g. 0.88
     df["EstimatedTickets_Final"] = est_after_decay  # <- THIS is what you actually budget
@@ -1178,12 +1186,9 @@ def compute_scores_and_store(
         "benchmark": benchmark_title,
         "segment": segment,
         "region": region,
-        "unknown_est": [],  # fill with your unknown_used_est if you track it above
-        "unknown_live": [], # fill with your unknown_used_live if you track it above
+        "unknown_est": [],   # could store unknown_used_est
+        "unknown_live": [],  # could store unknown_used_live
     }
-
-import re
-import pandas as pd
 
 # =========================
 # LIVE ANALYTICS: FULL TABLE (deep)
