@@ -1780,6 +1780,142 @@ def render_results():
         "text/csv"
     )
 
+        # ---------- NEW: 📅 Build a Season (month-by-month picker + estimates) ----------
+    st.subheader("📅 Build a Season (assign titles to months)")
+
+    # Choose the season year (defaults: next calendar year)
+    default_year = (datetime.utcnow().year + 1)
+    season_year = st.number_input("Season year", min_value=2000, max_value=2100, value=default_year, step=1)
+
+    # Title options from current scored result set
+    title_options = ["— None —"] + sorted(df["Title"].unique().tolist())
+
+    # Lay out 12 month selectors in 3 columns
+    month_names = [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    ]
+    month_to_choice = {}
+    cols = st.columns(3, gap="large")
+    for i, month in enumerate(month_names):
+        with cols[i % 3]:
+            month_to_choice[month] = st.selectbox(
+                f"{month}", options=title_options, index=0, key=f"season_pick_{month}"
+            )
+
+    # Helper: estimate bench_med_deseason from current table (constant across titles)
+    bench_med_deseason_est = None
+    try:
+        # EffectiveTicketIndex = TicketIndex_DeSeason_Used * FutureSeasonalityFactor
+        eff = df["TicketIndex_DeSeason_Used"].astype(float) * df["FutureSeasonalityFactor"].astype(float)
+        good = (eff > 0) & df["EstimatedTickets"].notna()
+        if good.any():
+            # EstimatedTickets ≈ (EffectiveTicketIndex/100) * bench_med_deseason
+            ratios = (df.loc[good, "EstimatedTickets"].astype(float) / eff[good]) * 100.0
+            bench_med_deseason_est = float(np.nanmedian(ratios.values))
+    except Exception:
+        bench_med_deseason_est = None
+
+    if bench_med_deseason_est is None or not np.isfinite(bench_med_deseason_est):
+        st.warning("Couldn’t infer benchmark tickets for conversion. Season projections will use index only.")
+        bench_med_deseason_est = None  # fall back to index-only reporting if needed
+
+    # Build the season plan rows
+    plan_rows = []
+    for m_idx, month in enumerate(month_names, start=1):
+        title = month_to_choice[month]
+        if not title or title == "— None —":
+            continue
+
+        # Take the first row for that title as the base reference
+        r = df[df["Title"] == title].head(1)
+        if r.empty:
+            continue
+
+        r = r.iloc[0]
+        cat = str(r.get("Category", "dramatic"))
+        # future month midpoint date
+        run_date = date(int(season_year), int(m_idx), 15)
+
+        # Seasonality factor for that category/month
+        f_season = float(seasonality_factor(cat, run_date))
+
+        # De-seasonalized ticket index that our model chose for this title
+        idx_deseason = float(r.get("TicketIndex_DeSeason_Used", np.nan))
+        # If missing, fall back to signal-only index (still normalized to benchmark)
+        if not np.isfinite(idx_deseason):
+            idx_deseason = float(r.get("SignalOnly", 100.0))
+
+        # Apply chosen month
+        eff_idx = idx_deseason * f_season  # month-specific effective index
+
+        # Convert index -> tickets using inferred bench median (if available)
+        if bench_med_deseason_est is not None and np.isfinite(bench_med_deseason_est):
+            est_tix = round((eff_idx / 100.0) * bench_med_deseason_est)
+        else:
+            # index-only fallback; label clearly
+            est_tix = np.nan
+
+        # Remount decay factor for the selected month
+        decay_factor = remount_novelty_factor(title, run_date)
+        est_tix_final = int(round((est_tix if np.isfinite(est_tix) else 0) * decay_factor))
+
+        # Segment shares (from the per-title mix we already computed)
+        mix_gp = float(r.get("Mix_GP", 0.0))
+        mix_core = float(r.get("Mix_Core", 0.0))
+        mix_family = float(r.get("Mix_Family", 0.0))
+        mix_ea = float(r.get("Mix_EA", 0.0))
+
+        # Segment ticket splits for final figure
+        seg_gp_t = int(round(est_tix_final * mix_gp))
+        seg_core_t = int(round(est_tix_final * mix_core))
+        seg_family_t = int(round(est_tix_final * mix_family))
+        seg_ea_t = int(round(est_tix_final * mix_ea))
+
+        plan_rows.append({
+            "Month": month,
+            "Title": title,
+            "Category": cat,
+            "PrimarySegment": r.get("PredictedPrimarySegment", ""),
+            "SecondarySegment": r.get("PredictedSecondarySegment", ""),
+            "SeasonalityFactor": f"{f_season:.3f}",
+            "EffTicketIndex": f"{eff_idx:.1f}",
+            "EstTickets_beforeDecay": (None if not np.isfinite(est_tix) else int(est_tix)),
+            "ReturnDecayFactor": f"{float(decay_factor):.2f}",
+            "EstimatedTickets_Final": est_tix_final,
+            "Seg_GP_Tickets": seg_gp_t,
+            "Seg_Core_Tickets": seg_core_t,
+            "Seg_Family_Tickets": seg_family_t,
+            "Seg_EA_Tickets": seg_ea_t,
+        })
+
+    # Show plan table + total
+    if plan_rows:
+        plan_df = pd.DataFrame(plan_rows)
+        total_final = int(plan_df["EstimatedTickets_Final"].sum())
+        st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
+
+        st.dataframe(
+            plan_df[
+                ["Month","Title","Category","PrimarySegment","SecondarySegment",
+                 "SeasonalityFactor","EffTicketIndex",
+                 "EstTickets_beforeDecay","ReturnDecayFactor","EstimatedTickets_Final",
+                 "Seg_GP_Tickets","Seg_Core_Tickets","Seg_Family_Tickets","Seg_EA_Tickets"]
+            ]
+            .sort_values("Month"),
+            use_container_width=True, hide_index=True
+        )
+
+        # CSV export
+        st.download_button(
+            "⬇️ Download Season Plan CSV",
+            plan_df.sort_values("Month").to_csv(index=False).encode("utf-8"),
+            file_name=f"season_plan_{season_year}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.caption("Pick at least one month/title above to see your season projection.")
+
     # ---------- OPTIONAL CHART ----------
     try:
         fig, ax = plt.subplots()
