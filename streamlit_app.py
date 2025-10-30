@@ -100,64 +100,100 @@ SEGMENT_MULT = {
 }
 REGION_MULT = {"Province": 1.00, "Calgary": 1.05, "Edmonton": 0.95}
 
-# Priors (use your provided dicts)
-TITLE_CITY_PRIORS = {'Away We Go - Mixed Bill': {'Calgary': 0.3767, 'Edmonton': 0.6233},
- 'Ballet BC': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Botero': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Complexions - Lenny Kravitz': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Dance Theatre of Harlem': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Der Wolf & Rite of Spring': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Don Quixote': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Dona Peron': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Giselle': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Grimm': {'Calgary': 0.0, 'Edmonton': 1.0},
- "Handmaid's Tale": {'Calgary': 0.0, 'Edmonton': 1.0},
- 'La Sylphide': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Shaping Sound': {'Calgary': 0.6691, 'Edmonton': 0.3309},
- 'Unleashed - Mixed Bill': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'Winter Gala': {'Calgary': 0.592, 'Edmonton': 0.408},
- 'Wizard of Oz': {'Calgary': 0.0, 'Edmonton': 1.0}}
+# === City split + subscriber share logic (clean baseline favoring Calgary) ===
+import numpy as np
 
-CATEGORY_CITY_PRIORS = {'classic_comedy': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'classic_romance': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'contemporary': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'dramatic': {'Calgary': 0.233, 'Edmonton': 0.767},
- 'family_classic': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'pop_ip': {'Calgary': 0.0, 'Edmonton': 1.0},
- 'romantic_tragedy': {'Calgary': 0.0, 'Edmonton': 0.0}}
+# Leave priors empty; the app can learn/populate these later from history/UI.
+TITLE_CITY_PRIORS: dict[str, dict[str, float]] = {}
+CATEGORY_CITY_PRIORS: dict[str, dict[str, float]] = {}
 
-SUBS_SHARE_BY_CATEGORY_CITY = {'Calgary': {'dramatic': 0.4761},
- 'Edmonton': {'classic_comedy': 1.0,
-              'classic_romance': 0.6999,
-              'contemporary': 1.0,
-              'dramatic': 0.6274,
-              'family_classic': 1.0,
-              'pop_ip': 1.0}}
+# If you have city×category subscriber priors, you can inject them here; otherwise we fall back below.
+SUBS_SHARE_BY_CATEGORY_CITY: dict[str, dict[str, float | None]] = {
+    "Calgary": {},
+    "Edmonton": {},
+}
 
-_CITY_BLEND = 0.35
-_CITY_CLIP  = (0.10, 0.90)
+# ---- Sensible defaults ----
+# Make Calgary the default majority unless learned priors say otherwise.
+DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}  # tweak if you like
 
-def _blend_to_center(p, blend=_CITY_BLEND):
-    p = float(p)
-    return blend*0.5 + (1.0-blend)*p
+# Fallback subscriber shares if none are learned
+_DEFAULT_SUBS_SHARE = {"Calgary": 0.35, "Edmonton": 0.45}
 
-def _clip01(p):
-    lo, hi = _CITY_CLIP
+# How strongly to lean into a known prior (0..1), and safety clip range
+_CITY_BLEND_TO_PRIOR = 0.40
+_CITY_CLIP_RANGE     = (0.15, 0.85)
+
+def _clip01(p: float, lo_hi=_CITY_CLIP_RANGE) -> float:
+    lo, hi = lo_hi
     return float(min(hi, max(lo, p)))
 
-def city_split_for(title: str, category: str) -> tuple[float,float]:
-    prior = TITLE_CITY_PRIORS.get(title) or CATEGORY_CITY_PRIORS.get(category) or {"Calgary": 0.5, "Edmonton": 0.5}
-    c = _clip01(_blend_to_center(prior.get("Calgary", 0.5)))
-    e = _clip01(_blend_to_center(prior.get("Edmonton", 0.5)))
+def _normalize_pair(c: float, e: float) -> tuple[float, float]:
     s = (c + e) or 1.0
-    return c/s, e/s
+    return float(c / s), float(e / s)
 
-_DEFAULT_SUBS_SHARE = {"Calgary": 0.35, "Edmonton": 0.45}
+def _default_base_split() -> tuple[float, float]:
+    """Primary base: declared default; ensures normalization."""
+    c = float(DEFAULT_BASE_CITY_SPLIT.get("Calgary", 0.5))
+    e = float(DEFAULT_BASE_CITY_SPLIT.get("Edmonton", 0.5))
+    return _normalize_pair(c, e)
+
+def _is_sane_prior(p: dict | None) -> bool:
+    if not isinstance(p, dict):
+        return False
+    try:
+        c = float(p.get("Calgary", np.nan))
+        e = float(p.get("Edmonton", np.nan))
+        if not np.isfinite(c) or not np.isfinite(e):
+            return False
+        return (c + e) > 0
+    except Exception:
+        return False
+
+def city_split_for(title: str, category: str) -> tuple[float, float]:
+    """
+    Returns (Calgary_share, Edmonton_share).
+    Preference order:
+      1) Title prior (if sane)
+      2) Category prior (if sane)
+      3) DEFAULT_BASE_CITY_SPLIT (YYC 60% / YEG 40%)
+    Blend toward prior by _CITY_BLEND_TO_PRIOR; clip to 15–85% and renormalize.
+    """
+    base_c, base_e = _default_base_split()
+
+    prior = TITLE_CITY_PRIORS.get(title)
+    if not _is_sane_prior(prior):
+        prior = CATEGORY_CITY_PRIORS.get(category)
+
+    if _is_sane_prior(prior):
+        pc, pe = _normalize_pair(float(prior["Calgary"]), float(prior["Edmonton"]))
+        w = float(_CITY_BLEND_TO_PRIOR)
+        c = (1.0 - w) * base_c + w * pc
+        e = (1.0 - w) * base_e + w * pe
+    else:
+        c, e = base_c, base_e
+
+    # Safety clip and normalize
+    c = _clip01(c); e = _clip01(e)
+    return _normalize_pair(c, e)
+
 def subs_share_for(category: str, city: str) -> float:
+    """
+    Subscriber share for a given category & city (0..1).
+    Falls back to _DEFAULT_SUBS_SHARE; gently blends if a learned value exists.
+    """
     raw = SUBS_SHARE_BY_CATEGORY_CITY.get(city, {}).get(category, None)
-    if raw is None or not (0.0 < float(raw) < 1.0):
-        return _DEFAULT_SUBS_SHARE.get(city, 0.40)
-    return float(0.30*_DEFAULT_SUBS_SHARE.get(city, 0.40) + 0.70*float(raw))
+    base = float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
+    if raw is None:
+        return base
+    try:
+        r = float(raw)
+        if not (0.0 < r < 1.0) or not np.isfinite(r):
+            return base
+        # 70% learned, 30% base to keep stability season-to-season
+        return float(0.30 * base + 0.70 * r)
+    except Exception:
+        return base
 
 # Segment priors (abbrev: use your existing full dicts)
 SEGMENT_KEYS_IN_ORDER = [
