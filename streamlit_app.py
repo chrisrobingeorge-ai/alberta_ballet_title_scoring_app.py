@@ -7,6 +7,7 @@ import math, time, re, io
 from datetime import datetime, timedelta, date
 from typing import Dict, Optional, Tuple
 from textwrap import dedent
+from utils.priors import learn_priors_from_history, city_split_for, subs_share_for
 
 import streamlit as st
 import pandas as pd
@@ -36,6 +37,211 @@ if "results" not in st.session_state:
 
 st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9.1)")
 st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
+# === Learn city / subscription priors from historicals (paste right after your st.caption) ===
+import pandas as pd
+import streamlit as st
+
+# --- attempt to import your own priors helper; otherwise define a drop-in implementation ---
+try:
+    from utils.priors import learn_priors_from_history, city_split_for, subs_share_for
+except Exception:
+    # Globals to be populated from history
+    TITLE_CITY_PRIORS: dict[str, dict[str, float]] = {}
+    CATEGORY_CITY_PRIORS: dict[str, dict[str, float]] = {}
+    SUBS_SHARE_BY_CATEGORY_CITY: dict[str, dict[str, float | None]] = {"Calgary": {}, "Edmonton": {}}
+
+    # Sensible fallbacks if history is missing/thin
+    DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}
+    _DEFAULT_SUBS_SHARE = {"Calgary": 0.35, "Edmonton": 0.45}
+    _CITY_BLEND_TO_PRIOR = 0.40
+    _CITY_CLIP_RANGE     = (0.15, 0.85)
+
+    # Helper: fuzzy column resolver (case/spacing tolerant, common synonyms)
+    def _pick_col(df: pd.DataFrame, names: list[str]) -> str | None:
+        cols_norm = {c.lower().strip(): c for c in df.columns}
+        for n in names:
+            if n.lower() in cols_norm:
+                return cols_norm[n.lower()]
+        # loose contains match
+        for want in names:
+            for k, orig in cols_norm.items():
+                if want.lower() in k:
+                    return orig
+        return None
+
+    def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
+        """Expects rows with Title, Category, City, Singles, Subs (or Total/Type). Flexible and guarded."""
+        global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS, SUBS_SHARE_BY_CATEGORY_CITY
+
+        if hist_df is None or hist_df.empty:
+            # nothing to learn; keep defaults
+            return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "empty history"}
+
+        # Normalize likely columns
+        df = hist_df.copy()
+        # common synonyms
+        title_col    = _pick_col(df, ["title", "production", "show"])
+        cat_col      = _pick_col(df, ["category", "segment", "genre"])
+        city_col     = _pick_col(df, ["city"])
+        singles_col  = _pick_col(df, ["singles", "single_tickets", "single tickets"])
+        subs_col     = _pick_col(df, ["subs", "subscriptions", "subscription_tickets", "sub tickets"])
+        total_col    = _pick_col(df, ["total", "tickets", "total_tickets", "qty"])
+
+        # Try to construct singles/subs if only total + type rows are provided
+        type_col     = _pick_col(df, ["type"])  # rows like Type in {Single, Sub}
+        qty_col      = _pick_col(df, ["qty", "quantity", "tickets", "count"])
+
+        # Lowercase city names for consistency and map to canonical
+        def canon_city(x):
+            s = str(x).strip().lower()
+            if "calg" in s: return "Calgary"
+            if "edm"  in s: return "Edmonton"
+            return x if x in ("Calgary", "Edmonton") else None
+
+        # If we have row-wise type/qty, pivot to wide
+        if type_col and qty_col and not (singles_col and subs_col):
+            need = [c for c in [title_col, cat_col, city_col, type_col, qty_col] if c]
+            df = df[need].copy()
+            df[city_col] = df[city_col].map(canon_city)
+            df = df[df[city_col].isin(["Calgary", "Edmonton"])]
+            df[type_col] = df[type_col].str.lower().str.strip()
+            df_piv = df.pivot_table(
+                index=[c for c in [title_col, cat_col, city_col] if c],
+                columns=type_col, values=qty_col, aggfunc="sum", fill_value=0
+            ).reset_index()
+            # pick best guesses
+            singles_col = "single" if "single" in df_piv.columns else ("singles" if "singles" in df_piv.columns else None)
+            subs_col    = "sub"    if "sub" in df_piv.columns    else ("subs"    if "subs"    in df_piv.columns    else None)
+            df = df_piv
+
+        # Final basic guards
+        for c in (title_col, cat_col, city_col):
+            if c is None:
+                # Cannot learn without these three
+                return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "missing title/category/city"}
+
+        df = df[[title_col, cat_col, city_col] + [c for c in [singles_col, subs_col, total_col] if c]].copy()
+        df[city_col] = df[city_col].map(canon_city)
+        df = df[df[city_col].isin(["Calgary", "Edmonton"])]
+
+        # Build total tickets field
+        if total_col is None:
+            df["_total"] = df[[c for c in [singles_col, subs_col] if c]].fillna(0).sum(axis=1)
+            total_col = "_total"
+
+        # Learn title-level city splits
+        split_rows = (
+            df.groupby([title_col, city_col])[total_col]
+              .sum()
+              .reset_index()
+        )
+        title_splits = (
+            split_rows
+            .pivot(index=title_col, columns=city_col, values=total_col)
+            .fillna(0)
+        )
+        titles_learned = 0
+        for t, row in title_splits.iterrows():
+            tot = float(row.get("Calgary", 0) + row.get("Edmonton", 0))
+            if tot <= 0:
+                continue
+            cal = float(row.get("Calgary", 0)) / tot
+            ed  = 1.0 - cal
+            cal = max(_CITY_CLIP_RANGE[0], min(_CITY_CLIP_RANGE[1], cal))
+            ed  = 1.0 - cal
+            TITLE_CITY_PRIORS[str(t)] = {"Calgary": cal, "Edmonton": ed}
+            titles_learned += 1
+
+        # Learn category-level city splits
+        cat_rows = (
+            df.groupby([cat_col, city_col])[total_col]
+              .sum()
+              .reset_index()
+        )
+        cat_splits = (
+            cat_rows
+            .pivot(index=cat_col, columns=city_col, values=total_col)
+            .fillna(0)
+        )
+        categories_learned = 0
+        for c, row in cat_splits.iterrows():
+            tot = float(row.get("Calgary", 0) + row.get("Edmonton", 0))
+            if tot <= 0:
+                continue
+            cal = float(row.get("Calgary", 0)) / tot
+            ed  = 1.0 - cal
+            cal = max(_CITY_CLIP_RANGE[0], min(_CITY_CLIP_RANGE[1], cal))
+            ed  = 1.0 - cal
+            CATEGORY_CITY_PRIORS[str(c)] = {"Calgary": cal, "Edmonton": ed}
+            categories_learned += 1
+
+        # Learn subs share by category × city
+        subs_shares_learned = 0
+        if subs_col or singles_col:
+            df["_subs"]    = df[subs_col].fillna(0) if subs_col else 0
+            df["_singles"] = df[singles_col].fillna(0) if singles_col else 0
+            agg = df.groupby([cat_col, city_col])[["_subs", "_singles"]].sum().reset_index()
+            for _, r in agg.iterrows():
+                tot = float(r["_subs"] + r["_singles"])
+                if tot <= 0:
+                    continue
+                share = float(r["_subs"]) / tot
+                city  = str(r[city_col])
+                catv  = str(r[cat_col])
+                SUBS_SHARE_BY_CATEGORY_CITY.setdefault(city, {})
+                SUBS_SHARE_BY_CATEGORY_CITY[city][catv] = max(0.05, min(0.95, share))
+                subs_shares_learned += 1
+
+        return {
+            "titles_learned": titles_learned,
+            "categories_learned": categories_learned,
+            "subs_shares_learned": subs_shares_learned,
+        }
+
+    # Functions your forecaster will call
+    def city_split_for(title: str | None, category: str | None) -> dict[str, float]:
+        """Blend title→category→default to get Calgary/Edmonton proportions."""
+        # title prior?
+        if title and title in TITLE_CITY_PRIORS:
+            return TITLE_CITY_PRIORS[title]
+        # category prior?
+        if category and category in CATEGORY_CITY_PRIORS:
+            return CATEGORY_CITY_PRIORS[category]
+        # default
+        return DEFAULT_BASE_CITY_SPLIT.copy()
+
+    def subs_share_for(category: str | None, city: str) -> float:
+        city = "Calgary" if "calg" in city.lower() else ("Edmonton" if "edm" in city.lower() else city)
+        # cat×city prior?
+        if city in SUBS_SHARE_BY_CATEGORY_CITY and category in SUBS_SHARE_BY_CATEGORY_CITY[city]:
+            return float(SUBS_SHARE_BY_CATEGORY_CITY[city][category])
+        # city default
+        if city in _DEFAULT_SUBS_SHARE:
+            return float(_DEFAULT_SUBS_SHARE[city])
+        # generic
+        return 0.40
+
+# --- UI: upload or use local history, then learn priors ---
+with st.expander("Historicals (optional): upload or use data/history.csv", expanded=False):
+    uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
+
+if "hist_df" not in st.session_state:
+    try:
+        local_hist = pd.read_csv("data/history.csv")
+    except FileNotFoundError:
+        local_hist = pd.DataFrame()
+    st.session_state["hist_df"] = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
+
+if "priors_summary" not in st.session_state or uploaded_hist is not None:
+    s = learn_priors_from_history(st.session_state["hist_df"])
+    st.session_state["priors_summary"] = s
+
+s = st.session_state.get("priors_summary", {}) or {}
+st.caption(
+    f"Learned priors → titles: {s.get('titles_learned',0)}, "
+    f"categories: {s.get('categories_learned',0)}, "
+    f"subs-shares: {s.get('subs_shares_learned',0)}"
+)
 
 # -------------------------
 # About
