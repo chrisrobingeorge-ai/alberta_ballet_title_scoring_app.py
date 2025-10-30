@@ -1285,15 +1285,15 @@ df["RunMonth"] = (
     proposed_run_date.strftime("%B") if seasonality_on else ""
 )
 
-    # -------- 13) stash results in session --------
-    st.session_state["results"] = {
-        "df": df,
-        "benchmark": benchmark_title,
-        "segment": segment,
-        "region": region,
-        "unknown_est": [],   # could store unknown_used_est
-        "unknown_live": [],  # could store unknown_used_live
-    }
+# -------- 13) stash results in session --------
+st.session_state["results"] = {
+    "df": df,
+    "benchmark": benchmark_title,
+    "segment": segment,
+    "region": region,
+    "unknown_est": [],   # could store unknown_used_est
+    "unknown_live": [],  # could store unknown_used_live
+}
 
 # =========================
 # LIVE ANALYTICS: FULL TABLE (deep)
