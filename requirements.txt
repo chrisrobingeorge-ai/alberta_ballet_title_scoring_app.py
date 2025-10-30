@@ -1,7 +1,10 @@
-streamlit==1.39.0
-pandas==2.2.2
-numpy==2.0.2
-matplotlib==3.9.2
-requests==2.32.3
-google-api-python-client==2.149.0
-spotipy==2.24.0
+# --- Core ---
+streamlit>=1.37
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
+requests>=2.31
+
+# --- Optional: live data for NEW titles ---
+google-api-python-client>=2.130.0   # YouTube Data API v3
+spotipy>=2.23.0                     # Spotify Web API
