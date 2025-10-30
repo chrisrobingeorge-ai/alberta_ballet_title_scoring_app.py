@@ -166,10 +166,13 @@ with st.expander("Historicals (optional): upload or use data/history.csv", expan
 
 if "hist_df" not in st.session_state:
     try:
-        local_hist = pd.read_csv("data/history.csv")
+        local_hist = pd.read_csv("data/history_city_sales.csv")
     except FileNotFoundError:
         local_hist = pd.DataFrame()
     st.session_state["hist_df"] = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
+    if not st.session_state["hist_df"].empty:
+    st.caption(f"Historicals loaded: {len(st.session_state['hist_df'])} rows from CSV")
+
 elif uploaded_hist is not None:
     st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
 
