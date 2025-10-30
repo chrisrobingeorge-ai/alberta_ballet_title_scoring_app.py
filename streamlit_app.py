@@ -170,7 +170,7 @@ if "hist_df" not in st.session_state:
     except FileNotFoundError:
         local_hist = pd.DataFrame()
     st.session_state["hist_df"] = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
-    if not st.session_state["hist_df"].empty:
+if not st.session_state["hist_df"].empty:
     st.caption(f"Historicals loaded: {len(st.session_state['hist_df'])} rows from CSV")
 
 elif uploaded_hist is not None:
