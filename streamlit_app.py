@@ -1275,15 +1275,15 @@ df["YYC_Subs"] = cal_subs
 df["YEG_Singles"] = edm_singles
 df["YEG_Subs"] = edm_subs
 
-    # -------- 12) Seasonality meta for display/CSV --------
+# -------- 12) Seasonality meta for display/CSV --------
 seasonality_on = proposed_run_date is not None
-    df["SeasonalityApplied"] = bool(seasonality_on)
-    df["SeasonalityMonthUsed"] = (
-        int(proposed_run_date.month) if seasonality_on else np.nan
-    )
-    df["RunMonth"] = (
-        proposed_run_date.strftime("%B") if seasonality_on else ""
-    )
+df["SeasonalityApplied"] = bool(seasonality_on)
+df["SeasonalityMonthUsed"] = (
+    int(proposed_run_date.month) if seasonality_on else np.nan
+)
+df["RunMonth"] = (
+    proposed_run_date.strftime("%B") if seasonality_on else ""
+)
 
     # -------- 13) stash results in session --------
     st.session_state["results"] = {
