@@ -1915,6 +1915,237 @@ def render_results():
         )
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
+    # ---------- NEW: 🏙️ Calgary / Edmonton Breakout (learned from history) ----------
+    with st.expander("🏙️ Calgary / Edmonton Breakout", expanded=False):
+        st.caption("Paste historical city-level singles/subscriptions to learn Calgary/Edmonton splits and subscriber shares. "
+                   "We’ll use: Title-specific priors → Category priors → Base split fallback. Missing values stay safe.")
+
+        # ---- 0) Base fallback from REGION_MULT (normalize to proportions) ----
+        _w_cgy = float(REGION_MULT.get("Calgary", 1.0))
+        _w_edm = float(REGION_MULT.get("Edmonton", 1.0))
+        _denom = max(1e-9, (_w_cgy + _w_edm))
+        _base_split = {"Calgary": _w_cgy / _denom, "Edmonton": _w_edm / _denom}  # ~0.525 / 0.475
+
+        # ---- 1) Paste history (any of: CSV, tabs, multi-spaces). Columns must include these headers (case-insensitive):
+        # Show Title, Single Tickets - Calgary, Single Tickets - Edmonton, Subscription Tickets - Calgary, Subscription Tickets - Edmonton
+        hist_txt = st.text_area(
+            "Paste historical table (headers required). We’ll auto-clean commas and blanks.",
+            height=220,
+            value="",
+            help="Tip: You can paste the exact table you sent me."
+        )
+
+        import io, re
+
+        def _try_read_hist(text: str) -> pd.DataFrame | None:
+            if not text.strip():
+                return None
+            # Replace thousands commas, normalize delimiters
+            cleaned = re.sub(r"(?<=\d),(?=\d)", "", text)  # drop commas inside numbers
+            # Try CSV, then tab/space-separated
+            for sep in [",", r"\t", r"\s{2,}"]:
+                try:
+                    dfh = pd.read_csv(io.StringIO(cleaned), sep=sep, engine="python")
+                    if dfh.shape[1] >= 3:
+                        return dfh
+                except Exception:
+                    pass
+            return None
+
+        hist_df_raw = _try_read_hist(hist_txt)
+
+        # ---- 2) Learn priors (title/cat city splits; per-city subscriber share by category) ----
+        TITLE_CITY_PRIORS = {}
+        CATEGORY_CITY_PRIORS = {}
+        SUBS_SHARE_BY_CATEGORY_CITY = {"Calgary": {}, "Edmonton": {}}
+
+        if hist_df_raw is not None:
+            # Standardize column names
+            cols = {c.lower().strip(): c for c in hist_df_raw.columns}
+            def pick(*names):
+                for n in names:
+                    key = n.lower()
+                    if key in cols: return cols[key]
+                return None
+
+            col_title = pick("Show Title", "Title")
+            col_sc = pick("Single Tickets - Calgary","Singles - Calgary","Single Calgary","Singles Calgary")
+            col_se = pick("Single Tickets - Edmonton","Singles - Edmonton","Single Edmonton","Singles Edmonton")
+            col_uc = pick("Subscription Tickets - Calgary","Subscribers - Calgary","Subscription Calgary","Subs Calgary")
+            col_ue = pick("Subscription Tickets - Edmonton","Subscribers - Edmonton","Subscription Edmonton","Subs Edmonton")
+
+            if not col_title or not (col_sc or col_uc) or not (col_se or col_ue):
+                st.warning("Couldn’t find expected columns. Make sure headers match the ones in your table.")
+            else:
+                dfh = hist_df_raw.copy()
+                # Coerce numerics, blanks→0
+                for c in [col_sc, col_se, col_uc, col_ue]:
+                    if c and c in dfh.columns:
+                        dfh[c] = pd.to_numeric(dfh[c], errors="coerce").fillna(0).astype(float)
+                dfh[col_title] = dfh[col_title].astype(str).str.strip()
+
+                # Aggregate duplicate titles (sum across runs)
+                agg = dfh.groupby(col_title, as_index=False).agg({
+                    col_sc: "sum" if col_sc in dfh.columns else "sum",
+                    col_se: "sum" if col_se in dfh.columns else "sum",
+                    col_uc: "sum" if col_uc in dfh.columns else "sum",
+                    col_ue: "sum" if col_ue in dfh.columns else "sum",
+                })
+
+                # Map category per title (from baselines or inference)
+                def _cat_for_title(t: str) -> str:
+                    if t in BASELINES: return BASELINES[t].get("category","dramatic")
+                    return infer_gender_and_category(t)[1]
+
+                agg["Category"] = agg[col_title].map(_cat_for_title)
+
+                # Totals by city + subs/singles
+                agg["Calgary_Total"]  = (agg.get(col_sc, 0) + agg.get(col_uc, 0)).fillna(0)
+                agg["Edmonton_Total"] = (agg.get(col_se, 0) + agg.get(col_ue, 0)).fillna(0)
+                agg["Grand_Total"]    = agg["Calgary_Total"] + agg["Edmonton_Total"]
+
+                # --- 2a) Title-level city shares (only if enough volume) ---
+                MIN_VOL = 800  # tweak; avoid noisy tiny runs
+                good = agg[agg["Grand_Total"] >= MIN_VOL].copy()
+                good = good[(good["Calgary_Total"] + good["Edmonton_Total"]) > 0]
+
+                for _, r0 in good.iterrows():
+                    cgy = float(r0["Calgary_Total"])
+                    edm = float(r0["Edmonton_Total"])
+                    den = max(1e-9, cgy + edm)
+                    TITLE_CITY_PRIORS[str(r0[col_title])] = {
+                        "Calgary": cgy / den,
+                        "Edmonton": edm / den
+                    }
+
+                # --- 2b) Category-level city shares (weighted by title volume) ---
+                cat_g = agg.groupby("Category", as_index=False).agg({
+                    "Calgary_Total":"sum","Edmonton_Total":"sum"
+                })
+                for _, r1 in cat_g.iterrows():
+                    cgy = float(r1["Calgary_Total"]); edm = float(r1["Edmonton_Total"])
+                    den = max(1e-9, cgy + edm)
+                    CATEGORY_CITY_PRIORS[str(r1["Category"])] = {
+                        "Calgary": cgy / den,
+                        "Edmonton": edm / den
+                    }
+
+                # --- 2c) Per-city subscriber share by category: subs / (subs + singles) for each city ---
+                # Build city singles/subs columns
+                agg["Calgary_Singles"] = agg.get(col_sc, 0).fillna(0)
+                agg["Edmonton_Singles"] = agg.get(col_se, 0).fillna(0)
+                agg["Calgary_Subs"] = agg.get(col_uc, 0).fillna(0)
+                agg["Edmonton_Subs"] = agg.get(col_ue, 0).fillna(0)
+
+                cat_city = agg.groupby("Category", as_index=False).agg({
+                    "Calgary_Subs":"sum","Calgary_Singles":"sum",
+                    "Edmonton_Subs":"sum","Edmonton_Singles":"sum",
+                })
+                for _, r2 in cat_city.iterrows():
+                    # City-specific subscriber fraction
+                    def _safe_frac(num, den):
+                        den = float(den); num = float(num)
+                        return (num / den) if den > 0 else np.nan
+                    SUBS_SHARE_BY_CATEGORY_CITY["Calgary"][str(r2["Category"])] = float(
+                        _safe_frac(r2["Calgary_Subs"], r2["Calgary_Subs"] + r2["Calgary_Singles"])
+                    )
+                    SUBS_SHARE_BY_CATEGORY_CITY["Edmonton"][str(r2["Category"])] = float(
+                        _safe_frac(r2["Edmonton_Subs"], r2["Edmonton_Subs"] + r2["Edmonton_Singles"])
+                    )
+
+                st.success("Learned priors from history ✓  (title, category, and city-specific subscriber shares)")
+
+        # ---- 3) UI toggle: also split into Subscriber vs Single using learned city shares ----
+        enable_subs_split = st.checkbox("Also split each city into Subscriber vs Single (uses learned city-specific shares when available)", value=True)
+
+        # ---- 4) Helper to pick city prior (title → category → base) ----
+        def _city_prior_for(title: str, category: str) -> tuple[float, float]:
+            if title in TITLE_CITY_PRIORS:
+                p = TITLE_CITY_PRIORS[title]
+                c, e = float(p.get("Calgary", 0.5)), float(p.get("Edmonton", 0.5))
+            elif category in CATEGORY_CITY_PRIORS:
+                p = CATEGORY_CITY_PRIORS[category]
+                c, e = float(p.get("Calgary", _base_split["Calgary"])), float(p.get("Edmonton", _base_split["Edmonton"]))
+            else:
+                c, e = _base_split["Calgary"], _base_split["Edmonton"]
+            den = max(1e-9, c + e)
+            return c / den, e / den
+
+        # ---- 5) Helper: subscriber share per city & category (fallback to overall estimate 0.25 if missing) ----
+        def _subs_share_for(city: str, category: str) -> float:
+            v = SUBS_SHARE_BY_CATEGORY_CITY.get(city, {}).get(category, np.nan)
+            if pd.isna(v):
+                # gentle fallback: classic > contemporary > pop_ip, etc., tweakable if you like
+                default_by_cat = {
+                    "classic_romance": 0.35, "classic_comedy": 0.30, "romantic_comedy": 0.30,
+                    "romantic_tragedy": 0.32, "family_classic": 0.22, "contemporary": 0.26,
+                    "pop_ip": 0.20, "dramatic": 0.28
+                }
+                return float(default_by_cat.get(category, 0.25))
+            return float(np.clip(v, 0.05, 0.85))
+
+        # ---- 6) Produce city (and optional subs) splits for current model outputs ----
+        rows = []
+        for _, r in df.iterrows():
+            title = str(r["Title"])
+            cat = str(r.get("Category", "dramatic"))
+            est_final = float(r.get("EstimatedTickets_Final", 0.0))
+            cgy_p, edm_p = _city_prior_for(title, cat)
+
+            cgy_tix = int(round(est_final * cgy_p))
+            edm_tix = int(round(est_final * edm_p))
+
+            row = {
+                "Title": title,
+                "Category": cat,
+                "EstimatedTickets_Final": int(est_final),
+                "Calgary_Est": cgy_tix,
+                "Edmonton_Est": edm_tix,
+            }
+
+            if enable_subs_split:
+                cgy_subs = _subs_share_for("Calgary", cat)
+                edm_subs = _subs_share_for("Edmonton", cat)
+                row.update({
+                    "Calgary_Subs":   int(round(cgy_tix * cgy_subs)),
+                    "Calgary_Single": int(round(cgy_tix * (1.0 - cgy_subs))),
+                    "Edmonton_Subs":   int(round(edm_tix * edm_subs)),
+                    "Edmonton_Single": int(round(edm_tix * (1.0 - edm_subs))),
+                })
+
+            rows.append(row)
+
+        city_df = pd.DataFrame(rows)
+
+        # Totals row
+        totals = {
+            "Title": "TOTAL",
+            "Category": "",
+            "EstimatedTickets_Final": int(city_df["EstimatedTickets_Final"].sum()),
+            "Calgary_Est": int(city_df["Calgary_Est"].sum()),
+            "Edmonton_Est": int(city_df["Edmonton_Est"].sum()),
+        }
+        if enable_subs_split:
+            for col in ["Calgary_Subs","Calgary_Single","Edmonton_Subs","Edmonton_Single"]:
+                totals[col] = int(city_df.get(col, pd.Series(dtype=int)).sum())
+        city_df_tot = pd.concat([city_df, pd.DataFrame([totals])], ignore_index=True)
+
+        # Display
+        show_cols = ["Title","Category","EstimatedTickets_Final","Calgary_Est","Edmonton_Est"]
+        if enable_subs_split:
+            show_cols += ["Calgary_Subs","Calgary_Single","Edmonton_Subs","Edmonton_Single"]
+
+        st.dataframe(
+            city_df_tot[show_cols],
+            use_container_width=True, hide_index=True
+        )
+
+        st.download_button(
+            "⬇️ Download Calgary/Edmonton Breakout CSV",
+            city_df_tot.to_csv(index=False).encode("utf-8"),
+            file_name="city_breakout.csv",
+            mime="text/csv"
+        )
 
 
     # ---------- OPTIONAL CHART ----------
