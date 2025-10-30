@@ -1276,7 +1276,7 @@ df["YEG_Singles"] = edm_singles
 df["YEG_Subs"] = edm_subs
 
     # -------- 12) Seasonality meta for display/CSV --------
-    seasonality_on = proposed_run_date is not None
+seasonality_on = proposed_run_date is not None
     df["SeasonalityApplied"] = bool(seasonality_on)
     df["SeasonalityMonthUsed"] = (
         int(proposed_run_date.month) if seasonality_on else np.nan
