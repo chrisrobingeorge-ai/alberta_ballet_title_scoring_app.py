@@ -30,70 +30,147 @@ st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). A
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown(dedent("""
     ### Purpose
-    The Alberta Ballet Familiarity & Motivation Scorer estimates how recognizable a title is and how strongly audiences are motivated to attend.  
-    It blends online visibility data (Wikipedia, YouTube, Google Trends, Spotify) with past ticket sales and context multipliers for audience segments, regions, and timing.  
-    The goal is to compare titles on a consistent, normalized 100-point benchmark and estimate potential ticket results by segment and month.
-
-    ### Methodology Overview
-    **1. Data Sources**
-    - **Wikipedia** – cultural awareness  
-    - **Google Trends** – active interest  
-    - **YouTube** – video engagement intensity (normalized and outlier-winsorized)  
-    - **Spotify** – musical familiarity  
-    - **Ticket Priors** – median historical sales (used for ground truth)  
-    - **Live Analytics Overlays** – timing, channel, and price behaviours mapped by program category  
-
-    **2. Score Construction**
-    | Stage | Calculation | Description |
-    |:--|:--|:--|
-    | Familiarity | 0.55·Wiki + 0.30·Trends + 0.15·Spotify | Overall awareness index |
-    | Motivation | 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki | Active intent index |
-    | Multipliers | × Segment × Region | Adjusts for who and where the interest is |
-    | Normalization | ÷ Benchmark × 100 | Benchmark = user-selected baseline (e.g., *Swan Lake*) |
-    | Ticket Index | Historical or predicted | Converts de-seasonalized ticket medians into 100-scaled indices |
-    | Composite | 50% Online + 50% Ticket Index | Balances digital signals with real sales |
-    | Seasonality | Category×Month factor | Applies multiplicative adjustment for expected month performance |
-    | Remount Decay | −0–25% | Reduces estimates for titles staged recently |
-    | Final Estimate | Composite × Benchmark tickets × Seasonal × Decay | Outputs ticket forecast |
-
-    **3. Segment Propensity (Output)**
-    - Each title’s signals are recalculated for all four segments:  
-      _General Population_, _Core Classical (F35-64)_, _Family (Parents w/ Kids)_, _Emerging Adults (18-34)_  
-    - Segment priors from Live Analytics weight expected shares per region & category.  
-    - Outputs include:
-      - Predicted **primary** and **secondary** segment  
-      - Segment **share %**  
-      - Estimated **tickets per segment**
-
-    **4. Live Analytics Overlays**
-    Overlays attach average behavioral patterns by category, such as:  
-    - Timing (early buyers vs. week-of buyers)  
-    - Channel (internet, mobile, phone)  
-    - Ticket bundle size (1–2 vs. 3–4 vs. 5–8 tickets)  
-    - Price elasticity (price sensitivity flag)  
-    These variables contextualize sales strategy rather than altering the score.
-
-    **5. Seasonality and Remount Logic**
-    - Historical run data is used to infer Category×Month multipliers (median-to-overall ratios).  
-    - Factors are shrunk toward 1.0 for low-sample months and clipped between 0.85 and 1.25.  
-    - Remount decay applies 30–10% demand reduction depending on how recently the ballet was staged.
-
-    ### Glossary
-    - **Familiarity**: Cultural awareness of the title.  
-    - **Motivation**: Audience enthusiasm or viewing intent.  
-    - **Ticket Index**: A 100-based scale representing ticket-sale potential vs. the benchmark.  
-    - **Composite**: Weighted blend of online and ticket performance (default 50/50).  
-    - **Benchmark**: The title to which all others are normalized (set by user).  
-    - **Segment Propensity**: Likelihood of appeal to each audience segment.  
-    - **Live Analytics Overlay**: Real market behavior patterns by program type.  
-    - **Seasonality Factor**: Adjustment by month to reflect typical ticket demand.  
-    - **Remount Decay**: Discount applied to titles restaged too soon after a previous run.  
-    - **Estimated Tickets (Final)**: Projected attendance after all adjustments.
+    This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles/Subs mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder.
 
     ---
-    **Recommended use:**  
-    Screen potential titles, estimate proportional appeal by segment and month,  
-    and calibrate marketing expectations for programming, pricing, and touring.
+    ## Methods (end-to-end)
+
+    ### 1) Inputs & signals
+    **Online signals (index-scaled; higher = stronger)**  
+    - **Wikipedia**: average daily pageviews over the past year for the best-match page.  
+      Index formula: `40 + min(110, 20·ln(1+views/day))`.  
+    - **Google Trends**: proxy for active interest (lightweight heuristic when offline).  
+    - **YouTube**: engagement intensity from median view counts across relevant results.  
+      Index formula: `50 + min(90, 9·ln(1+median_views))`, then **winsorized** by title **category** (3rd–97th pct).  
+    - **Spotify**: 80th-percentile track popularity near the query (fallback heuristic if API not used).
+
+    **History & context**  
+    - **Ticket priors**: per-title median tickets (from your `TICKET_PRIORS_RAW`).  
+    - **Past runs**: title → `(start, end)` dates to derive a mid-run month for seasonality learning and remount timing.
+
+    > Unknown titles can be scored **two ways**:
+    > - **Live** (optional keys): Wikipedia + YouTube + Spotify lookups, then category winsorizing.  
+    > - **Estimated** (no keys): baseline medians nudged by inferred category/gender.
+
+    ### 2) Feature construction
+    **(a) Familiarity & Motivation (raw, pre-normalization)**  
+    \[
+    \\text{Familiarity} = 0.55\\cdot Wiki + 0.30\\cdot Trends + 0.15\\cdot Spotify
+    \]  
+    \[
+    \\text{Motivation} = 0.45\\cdot YouTube + 0.25\\cdot Trends + 0.15\\cdot Spotify + 0.15\\cdot Wiki
+    \]
+
+    **(b) Segment & region multipliers (applied to raw scores)**  
+    - Segment: `SEGMENT_MULT[segment][gender] × SEGMENT_MULT[segment][category]`  
+    - Region: `REGION_MULT[region]`  
+    (In this app, compute is fixed at **Alberta-wide + General Population** for the normalized indices. Segmented mixes are produced later.)
+
+    **(c) Normalization to a benchmark**  
+    For each segment, scores are **divided by the benchmark title’s raw value** and ×100.  
+    - Output per title: **Familiarity (index)** and **Motivation (index)**; we also keep `SignalOnly = mean(Familiarity, Motivation)`.
+
+    ### 3) Ticket index (linking signals to sales)
+    1. **De-seasonalize** history: for any title with a known median, divide by its **historical month factor** (Category×Month) to get `TicketIndex_DeSeason` **relative to the benchmark**.  
+    2. **Fit simple linear models** (y = a·x + b, clipped to [20, 180]):  
+       - One **overall** model if ≥5 known points.  
+       - **Per-category** models if a category has ≥3 known points.  
+    3. **Impute** missing `TicketIndex_DeSeason` using per-category model → overall model → (if neither available) mark “Not enough data”.  
+    4. **Apply future month**: multiply by **FutureSeasonalityFactor** (Category×Month at the proposed run month) to get `EffectiveTicketIndex`.
+
+    ### 4) Composite index & tickets
+    - **Composite** balances signals and ticket linkage:  
+      \[
+      \\text{Composite} = (1-w)\\cdot SignalOnly + w\\cdot EffectiveTicketIndex,\\quad w=0.50
+      \]
+    - **Benchmark tickets**: the app infers a de-seasonalized benchmark ticket figure to convert indices back into tickets.  
+      \[
+      \\text{EstimatedTickets} = (\\text{EffectiveTicketIndex}/100)\\times \\text{BenchmarkTickets}_{\\text{de-season}}
+      \]
+
+    ### 5) Remount decay (recency adjustment)
+    Based on years since the last run’s mid-date (using either the **proposed month** or current year if not set):  
+    - <1 year: **−25%** (factor 0.75)  
+    - 1–<3 years: **−20%** (0.80)  
+    - 3–<5 years: **−12%** (0.88)  
+    - ≥5 years: **−5%** (0.95)  
+    - no history: **0%**  
+    Result is **EstimatedTickets_Final**.
+
+    ### 6) YYC/YEG split and Singles/Subs allocation
+    **Learning from history (wide schemas tolerated):**  
+    - **Title-level city share** (Calgary vs Edmonton) from Singles+Subs totals, **clipped** to [0.15, 0.85].  
+    - **Category-level city share** as weighted fallback.  
+    - **Subscriber share** learned per **Category×City**, **clipped** to [0.05, 0.95].  
+    **Fallbacks when thin/missing:**  
+    - City split default = **60% Calgary / 40% Edmonton**.  
+    - Subs share defaults = **35% YYC / 45% YEG** (category-agnostic).  
+    Final outputs: YYC/YEG totals and Singles/Subs by city.
+
+    ### 7) Segment mix & per-segment tickets
+    For each title, we compute **segment-specific signals** (re-scored vs the benchmark), then combine them with **segment priors** (`SEGMENT_PRIORS[region][category]`) and a softmax-like normalization to derive **shares** across:  
+    - **General Population**, **Core Classical (F35–64)**, **Family (Parents w/ kids)**, **Emerging Adults (18–34)**.  
+    These shares are applied to **EstimatedTickets_Final** to get per-segment ticket estimates and the **primary/secondary segment**.
+
+    ---
+    ## Seasonality model (Category × Month)
+    - Built from `PAST_RUNS` + `TICKET_PRIORS_RAW`.  
+    - For each category: compute the **overall median**, then per-month medians, then a **ratio** (month/overall).  
+    - **Shrinkage**: \( w = \\frac{n}{n+K} \), with **K=3** (low-sample months pulled toward 1.0).  
+    - **Clipping**: factors constrained to **[0.85, 1.25]**.  
+    - **Historical factor**: used to de-seasonalize per-title medians (when available).  
+    - **Future factor**: used when you pick an **assumed run month**.
+
+    ---
+    ## Interpreting outputs
+    - **Familiarity vs Motivation**: plot quadrants reveal whether a title is known but “sleepy” (high Familiarity, low Motivation) vs buzzy but less known (reverse).  
+    - **Composite**: best single index for ranking if you plan to blend signal and sales history.  
+    - **EstimatedTickets_Final**: planning number after **future seasonality** and **remount decay**.  
+    - **Segment & city breakouts**: use for campaign design, pricing tests, and inventory planning.
+
+    ---
+    ## Assumptions & guardrails
+    - Linear link between **SignalOnly** and **TicketIndex_DeSeason** (by category where possible).  
+    - Outlier control: **YouTube** is winsorized within category (3rd–97th percentile).  
+    - Benchmark normalization cancels unit differences across segments/region.  
+    - Defaults are conservative (clipped shares; shrinkage toward 1.0 seasonality).  
+    - Heuristics are used when live APIs are off or data are thin (clearly labelled in the UI).
+
+    ---
+    ## Tunable constants (advanced)
+    - **TICKET_BLEND_WEIGHT** = `0.50`  
+    - **K_SHRINK** = `3.0`; **MINF/MAXF** = `0.85/1.25` (seasonality)  
+    - **DEFAULT_BASE_CITY_SPLIT** = `Calgary 0.60 / Edmonton 0.40`, **_CITY_CLIP_RANGE** = `[0.15, 0.85]`  
+    - **_DEFAULT_SUBS_SHARE** = `YYC 0.35 / YEG 0.45`, clipped to `[0.05, 0.95]`  
+    - **Prediction clip** for ticket index: `[20, 180]`  
+    - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)
+
+    ---
+    ## Limitations
+    - Sparse categories/months reduce model power; app falls back to overall fits or signals-only where needed.  
+    - Google Trends and Spotify heuristics are proxies when live APIs are off—treat as directional.  
+    - Title disambiguation (e.g., films vs ballets) is handled heuristically; review unknown-title results.
+
+    ---
+    ## Glossary
+    - **Benchmark**: reference title for normalization (index 100 by definition).  
+    - **Familiarity (index)**: awareness proxy normalized to the benchmark.  
+    - **Motivation (index)**: intent/engagement proxy normalized to the benchmark.  
+    - **SignalOnly**: mean of Familiarity and Motivation indices.  
+    - **TicketIndex_DeSeason**: ticket potential (vs benchmark=100) after removing historical month bias.  
+    - **EffectiveTicketIndex**: de-season ticket index × **FutureSeasonalityFactor**.  
+    - **Composite**: blend of SignalOnly and EffectiveTicketIndex (w=0.50).  
+    - **FutureSeasonalityFactor**: Category×Month factor for the planned run month.  
+    - **HistSeasonalityFactor**: Category×Month factor for the title’s last historical run month.  
+    - **Remount Decay / Factor**: staged-recency reduction and its (1−decay) multiplier.  
+    - **Primary/Secondary Segment**: segments with the highest modeled shares.  
+    - **YYC/YEG Split**: learned Calgary/Edmonton allocation for the title or its category.  
+    - **Singles/Subs Mix**: learned subscriber share by **Category×City** (fallbacks if thin).  
+    - **EstimatedTickets / Final**: projected tickets before/after remount decay.
+
+    ---
+    **Recommendation:** Use **Composite** to rank programs, **EstimatedTickets_Final** for capacity planning, and the **segment/city splits** to shape pricing, messaging, and distribution.
+
     """))
 
 # -------------------------
