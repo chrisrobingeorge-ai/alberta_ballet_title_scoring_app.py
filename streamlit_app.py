@@ -1346,17 +1346,45 @@ def render_results():
         "text/csv"
     )
 
+# --- Helper: safely fetch scored df without killing the rest of the app ---
+def get_scored_df_or_prompt():
+    R = st.session_state.get("results") or {}
+    df = R.get("df", pd.DataFrame())
+    if df is not None and not df.empty:
+        return df
+
+    st.info("No scored rows yet. Use **Score Titles** below to generate results.")
+    # Return empty, but don't st.stop(); this keeps the page alive so the button renders.
+    return pd.DataFrame()
+
+# -------------------------
+# Button + render
+# -------------------------
+run = st.button("Score Titles", type="primary")
+if run:
+    compute_scores_and_store(
+        titles=titles,
+        segment=segment,
+        region=region,
+        use_live=use_live,
+        yt_key=yt_key,
+        sp_id=sp_id,
+        sp_secret=sp_secret,
+        benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+        proposed_run_date=proposed_run_date,
+    )
+
+if st.session_state.get("results") is not None:
+    render_results()
+
 # 📅 Build a Season (assign titles to months)
 st.subheader("📅 Build a Season (assign titles to months)")
 
-# --- Get results DF safely
+# Always fetch via helper; never st.stop() here
 R = st.session_state.get("results") or {}
-df = R.get("df", pd.DataFrame())
-if df is None or df.empty:
-    st.warning("No scored rows available yet. Click **Score Titles** above first.")
-    st.stop()
+df = get_scored_df_or_prompt()
 
-# --- Season year picker
+# Season year picker (this can render even if df is empty)
 default_year = (datetime.utcnow().year + 1)
 season_year = st.number_input(
     "Season year (start of season)",
@@ -1364,22 +1392,35 @@ season_year = st.number_input(
     value=default_year, step=1
 )
 
-# --- Allowed months and selectors
+# Allowed months and selectors
 allowed_months = [
     ("September", 9), ("October", 10), ("December", 12),
     ("January", 1), ("February", 2), ("March", 3), ("May", 5),
 ]
 
-# Build a safe title list (fallback to BASELINES if needed)
+# Build a safe title list
 try:
     title_vals = []
-    if "Title" in df.columns:
+    if df is not None and not df.empty and "Title" in df.columns:
         title_vals = [t for t in df["Title"].dropna().astype(str).unique().tolist() if t.strip()]
     if not title_vals and "BASELINES" in globals():
         title_vals = sorted(list(BASELINES.keys()))
     title_options = ["— None —"] + sorted(title_vals)
 except Exception:
     title_options = ["— None —"]
+
+# If there are still no titles, just show the pickers disabled
+month_to_choice: dict[str, str] = {}
+cols = st.columns(3, gap="large")
+for i, (m_name, _) in enumerate(allowed_months):
+    with cols[i % 3]:
+        month_to_choice[m_name] = st.selectbox(
+            m_name,
+            options=title_options,
+            index=0,
+            key=f"season_pick_{m_name}"
+        )
+
 
 month_to_choice: dict[str, str] = {}
 cols = st.columns(3, gap="large")
@@ -1535,23 +1576,3 @@ if plan_rows:
     )
 else:
     st.caption("Pick at least one month/title above to see your season projection.")
-
-# -------------------------
-# Button + render
-# -------------------------
-run = st.button("Score Titles", type="primary")
-if run:
-    compute_scores_and_store(
-        titles=titles,
-        segment=segment,
-        region=region,
-        use_live=use_live,
-        yt_key=yt_key,
-        sp_id=sp_id,
-        sp_secret=sp_secret,
-        benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
-        proposed_run_date=proposed_run_date,
-    )
-
-if st.session_state.get("results") is not None:
-    render_results()
