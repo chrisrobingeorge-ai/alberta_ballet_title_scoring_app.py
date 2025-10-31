@@ -1549,31 +1549,53 @@ def render_results():
             "CityShare_Calgary","CityShare_Edmonton",
         ]
 
+        from pandas import IndexSlice as _S
+        
         # assemble wide DF: rows = metrics, columns = month labels
         df_wide = pd.DataFrame(
             { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
-            index=metrics
-        ).rename_axis("Metric").reset_index()
-
-        def _fmt_num(x):
-            if isinstance(x, Number) and np.isfinite(x):
-                return f"{x:,.0f}"
-            return x
-
-        st.markdown("#### 🗓️ Season table (months as columns)")
-        st.dataframe(
-            df_wide.style.format({ col: _fmt_num for col in month_cols }),
-            use_container_width=True,
-            hide_index=True
+            index=metrics  # keep Metric as the index so we can format by metric name
         )
-
-        # CSV download (wide) — replaces the old "Projected season total" CSV
+        
+        # Build a Styler with per-metric formats
+        sty = df_wide.style
+        
+        # Integer counts (tickets)
+        sty = sty.format("{:,.0f}", subset=_S[
+            ["TicketHistory","EstimatedTickets","EstimatedTickets_Final",
+             "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"], :
+        ])
+        
+        # Indices / composite (one decimal)
+        sty = sty.format("{:.1f}", subset=_S[
+            ["WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+             "Familiarity","Motivation","Composite","TicketIndex used"], :
+        ])
+        
+        # Factors (keep as decimals)
+        sty = sty.format("{:.3f}", subset=_S[
+            ["FutureSeasonalityFactor","HistSeasonalityFactor"], :
+        ])
+        sty = sty.format("{:.2f}", subset=_S[
+            ["ReturnDecayFactor"], :
+        ])
+        
+        # Percentages (as %)
+        sty = sty.format("{:.0%}", subset=_S[
+            ["CityShare_Calgary","CityShare_Edmonton","ReturnDecayPct"], :
+        ])
+        
+        st.markdown("#### 🗓️ Season table (months as columns)")
+        st.dataframe(sty, use_container_width=True)
+        
+        # CSV download (keeps raw numeric values, not formatted strings)
         st.download_button(
             "⬇️ Download Season (wide) CSV",
-            df_wide.to_csv(index=False).encode("utf-8"),
+            df_wide.reset_index().rename(columns={"index":"Metric"}).to_csv(index=False).encode("utf-8"),
             file_name=f"season_plan_wide_{season_year}.csv",
             mime="text/csv"
         )
+
 
     with tab_city:
         try:
