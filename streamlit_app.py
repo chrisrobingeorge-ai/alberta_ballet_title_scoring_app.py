@@ -1218,7 +1218,6 @@ def compute_scores_and_store(
 # Render
 # -------------------------
 def render_results():
-    SHOW_LEGACY_SEASON = False
     import calendar
     R = st.session_state.get("results")
     if not R or "df" not in R or R["df"] is None:
@@ -1346,16 +1345,289 @@ def render_results():
         "text/csv"
     )
 
-# --- Helper: safely fetch scored df without killing the rest of the app ---
-def get_scored_df_or_prompt():
-    R = st.session_state.get("results") or {}
-    df = R.get("df", pd.DataFrame())
-    if df is not None and not df.empty:
-        return df
+    # Build a Season
+    st.subheader("📅 Build a Season (assign titles to months)")
+    default_year = (datetime.utcnow().year + 1)
+    season_year = st.number_input("Season year (start of season)", min_value=2000, max_value=2100, value=default_year, step=1)
 
-    st.info("No scored rows yet. Use **Score Titles** below to generate results.")
-    # Return empty, but don't st.stop(); this keeps the page alive so the button renders.
-    return pd.DataFrame()
+    # Infer benchmark tickets
+    bench_med_deseason_est = None
+    try:
+        eff = df["TicketIndex_DeSeason_Used"].astype(float) * df["FutureSeasonalityFactor"].astype(float)
+        good = (eff > 0) & df["EstimatedTickets"].notna()
+        if good.any():
+            ratios = (df.loc[good, "EstimatedTickets"].astype(float) / eff[good]) * 100.0
+            bench_med_deseason_est = float(np.nanmedian(ratios.values))
+    except Exception:
+        bench_med_deseason_est = None
+    if bench_med_deseason_est is None or not np.isfinite(bench_med_deseason_est):
+        st.warning("Couldn’t infer benchmark tickets for conversion. Season projections will show index-only where needed.")
+        bench_med_deseason_est = None
+
+    allowed_months = [("September", 9), ("October", 10), ("December", 12), ("January", 1), ("February", 2), ("March", 3), ("May", 5)]
+    title_options = ["— None —"] + sorted(df["Title"].unique().tolist())
+    month_to_choice = {}
+    cols = st.columns(3, gap="large")
+    for i, (m_name, _) in enumerate(allowed_months):
+        with cols[i % 3]:
+            month_to_choice[m_name] = st.selectbox(m_name, options=title_options, index=0, key=f"season_pick_{m_name}")
+
+    def _run_year_for_month(month_num: int, start_year: int) -> int:
+        return start_year if month_num in (9, 10, 12) else (start_year + 1)
+
+    # --- Build a Season: collect rows with full detail ---
+    plan_rows = []
+    for m_name, m_num in allowed_months:
+        title_sel = month_to_choice.get(m_name)
+        if not title_sel or title_sel == "— None —":
+            continue
+    
+        r = df[df["Title"] == title_sel].head(1)
+        if r.empty:
+            continue
+        r = r.iloc[0]
+    
+        cat = str(r.get("Category", ""))
+        run_year = _run_year_for_month(m_num, int(season_year))
+        run_date = date(run_year, int(m_num), 15)
+    
+        # seasonality + index for the chosen month
+        f_season = float(seasonality_factor(cat, run_date))
+        idx_deseason = float(r.get("TicketIndex_DeSeason_Used", np.nan))
+        if not np.isfinite(idx_deseason):
+            idx_deseason = float(r.get("SignalOnly", 100.0))
+        eff_idx = idx_deseason * f_season
+    
+        # convert to tickets if we inferred a benchmark
+        if bench_med_deseason_est is not None and np.isfinite(bench_med_deseason_est):
+            est_tix = round((eff_idx / 100.0) * bench_med_deseason_est)
+        else:
+            est_tix = np.nan
+    
+        # remount decay
+        decay_factor = remount_novelty_factor(title_sel, run_date)
+        est_tix_final = int(round((est_tix if np.isfinite(est_tix) else 0) * decay_factor))
+    
+        # --- City split (recompute for season-picked month) ---
+        split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
+        c_sh = float(split.get("Calgary", 0.60))
+        e_sh = float(split.get("Edmonton", 0.40))
+        s = (c_sh + e_sh) or 1.0
+        c_sh, e_sh = float(c_sh / s), float(e_sh / s)
+    
+        # Allocate totals to cities
+        yyc_total = est_tix_final * c_sh
+        yeg_total = est_tix_final * e_sh
+    
+        # Subs shares by category × city
+        yyc_sub_ratio = float(subs_share_for(cat, "Calgary"))
+        yeg_sub_ratio = float(subs_share_for(cat, "Edmonton"))
+    
+        # Singles vs Subs by city
+        yyc_subs = int(round(yyc_total * yyc_sub_ratio))
+        yyc_singles = int(round(yyc_total * (1.0 - yyc_sub_ratio)))
+        yeg_subs = int(round(yeg_total * yeg_sub_ratio))
+        yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
+    
+        # row with all requested fields
+        plan_rows.append({
+            "Month": f"{m_name} {run_year}",
+            "Title": title_sel,
+            "Category": cat,
+            "PrimarySegment": r.get("PredictedPrimarySegment", ""),
+            "SecondarySegment": r.get("PredictedSecondarySegment", ""),
+    
+            "WikiIdx": r.get("WikiIdx", np.nan),
+            "TrendsIdx": r.get("TrendsIdx", np.nan),
+            "YouTubeIdx": r.get("YouTubeIdx", np.nan),
+            "SpotifyIdx": r.get("SpotifyIdx", np.nan),
+    
+            "Familiarity": r.get("Familiarity", np.nan),
+            "Motivation": r.get("Motivation", np.nan),
+    
+            "TicketHistory": r.get("TicketMedian", np.nan),
+            "TicketIndex used": eff_idx,  # effective (de-seasoned × future month factor)
+            "TicketIndexSource": r.get("TicketIndexSource", ""),
+    
+            "FutureSeasonalityFactor": f_season,
+            "HistSeasonalityFactor": r.get("HistSeasonalityFactor", np.nan),
+    
+            "Composite": r.get("Composite", np.nan),
+            "Score": r.get("Score", ""),
+    
+            "EstimatedTickets": (None if not np.isfinite(est_tix) else int(est_tix)),
+            "ReturnDecayFactor": float(decay_factor),
+            "ReturnDecayPct": float(1.0 - decay_factor),
+            "EstimatedTickets_Final": int(est_tix_final),
+    
+            # --- requested city split outputs ---
+            "YYC_Singles": int(yyc_singles),
+            "YYC_Subs": int(yyc_subs),
+            "YEG_Singles": int(yeg_singles),
+            "YEG_Subs": int(yeg_subs),
+            "CityShare_Calgary": float(c_sh),
+            "CityShare_Edmonton": float(e_sh),
+        })
+    
+    if plan_rows:
+        desired_order = [
+            "Month","Title","Category","PrimarySegment","SecondarySegment",
+            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+            "Familiarity","Motivation",
+            "TicketHistory","TicketIndex used","TicketIndexSource",
+            "FutureSeasonalityFactor","HistSeasonalityFactor",
+            "Composite","Score",
+            "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+            "CityShare_Calgary","CityShare_Edmonton",
+        ]
+        plan_df = pd.DataFrame(plan_rows)[desired_order]
+        total_final = int(plan_df["EstimatedTickets_Final"].sum())
+
+        # --- Executive summary KPIs (after you have plan_df and total_final) ---
+        with st.container():
+            st.markdown("### 📊 Season at a glance")
+            c1, c2, c3, c4 = st.columns(4)
+        
+            yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
+            yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
+            singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
+            subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
+            grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
+        
+            with c1:
+                st.metric("Projected Season Total", f"{grand:,}")
+            with c2:
+                st.metric("Calgary • share", f"{yyc_tot:,}", delta=f"{yyc_tot/grand:.1%}")
+            with c3:
+                st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
+            with c4:
+                st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
+        
+        # --- Tabs: Table | City split chart | Rank by Composite ---
+        tab_table, tab_city, tab_rank = st.tabs(["Table", "City Split by Month", "Rank by Composite"])
+        
+        with tab_table:
+            st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
+            st.dataframe(
+                plan_df.style.format({
+                    "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
+                    "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
+                    "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
+                    "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
+                    "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
+                    "EstimatedTickets_Final":"{:,.0f}",
+                    "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
+                    "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
+                    "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
+                }),
+                use_container_width=True, hide_index=True
+            )
+        
+        with tab_city:
+            # stacked bar: by month with 4 stacks (YYC Singles/Subs, YEG Singles/Subs)
+            try:
+                plot_df = (plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
+                           .copy().groupby("Month", as_index=False).sum())
+                plot_df = plot_df.sort_values("Month", key=lambda s: s.str.extract(r"(\w+)\s(\d+)", expand=True)[0])  # keep your existing order if you prefer
+        
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots()
+                ax.bar(plot_df["Month"], plot_df["YYC_Singles"], label="YYC Singles")
+                ax.bar(plot_df["Month"], plot_df["YYC_Subs"], bottom=plot_df["YYC_Singles"], label="YYC Subs")
+                ax.bar(plot_df["Month"], plot_df["YEG_Singles"],
+                       bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"]), label="YEG Singles")
+                ax.bar(plot_df["Month"], plot_df["YEG_Subs"],
+                       bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"] + plot_df["YEG_Singles"]), label="YEG Subs")
+                ax.set_title("City split by month (stacked)")
+                ax.set_xlabel("Month")
+                ax.set_ylabel("Tickets (final)")
+                ax.legend()
+                ax.tick_params(axis='x', rotation=45)
+                st.pyplot(fig)
+            except Exception as e:
+                st.caption(f"City split chart unavailable: {e}")
+        
+        with tab_rank:
+            rank_cols = ["Month","Title","Category","PrimarySegment","SecondarySegment","Composite","EstimatedTickets_Final"]
+            rank_df = plan_df[rank_cols].copy().sort_values(["Composite","EstimatedTickets_Final"], ascending=[False, False])
+            st.dataframe(
+                rank_df.style.format({"Composite":"{:.1f}","EstimatedTickets_Final":"{:,.0f}"}),
+                use_container_width=True, hide_index=True
+            )
+    
+        st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
+        st.dataframe(
+            plan_df.style.format({
+                "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
+                "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
+                "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
+                "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
+                "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
+                "EstimatedTickets_Final":"{:,.0f}",
+                "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
+                "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
+                "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
+            }),
+            use_container_width=True, hide_index=True
+        )
+        st.download_button(
+            "⬇️ Download Season Plan CSV",
+            plan_df.to_csv(index=False).encode("utf-8"),
+            file_name=f"season_plan_{season_year}-{season_year+1}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.caption("Pick at least one month/title above to see your season projection.")
+
+    # Calgary / Edmonton split quick view
+    with st.expander("🏙️ Calgary / Edmonton split (singles vs subs)"):
+        cols = ["Title","Category","EstimatedTickets_Final",
+                "YYC_Total","YYC_Singles","YYC_Subs",
+                "YEG_Total","YEG_Singles","YEG_Subs",
+                "CityShare_Calgary","CityShare_Edmonton"]
+        present = [c for c in cols if c in df.columns]
+        st.dataframe(
+            df[present].sort_values("EstimatedTickets_Final", ascending=False)
+              .style.format({
+                  "EstimatedTickets_Final": "{:,.0f}",
+                  "YYC_Total": "{:,.0f}", "YYC_Singles": "{:,.0f}", "YYC_Subs": "{:,.0f}",
+                  "YEG_Total": "{:,.0f}", "YEG_Singles": "{:,.0f}", "YEG_Subs": "{:,.0f}",
+                  "CityShare_Calgary": "{:.1%}", "CityShare_Edmonton": "{:.1%}",
+              }),
+            use_container_width=True, hide_index=True
+        )
+        try:
+            tot = {
+                "YYC_Total": int(df["YYC_Total"].sum()),
+                "YYC_Singles": int(df["YYC_Singles"].sum()),
+                "YYC_Subs": int(df["YYC_Subs"].sum()),
+                "YEG_Total": int(df["YEG_Total"].sum()),
+                "YEG_Singles": int(df["YEG_Singles"].sum()),
+                "YEG_Subs": int(df["YEG_Subs"].sum()),
+                "EstimatedTickets_Final": int(df["EstimatedTickets_Final"].sum()),
+            }
+            st.caption(f"Totals — YYC: {tot['YYC_Total']:,} (Singles {tot['YYC_Singles']:,} / Subs {tot['YYC_Subs']:,}) · "
+                       f"YEG: {tot['YEG_Total']:,} (Singles {tot['YEG_Singles']:,} / Subs {tot['YEG_Subs']:,}) · "
+                       f"All-in: {tot['EstimatedTickets_Final']:,}")
+        except Exception:
+            pass
+
+    # Scatter chart
+    try:
+        if "Familiarity" in df.columns and "Motivation" in df.columns:
+            fig, ax = plt.subplots()
+            ax.scatter(df["Familiarity"], df["Motivation"])
+            for _, rr in df.iterrows():
+                ax.annotate(rr["Title"], (rr["Familiarity"], rr["Motivation"]), fontsize=8)
+            ax.axvline(df["Familiarity"].median(), linestyle="--")
+            ax.axhline(df["Motivation"].median(), linestyle="--")
+            ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
+            ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
+            ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
+            st.pyplot(fig)
+    except Exception:
+        pass
 
 # -------------------------
 # Button + render
@@ -1376,203 +1648,3 @@ if run:
 
 if st.session_state.get("results") is not None:
     render_results()
-
-# 📅 Build a Season (assign titles to months)
-st.subheader("📅 Build a Season (assign titles to months)")
-
-# Always fetch via helper; never st.stop() here
-R = st.session_state.get("results") or {}
-df = get_scored_df_or_prompt()
-
-# Season year picker (this can render even if df is empty)
-default_year = (datetime.utcnow().year + 1)
-season_year = st.number_input(
-    "Season year (start of season)",
-    min_value=2000, max_value=2100,
-    value=default_year, step=1
-)
-
-# Allowed months and selectors
-allowed_months = [
-    ("September", 9), ("October", 10), ("December", 12),
-    ("January", 1), ("February", 2), ("March", 3), ("May", 5),
-]
-
-# Build a safe title list
-try:
-    title_vals = []
-    if df is not None and not df.empty and "Title" in df.columns:
-        title_vals = [t for t in df["Title"].dropna().astype(str).unique().tolist() if t.strip()]
-    if not title_vals and "BASELINES" in globals():
-        title_vals = sorted(list(BASELINES.keys()))
-    title_options = ["— None —"] + sorted(title_vals)
-except Exception:
-    title_options = ["— None —"]
-
-# If there are still no titles, just show the pickers disabled
-month_to_choice: dict[str, str] = {}
-cols = st.columns(3, gap="large")
-for i, (m_name, _) in enumerate(allowed_months):
-    with cols[i % 3]:
-        month_to_choice[m_name] = st.selectbox(
-            m_name,
-            options=title_options,
-            index=0,
-            key=f"season_pick_{m_name}"
-        )
-
-
-month_to_choice: dict[str, str] = {}
-cols = st.columns(3, gap="large")
-for i, (m_name, _) in enumerate(allowed_months):
-    with cols[i % 3]:
-        month_to_choice[m_name] = st.selectbox(
-            m_name,
-            options=title_options,
-            index=0,
-            key=f"season_pick_{m_name}"
-        )
-
-def _run_year_for_month(month_num: int, start_year: int) -> int:
-    # Fall months are same calendar year; winter/spring are next year.
-    return start_year if month_num in (9, 10, 12) else (start_year + 1)
-
-# --- Infer benchmark (de-seasonalized) conversion once (for index→tickets)
-bench_med_deseason_est = np.nan
-try:
-    if {"TicketIndex_DeSeason_Used", "FutureSeasonalityFactor", "EstimatedTickets"}.issubset(df.columns):
-        eff = df["TicketIndex_DeSeason_Used"].astype(float) * df["FutureSeasonalityFactor"].astype(float)
-        good = (eff > 0) & df["EstimatedTickets"].notna()
-        if good.any():
-            ratios = (df.loc[good, "EstimatedTickets"].astype(float) / eff[good]) * 100.0
-            bench_med_deseason_est = float(np.nanmedian(ratios.values))
-except Exception:
-    bench_med_deseason_est = np.nan
-
-# --- Build plan rows
-plan_rows: list[dict] = []
-
-for m_name, m_num in allowed_months:
-    title_sel = month_to_choice.get(m_name)
-    if not title_sel or title_sel == "— None —":
-        continue
-
-    r = df[df["Title"] == title_sel].head(1)
-    if r.empty:
-        continue
-    r = r.iloc[0]
-
-    cat = str(r.get("Category", ""))
-    run_year = _run_year_for_month(m_num, int(season_year))
-    run_date = date(run_year, int(m_num), 15)
-
-    # Seasonality + effective index
-    f_season = float(seasonality_factor(cat, run_date))
-    idx_deseason = float(r.get("TicketIndex_DeSeason_Used", np.nan))
-    if not np.isfinite(idx_deseason):
-        idx_deseason = float(r.get("SignalOnly", 100.0))
-    eff_idx = idx_deseason * f_season
-
-    # Tickets estimate using benchmark if available; else fall back to row estimate
-    if np.isfinite(bench_med_deseason_est):
-        est_tix = int(round((eff_idx / 100.0) * bench_med_deseason_est))
-    else:
-        est_tix = int(round(r.get("EstimatedTickets", 0) or 0))
-
-    # Remount decay
-    decay_factor = remount_novelty_factor(title_sel, run_date)
-    est_tix_final = int(round(est_tix * decay_factor))
-
-    # City split, then singles/subs
-    split = city_split_for(title_sel, cat) or {"Calgary": 0.60, "Edmonton": 0.40}
-    c_sh = float(split.get("Calgary", 0.6)); e_sh = float(split.get("Edmonton", 0.4))
-    s = (c_sh + e_sh) or 1.0
-    c_sh, e_sh = c_sh / s, e_sh / s
-
-    yyc_total = int(round(est_tix_final * c_sh))
-    yeg_total = int(round(est_tix_final * e_sh))
-
-    cal_sub_ratio = float(subs_share_for(cat, "Calgary"))
-    edm_sub_ratio = float(subs_share_for(cat, "Edmonton"))
-
-    yyc_subs = int(round(yyc_total * cal_sub_ratio))
-    yyc_singles = int(round(yyc_total * (1.0 - cal_sub_ratio)))
-    yeg_subs = int(round(yeg_total * edm_sub_ratio))
-    yeg_singles = int(round(yeg_total * (1.0 - edm_sub_ratio)))
-
-    plan_rows.append({
-        "Month": f"{m_name} {run_year}",
-        "Title": title_sel,
-        "Category": cat,
-        "PrimarySegment": r.get("PredictedPrimarySegment", ""),
-        "SecondarySegment": r.get("PredictedSecondarySegment", ""),
-        "WikiIdx": r.get("WikiIdx", np.nan),
-        "TrendsIdx": r.get("TrendsIdx", np.nan),
-        "YouTubeIdx": r.get("YouTubeIdx", np.nan),
-        "SpotifyIdx": r.get("SpotifyIdx", np.nan),
-        "Familiarity": r.get("Familiarity", np.nan),
-        "Motivation": r.get("Motivation", np.nan),
-        "TicketHistory": r.get("TicketMedian", np.nan),
-        "TicketIndex used": r.get("TicketIndex_DeSeason_Used", np.nan),
-        "TicketIndexSource": r.get("TicketIndexSource", ""),
-        "FutureSeasonalityFactor": f"{f_season:.3f}",
-        "HistSeasonalityFactor": (
-            f"{float(r.get('HistSeasonalityFactor', np.nan)):.3f}"
-            if pd.notna(r.get("HistSeasonalityFactor", np.nan)) else ""
-        ),
-        "Composite": r.get("Composite", np.nan),
-        "Score": r.get("Score", ""),
-        "EstimatedTickets": est_tix,
-        "ReturnDecayFactor": f"{float(decay_factor):.2f}",
-        "ReturnDecayPct": f"{1.0 - float(decay_factor):.0%}",
-        "EstimatedTickets_Final": est_tix_final,
-        "YYC_Singles": yyc_singles,
-        "YYC_Subs": yyc_subs,
-        "YEG_Singles": yeg_singles,
-        "YEG_Subs": yeg_subs,
-        "CityShare_Calgary": c_sh,
-        "CityShare_Edmonton": e_sh,
-    })
-
-# --- Render the season table (or prompt to pick)
-if plan_rows:
-    desired_order = [
-        "Month","Title","Category","PrimarySegment","SecondarySegment",
-        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-        "Familiarity","Motivation",
-        "TicketHistory","TicketIndex used","TicketIndexSource",
-        "FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score",
-        "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-        "CityShare_Calgary","CityShare_Edmonton",
-    ]
-    plan_df = pd.DataFrame(plan_rows)
-    plan_df = plan_df[[c for c in desired_order if c in plan_df.columns]]
-
-    # KPIs
-    yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
-    yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
-    singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
-    subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
-    grand       = int(plan_df["EstimatedTickets_Final"].sum()) or 1
-
-    st.markdown("### 📊 Season at a glance")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: st.metric("Projected Season Total", f"{grand:,}")
-    with c2: st.metric("Calgary • share", f"{yyc_tot:,}", delta=f"{yyc_tot/grand:.1%}")
-    with c3: st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
-    with c4: st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
-
-    st.markdown(f"**Projected season total (final, after decay):** {grand:,}")
-    st.dataframe(plan_df, use_container_width=True, hide_index=True)
-
-    st.download_button(
-        "⬇️ Download Season Plan (full fields)",
-        plan_df.to_csv(index=False).encode("utf-8"),
-        file_name=f"season_plan_full_{season_year}-{season_year+1}.csv",
-        mime="text/csv",
-        key="dl_season_plan_full"
-    )
-else:
-    st.caption("Pick at least one month/title above to see your season projection.")
