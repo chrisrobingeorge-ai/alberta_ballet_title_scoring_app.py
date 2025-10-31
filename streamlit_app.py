@@ -1571,12 +1571,6 @@ def render_results():
             }),
             use_container_width=True, hide_index=True
         )
-        st.download_button(
-            "⬇️ Download Season Plan CSV",
-            plan_df.to_csv(index=False).encode("utf-8"),
-            file_name=f"season_plan_{season_year}-{season_year+1}.csv",
-            mime="text/csv"
-        )
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
 
