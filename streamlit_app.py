@@ -1524,7 +1524,75 @@ def render_results():
             }),
             use_container_width=True, hide_index=True
         )
-        
+
+    # --- Wide (months as columns) view + CSV ---
+    import calendar
+
+    # Column order matching your allowed_months UI
+    month_name_order = ["September","October","January","February","March","May"]
+
+    # Make compact headers like "Sep-26"
+    def _month_label(m_full: str) -> str:
+        try:
+            name, year = m_full.split()
+            m_num = list(calendar.month_name).index(name)
+            return f"{calendar.month_abbr[m_num]}-{str(int(year))[-2:]}"
+        except Exception:
+            return m_full
+
+    # Keep only months the user actually picked, in the desired visual order
+    picked = (
+        plan_df.copy()
+        .assign(_mname=lambda d: d["Month"].str.split().str[0])
+        .pipe(lambda d: d[d["_mname"].isin(month_name_order)])
+    )
+    # preserve UI order
+    picked["_order"] = picked["_mname"].apply(lambda n: month_name_order.index(n))
+    picked = picked.sort_values("_order")
+
+    # Map month label -> row dict
+    month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
+
+    # Metrics (rows) you want in the wide display
+    metrics = [
+        "Title","Category","PrimarySegment","SecondarySegment",
+        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+        "Familiarity","Motivation",
+        "TicketHistory","TicketIndex used","TicketIndexSource",
+        "FutureSeasonalityFactor","HistSeasonalityFactor",
+        "Composite","Score",
+        "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "CityShare_Calgary","CityShare_Edmonton",
+    ]
+
+    # Build a wide dataframe where rows = metrics and columns = months
+    df_wide = pd.DataFrame(
+        { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_to_row.keys() },
+        index=metrics
+    )
+
+    st.markdown("#### 🗓️ Season table (months as columns)")
+    st.dataframe(
+        df_wide
+            .rename_axis("Metric")
+            .reset_index()
+            .style.format({
+                "Sep-26":"{:,.0f}", "Oct-26":"{:,.0f}", "Jan-27":"{:,.0f}", "Feb-27":"{:,.0f}", "Mar-27":"{:,.0f}", "May-27":"{:,.0f}",
+            })
+            .format_index(na_rep=""),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # CSV download (wide)
+    st.download_button(
+        "⬇️ Download Season (wide) CSV",
+        df_wide.to_csv(index=True).encode("utf-8"),
+        file_name=f"season_plan_wide_{season_year}.csv",
+        mime="text/csv"
+    )
+
         # Download: Build a Season table
         season_csv = plan_df.to_csv(index=False).encode("utf-8")
         st.download_button(
@@ -1533,7 +1601,6 @@ def render_results():
             file_name=f"season_plan_{season_year}.csv",
             mime="text/csv"
         )
-
 
     with tab_city:
         try:
