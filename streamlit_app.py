@@ -1,11 +1,9 @@
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v9.3, no LiveAnalytics)
-# - Learns YYC/YEG city splits and Singles/Subs shares from a wide CSV
-#   (Show Title, Single Tickets - Calgary/Edmonton, Subscription Tickets - Calgary/Edmonton)
-# - Removes arbitrary 60/40: prefer title prior → category prior → default
-# - Seasonality and simple ticket-index modeling kept
-# - All LiveAnalytics code removed
+# Alberta Ballet — Title Familiarity & Motivation Scorer (v9.2)
+# - Learns YYC/YEG & Singles/Subs from history.csv (or uploaded CSV)
+# - Removes arbitrary 60/40 split; uses title→category→default fallback
+# - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
 
-import math, re
+import math, time, re, io
 from datetime import datetime, timedelta, date
 from typing import Dict, Optional, Tuple
 
@@ -22,17 +20,19 @@ st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation
 if "results" not in st.session_state:
     st.session_state["results"] = None
 
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9.3)")
-st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; optional live fetch for unknown titles.")
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9.2)")
+st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
-# PRIORS learning (YYC/YEG + Singles/Subs)
+# PRIORS learning (YYC/YEG + Singles/Subs) — self-contained
 # -------------------------
+# Globals populated from history
 TITLE_CITY_PRIORS: dict[str, dict[str, float]] = {}
 CATEGORY_CITY_PRIORS: dict[str, dict[str, float]] = {}
 SUBS_SHARE_BY_CATEGORY_CITY: dict[str, dict[str, float | None]] = {"Calgary": {}, "Edmonton": {}}
 
-DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}
+# Sensible fallbacks if history is missing/thin
+DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}  # Calgary majority unless learned otherwise
 _DEFAULT_SUBS_SHARE = {"Calgary": 0.35, "Edmonton": 0.45}
 _CITY_CLIP_RANGE = (0.15, 0.85)
 
@@ -47,16 +47,22 @@ def _pick_col(df: pd.DataFrame, names: list[str]) -> str | None:
                 return orig
     return None
 
+def _canon_city(x):
+    s = str(x).strip().lower()
+    if "calg" in s: return "Calgary"
+    if "edm" in s:  return "Edmonton"
+    return x if x in ("Calgary", "Edmonton") else None
+
 def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
     """
-    Supports 'wide' schema with columns:
+    Wide schema support for:
       - Show Title
-      - Single Tickets - Calgary / Single Tickets - Edmonton
-      - Subscription Tickets - Calgary / Subscription Tickets - Edmonton
-    Cleans commas in numerics and aggregates duplicate titles.
+      - Single Tickets - Calgary / Edmonton
+      - Subscription Tickets - Calgary / Edmonton
+    Handles commas in numbers, blanks, and duplicate titles.
     Populates:
       - TITLE_CITY_PRIORS[title] = {'Calgary': p, 'Edmonton': 1-p}
-      - CATEGORY_CITY_PRIORS[category] = {...} (category inferred from title)
+      - CATEGORY_CITY_PRIORS[category] = {...}  (category inferred from title)
       - SUBS_SHARE_BY_CATEGORY_CITY[city][category] = subs/(subs+singles)
     """
     global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS, SUBS_SHARE_BY_CATEGORY_CITY
@@ -68,30 +74,37 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
 
     df = hist_df.copy()
 
+    # --- map your exact headers (case/space tolerant) ---
     def _find_col(cands):
         lc = {c.lower().strip(): c for c in df.columns}
         for want in cands:
             if want.lower() in lc:
                 return lc[want.lower()]
+        # loose contains
         for want in cands:
             for k, orig in lc.items():
                 if want.lower() in k:
                     return orig
         return None
 
-    title_col = _find_col(["Show Title","Title","Production","Show"])
-    s_cgy = _find_col(["Single Tickets - Calgary"]) or _find_col(["Single","Calgary"])
-    s_edm = _find_col(["Single Tickets - Edmonton"]) or _find_col(["Single","Edmonton"])
-    u_cgy = _find_col(["Subscription Tickets - Calgary"]) or _find_col(["Subscription","Calgary"])
-    u_edm = _find_col(["Subscription Tickets - Edmonton"]) or _find_col(["Subscription","Edmonton"])
+    title_col = _find_col(["Show Title", "Title", "Production", "Show"])
 
-    # create missing as zeros (still learns with partial data)
+    s_cgy = _find_col(["Single Tickets - Calgary"]) or _find_col(["Single", "Calgary"])
+    s_edm = _find_col(["Single Tickets - Edmonton"]) or _find_col(["Single", "Edmonton"])
+    u_cgy = _find_col(["Subscription Tickets - Calgary"]) or _find_col(["Subscription", "Calgary"])
+    u_edm = _find_col(["Subscription Tickets - Edmonton"]) or _find_col(["Subscription", "Edmonton"])
+
+    # if any are missing, create as zeros so it still learns with partial data
     for name, fallback in [(s_cgy, "__s_cgy__"), (s_edm, "__s_edm__"), (u_cgy, "__u_cgy__"), (u_edm, "__u_edm__")]:
         if name is None:
             df[fallback] = 0.0
-    s_cgy = s_cgy or "__s_cgy__"; s_edm = s_edm or "__s_edm__"
-    u_cgy = u_cgy or "__u_cgy__"; u_edm = u_edm or "__u_edm__"
 
+    s_cgy = s_cgy or "__s_cgy__"
+    s_edm = s_edm or "__s_edm__"
+    u_cgy = u_cgy or "__u_cgy__"
+    u_edm = u_edm or "__u_edm__"
+
+    # clean numerics: handle "7,734" → 7734
     def _num(x) -> float:
         try:
             if pd.isna(x): return 0.0
@@ -102,10 +115,13 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
     for c in [s_cgy, s_edm, u_cgy, u_edm]:
         df[c] = df[c].map(_num)
 
+    # clean titles
     if title_col is None:
+        # bail if we truly can't find a title column
         return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "missing Show Title"}
     df[title_col] = df[title_col].astype(str).str.strip()
 
+    # aggregate duplicates by title
     agg = (
         df.groupby(title_col)[[s_cgy, s_edm, u_cgy, u_edm]]
           .sum(min_count=1)
@@ -113,6 +129,7 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
           .rename(columns={title_col: "Title"})
     )
 
+    # infer category from title (uses your app's function if present)
     def _infer_cat(t: str) -> str:
         try:
             if "infer_gender_and_category" in globals():
@@ -124,54 +141,68 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         if any(k in tl for k in ["swan","sleeping","cinderella","giselle","sylphide"]):                      return "classic_romance"
         if any(k in tl for k in ["romeo","hunchback","notre dame","hamlet","frankenstein","dracula"]):        return "romantic_tragedy"
         if any(k in tl for k in ["don quixote","merry widow","comedy"]):                                      return "classic_comedy"
-        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","botero","ballet bc"]):
+        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","unleashed","botero","ballet bc"]):
             return "contemporary"
-        if any(k in tl for k in ["taj","tango","harlem","tragically hip","leonard cohen","joni","david bowie","gordon lightfoot"]):
+        if any(k in tl for k in ["taj","tango","harlem","tragically hip","leonard cohen","joni","david bowie","gordon lightfoot","phi"]):
             return "pop_ip"
         return "dramatic"
 
     agg["Category"] = agg["Title"].apply(_infer_cat)
+
+    # totals by city
     agg["YYC_total"] = agg[s_cgy].fillna(0) + agg[u_cgy].fillna(0)
     agg["YEG_total"] = agg[s_edm].fillna(0) + agg[u_edm].fillna(0)
 
-    # title-level priors
+    # ---- title-level priors ----
     titles_learned = 0
     for _, r in agg.iterrows():
         tot = float(r["YYC_total"] + r["YEG_total"])
-        if tot <= 0: continue
+        if tot <= 0:
+            continue
         cal = float(r["YYC_total"]) / tot
         cal = float(min(_CITY_CLIP_RANGE[1], max(_CITY_CLIP_RANGE[0], cal)))
         TITLE_CITY_PRIORS[str(r["Title"])] = {"Calgary": cal, "Edmonton": 1.0 - cal}
         titles_learned += 1
 
-    # category-level priors
-    categories_learned = 0
+    # ---- category-level priors (weighted) ----
     cat_grp = agg.groupby("Category")[["YYC_total","YEG_total"]].sum(min_count=1).reset_index()
+    categories_learned = 0
     for _, r in cat_grp.iterrows():
         tot = float(r["YYC_total"] + r["YEG_total"])
-        if tot <= 0: continue
+        if tot <= 0:
+            continue
         cal = float(r["YYC_total"]) / tot
         cal = float(min(_CITY_CLIP_RANGE[1], max(_CITY_CLIP_RANGE[0], cal)))
         CATEGORY_CITY_PRIORS[str(r["Category"])] = {"Calgary": cal, "Edmonton": 1.0 - cal}
         categories_learned += 1
 
-    # subs share by category × city
+    # ---- subs share by category × city ----
     agg["YYC_subs"] = agg[u_cgy].fillna(0); agg["YYC_singles"] = agg[s_cgy].fillna(0)
     agg["YEG_subs"] = agg[u_edm].fillna(0); agg["YEG_singles"] = agg[s_edm].fillna(0)
+
     subs_learned = 0
-    for city, sub_col, sing_col in [("Calgary","YYC_subs","YYC_singles"), ("Edmonton","YEG_subs","YEG_singles")]:
+    for city, sub_col, sing_col in [
+        ("Calgary","YYC_subs","YYC_singles"),
+        ("Edmonton","YEG_subs","YEG_singles"),
+    ]:
         g = agg.groupby("Category")[[sub_col, sing_col]].sum(min_count=1).reset_index()
         for _, r in g.iterrows():
             tot = float(r[sub_col] + r[sing_col])
-            if tot <= 0: continue
+            if tot <= 0:
+                continue
             share = float(r[sub_col] / tot)
             SUBS_SHARE_BY_CATEGORY_CITY.setdefault(city, {})
             SUBS_SHARE_BY_CATEGORY_CITY[city][str(r["Category"])] = float(min(0.95, max(0.05, share)))
             subs_learned += 1
 
-    return {"titles_learned": titles_learned, "categories_learned": categories_learned, "subs_shares_learned": subs_learned}
+    return {
+        "titles_learned": titles_learned,
+        "categories_learned": categories_learned,
+        "subs_shares_learned": subs_learned,
+    }
 
 def city_split_for(title: str | None, category: str | None) -> dict[str, float]:
+    """Prefer title prior, then category prior, else default."""
     if title and title in TITLE_CITY_PRIORS:
         return TITLE_CITY_PRIORS[title]
     if category and category in CATEGORY_CITY_PRIORS:
@@ -184,15 +215,17 @@ def subs_share_for(category: str | None, city: str) -> float:
         return float(SUBS_SHARE_BY_CATEGORY_CITY[city][category])
     return float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
 
-# --- Historicals (upload or use data/history_city_sales.csv) ---
+# --- Historicals (loads your wide CSV and learns) ---
 with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
-    uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v93")
+    uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
     relearn = st.button("🔁 Force re-learn from history", use_container_width=False)
 
+# (Re)load the history df
 if ("hist_df" not in st.session_state) or relearn:
     if uploaded_hist is not None:
         st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
     else:
+        # try your preferred filename first, then the old one; else empty
         try:
             st.session_state["hist_df"] = pd.read_csv("data/history_city_sales.csv")
         except Exception:
@@ -201,7 +234,9 @@ if ("hist_df" not in st.session_state) or relearn:
             except Exception:
                 st.session_state["hist_df"] = pd.DataFrame()
 
+# (Re)learn priors every time we (re)load history
 st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
+
 s = st.session_state.get("priors_summary", {}) or {}
 st.caption(
     f"Learned priors → titles: {s.get('titles_learned',0)}, "
@@ -209,23 +244,73 @@ st.caption(
     f"subs-shares: {s.get('subs_shares_learned',0)}"
 )
 
-# (Optional) quick peek of learned splits
-with st.expander("Debug: sample city splits learned", expanded=False):
-    try:
-        ex_titles = list(TITLE_CITY_PRIORS.keys())[:6]
-        rows = []
-        for t in ex_titles:
-            spl = TITLE_CITY_PRIORS.get(t, {})
-            rows.append({"Title": t, "YYC_share": spl.get("Calgary", None), "YEG_share": spl.get("Edmonton", None)})
-        if rows:
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        else:
-            st.caption("No title-level splits yet (check your history CSV).")
-    except Exception:
-        st.caption("—")
+# 1) load historics (uploaded wins)
+local_hist = _read_first_existing(["data/history_city_sales.csv", "data/history.csv"])
+hist_df = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
+
+# 2) normalize city column if present
+if not hist_df.empty:
+    # try to find the city column name
+    city_col_guess = None
+    for guess in ["City", "city", "CITY", "VenueCity", "venue_city", "Market", "market"]:
+        if guess in hist_df.columns:
+            city_col_guess = guess
+            break
+    if city_col_guess:
+        hist_df[city_col_guess] = _canon_city_series(hist_df[city_col_guess])
+        hist_df = hist_df[hist_df[city_col_guess].isin(["Calgary", "Edmonton"])]
+
+# 3) stash + detect changes
+new_hash = _hash_df(hist_df)
+if "hist_df" not in st.session_state:
+    st.session_state["hist_df"] = hist_df
+    st.session_state["hist_hash"] = new_hash
+    st.session_state["priors_summary"] = learn_priors_from_history(hist_df)
+else:
+    # re-learn if (a) upload happened, (b) Force button, or (c) file changed
+    if (uploaded_hist is not None) or force_relearn or (new_hash != st.session_state.get("hist_hash")):
+        st.session_state["hist_df"] = hist_df
+        st.session_state["hist_hash"] = new_hash
+        st.session_state["priors_summary"] = learn_priors_from_history(hist_df)
+
+# 4) feedback
+s = st.session_state.get("priors_summary", {}) or {}
+rows = len(st.session_state.get("hist_df", pd.DataFrame()))
+st.caption(
+    f"Historicals loaded: **{rows}** rows · "
+    f"Learned priors → titles: **{s.get('titles_learned',0)}**, "
+    f"categories: **{s.get('categories_learned',0)}**, "
+    f"subs-shares: **{s.get('subs_shares_learned',0)}**"
+)
+
+# 5) tiny debug view: show what split the model will use for a few items
+try:
+    if rows:
+        sample = st.session_state["hist_df"].copy()
+        # attempt to find Title/Category columns
+        def _pick(df, names):
+            nn = {c.lower().strip(): c for c in df.columns}
+            for n in names:
+                if n.lower() in nn: return nn[n.lower()]
+            for want in names:
+                for k, orig in nn.items():
+                    if want.lower() in k: return orig
+            return None
+        tcol = _pick(sample, ["title","production","show"])
+        ccol = _pick(sample, ["category","segment","genre"])
+        if tcol and ccol:
+            ex = (sample[[tcol, ccol]].dropna().drop_duplicates().head(6)
+                  .rename(columns={tcol:"Title", ccol:"Category"}))
+            # ask the current app priors what split it will use
+            splits = ex.apply(lambda r: city_split_for(str(r["Title"]), str(r["Category"])), axis=1)
+            ex["YYC_share"] = splits.apply(lambda x: x[0] if isinstance(x, (list, tuple)) else (x.get("Calgary", np.nan)))
+            ex["YEG_share"] = splits.apply(lambda x: x[1] if isinstance(x, (list, tuple)) else (x.get("Edmonton", np.nan)))
+            st.dataframe(ex, use_container_width=True, hide_index=True)
+except Exception:
+    pass
 
 # -------------------------
-# Optional APIs (used only if toggled ON for unknown titles)
+# Optional APIs (used only if toggled ON)
 # -------------------------
 try:
     from googleapiclient.discovery import build  # YouTube Data API v3
@@ -240,7 +325,7 @@ except Exception:
     SpotifyClientCredentials = None
 
 # -------------------------
-# Data (existing constants)
+# Data (your existing constants)
 # -------------------------
 BASELINES = {
     "Cinderella": {"wiki": 88, "trends": 80, "youtube": 82, "spotify": 80, "category": "family_classic", "gender": "female"},
@@ -293,6 +378,7 @@ SEGMENT_MULT = {
 }
 REGION_MULT = {"Province": 1.00, "Calgary": 1.05, "Edmonton": 0.95}
 
+# === City split + subscriber share logic (uses learned priors above) ===
 def _clip01(p: float, lo_hi=_CITY_CLIP_RANGE) -> float:
     lo, hi = lo_hi
     return float(min(hi, max(lo, p)))
@@ -364,6 +450,30 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
+# LA overlays by category
+LA_BY_CATEGORY = {
+    "pop_ip": {"Presale":12,"FirstDay":7,"FirstWeek":5,"WeekOf":20,"Internet":58,"Mobile":41,"Phone":1,"Tix_1_2":73,"Tix_3_4":22,"Tix_5_8":5,"Premium":4.5,"LT10mi":71,
+               "Price_Low":18,"Price_Fair":32,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10,
+               "Age":49.6,"Age_18_24":8,"Age_25_34":5,"Age_35_44":26,"Age_45_54":20,"Age_55_64":26,"Age_65_plus":15},
+    "classic_romance": {"Presale":10,"FirstDay":6,"FirstWeek":4,"WeekOf":20,"Internet":55,"Mobile":44,"Phone":1,"Tix_1_2":69,"Tix_3_4":25,"Tix_5_8":5,"Premium":4.1,"LT10mi":69,
+                        "Price_Low":20,"Price_Fair":29,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10},
+    "classic_comedy": {"Presale":10,"FirstDay":6,"FirstWeek":4,"WeekOf":20,"Internet":55,"Mobile":44,"Phone":1,"Tix_1_2":69,"Tix_3_4":25,"Tix_5_8":5,"Premium":4.1,"LT10mi":69,
+                       "Price_Low":20,"Price_Fair":29,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10},
+    "romantic_comedy": {"Presale":10,"FirstDay":6,"FirstWeek":4,"WeekOf":20,"Internet":55,"Mobile":44,"Phone":1,"Tix_1_2":69,"Tix_3_4":25,"Tix_5_8":5,"Premium":4.1,"LT10mi":69,
+                        "Price_Low":20,"Price_Fair":29,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10},
+    "contemporary": {"Presale":11,"FirstDay":6,"FirstWeek":5,"WeekOf":21,"Internet":59,"Mobile":40,"Phone":1,"Tix_1_2":72,"Tix_3_4":23,"Tix_5_8":5,"Premium":3.9,"LT10mi":70,
+                     "Price_Low":18,"Price_Fair":32,"Price_Good":25,"Price_VeryGood":15,"Price_Best":11},
+    "family_classic": {"Presale":10,"FirstDay":6,"FirstWeek":5,"WeekOf":19,"Internet":53,"Mobile":45,"Phone":1,"Tix_1_2":67,"Tix_3_4":27,"Tix_5_8":6,"Premium":4.0,"LT10mi":66,
+                       "Price_Low":21,"Price_Fair":28,"Price_Good":24,"Price_VeryGood":17,"Price_Best":10},
+    "romantic_tragedy": {"Presale":11,"FirstDay":6,"FirstWeek":5,"WeekOf":20,"Internet":59,"Mobile":39,"Phone":2,"Tix_1_2":72,"Tix_3_4":22,"Tix_5_8":5,"Premium":4.2,"LT10mi":71,
+                         "Price_Low":18,"Price_Fair":28,"Price_Good":27,"Price_VeryGood":16,"Price_Best":11},
+    "dramatic": {"Presale":12,"FirstDay":7,"FirstWeek":5,"WeekOf":20,"Internet":54,"Mobile":44,"Phone":1,"Tix_1_2":72,"Tix_3_4":23,"Tix_5_8":5,"Premium":4.3,"LT10mi":68,
+                 "Price_Low":18,"Price_Fair":31,"Price_Good":24,"Price_VeryGood":16,"Price_Best":11},
+}
+
+def _la_for_category(cat: str) -> dict:
+    return LA_BY_CATEGORY.get(str(cat), {})
+
 # Heuristics for unknown titles
 def infer_gender_and_category(title: str) -> Tuple[str, str]:
     t = title.lower()
@@ -378,13 +488,13 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
         cat = "family_classic"
     elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
         cat = "classic_romance"
-    elif any(k in t for k in ["romeo","hunchback","notre dame","hamlet","frankenstein","dracula"]):
+    elif any(k in t for k in ["romeo","hunchback","notre dame","hamlet","frankenstein"]):
         cat = "romantic_tragedy"
     elif any(k in t for k in ["don quixote","merry widow"]):
         cat = "classic_comedy"
     elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi"]):
         cat = "contemporary"
-    elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen","lightfoot","bowie","joni"]):
+    elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen"]):
         cat = "pop_ip"
     else:
         cat = "dramatic"
@@ -412,7 +522,8 @@ def _yt_index_from_views(view_list):
     if not view_list:
         return 0.0
     v = float(np.median(view_list))
-    return float(50.0 + min(90.0, np.log1p(v) * 9.0))
+    idx = 50.0 + min(90.0, np.log1p(v) * 9.0)
+    return float(idx)
 
 def _winsorize_youtube_to_baseline(category: str, yt_value: float) -> float:
     try:
@@ -506,27 +617,6 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
     return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_idx, "spotify": sp_idx,
             "gender": gender, "category": category}
 
-# Simple offline estimator for unknown titles (when live OFF)
-def estimate_unknown_title(title: str) -> Dict[str, float | str]:
-    gender, category = infer_gender_and_category(title)
-    base = pd.DataFrame(BASELINES).T
-    # category medians; fallback to global medians
-    try:
-        cat_df = base[base["category"] == category]
-        wiki = float(cat_df["wiki"].median()) if not cat_df.empty else float(base["wiki"].median())
-        trends = float(cat_df["trends"].median()) if not cat_df.empty else float(base["trends"].median())
-        youtube = float(cat_df["youtube"].median()) if not cat_df.empty else float(base["youtube"].median())
-        spotify = float(cat_df["spotify"].median()) if not cat_df.empty else float(base["spotify"].median())
-    except Exception:
-        wiki = trends = youtube = spotify = 70.0
-    # small noise so everything doesn't flatten
-    L = len(title)
-    wiki += (L % 5) - 2
-    trends += (L % 7) - 3
-    youtube += (L % 9) - 4
-    spotify += (L % 6) - 3
-    return {"wiki": wiki, "trends": trends, "youtube": youtube, "spotify": spotify, "gender": gender, "category": category}
-
 # Scoring utilities
 def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tuple[float,float]:
     gender = entry["gender"]; cat = entry["category"]
@@ -539,7 +629,7 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     mot *= REGION_MULT[reg_key]
     return fam, mot
 
-# Ticket priors (historical medians for some titles)
+# Ticket priors (your table)
 TICKET_PRIORS_RAW = {
     "Alice in Wonderland": [11216],
     "All of Us - Tragically Hip": [15488],
@@ -633,8 +723,8 @@ def _mid_date(a: date, b: date) -> date:
     return a + (b - a) // 2
 
 _runs_rows = []
-for title, s_, e_ in PAST_RUNS:
-    d1, d2 = _to_date(s_), _to_date(e_)
+for title, s, e in PAST_RUNS:
+    d1, d2 = _to_date(s), _to_date(e)
     mid = _mid_date(d1, d2)
     if title in BASELINES:
         cat = BASELINES[title].get("category", infer_gender_and_category(title)[1])
@@ -643,7 +733,16 @@ for title, s_, e_ in PAST_RUNS:
     aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
     key = aliases.get(title.strip(), title.strip())
     tix_med = _median(TICKET_PRIORS_RAW.get(key, []))
-    _runs_rows.append({"Title": title, "Category": cat, "Start": d1, "End": d2, "MidDate": mid, "Month": mid.month, "Year": mid.year, "TicketMedian": tix_med})
+    _runs_rows.append({
+        "Title": title,
+        "Category": cat,
+        "Start": d1,
+        "End": d2,
+        "MidDate": mid,
+        "Month": mid.month,
+        "Year": mid.year,
+        "TicketMedian": tix_med
+    })
 RUNS_DF = pd.DataFrame(_runs_rows)
 
 TITLE_TO_MIDDATE = {}
@@ -753,6 +852,50 @@ benchmark_title = st.selectbox(
 # -------------------------
 # Core compute
 # -------------------------
+def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
+    df = df_in.copy()
+    cols = [
+        "LA_EarlyBuyerPct","LA_WeekOfPct",
+        "LA_MobilePct","LA_InternetPct","LA_PhonePct",
+        "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
+        "LA_PremiumPct","LA_LocalLT10Pct",
+        "LA_PriceHiPct","LA_PriceFlag",
+    ]
+    for c in cols:
+        if c not in df.columns:
+            df[c] = np.nan
+
+    def _overlay_row_from_category(cat: str) -> dict:
+        la = _la_for_category(cat)
+        if not la:
+            return {}
+        early = (float(la.get("Presale", 0)) + float(la.get("FirstDay", 0)) + float(la.get("FirstWeek", 0))) / 100.0
+        price_hi = (float(la.get("Price_VeryGood", 0)) + float(la.get("Price_Best", 0))) / 100.0
+        return {
+            "LA_EarlyBuyerPct": early,
+            "LA_WeekOfPct": float(la.get("WeekOf", 0)) / 100.0,
+            "LA_MobilePct": float(la.get("Mobile", 0)) / 100.0,
+            "LA_InternetPct": float(la.get("Internet", 0)) / 100.0,
+            "LA_PhonePct": float(la.get("Phone", 0)) / 100.0,
+            "LA_Tix12Pct": float(la.get("Tix_1_2", 0)) / 100.0,
+            "LA_Tix34Pct": float(la.get("Tix_3_4", 0)) / 100.0,
+            "LA_Tix58Pct": float(la.get("Tix_5_8", 0)) / 100.0,
+            "LA_PremiumPct": float(la.get("Premium", 0)) / 100.0,
+            "LA_LocalLT10Pct": float(la.get("LT10mi", 0)) / 100.0,
+            "LA_PriceHiPct": price_hi,
+        }
+
+    overlays = df["Category"].map(lambda c: _overlay_row_from_category(str(c)))
+    overlays_df = pd.DataFrame(list(overlays)).reindex(df.index)
+    for c in [c for c in cols if c in overlays_df.columns]:
+        df[c] = overlays_df[c]
+
+    def _price_flag(p_hi: float) -> str:
+        if pd.isna(p_hi): return "n/a"
+        return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
+    df["LA_PriceFlag"] = df["LA_PriceHiPct"].apply(_price_flag)
+    return df
+
 def compute_scores_and_store(
     titles,
     segment,
@@ -902,7 +1045,10 @@ def compute_scores_and_store(
     bench_med_future = bench_med_deseason
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
 
-    # 9) Segment propensity + per-segment tickets
+    # 9) Overlays
+    df = _add_live_analytics_overlays(df)
+
+    # 10) Segment propensity + per-segment tickets
     bench_entry_for_mix = BASELINES[benchmark_title]
     prim_list, sec_list = [], []
     mix_gp, mix_core, mix_family, mix_ea = [], [], [], []
@@ -927,7 +1073,6 @@ def compute_scores_and_store(
             "category": r.get("Category", "dramatic"),
         }
 
-        # normalize signals by benchmark, then combine with priors to get shares
         seg_to_raw = _signal_for_all_segments(entry_r, region)
         seg_to_idx = _normalize_signals_by_benchmark(seg_to_raw, bench_entry_for_mix, region)
 
@@ -974,7 +1119,7 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # 10) Remount decay
+    # 11) Remount decay
     decay_pcts, decay_factors, est_after_decay = [], [], []
     today_year = datetime.utcnow().year
     for _, r in df.iterrows():
@@ -1003,7 +1148,7 @@ def compute_scores_and_store(
     df["ReturnDecayFactor"] = decay_factors
     df["EstimatedTickets_Final"] = est_after_decay
 
-    # 11) City split (learned title/category → fallback)
+    # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
     cal_total, edm_total = [], []
     cal_singles, cal_subs, edm_singles, edm_subs = [], [], [], []
@@ -1032,13 +1177,13 @@ def compute_scores_and_store(
     df["YEG_Singles"] = edm_singles
     df["YEG_Subs"] = edm_subs
 
-    # 12) Seasonality meta
+    # 13) Seasonality meta
     seasonality_on_flag = proposed_run_date is not None
     df["SeasonalityApplied"] = bool(seasonality_on_flag)
     df["SeasonalityMonthUsed"] = int(proposed_run_date.month) if seasonality_on_flag else np.nan
     df["RunMonth"] = proposed_run_date.strftime("%B") if seasonality_on_flag else ""
 
-    # 13) Stash results
+    # 14) Stash results atomically
     st.session_state["results"] = {
         "df": df,
         "benchmark": benchmark_title,
@@ -1047,6 +1192,130 @@ def compute_scores_and_store(
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
     }
+
+# -------------------------
+# Deep LA report attachment
+# -------------------------
+LA_DEEP_BY_CATEGORY = {
+    # (trim to what you need; keeping two for demo)
+    "pop_ip": {
+        "DA_Customers": 15861, "DA_CustomersWithLiveEvents": 13813, "DA_CustomersWithDemo_CAN": 14995,
+        "CES_Gender_Male_pct": 44, "CES_Gender_Female_pct": 56, "CES_Age_Mean": 49.6,
+        "CES_Age_18_24_pct": 8, "CES_Age_25_34_pct": 5, "CES_Age_35_44_pct": 26, "CES_Age_45_54_pct": 20,
+        "CES_Age_55_64_pct": 26, "CES_Age_65_plus_pct": 15,
+        "CEP_NeverPurchased_pct": 25.9, "CEP_1Event_pct": 43.2, "CEP_2_3Events_pct": 22.0,
+        "CEP_4_5Events_pct": 5.7, "CEP_6_10Events_pct": 2.8, "CEP_11plusEvents_pct": 0.3,
+        "CESpend_le_250_pct": 64.7, "CESpend_251_500_pct": 19.8, "CESpend_501_1000_pct": 11.2,
+        "CESpend_1001_2000_pct": 3.6, "CESpend_2001plus_pct": 0.6,
+        "SOW_ClientEvents_pct": 26, "SOW_NonClientEvents_pct": 74,
+        "LS_ClientEvents_usd": 268, "LS_NonClientEvents_usd": 2207,
+        "TPE_ClientEvents": 2.3, "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 187, "SPE_NonClientEvents_usd": 209,
+        "ATP_ClientEvents_usd": 83, "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 24, "DIM_Generation_X_pct": 34, "DIM_Generation_Babyboomers_pct": 31, "DIM_Generation_Z_pct": 5,
+        "DIM_Occ_Professionals_pct": 64, "DIM_Occ_SelfEmployed_pct": 0, "DIM_Occ_Retired_pct": 3, "DIM_Occ_Students_pct": 0,
+        "DIM_Household_WorkingMoms_pct": 8, "DIM_Financial_Affluent_pct": 9,
+        "DIM_Live_Major_Concerts_pct": 47, "DIM_Live_Major_Arts_pct": 76, "DIM_Live_Major_Sports_pct": 27, "DIM_Live_Major_Family_pct": 7,
+        "DIM_Live_Major_MultiCategories_pct": 45, "DIM_Live_Freq_ActiveBuyers_pct": 60, "DIM_Live_Freq_RepeatBuyers_pct": 67,
+        "DIM_Live_Timing_EarlyBuyers_pct": 37, "DIM_Live_Timing_LateBuyers_pct": 38,
+        "DIM_Live_Product_PremiumBuyers_pct": 18, "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5, "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
+    },
+    "classic_romance": {
+        "DA_Customers": 15294, "DA_CustomersWithLiveEvents": 11881, "DA_CustomersWithDemo_CAN": 12832,
+        "CES_Gender_Male_pct": 47, "CES_Gender_Female_pct": 53, "CES_Age_Mean": 46.5,
+        "CES_Age_18_24_pct": 14, "CES_Age_25_34_pct": 5, "CES_Age_35_44_pct": 23, "CES_Age_45_54_pct": 27,
+        "CES_Age_55_64_pct": 19, "CES_Age_65_plus_pct": 13,
+        "CEP_NeverPurchased_pct": 23.2, "CEP_1Event_pct": 39.1, "CEP_2_3Events_pct": 26.1,
+        "CEP_4_5Events_pct": 7.3, "CEP_6_10Events_pct": 3.9, "CEP_11plusEvents_pct": 0.4,
+        "CESpend_le_250_pct": 58.4, "CESpend_251_500_pct": 21.4, "CESpend_501_1000_pct": 13.8,
+        "CESpend_1001_2000_pct": 5.4, "CESpend_2001plus_pct": 1.1,
+        "SOW_ClientEvents_pct": 35, "SOW_NonClientEvents_pct": 65,
+        "LS_ClientEvents_usd": 325, "LS_NonClientEvents_usd": 1832,
+        "TPE_ClientEvents": 2.4, "TPE_NonClientEvents": 2.6,
+        "SPE_ClientEvents_usd": 195, "SPE_NonClientEvents_usd": 212,
+        "ATP_ClientEvents_usd": 82, "ATP_NonClientEvents_usd": 84,
+        "DIM_Generation_Millennials_pct": 29, "DIM_Generation_X_pct": 37, "DIM_Generation_Babyboomers_pct": 26, "DIM_Generation_Z_pct": 5,
+        "DIM_Occ_Professionals_pct": 83, "DIM_Occ_SelfEmployed_pct": 0, "DIM_Occ_Retired_pct": 0, "DIM_Occ_Students_pct": 0,
+        "DIM_Household_WorkingMoms_pct": 13, "DIM_Financial_Affluent_pct": 9,
+        "DIM_Live_Major_Concerts_pct": 38, "DIM_Live_Major_Arts_pct": 82, "DIM_Live_Major_Sports_pct": 25, "DIM_Live_Major_Family_pct": 8,
+        "DIM_Live_Major_MultiCategories_pct": 42, "DIM_Live_Freq_ActiveBuyers_pct": 66, "DIM_Live_Freq_RepeatBuyers_pct": 66,
+        "DIM_Live_Timing_EarlyBuyers_pct": 32, "DIM_Live_Timing_LateBuyers_pct": 38,
+        "DIM_Live_Product_PremiumBuyers_pct": 18, "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
+        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4, "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
+    },
+}
+
+LA_DEEP_SCHEMA = [
+    ("LA_DA_Customers", "DA_Customers"),
+    ("LA_DA_CustomersWithLiveEvents", "DA_CustomersWithLiveEvents"),
+    ("LA_DA_CustomersWithDemo_CAN", "DA_CustomersWithDemo_CAN"),
+    ("LA_CES_Gender_Male_pct", "CES_Gender_Male_pct"),
+    ("LA_CES_Gender_Female_pct", "CES_Gender_Female_pct"),
+    ("LA_CES_Age_Mean", "CES_Age_Mean"),
+    ("LA_CES_Age_18_24_pct", "CES_Age_18_24_pct"),
+    ("LA_CES_Age_25_34_pct", "CES_Age_25_34_pct"),
+    ("LA_CES_Age_35_44_pct", "CES_Age_35_44_pct"),
+    ("LA_CES_Age_45_54_pct", "CES_Age_45_54_pct"),
+    ("LA_CES_Age_55_64_pct", "CES_Age_55_64_pct"),
+    ("LA_CES_Age_65_plus_pct", "CES_Age_65_plus_pct"),
+    ("LA_CEP_NeverPurchased_pct", "CEP_NeverPurchased_pct"),
+    ("LA_CEP_1Event_pct", "CEP_1Event_pct"),
+    ("LA_CEP_2_3Events_pct", "CEP_2_3Events_pct"),
+    ("LA_CEP_4_5Events_pct", "CEP_4_5Events_pct"),
+    ("LA_CEP_6_10Events_pct", "CEP_6_10Events_pct"),
+    ("LA_CEP_11plusEvents_pct", "CEP_11plusEvents_pct"),
+    ("LA_CESpend_le_250_pct", "CESpend_le_250_pct"),
+    ("LA_CESpend_251_500_pct", "CESpend_251_500_pct"),
+    ("LA_CESpend_501_1000_pct", "CESpend_501_1000_pct"),
+    ("LA_CESpend_1001_2000_pct", "CESpend_1001_2000_pct"),
+    ("LA_CESpend_2001plus_pct", "CESpend_2001plus_pct"),
+    ("LA_SOW_ClientEvents_pct", "SOW_ClientEvents_pct"),
+    ("LA_SOW_NonClientEvents_pct", "SOW_NonClientEvents_pct"),
+    ("LA_LS_ClientEvents_usd", "LS_ClientEvents_usd"),
+    ("LA_LS_NonClientEvents_usd", "LS_NonClientEvents_usd"),
+    ("LA_TPE_ClientEvents", "TPE_ClientEvents"),
+    ("LA_TPE_NonClientEvents", "TPE_NonClientEvents"),
+    ("LA_SPE_ClientEvents_usd", "SPE_ClientEvents_usd"),
+    ("LA_SPE_NonClientEvents_usd", "SPE_NonClientEvents_usd"),
+    ("LA_ATP_ClientEvents_usd", "ATP_ClientEvents_usd"),
+    ("LA_ATP_NonClientEvents_usd", "ATP_NonClientEvents_usd"),
+    ("LA_DIM_Generation_Millennials_pct", "DIM_Generation_Millennials_pct"),
+    ("LA_DIM_Generation_X_pct", "DIM_Generation_X_pct"),
+    ("LA_DIM_Generation_Babyboomers_pct", "DIM_Generation_Babyboomers_pct"),
+    ("LA_DIM_Generation_Z_pct", "DIM_Generation_Z_pct"),
+    ("LA_DIM_Occ_Professionals_pct", "DIM_Occ_Professionals_pct"),
+    ("LA_DIM_Occ_SelfEmployed_pct", "DIM_Occ_SelfEmployed_pct"),
+    ("LA_DIM_Occ_Retired_pct", "DIM_Occ_Retired_pct"),
+    ("LA_DIM_Occ_Students_pct", "DIM_Occ_Students_pct"),
+    ("LA_DIM_Household_WorkingMoms_pct", "DIM_Household_WorkingMoms_pct"),
+    ("LA_DIM_Financial_Affluent_pct", "DIM_Financial_Affluent_pct"),
+    ("LA_DIM_Live_Major_Concerts_pct", "DIM_Live_Major_Concerts_pct"),
+    ("LA_DIM_Live_Major_Arts_pct", "DIM_Live_Major_Arts_pct"),
+    ("LA_DIM_Live_Major_Sports_pct", "DIM_Live_Major_Sports_pct"),
+    ("LA_DIM_Live_Major_Family_pct", "DIM_Live_Major_Family_pct"),
+    ("LA_DIM_Live_Major_MultiCategories_pct", "DIM_Live_Major_MultiCategories_pct"),
+    ("LA_DIM_Live_Freq_ActiveBuyers_pct", "DIM_Live_Freq_ActiveBuyers_pct"),
+    ("LA_DIM_Live_Freq_RepeatBuyers_pct", "DIM_Live_Freq_RepeatBuyers_pct"),
+    ("LA_DIM_Live_Timing_EarlyBuyers_pct", "DIM_Live_Timing_EarlyBuyers_pct"),
+    ("LA_DIM_Live_Timing_LateBuyers_pct", "DIM_Live_Timing_LateBuyers_pct"),
+    ("LA_DIM_Live_Product_PremiumBuyers_pct", "DIM_Live_Product_PremiumBuyers_pct"),
+    ("LA_DIM_Live_Product_AncillaryUpsellBuyers_pct", "DIM_Live_Product_AncillaryUpsellBuyers_pct"),
+    ("LA_DIM_Live_Spend_HighSpenders_gt1k_pct", "DIM_Live_Spend_HighSpenders_gt1k_pct"),
+    ("LA_DIM_Live_Distance_Travelers_gt500mi_pct", "DIM_Live_Distance_Travelers_gt500mi_pct"),
+]
+
+def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df_out = df.copy()
+    for col, key in LA_DEEP_SCHEMA:
+        vals = []
+        for _, r in df_out.iterrows():
+            cat = str(r.get("Category"))
+            deep = LA_DEEP_BY_CATEGORY.get(cat, {})
+            v = deep.get(key, np.nan)
+            vals.append(v)
+        df_out[col] = vals
+    return df_out
 
 # -------------------------
 # Render
@@ -1136,9 +1405,6 @@ def render_results():
         "Composite","Score",
         "EstimatedTickets",
         "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Total","YYC_Singles","YYC_Subs",
-        "YEG_Total","YEG_Singles","YEG_Subs",
-        "CityShare_Calgary","CityShare_Edmonton",
     ]
     present_cols = [c for c in table_cols if c in df_show.columns]
 
@@ -1169,19 +1435,23 @@ def render_results():
               "ReturnDecayPct": "{:.0%}",
               "ReturnDecayFactor": "{:.2f}",
               "EstimatedTickets_Final": "{:,.0f}",
-              "YYC_Total": "{:,.0f}", "YYC_Singles": "{:,.0f}", "YYC_Subs": "{:,.0f}",
-              "YEG_Total": "{:,.0f}", "YEG_Singles": "{:,.0f}", "YEG_Subs": "{:,.0f}",
-              "CityShare_Calgary": "{:.1%}", "CityShare_Edmonton": "{:.1%}",
           }),
         use_container_width=True,
         hide_index=True
     )
 
-    # Export (single CSV — no LiveAnalytics)
+    # Exports
+    df_full = attach_la_report_columns(df)
     st.download_button(
-        "⬇️ Download Scores CSV",
+        "⬇️ Download Scores CSV (table columns only)",
         df_show[present_cols].to_csv(index=False).encode("utf-8"),
-        "title_scores.csv",
+        "title_scores_table_view.csv",
+        "text/csv"
+    )
+    st.download_button(
+        "⬇️ Download Full CSV (includes LA deep data where available)",
+        df_full.to_csv(index=False).encode("utf-8"),
+        "title_scores_full_with_LA.csv",
         "text/csv"
     )
 
@@ -1190,7 +1460,7 @@ def render_results():
     default_year = (datetime.utcnow().year + 1)
     season_year = st.number_input("Season year (start of season)", min_value=2000, max_value=2100, value=default_year, step=1)
 
-    # Infer benchmark tickets for index→tickets conversion
+    # Infer benchmark tickets
     bench_med_deseason_est = None
     try:
         eff = df["TicketIndex_DeSeason_Used"].astype(float) * df["FutureSeasonalityFactor"].astype(float)
@@ -1278,60 +1548,38 @@ def render_results():
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
 
-# --- Replace your current "🏙️ YYC/YEG split summary" block with this ---
-with st.expander("🏙️ YYC/YEG split summary"):
-    if df is None or df.empty:
-        st.caption("No rows to summarize yet. Click **Score Titles** above.")
-    else:
-        need = [
-            "YYC_Total","YYC_Singles","YYC_Subs",
-            "YEG_Total","YEG_Singles","YEG_Subs",
-            "EstimatedTickets_Final"
-        ]
-        missing = [c for c in need if c not in df.columns]
-        if missing:
-            st.caption("City-split columns not present yet "
-                       f"(missing: {', '.join(missing)}). Run a score first.")
-        else:
-            # Coerce to numeric, treat bad/missing as 0
-            tmp = (df[need]
-                   .apply(pd.to_numeric, errors="coerce")
-                   .fillna(0))
-
-            totals = tmp.sum(numeric_only=True)
-            # ints for display
-            yyc_total      = int(round(totals.get("YYC_Total", 0)))
-            yyc_singles    = int(round(totals.get("YYC_Singles", 0)))
-            yyc_subs       = int(round(totals.get("YYC_Subs", 0)))
-            yeg_total      = int(round(totals.get("YEG_Total", 0)))
-            yeg_singles    = int(round(totals.get("YEG_Singles", 0)))
-            yeg_subs       = int(round(totals.get("YEG_Subs", 0)))
-            all_in         = int(round(totals.get("EstimatedTickets_Final", 0)))
-
-            st.caption(
-                f"Totals — YYC: {yyc_total:,} "
-                f"(Singles {yyc_singles:,} / Subs {yyc_subs:,}) · "
-                f"YEG: {yeg_total:,} "
-                f"(Singles {yeg_singles:,} / Subs {yeg_subs:,}) · "
-                f"All-in: {all_in:,}"
-            )
-
-            # optional: quick sanity table per title
-            with st.popover("Show per-title city split table"):
-                show_cols = [
-                    "Title","EstimatedTickets_Final",
-                    "YYC_Total","YYC_Singles","YYC_Subs",
-                    "YEG_Total","YEG_Singles","YEG_Subs",
-                    "CityShare_Calgary","CityShare_Edmonton"
-                ]
-                present_cols = [c for c in show_cols if c in df.columns]
-                st.dataframe(
-                    (df[present_cols]
-                        .copy()
-                        .apply(pd.to_numeric, errors="ignore")
-                        .fillna(0)),
-                    use_container_width=True, hide_index=True
-                )
+    # Calgary / Edmonton split quick view
+    with st.expander("🏙️ Calgary / Edmonton split (singles vs subs)"):
+        cols = ["Title","Category","EstimatedTickets_Final",
+                "YYC_Total","YYC_Singles","YYC_Subs",
+                "YEG_Total","YEG_Singles","YEG_Subs",
+                "CityShare_Calgary","CityShare_Edmonton"]
+        present = [c for c in cols if c in df.columns]
+        st.dataframe(
+            df[present].sort_values("EstimatedTickets_Final", ascending=False)
+              .style.format({
+                  "EstimatedTickets_Final": "{:,.0f}",
+                  "YYC_Total": "{:,.0f}", "YYC_Singles": "{:,.0f}", "YYC_Subs": "{:,.0f}",
+                  "YEG_Total": "{:,.0f}", "YEG_Singles": "{:,.0f}", "YEG_Subs": "{:,.0f}",
+                  "CityShare_Calgary": "{:.1%}", "CityShare_Edmonton": "{:.1%}",
+              }),
+            use_container_width=True, hide_index=True
+        )
+        try:
+            tot = {
+                "YYC_Total": int(df["YYC_Total"].sum()),
+                "YYC_Singles": int(df["YYC_Singles"].sum()),
+                "YYC_Subs": int(df["YYC_Subs"].sum()),
+                "YEG_Total": int(df["YEG_Total"].sum()),
+                "YEG_Singles": int(df["YEG_Singles"].sum()),
+                "YEG_Subs": int(df["YEG_Subs"].sum()),
+                "EstimatedTickets_Final": int(df["EstimatedTickets_Final"].sum()),
+            }
+            st.caption(f"Totals — YYC: {tot['YYC_Total']:,} (Singles {tot['YYC_Singles']:,} / Subs {tot['YYC_Subs']:,}) · "
+                       f"YEG: {tot['YEG_Total']:,} (Singles {tot['YEG_Singles']:,} / Subs {tot['YEG_Subs']:,}) · "
+                       f"All-in: {tot['EstimatedTickets_Final']:,}")
+        except Exception:
+            pass
 
     # Scatter chart
     try:
