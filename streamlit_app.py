@@ -1015,29 +1015,86 @@ if not RUNS_DF.empty:
     for _, r in RUNS_DF.iterrows():
         TITLE_TO_MIDDATE[str(r["Title"]).strip()] = r["MidDate"]
 
-K_SHRINK = 3.0
-MINF, MAXF = 0.85, 1.25
+# ========= Robust Seasonality (Category × Month) =========
+# Replaces the block that builds RUNS_DF → SEASONALITY_DF / SEASONALITY_TABLE
+
+# Tunables (safer defaults for sparse data)
+K_SHRINK = 5.0          # stronger pull toward 1.00 when samples are small
+MINF, MAXF = 0.90, 1.15 # tighter caps than 0.85/1.25
+N_MIN = 3               # require at least 3 runs in a (category, month) before trusting a month-specific signal
+WINTER_POOL = {12, 1, 2}
+
+def _robust_category_frame(runs_df: pd.DataFrame, category: str) -> pd.DataFrame:
+    g = runs_df[runs_df["Category"] == category].copy()
+    g = g[g["TicketMedian"].notna()]
+    if g.empty:
+        return g
+
+    # 1) Global-outlier removal within the category (IQR fence)
+    vals = g["TicketMedian"].astype(float).values
+    q1, q3 = np.percentile(vals, [25, 75])
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    g = g[(g["TicketMedian"] >= lo) & (g["TicketMedian"] <= hi)].copy()
+    return g
+
+def _trimmed_median(x: list[float]) -> float:
+    x = sorted([float(v) for v in x if v is not None])
+    n = len(x)
+    if n >= 4:
+        x = x[1:-1]  # drop one low, one high
+    if not x:
+        return float("nan")
+    mid = len(x) // 2
+    return x[mid] if len(x) % 2 else (x[mid-1] + x[mid]) / 2.0
 
 _season_rows = []
+
 if not RUNS_DF.empty:
-    for cat, g_cat in RUNS_DF.groupby("Category"):
-        g_cat_hist = g_cat[g_cat["TicketMedian"].notna()].copy()
-        if g_cat_hist.empty:
+    # Build robust per-category frames
+    cats = sorted(RUNS_DF["Category"].dropna().unique().tolist())
+    for cat in cats:
+        g_cat = _robust_category_frame(RUNS_DF, cat)
+        if g_cat.empty:
             continue
-        cat_overall_med = g_cat_hist["TicketMedian"].median()
-        for m, g_cm in g_cat_hist.groupby("Month"):
-            vals = g_cm["TicketMedian"].dropna().values
-            n = int(len(vals))
-            if n == 0 or not cat_overall_med:
+
+        # Robust overall level for the category
+        cat_overall_med = _trimmed_median(g_cat["TicketMedian"].tolist())
+        if not np.isfinite(cat_overall_med) or cat_overall_med <= 0:
+            continue
+
+        # Precompute a pooled "winter" median for sparse months
+        g_winter = g_cat[g_cat["Month"].isin(WINTER_POOL)]
+        winter_med = _trimmed_median(g_winter["TicketMedian"].tolist()) if not g_winter.empty else np.nan
+        winter_has_signal = np.isfinite(winter_med)
+
+        # Compute month factors
+        for m in range(1, 13):
+            g_m = g_cat[g_cat["Month"] == m]
+            n = int(len(g_m))
+            if n >= N_MIN:
+                m_med = _trimmed_median(g_m["TicketMedian"].tolist())
+            else:
+                # Too few samples: if it's a winter month and we have a pooled winter signal, use it; else fall back to overall
+                if m in WINTER_POOL and winter_has_signal:
+                    m_med = winter_med
+                else:
+                    m_med = cat_overall_med  # → factor will be ≈ 1.0 after shrink
+
+            # Guard
+            if not np.isfinite(m_med) or m_med <= 0:
                 continue
-            m_med = float(np.median(vals))
-            factor_raw = float(m_med / cat_overall_med)
-            w = n / (n + K_SHRINK)
-            factor_shrunk = 1.0 + w * (factor_raw - 1.0)
-            factor_final = float(np.clip(factor_shrunk, MINF, MAXF))
-            _season_rows.append({"Category": cat, "Month": int(m), "Factor": factor_final})
+
+            raw = float(m_med / cat_overall_med)
+            w = n / (n + K_SHRINK)  # stronger shrinkage than before
+            shrunk = 1.0 + w * (raw - 1.0)
+            factor_final = float(np.clip(shrunk, MINF, MAXF))
+
+            _season_rows.append({"Category": cat, "Month": m, "Factor": factor_final, "n": n})
+
 SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
 SEASONALITY_TABLE = { (r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows() }
+
 
 def seasonality_factor(category: str, when: Optional[date]) -> float:
     if when is None:
