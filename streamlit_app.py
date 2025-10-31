@@ -54,7 +54,17 @@ def _canon_city(x):
     return x if x in ("Calgary", "Edmonton") else None
 
 def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
-    """Expects rows with Title, Category, City, Singles, Subs (or Total/Type). Flexible and guarded."""
+    """
+    Wide schema support for:
+      - Show Title
+      - Single Tickets - Calgary / Edmonton
+      - Subscription Tickets - Calgary / Edmonton
+    Handles commas in numbers, blanks, and duplicate titles.
+    Populates:
+      - TITLE_CITY_PRIORS[title] = {'Calgary': p, 'Edmonton': 1-p}
+      - CATEGORY_CITY_PRIORS[category] = {...}  (category inferred from title)
+      - SUBS_SHARE_BY_CATEGORY_CITY[city][category] = subs/(subs+singles)
+    """
     global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS, SUBS_SHARE_BY_CATEGORY_CITY
     TITLE_CITY_PRIORS.clear(); CATEGORY_CITY_PRIORS.clear()
     SUBS_SHARE_BY_CATEGORY_CITY = {"Calgary": {}, "Edmonton": {}}
@@ -64,86 +74,131 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
 
     df = hist_df.copy()
 
-    title_col   = _pick_col(df, ["title", "production", "show"])
-    cat_col     = _pick_col(df, ["category", "segment", "genre"])
-    city_col    = _pick_col(df, ["city"])
-    singles_col = _pick_col(df, ["singles", "single_tickets", "single tickets"])
-    subs_col    = _pick_col(df, ["subs", "subscriptions", "subscription_tickets", "sub tickets"])
-    total_col   = _pick_col(df, ["total", "tickets", "total_tickets", "qty"])
+    # --- map your exact headers (case/space tolerant) ---
+    def _find_col(cands):
+        lc = {c.lower().strip(): c for c in df.columns}
+        for want in cands:
+            if want.lower() in lc:
+                return lc[want.lower()]
+        # loose contains
+        for want in cands:
+            for k, orig in lc.items():
+                if want.lower() in k:
+                    return orig
+        return None
 
-    type_col = _pick_col(df, ["type"])         # if you have rows with Type in {Single, Sub}
-    qty_col  = _pick_col(df, ["qty","quantity","tickets","count"])
+    title_col = _find_col(["Show Title", "Title", "Production", "Show"])
 
-    # If Type/Qty rows, pivot to wide
-    if type_col and qty_col and not (singles_col and subs_col):
-        need = [c for c in [title_col, cat_col, city_col, type_col, qty_col] if c]
-        df = df[need].copy()
-        df[city_col] = df[city_col].map(_canon_city)
-        df = df[df[city_col].isin(["Calgary", "Edmonton"])]
-        df[type_col] = df[type_col].str.lower().str.strip()
-        df_piv = df.pivot_table(
-            index=[c for c in [title_col, cat_col, city_col] if c],
-            columns=type_col, values=qty_col, aggfunc="sum", fill_value=0
-        ).reset_index()
-        singles_col = "single" if "single" in df_piv.columns else ("singles" if "singles" in df_piv.columns else None)
-        subs_col    = "sub"    if "sub"    in df_piv.columns else ("subs"    if "subs"    in df_piv.columns    else None)
-        df = df_piv
+    s_cgy = _find_col(["Single Tickets - Calgary"]) or _find_col(["Single", "Calgary"])
+    s_edm = _find_col(["Single Tickets - Edmonton"]) or _find_col(["Single", "Edmonton"])
+    u_cgy = _find_col(["Subscription Tickets - Calgary"]) or _find_col(["Subscription", "Calgary"])
+    u_edm = _find_col(["Subscription Tickets - Edmonton"]) or _find_col(["Subscription", "Edmonton"])
 
-    # Must have these three
-    for c in (title_col, cat_col, city_col):
-        if c is None:
-            return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "missing title/category/city"}
+    # if any are missing, create as zeros so it still learns with partial data
+    for name, fallback in [(s_cgy, "__s_cgy__"), (s_edm, "__s_edm__"), (u_cgy, "__u_cgy__"), (u_edm, "__u_edm__")]:
+        if name is None:
+            df[fallback] = 0.0
 
-    df = df[[title_col, cat_col, city_col] + [c for c in [singles_col, subs_col, total_col] if c]].copy()
-    df[city_col] = df[city_col].map(_canon_city)
-    df = df[df[city_col].isin(["Calgary", "Edmonton"])]
+    s_cgy = s_cgy or "__s_cgy__"
+    s_edm = s_edm or "__s_edm__"
+    u_cgy = u_cgy or "__u_cgy__"
+    u_edm = u_edm or "__u_edm__"
 
-    # Build total if needed
-    if total_col is None:
-        df["_total"] = df[[c for c in [singles_col, subs_col] if c]].fillna(0).sum(axis=1)
-        total_col = "_total"
+    # clean numerics: handle "7,734" → 7734
+    def _num(x) -> float:
+        try:
+            if pd.isna(x): return 0.0
+            return float(str(x).replace(",", "").strip() or 0)
+        except Exception:
+            return 0.0
 
-    # Title-level city splits
-    split_rows = df.groupby([title_col, city_col])[total_col].sum().reset_index()
-    title_splits = split_rows.pivot(index=title_col, columns=city_col, values=total_col).fillna(0)
+    for c in [s_cgy, s_edm, u_cgy, u_edm]:
+        df[c] = df[c].map(_num)
+
+    # clean titles
+    if title_col is None:
+        # bail if we truly can't find a title column
+        return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "missing Show Title"}
+    df[title_col] = df[title_col].astype(str).str.strip()
+
+    # aggregate duplicates by title
+    agg = (
+        df.groupby(title_col)[[s_cgy, s_edm, u_cgy, u_edm]]
+          .sum(min_count=1)
+          .reset_index()
+          .rename(columns={title_col: "Title"})
+    )
+
+    # infer category from title (uses your app's function if present)
+    def _infer_cat(t: str) -> str:
+        try:
+            if "infer_gender_and_category" in globals():
+                return globals()["infer_gender_and_category"](t)[1]
+        except Exception:
+            pass
+        tl = (t or "").lower()
+        if any(k in tl for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice","beast"]): return "family_classic"
+        if any(k in tl for k in ["swan","sleeping","cinderella","giselle","sylphide"]):                      return "classic_romance"
+        if any(k in tl for k in ["romeo","hunchback","notre dame","hamlet","frankenstein","dracula"]):        return "romantic_tragedy"
+        if any(k in tl for k in ["don quixote","merry widow","comedy"]):                                      return "classic_comedy"
+        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","unleashed","botero","ballet bc"]):
+            return "contemporary"
+        if any(k in tl for k in ["taj","tango","harlem","tragically hip","leonard cohen","joni","david bowie","gordon lightfoot","phi"]):
+            return "pop_ip"
+        return "dramatic"
+
+    agg["Category"] = agg["Title"].apply(_infer_cat)
+
+    # totals by city
+    agg["YYC_total"] = agg[s_cgy].fillna(0) + agg[u_cgy].fillna(0)
+    agg["YEG_total"] = agg[s_edm].fillna(0) + agg[u_edm].fillna(0)
+
+    # ---- title-level priors ----
     titles_learned = 0
-    for t, row in title_splits.iterrows():
-        tot = float(row.get("Calgary", 0) + row.get("Edmonton", 0))
-        if tot <= 0: continue
-        cal = max(_CITY_CLIP_RANGE[0], min(_CITY_CLIP_RANGE[1], float(row.get("Calgary", 0)) / tot))
-        TITLE_CITY_PRIORS[str(t)] = {"Calgary": cal, "Edmonton": 1.0 - cal}
+    for _, r in agg.iterrows():
+        tot = float(r["YYC_total"] + r["YEG_total"])
+        if tot <= 0:
+            continue
+        cal = float(r["YYC_total"]) / tot
+        cal = float(min(_CITY_CLIP_RANGE[1], max(_CITY_CLIP_RANGE[0], cal)))
+        TITLE_CITY_PRIORS[str(r["Title"])] = {"Calgary": cal, "Edmonton": 1.0 - cal}
         titles_learned += 1
 
-    # Category-level city splits
-    cat_rows = df.groupby([cat_col, city_col])[total_col].sum().reset_index()
-    cat_splits = cat_rows.pivot(index=cat_col, columns=city_col, values=total_col).fillna(0)
+    # ---- category-level priors (weighted) ----
+    cat_grp = agg.groupby("Category")[["YYC_total","YEG_total"]].sum(min_count=1).reset_index()
     categories_learned = 0
-    for c, row in cat_splits.iterrows():
-        tot = float(row.get("Calgary", 0) + row.get("Edmonton", 0))
-        if tot <= 0: continue
-        cal = max(_CITY_CLIP_RANGE[0], min(_CITY_CLIP_RANGE[1], float(row.get("Calgary", 0)) / tot))
-        CATEGORY_CITY_PRIORS[str(c)] = {"Calgary": cal, "Edmonton": 1.0 - cal}
+    for _, r in cat_grp.iterrows():
+        tot = float(r["YYC_total"] + r["YEG_total"])
+        if tot <= 0:
+            continue
+        cal = float(r["YYC_total"]) / tot
+        cal = float(min(_CITY_CLIP_RANGE[1], max(_CITY_CLIP_RANGE[0], cal)))
+        CATEGORY_CITY_PRIORS[str(r["Category"])] = {"Calgary": cal, "Edmonton": 1.0 - cal}
         categories_learned += 1
 
-    # Subs share by category × city
-    subs_shares_learned = 0
-    if subs_col or singles_col:
-        df["_subs"]    = df[subs_col].fillna(0) if subs_col else 0
-        df["_singles"] = df[singles_col].fillna(0) if singles_col else 0
-        agg = df.groupby([cat_col, city_col])[["_subs", "_singles"]].sum().reset_index()
-        for _, r in agg.iterrows():
-            tot = float(r["_subs"] + r["_singles"])
-            if tot <= 0: continue
-            share = float(r["_subs"]) / tot
-            city  = str(r[city_col]); catv = str(r[cat_col])
+    # ---- subs share by category × city ----
+    agg["YYC_subs"] = agg[u_cgy].fillna(0); agg["YYC_singles"] = agg[s_cgy].fillna(0)
+    agg["YEG_subs"] = agg[u_edm].fillna(0); agg["YEG_singles"] = agg[s_edm].fillna(0)
+
+    subs_learned = 0
+    for city, sub_col, sing_col in [
+        ("Calgary","YYC_subs","YYC_singles"),
+        ("Edmonton","YEG_subs","YEG_singles"),
+    ]:
+        g = agg.groupby("Category")[[sub_col, sing_col]].sum(min_count=1).reset_index()
+        for _, r in g.iterrows():
+            tot = float(r[sub_col] + r[sing_col])
+            if tot <= 0:
+                continue
+            share = float(r[sub_col] / tot)
             SUBS_SHARE_BY_CATEGORY_CITY.setdefault(city, {})
-            SUBS_SHARE_BY_CATEGORY_CITY[city][catv] = max(0.05, min(0.95, share))
-            subs_shares_learned += 1
+            SUBS_SHARE_BY_CATEGORY_CITY[city][str(r["Category"])] = float(min(0.95, max(0.05, share)))
+            subs_learned += 1
 
     return {
         "titles_learned": titles_learned,
         "categories_learned": categories_learned,
-        "subs_shares_learned": subs_shares_learned,
+        "subs_shares_learned": subs_learned,
     }
 
 def city_split_for(title: str | None, category: str | None) -> dict[str, float]:
@@ -160,43 +215,30 @@ def subs_share_for(category: str | None, city: str) -> float:
         return float(SUBS_SHARE_BY_CATEGORY_CITY[city][category])
     return float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
 
-# --- Historicals (robust loader + auto re-learn if file changes) ---
-import os, hashlib
-
-with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
+# --- Historicals (loads your wide CSV and learns) ---
+with st.expander("Historicals (optional): upload or use data/history_city_sales.csv", expanded=False):
     uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
-    force_relearn = st.button("🔁 Force re-learn priors from historics")
 
-def _read_first_existing(paths: list[str]) -> pd.DataFrame:
-    for p in paths:
-        if os.path.exists(p):
-            try:
-                return pd.read_csv(p)
-            except Exception:
-                pass
-    return pd.DataFrame()
-
-def _canon_city_series(s: pd.Series) -> pd.Series:
-    def canon(x):
-        if pd.isna(x): return None
-        t = str(x).strip().lower()
-        if any(k in t for k in ["calg", "yyc"]): return "Calgary"
-        if any(k in t for k in ["edm", "yeg"]):  return "Edmonton"
-        if t == "calgary":  return "Calgary"
-        if t == "edmonton": return "Edmonton"
-        return None  # drop everything else
-    return s.apply(canon)
-
-def _hash_df(df: pd.DataFrame) -> str:
+if "hist_df" not in st.session_state:
     try:
-        # hash independent of row order: sort columns+rows, fillna
-        d = df.copy()
-        d.columns = [str(c) for c in d.columns]
-        d = d.sort_index(axis=1).fillna("")
-        h = hashlib.md5(pd.util.hash_pandas_object(d, index=True).values).hexdigest()
-        return h
-    except Exception:
-        return str(time.time())  # fallback: force different hash over time
+        local_hist = pd.read_csv("data/history_city_sales.csv")
+    except FileNotFoundError:
+        local_hist = pd.DataFrame()
+    st.session_state["hist_df"] = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
+
+# Force re-learn button to avoid stale cache
+if st.button("🔁 Force re-learn from history", use_container_width=False):
+    st.session_state.pop("priors_summary", None)
+
+if "priors_summary" not in st.session_state:
+    st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
+
+s = st.session_state.get("priors_summary", {}) or {}
+st.caption(
+    f"Learned priors → titles: {s.get('titles_learned',0)}, "
+    f"categories: {s.get('categories_learned',0)}, "
+    f"subs-shares: {s.get('subs_shares_learned',0)}"
+)
 
 # 1) load historics (uploaded wins)
 local_hist = _read_first_existing(["data/history_city_sales.csv", "data/history.csv"])
