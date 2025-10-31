@@ -228,6 +228,62 @@ st.title("Alberta Ballet — Title Scorer (v9.239)")
 st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
+# USER INSTRUCTIONS (Expander)
+# -------------------------
+with st.expander("👋 How to use this app (step-by-step)"):
+    st.markdown(dedent("""
+    ## Quick Build a Season — User Guide
+    1. **Scroll down to _📅 Build a Season_**.
+    2. **Select a title** from the drop-down for each month you want to schedule.
+    3. **Review the Season table**:
+       - Scroll to the bottom rows to see **EstimatedTickets_Final**, **Calgary vs Edmonton** totals, Singles/Subs, and other key metrics.
+    4. **Export**:
+       - Use **Download Season (wide) CSV** for spreadsheet analysis, or
+       - **Download Full PDF Report** for a narrative + methodology + condensed season table.
+
+    **What this tool does (in brief):**  
+    Estimates ticket demand from title familiarity & motivation, links to sales history, then applies seasonality, remount decay, and learned city/subscriber splits.
+
+    ### Quick start (5 steps)
+    1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/history_city_sales.csv`.
+    2. **Choose titles:** Add/modify the list in **Titles to score**. Unknown titles are estimated (or fetched live if you turn that on).
+    3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
+    4. **Pick a benchmark:** Select the **Benchmark Title** to normalize indices (benchmark = 100).
+    5. **Click _Score Titles_**, then use **📅 Build a Season** to assign titles to months.
+
+    ### Interpreting results
+    - **Familiarity / Motivation** → index vs benchmark (100).
+    - **Ticket Index used** → signal→ticket linkage after seasonality.
+    - **EstimatedTickets_Final** → tickets after remount decay.
+    - **YYC / YEG** + **Singles / Subs** → learned splits with sensible fallbacks.
+
+    ### Build a Season (assign titles to months)
+    - Select one title for each month shown.
+    - The app recomputes the **FutureSeasonalityFactor** for the chosen month/year, applies remount decay, and outputs city/sub splits.
+    - Download **CSV (wide)** or the **Full PDF Report** (narrative + methodology + wide table).
+
+    ### File outputs
+    - **CSV (wide)**: rows = metrics, columns = months you picked.
+    - **Full PDF Report**: 
+      1) Season rationale by month  
+      2) Methodology & glossary (plain-language)  
+      3) Season table (months as columns; condensed metrics for readability)
+
+    ### Tips & guardrails
+    - If your history is thin, the model backs off to **category** or **overall** fits, then to **signals-only**.
+    - Seasonality uses **Category×Month** medians with shrinkage & clipping to avoid overfitting.
+    - You can safely change the benchmark at any time; all indices re-normalize instantly.
+
+    ### Common issues
+    - **Empty results:** Ensure you have at least one title in the text area and click **Score Titles**.
+    - **History columns don’t match:** The learner tries multiple header variants (e.g., “Single Tickets - Calgary”). If needed, rename your headers or include the words *Single*, *Subscription*, and *Calgary/Edmonton* in them.
+    - **PDF table too wide:** The PDF intentionally uses a condensed metric set. For full detail, export CSV.
+
+    ### Data privacy
+    - API keys (YouTube/Spotify) are optional and only used for unknown titles when **Use Live Data** is ON.
+    """))
+
+# -------------------------
 # METHODOLOGY & GLOSSARY SECTION
 # -------------------------
 with st.expander("📘 About This App — Methodology & Glossary"):
