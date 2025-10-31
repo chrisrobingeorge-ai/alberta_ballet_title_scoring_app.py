@@ -14,6 +14,246 @@ import matplotlib.pyplot as plt
 import requests
 from textwrap import dedent
 
+from io import BytesIO
+from reportlab.lib.pagesizes import LETTER
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+
+def _pct(v, places=0):
+    try:
+        return f"{float(v):.{places}%}"
+    except Exception:
+        return "—"
+
+def _num(v):
+    try:
+        return f"{int(round(float(v))):,}"
+    except Exception:
+        return "—"
+
+def _dec(v, places=3):
+    try:
+        return f"{float(v):.{places}f}"
+    except Exception:
+        return "—"
+
+def _short_month(m_full: str) -> str:
+    # "September 2026" -> "Sep-26"
+    import calendar
+    try:
+        name, year = str(m_full).split()
+        m_num = list(calendar.month_name).index(name)
+        return f"{calendar.month_abbr[m_num]}-{str(int(year))[-2:]}"
+    except Exception:
+        return str(m_full)
+
+def _make_styles():
+    ss = getSampleStyleSheet()
+    styles = {
+        "h1": ParagraphStyle("h1", parent=ss["Heading1"], fontSize=16, leading=20, spaceAfter=12),
+        "h2": ParagraphStyle("h2", parent=ss["Heading2"], fontSize=13, leading=16, spaceAfter=8),
+        "body": ParagraphStyle("body", parent=ss["BodyText"], fontSize=10.5, leading=14),
+        "small": ParagraphStyle("small", parent=ss["BodyText"], fontSize=9, leading=12, textColor=colors.grey),
+        "mono": ParagraphStyle("mono", parent=ss["BodyText"], fontName="Helvetica", fontSize=9.5, leading=13),
+    }
+    return styles
+
+def _methodology_glossary_text() -> list[Paragraph]:
+    # Pulls the exact text you show in your expander (can be abridged if you prefer).
+    # You can keep this short, or paste the full block you and I wrote.
+    styles = _make_styles()
+    parts = []
+    parts.append(Paragraph("About This App — Methodology & Glossary", styles["h1"]))
+    parts.append(Paragraph(
+        "This report summarizes title Familiarity & Motivation, links signals to ticket indices, "
+        "and converts them to tickets with seasonality and remount adjustments. Calgary/Edmonton "
+        "splits and Singles/Subs mixes are learned from history.", styles["body"]))
+    parts.append(Spacer(1, 0.15*inch))
+
+    # Method bullets (concise; keep PDF readable)
+    bullets = [
+        "<b>Signals:</b> Wikipedia, Google Trends, YouTube (winsorized by category), Spotify.",
+        "<b>Indices:</b> Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify; "
+        "Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki (segment & region multipliers applied).",
+        "<b>Normalization:</b> Indices are divided by the benchmark’s raw scores and ×100.",
+        "<b>Ticket link:</b> De-seasonalized medians fit to a simple linear model (overall and per-category) "
+        "to impute <i>TicketIndex_DeSeason</i>; future month applies Category×Month factor.",
+        "<b>Remount decay:</b> −25% (<1y), −20% (1–<3y), −12% (3–<5y), −5% (≥5y), 0% if no history.",
+        "<b>YYC/YEG split & Subs share:</b> Learned from history at title→category→default fallback; "
+        "with clipping and safe defaults.",
+    ]
+    for b in bullets:
+        parts.append(Paragraph(f"• {b}", styles["body"]))
+    parts.append(Spacer(1, 0.15*inch))
+
+    parts.append(Paragraph("<b>Glossary (key terms)</b>", styles["h2"]))
+    gl = [
+        "<b>SignalOnly</b>: mean of Familiarity and Motivation (benchmark = 100).",
+        "<b>EffectiveTicketIndex</b>: de-season ticket index × future month factor.",
+        "<b>EstimatedTickets_Final</b>: tickets after future seasonality and remount decay.",
+        "<b>CityShare_*</b>: learned Calgary/Edmonton allocation applied to totals.",
+        "<b>YYC/YEG Singles/Subs</b>: subscriber share by Category×City.",
+    ]
+    for g in gl:
+        parts.append(Paragraph(f"• {g}", styles["body"]))
+    parts.append(Spacer(1, 0.2*inch))
+    return parts
+
+def _narrative_for_row(r: dict) -> str:
+    """
+    Build a compact, plain-English rationale explaining the estimate for one month/title.
+    Expects keys from plan_df rows created in your render_results() -> plan_rows (already present in your app).
+    """
+    title = r.get("Title",""); month = r.get("Month","")
+    cat = r.get("Category","")
+    idx_used = r.get("TicketIndex used", None)
+    f_season = r.get("FutureSeasonalityFactor", None)
+    h_season = r.get("HistSeasonalityFactor", None)
+    decay_pct = r.get("ReturnDecayPct", 0.0)
+    comp = r.get("Composite", None)
+
+    yyc_s = r.get("YYC_Singles", 0); yyc_u = r.get("YYC_Subs", 0)
+    yeg_s = r.get("YEG_Singles", 0); yeg_u = r.get("YEG_Subs", 0)
+    yyc_t = (yyc_s or 0) + (yyc_u or 0)
+    yeg_t = (yeg_s or 0) + (yeg_u or 0)
+    c_share = r.get("CityShare_Calgary", None)
+    e_share = r.get("CityShare_Edmonton", None)
+
+    pri = r.get("PrimarySegment", "")
+    sec = r.get("SecondarySegment", "")
+    src = r.get("TicketIndexSource","")
+
+    parts = []
+    parts.append(f"<b>{month} — {title}</b> ({cat})")
+    parts.append(
+        f"Effective index {_dec(idx_used,1)} is derived from signals and the ticket model "
+        f"({'category' if 'Category' in str(src) else 'overall' if 'Overall' in str(src) else 'signals-only' if 'Not enough data' in str(src) else 'history'}), "
+        f"then adjusted for the planned month (FutureSeasonalityFactor={_dec(f_season,3)}; "
+        f"historical month {_dec(h_season,3)} for de-seasonalization where available)."
+    )
+    if decay_pct and float(decay_pct) > 0:
+        parts.append(f"Remount decay reduces demand by {_pct(decay_pct)} based on recency.")
+    if pri or sec:
+        parts.append(f"Expected audience mix skews to <b>{pri}</b>{' (secondary: '+sec+')' if sec else ''}, "
+                     f"driven by category and signal normalization vs the benchmark.")
+    parts.append(
+        f"City split applies learned shares (Calgary {_pct(c_share,0)} / Edmonton {_pct(e_share,0)}), "
+        f"yielding <b>{_num(yyc_t)}</b> YYC and <b>{_num(yeg_t)}</b> YEG tickets. "
+        f"Within each city, subscriber ratios allocate Singles/Subs (YYC {_num(yyc_s)} / {_num(yyc_u)}; "
+        f"YEG {_num(yeg_s)} / {_num(yeg_u)})."
+    )
+    return " ".join(parts)
+
+def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
+    styles = _make_styles()
+    blocks = [Paragraph("Season Rationale (by month)", styles["h1"])]
+    for _, rr in plan_df.iterrows():
+        blocks.append(Paragraph(_narrative_for_row(rr), styles["body"]))
+        blocks.append(Spacer(1, 0.12*inch))
+    blocks.append(Spacer(1, 0.2*inch))
+    return blocks
+
+def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
+    """
+    Rebuilds the wide table (months as columns) for the PDF using a focused metric subset
+    to stay readable on Letter size.
+    """
+    # Choose a concise, high-signal set for PDF
+    metrics = [
+        "Title","Category","PrimarySegment","SecondarySegment",
+        "TicketIndex used","FutureSeasonalityFactor","ReturnDecayPct",
+        "EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+    ]
+
+    # Order months as in UI
+    month_order = ["September","October","December","January","February","March","May"]
+    df = plan_df.copy()
+    df["_mname"] = df["Month"].str.split().str[0]
+    df = df[df["_mname"].isin(month_order)].copy()
+    df["_order"] = df["_mname"].apply(lambda n: month_order.index(n))
+    df = df.sort_values("_order")
+
+    month_labels = [_short_month(m) for m in df["Month"].tolist()]
+    rows = [["Metric"] + month_labels]
+
+    # Build each metric row
+    for m in metrics:
+        values = []
+        for _, r in df.iterrows():
+            v = r.get(m, "")
+            if m in ("EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"):
+                values.append(_num(v))
+            elif m in ("FutureSeasonalityFactor",):
+                values.append(_dec(v,3))
+            elif m in ("ReturnDecayPct",):
+                values.append(_pct(v,0))
+            elif m in ("TicketIndex used",):
+                values.append(_dec(v,1))
+            else:
+                values.append("" if pd.isna(v) else str(v))
+        rows.append([m] + values)
+
+    table = Table(rows, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("FONT", (0,0), (-1,-1), "Helvetica", 9),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#f0f0f5")),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.HexColor("#222222")),
+        ("LINEABOVE", (0,0), (-1,0), 0.75, colors.black),
+        ("LINEBELOW", (0,0), (-1,0), 0.75, colors.black),
+        ("ALIGN", (1,1), (-1,-1), "CENTER"),
+        ("ALIGN", (0,0), (0,-1), "LEFT"),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+        ("GRID", (0,0), (-1,-1), 0.25, colors.HexColor("#aaaaaa")),
+    ]))
+    return table
+
+def build_full_pdf_report(methodology_paragraphs: list,
+                          plan_df: "pd.DataFrame",
+                          season_year: int,
+                          org_name: str = "Alberta Ballet") -> bytes:
+    """
+    Returns a PDF as bytes containing:
+      1) Title page
+      2) Season Rationale (per month/title)
+      3) Methodology & Glossary
+      4) Season Table (months as columns)
+    """
+    styles = _make_styles()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=LETTER,
+        leftMargin=0.65*inch, rightMargin=0.65*inch,
+        topMargin=0.7*inch, bottomMargin=0.7*inch,
+        title=f"{org_name} — Season Report {season_year}"
+    )
+    story = []
+
+    # Title
+    story.append(Paragraph(f"{org_name} — Season Report ({season_year})", styles["h1"]))
+    story.append(Paragraph("Familiarity & Motivation • Ticket Index • Seasonality • Remount • City/Segment splits", styles["small"]))
+    story.append(Spacer(1, 0.25*inch))
+
+    # (1) Season Rationale
+    story.extend(_build_month_narratives(plan_df))
+    story.append(PageBreak())
+
+    # (2) Methodology & Glossary
+    story.extend(methodology_paragraphs)
+    story.append(PageBreak())
+
+    # (3) Season Table (months as columns)
+    story.append(Paragraph("Season Table (months as columns)", styles["h1"]))
+    story.append(Paragraph(
+        "Key metrics by month. Indices are benchmark-normalized; tickets include future seasonality and remount adjustments.",
+        styles["small"]))
+    story.append(Spacer(1, 0.15*inch))
+    story.append(_make_season_table_wide(plan_df))
+
+    doc.build(story)
+    return buf.getvalue()
+
 # -------------------------
 # App setup
 # -------------------------
@@ -1673,6 +1913,27 @@ def render_results():
             mime="text/csv"
         )
 
+        # --- Full PDF report download ---
+        try:
+            # Build the same methodology copy you show in the expander (short or full version)
+            methodology_paragraphs = _methodology_glossary_text()
+        
+            pdf_bytes = build_full_pdf_report(
+                methodology_paragraphs=methodology_paragraphs,
+                plan_df=plan_df,
+                season_year=int(season_year),
+                org_name="Alberta Ballet"
+            )
+        
+            st.download_button(
+                "⬇️ Download Full PDF Report",
+                data=pdf_bytes,
+                file_name=f"alberta_ballet_season_report_{season_year}.pdf",
+                mime="application/pdf",
+                use_container_width=False
+            )
+        except Exception as e:
+            st.warning(f"PDF report unavailable: {e}")
 
     with tab_city:
         try:
