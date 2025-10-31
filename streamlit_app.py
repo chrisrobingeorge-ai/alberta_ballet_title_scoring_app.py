@@ -1593,15 +1593,6 @@ def render_results():
         mime="text/csv"
     )
 
-        # Download: Build a Season table
-        season_csv = plan_df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Download Season Plan CSV",
-            season_csv,
-            file_name=f"season_plan_{season_year}.csv",
-            mime="text/csv"
-        )
-
     with tab_city:
         try:
             plot_df = (plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
