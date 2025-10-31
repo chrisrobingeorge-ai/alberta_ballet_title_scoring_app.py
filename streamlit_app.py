@@ -1500,6 +1500,99 @@ def compute_scores_and_store(
         "unknown_live": unknown_used_live,
     }
 
+with st.expander("🔎 Seasonality audit & validation", expanded=False):
+    if RUNS_DF.empty:
+        st.info("No runs available to audit. Add dates via PAST_RUNS or your history CSV.")
+    else:
+        # --- Controls
+        cats = sorted(RUNS_DF["Category"].dropna().unique().tolist())
+        cat_sel = st.selectbox("Category", cats, index=0, key="seasonality_cat_sel")
+        k_shrink = st.slider("Shrinkage strength (higher = hug 1.00 with small samples)", 1.0, 10.0, float(K_SHRINK), 0.5)
+        clip_lo = st.slider("Min clip", 0.70, 0.99, float(MINF), 0.01)
+        clip_hi = st.slider("Max clip", 1.01, 1.40, float(MAXF), 0.01)
+
+        # --- Build per-month medians for selected category
+        g_cat = RUNS_DF[RUNS_DF["Category"] == cat_sel].copy()
+        g_cat = g_cat[g_cat["TicketMedian"].notna()]
+        if g_cat.empty:
+            st.warning("No valid TicketMedian rows for this category.")
+        else:
+            # Outlier exclude toggle (e.g., exclude top/bottom 1 title per month)
+            exclude_tails = st.checkbox("Temporarily exclude extreme per-month titles (1 low & 1 high) for sensitivity", value=False)
+            by_m = []
+            for m, grp in g_cat.groupby("Month"):
+                dfm = grp.sort_values("TicketMedian")
+                vals = dfm["TicketMedian"].to_list()
+                if exclude_tails and len(vals) >= 4:
+                    vals = vals[1:-1]  # drop one low & one high
+                if not vals:
+                    continue
+                m_med = float(np.median(vals))
+                by_m.append({"Month": int(m), "Count": int(len(grp)), "MonthMed": m_med})
+            by_m = pd.DataFrame(by_m)
+            if by_m.empty:
+                st.warning("No month groups to display.")
+            else:
+                cat_overall = float(np.median(g_cat["TicketMedian"].values))
+                def _factor(med, n):
+                    raw = (med / cat_overall) if cat_overall else 1.0
+                    w = n / (n + float(k_shrink))
+                    shrunk = 1.0 + w * (raw - 1.0)
+                    return float(np.clip(shrunk, float(clip_lo), float(clip_hi))), raw, w, shrunk
+
+                fac_rows = []
+                for _, rr in by_m.iterrows():
+                    f_clip, f_raw, w, f_shr = _factor(rr["MonthMed"], rr["Count"])
+                    fac_rows.append({
+                        "Month": int(rr["Month"]),
+                        "n": int(rr["Count"]),
+                        "CatOverallMedian": cat_overall,
+                        "MonthMedian": rr["MonthMed"],
+                        "RawFactor": f_raw,
+                        "w(shrink)": w,
+                        "Shrunk": f_shr,
+                        "Clipped": f_clip
+                    })
+                fac_df = pd.DataFrame(fac_rows).sort_values("Month")
+
+                st.markdown("**Category × Month factors (audit table)**")
+                st.dataframe(
+                    fac_df.style.format({
+                        "CatOverallMedian":"{:,.0f}","MonthMedian":"{:,.0f}",
+                        "RawFactor":"{:.3f}","w(shrink)":"{:.2f}",
+                        "Shrunk":"{:.3f}","Clipped":"{:.3f}"
+                    }),
+                    use_container_width=True, hide_index=True
+                )
+
+                # --- Bar chart of factors across months for this category
+                try:
+                    fig, ax = plt.subplots()
+                    ax.bar(fac_df["Month"], fac_df["Clipped"])
+                    ax.axhline(1.0, linestyle="--")
+                    ax.set_xticks(range(1,13))
+                    ax.set_xlabel("Month"); ax.set_ylabel("Seasonality factor (clipped)")
+                    ax.set_title(f"Seasonality — {cat_sel}")
+                    st.pyplot(fig)
+                except Exception as e:
+                    st.caption(f"Chart unavailable: {e}")
+
+                # --- Drill-down for a chosen month (e.g., January) to see contributing titles
+                m_sel = st.selectbox("Drill-down month", list(range(1,13)), index=0, key="seasonality_month_sel")
+                drill = g_cat[g_cat["Month"] == int(m_sel)].copy()
+                if drill.empty:
+                    st.info("No titles in this month.")
+                else:
+                    # Show each title, its TicketMedian, and date used
+                    drill = drill.sort_values("TicketMedian", ascending=False)
+                    st.markdown(f"**Titles contributing to month {m_sel}**")
+                    st.dataframe(
+                        drill[["Title","MidDate","TicketMedian"]]
+                            .rename(columns={"TicketMedian":"Tickets"})
+                            .style.format({"Tickets":"{:,.0f}"}),
+                        use_container_width=True, hide_index=True
+                    )
+
 # -------------------------
 # Render
 # -------------------------
