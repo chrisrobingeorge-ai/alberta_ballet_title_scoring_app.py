@@ -244,7 +244,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
     **What this tool does (in brief):**  
     Estimates ticket demand from title familiarity & motivation, links to sales history, then applies seasonality, remount decay, and learned city/subscriber splits.
 
-    ### Quick start (5 steps)
+    ### Full User Guide (5 steps)
     1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/history_city_sales.csv`.
     2. **Choose titles:** Add/modify the list in **Titles to score**. Unknown titles are estimated (or fetched live if you turn that on).
     3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
@@ -1898,7 +1898,7 @@ def render_results():
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
     tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
-        ["Season table (months as columns)", "City Split by Month", "Rank by Composite", "Season Scatter"]
+        ["Season table", "City Split by Month", "Rank by Composite", "Season Scatter"]
     )
 
     with tab_table:
@@ -1978,7 +1978,7 @@ def render_results():
             ["CityShare_Calgary","CityShare_Edmonton","ReturnDecayPct"], :
         ])
         
-        st.markdown("#### 🗓️ Season table (months as columns)")
+        st.markdown("#### 🗓️ Season table")
         st.dataframe(sty, use_container_width=True)
         
         # CSV download (keeps raw numeric values, not formatted strings)
