@@ -1408,6 +1408,27 @@ def render_results():
         decay_factor = remount_novelty_factor(title_sel, run_date)
         est_tix_final = int(round((est_tix if np.isfinite(est_tix) else 0) * decay_factor))
     
+        # --- City split (recompute for season-picked month) ---
+        split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
+        c_sh = float(split.get("Calgary", 0.60))
+        e_sh = float(split.get("Edmonton", 0.40))
+        s = (c_sh + e_sh) or 1.0
+        c_sh, e_sh = float(c_sh / s), float(e_sh / s)
+    
+        # Allocate totals to cities
+        yyc_total = est_tix_final * c_sh
+        yeg_total = est_tix_final * e_sh
+    
+        # Subs shares by category × city
+        yyc_sub_ratio = float(subs_share_for(cat, "Calgary"))
+        yeg_sub_ratio = float(subs_share_for(cat, "Edmonton"))
+    
+        # Singles vs Subs by city
+        yyc_subs = int(round(yyc_total * yyc_sub_ratio))
+        yyc_singles = int(round(yyc_total * (1.0 - yyc_sub_ratio)))
+        yeg_subs = int(round(yeg_total * yeg_sub_ratio))
+        yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
+    
         # row with all requested fields
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
@@ -1424,7 +1445,6 @@ def render_results():
             "Familiarity": r.get("Familiarity", np.nan),
             "Motivation": r.get("Motivation", np.nan),
     
-            # History / indices
             "TicketHistory": r.get("TicketMedian", np.nan),
             "TicketIndex used": eff_idx,  # effective (de-seasoned × future month factor)
             "TicketIndexSource": r.get("TicketIndexSource", ""),
@@ -1435,11 +1455,18 @@ def render_results():
             "Composite": r.get("Composite", np.nan),
             "Score": r.get("Score", ""),
     
-            # Tickets (before & after decay)
             "EstimatedTickets": (None if not np.isfinite(est_tix) else int(est_tix)),
             "ReturnDecayFactor": float(decay_factor),
             "ReturnDecayPct": float(1.0 - decay_factor),
-            "EstimatedTickets_Final": est_tix_final,
+            "EstimatedTickets_Final": int(est_tix_final),
+    
+            # --- requested city split outputs ---
+            "YYC_Singles": int(yyc_singles),
+            "YYC_Subs": int(yyc_subs),
+            "YEG_Singles": int(yeg_singles),
+            "YEG_Subs": int(yeg_subs),
+            "CityShare_Calgary": float(c_sh),
+            "CityShare_Edmonton": float(e_sh),
         })
     
     if plan_rows:
@@ -1451,6 +1478,8 @@ def render_results():
             "FutureSeasonalityFactor","HistSeasonalityFactor",
             "Composite","Score",
             "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+            "CityShare_Calgary","CityShare_Edmonton",
         ]
         plan_df = pd.DataFrame(plan_rows)[desired_order]
         total_final = int(plan_df["EstimatedTickets_Final"].sum())
@@ -1464,6 +1493,9 @@ def render_results():
                 "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
                 "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
                 "EstimatedTickets_Final":"{:,.0f}",
+                "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
+                "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
+                "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
             }),
             use_container_width=True, hide_index=True
         )
@@ -1475,7 +1507,6 @@ def render_results():
         )
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
-
 
     # Calgary / Edmonton split quick view
     with st.expander("🏙️ Calgary / Edmonton split (singles vs subs)"):
