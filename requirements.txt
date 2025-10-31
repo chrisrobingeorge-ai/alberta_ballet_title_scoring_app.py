@@ -4,6 +4,7 @@ pandas>=2.2
 numpy>=1.26
 matplotlib>=3.8
 requests>=2.31
+reportlab>=4.0.0
 
 # --- Optional: live data for NEW titles ---
 google-api-python-client>=2.130.0   # YouTube Data API v3
