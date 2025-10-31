@@ -15,7 +15,7 @@ import requests
 from textwrap import dedent
 
 from io import BytesIO
-from reportlab.lib.pagesizes import LETTER
+from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -60,90 +60,52 @@ def _make_styles():
     }
     return styles
 
-def _methodology_glossary_text() -> list[Paragraph]:
-    # Pulls the exact text you show in your expander (can be abridged if you prefer).
-    # You can keep this short, or paste the full block you and I wrote.
+def _methodology_glossary_text() -> list:
     styles = _make_styles()
-    parts = []
-    parts.append(Paragraph("About This App — Methodology & Glossary", styles["h1"]))
-    parts.append(Paragraph(
-        "This report summarizes title Familiarity & Motivation, links signals to ticket indices, "
-        "and converts them to tickets with seasonality and remount adjustments. Calgary/Edmonton "
-        "splits and Singles/Subs mixes are learned from history.", styles["body"]))
-    parts.append(Spacer(1, 0.15*inch))
-
-    # Method bullets (concise; keep PDF readable)
+    P = Paragraph; SP = Spacer
+    out = []
+    out += [P("How this forecast works (quick read)", styles["h1"])]
     bullets = [
-        "<b>Signals:</b> Wikipedia, Google Trends, YouTube (winsorized by category), Spotify.",
-        "<b>Indices:</b> Familiarity = 0.55·Wiki + 0.30·Trends + 0.15·Spotify; "
-        "Motivation = 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki (segment & region multipliers applied).",
-        "<b>Normalization:</b> Indices are divided by the benchmark’s raw scores and ×100.",
-        "<b>Ticket link:</b> De-seasonalized medians fit to a simple linear model (overall and per-category) "
-        "to impute <i>TicketIndex_DeSeason</i>; future month applies Category×Month factor.",
-        "<b>Remount decay:</b> −25% (<1y), −20% (1–<3y), −12% (3–<5y), −5% (≥5y), 0% if no history.",
-        "<b>YYC/YEG split & Subs share:</b> Learned from history at title→category→default fallback; "
-        "with clipping and safe defaults.",
+        "We combine online visibility (Wikipedia, YouTube, Google) into two simple ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> (people engage with it).",
+        "We anchor everything to a <b>benchmark title</b> so scores are on a shared 0–100+ scale.",
+        "We connect those scores to real ticket history to estimate a <b>Ticket Index</b> for each title.",
+        "We adjust for the <b>month</b> you plan to run it (some months sell better), and for <b>recency</b> if it’s a quick remount.",
+        "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned historical shares and then into <b>Singles/Subscribers</b>."
     ]
-    for b in bullets:
-        parts.append(Paragraph(f"• {b}", styles["body"]))
-    parts.append(Spacer(1, 0.15*inch))
-
-    parts.append(Paragraph("<b>Glossary (key terms)</b>", styles["h2"]))
+    for b in bullets: out += [P(f"• {b}", styles["body"])]
+    out += [SP(1, 10)]
+    out += [P("Plain-language glossary", styles["h2"])]
     gl = [
-        "<b>SignalOnly</b>: mean of Familiarity and Motivation (benchmark = 100).",
-        "<b>EffectiveTicketIndex</b>: de-season ticket index × future month factor.",
-        "<b>EstimatedTickets_Final</b>: tickets after future seasonality and remount decay.",
-        "<b>CityShare_*</b>: learned Calgary/Edmonton allocation applied to totals.",
-        "<b>YYC/YEG Singles/Subs</b>: subscriber share by Category×City.",
+        "<b>Familiarity</b>: how well-known the title is.",
+        "<b>Motivation</b>: how keen people seem to be to watch it.",
+        "<b>Ticket Index</b>: how that interest typically translates into tickets (vs the benchmark).",
+        "<b>Seasonality</b>: some months sell better than others for a given type of show.",
+        "<b>Remount</b>: recent repeats often sell a bit less; we reduce estimates accordingly.",
+        "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
     ]
-    for g in gl:
-        parts.append(Paragraph(f"• {g}", styles["body"]))
-    parts.append(Spacer(1, 0.2*inch))
-    return parts
+    for g in gl: out += [P(f"• {g}", styles["body"])]
+    out += [SP(1, 14)]
+    return out
 
 def _narrative_for_row(r: dict) -> str:
-    """
-    Build a compact, plain-English rationale explaining the estimate for one month/title.
-    Expects keys from plan_df rows created in your render_results() -> plan_rows (already present in your app).
-    """
-    title = r.get("Title",""); month = r.get("Month","")
-    cat = r.get("Category","")
+    title = r.get("Title",""); month = r.get("Month",""); cat = r.get("Category","")
     idx_used = r.get("TicketIndex used", None)
     f_season = r.get("FutureSeasonalityFactor", None)
-    h_season = r.get("HistSeasonalityFactor", None)
     decay_pct = r.get("ReturnDecayPct", 0.0)
-    comp = r.get("Composite", None)
-
-    yyc_s = r.get("YYC_Singles", 0); yyc_u = r.get("YYC_Subs", 0)
-    yeg_s = r.get("YEG_Singles", 0); yeg_u = r.get("YEG_Subs", 0)
-    yyc_t = (yyc_s or 0) + (yyc_u or 0)
-    yeg_t = (yeg_s or 0) + (yeg_u or 0)
-    c_share = r.get("CityShare_Calgary", None)
-    e_share = r.get("CityShare_Edmonton", None)
-
-    pri = r.get("PrimarySegment", "")
-    sec = r.get("SecondarySegment", "")
-    src = r.get("TicketIndexSource","")
-
+    yyc = (r.get("YYC_Singles",0) or 0) + (r.get("YYC_Subs",0) or 0)
+    yeg = (r.get("YEG_Singles",0) or 0) + (r.get("YEG_Subs",0) or 0)
+    c_share = r.get("CityShare_Calgary", None); e_share = r.get("CityShare_Edmonton", None)
+    pri = r.get("PrimarySegment",""); sec = r.get("SecondarySegment","")
     parts = []
     parts.append(f"<b>{month} — {title}</b> ({cat})")
-    parts.append(
-        f"Effective index {_dec(idx_used,1)} is derived from signals and the ticket model "
-        f"({'category' if 'Category' in str(src) else 'overall' if 'Overall' in str(src) else 'signals-only' if 'Not enough data' in str(src) else 'history'}), "
-        f"then adjusted for the planned month (FutureSeasonalityFactor={_dec(f_season,3)}; "
-        f"historical month {_dec(h_season,3)} for de-seasonalization where available)."
-    )
+    parts.append(f"Estimated demand comes from a combined interest score converted into a <b>Ticket Index</b> of {_dec(idx_used,1)}.")
+    parts.append(f"For {month.split()[0]}, this category’s month factor is {_dec(f_season,3)} (months above 1.0 sell better).")
     if decay_pct and float(decay_pct) > 0:
-        parts.append(f"Remount decay reduces demand by {_pct(decay_pct)} based on recency.")
-    if pri or sec:
-        parts.append(f"Expected audience mix skews to <b>{pri}</b>{' (secondary: '+sec+')' if sec else ''}, "
-                     f"driven by category and signal normalization vs the benchmark.")
-    parts.append(
-        f"City split applies learned shares (Calgary {_pct(c_share,0)} / Edmonton {_pct(e_share,0)}), "
-        f"yielding <b>{_num(yyc_t)}</b> YYC and <b>{_num(yeg_t)}</b> YEG tickets. "
-        f"Within each city, subscriber ratios allocate Singles/Subs (YYC {_num(yyc_s)} / {_num(yyc_u)}; "
-        f"YEG {_num(yeg_s)} / {_num(yeg_u)})."
-    )
+        parts.append(f"We apply a small repeat reduction of {_pct(decay_pct)} due to recent performances.")
+    if pri:
+        parts.append(f"Likely audience skews to <b>{pri}</b>{' (then '+sec+')' if sec else ''}.")
+    parts.append(f"We split sales using learned shares: Calgary {_pct(c_share,0)} / Edmonton {_pct(e_share,0)}, giving "
+                 f"<b>{_num(yyc)}</b> tickets in YYC and <b>{_num(yeg)}</b> in YEG.")
     return " ".join(parts)
 
 def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
@@ -223,9 +185,10 @@ def build_full_pdf_report(methodology_paragraphs: list,
     styles = _make_styles()
     buf = BytesIO()
     doc = SimpleDocTemplate(
-        buf, pagesize=LETTER,
-        leftMargin=0.65*inch, rightMargin=0.65*inch,
-        topMargin=0.7*inch, bottomMargin=0.7*inch,
+        buf,
+        pagesize=landscape(LETTER),
+        leftMargin=0.5*inch, rightMargin=0.5*inch,
+        topMargin=0.5*inch, bottomMargin=0.5*inch,
         title=f"{org_name} — Season Report {season_year}"
     )
     story = []
