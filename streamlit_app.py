@@ -1503,78 +1503,77 @@ def render_results():
         with c4:
             st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
 
-# --- Tabs: Season table (wide) | City split | Rank | Scatter ---
-tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
-    ["Season table (months as columns)", "City Split by Month", "Rank by Composite", "Season Scatter"]
-)
-
-with tab_table:
-    # --- Wide (months as columns) view + CSV ---
-    import calendar
-    from numbers import Number
-
-    # Keep the UI month order you already use
-    month_name_order = ["September","October","January","February","March","May"]
-
-    def _month_label(month_full: str) -> str:
-        # "September 2026" -> "Sep-26"
-        try:
-            name, year = str(month_full).split()
-            m_num = list(calendar.month_name).index(name)
-            return f"{calendar.month_abbr[m_num]}-{str(int(year))[-2:]}"
-        except Exception:
-            return str(month_full)
-
-    # only months the user actually picked, preserved in UI order
-    picked = (
-        plan_df.copy()
-        .assign(_mname=lambda d: d["Month"].str.split().str[0])
-        .pipe(lambda d: d[d["_mname"].isin(month_name_order)])
-    )
-    picked["_order"] = picked["_mname"].apply(lambda n: month_name_order.index(n))
-    picked = picked.sort_values("_order")
-
-    # map month label -> row
-    month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
-    month_cols = list(month_to_row.keys())
-
-    metrics = [
-        "Title","Category","PrimarySegment","SecondarySegment",
-        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-        "Familiarity","Motivation",
-        "TicketHistory","TicketIndex used","TicketIndexSource",
-        "FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score",
-        "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-        "CityShare_Calgary","CityShare_Edmonton",
-    ]
-
-    # assemble wide DF: rows = metrics, columns = month labels
-    df_wide = pd.DataFrame(
-        { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
-        index=metrics
-    ).rename_axis("Metric").reset_index()
-
-    def _fmt_num(x):
-        if isinstance(x, Number) and np.isfinite(x):
-            return f"{x:,.0f}"
-        return x
-
-    st.markdown("#### 🗓️ Season table (months as columns)")
-    st.dataframe(
-        df_wide.style.format({ col: _fmt_num for col in month_cols }),
-        use_container_width=True,
-        hide_index=True
+    # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
+    tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
+        ["Season table (months as columns)", "City Split by Month", "Rank by Composite", "Season Scatter"]
     )
 
-    # CSV download (wide) — replaces the old "Projected season total" CSV
-    st.download_button(
-        "⬇️ Download Season (wide) CSV",
-        df_wide.to_csv(index=False).encode("utf-8"),
-        file_name=f"season_plan_wide_{season_year}.csv",
-        mime="text/csv"
-    )
+    with tab_table:
+        # --- Wide (months as columns) view + CSV ---
+        from numbers import Number
+
+        # UI month order to display (include any you allow in the picker)
+        month_name_order = ["September","October","December","January","February","March","May"]
+
+        def _month_label(month_full: str) -> str:
+            # "September 2026" -> "Sep-26"
+            try:
+                name, year = str(month_full).split()
+                m_num = list(calendar.month_name).index(name)
+                return f"{calendar.month_abbr[m_num]}-{str(int(year))[-2:]}"
+            except Exception:
+                return str(month_full)
+
+        # only months the user actually picked, preserved in UI order
+        picked = (
+            plan_df.copy()
+            .assign(_mname=lambda d: d["Month"].str.split().str[0])
+            .pipe(lambda d: d[d["_mname"].isin(month_name_order)])
+        )
+        picked["_order"] = picked["_mname"].apply(lambda n: month_name_order.index(n))
+        picked = picked.sort_values("_order")
+
+        # map month label -> row
+        month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
+        month_cols = list(month_to_row.keys())
+
+        metrics = [
+            "Title","Category","PrimarySegment","SecondarySegment",
+            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+            "Familiarity","Motivation",
+            "TicketHistory","TicketIndex used","TicketIndexSource",
+            "FutureSeasonalityFactor","HistSeasonalityFactor",
+            "Composite","Score",
+            "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+            "CityShare_Calgary","CityShare_Edmonton",
+        ]
+
+        # assemble wide DF: rows = metrics, columns = month labels
+        df_wide = pd.DataFrame(
+            { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
+            index=metrics
+        ).rename_axis("Metric").reset_index()
+
+        def _fmt_num(x):
+            if isinstance(x, Number) and np.isfinite(x):
+                return f"{x:,.0f}"
+            return x
+
+        st.markdown("#### 🗓️ Season table (months as columns)")
+        st.dataframe(
+            df_wide.style.format({ col: _fmt_num for col in month_cols }),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # CSV download (wide) — replaces the old "Projected season total" CSV
+        st.download_button(
+            "⬇️ Download Season (wide) CSV",
+            df_wide.to_csv(index=False).encode("utf-8"),
+            file_name=f"season_plan_wide_{season_year}.csv",
+            mime="text/csv"
+        )
 
     with tab_city:
         try:
