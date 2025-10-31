@@ -1510,60 +1510,59 @@ def render_results():
             with c4:
                 st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
         
-        # --- Tabs: Table | City split chart | Rank by Composite | Season Scatter ---
-        tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
-            ["Table", "City Split by Month", "Rank by Composite", "Season Scatter"]
-        )
-        
-        with tab_table:
-            st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
-            st.dataframe(
-                plan_df.style.format({
-                    "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
-                    "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
-                    "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
-                    "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
-                    "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
-                    "EstimatedTickets_Final":"{:,.0f}",
-                    "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
-                    "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
-                    "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
-                }),
-                use_container_width=True, hide_index=True
-            )
-        
-        with tab_city:
-            # stacked bar: by month with 4 stacks (YYC Singles/Subs, YEG Singles/Subs)
-            try:
-                plot_df = (plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
-                           .copy().groupby("Month", as_index=False).sum())
-                plot_df = plot_df.sort_values("Month", key=lambda s: s.str.extract(r"(\w+)\s(\d+)", expand=True)[0])  # keep your existing order if you prefer
-        
-                import matplotlib.pyplot as plt
-                fig, ax = plt.subplots()
-                ax.bar(plot_df["Month"], plot_df["YYC_Singles"], label="YYC Singles")
-                ax.bar(plot_df["Month"], plot_df["YYC_Subs"], bottom=plot_df["YYC_Singles"], label="YYC Subs")
-                ax.bar(plot_df["Month"], plot_df["YEG_Singles"],
-                       bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"]), label="YEG Singles")
-                ax.bar(plot_df["Month"], plot_df["YEG_Subs"],
-                       bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"] + plot_df["YEG_Singles"]), label="YEG Subs")
-                ax.set_title("City split by month (stacked)")
-                ax.set_xlabel("Month")
-                ax.set_ylabel("Tickets (final)")
-                ax.legend()
-                ax.tick_params(axis='x', rotation=45)
-                st.pyplot(fig)
-            except Exception as e:
-                st.caption(f"City split chart unavailable: {e}")
-        
-        with tab_rank:
-            rank_cols = ["Month","Title","Category","PrimarySegment","SecondarySegment","Composite","EstimatedTickets_Final"]
-            rank_df = plan_df[rank_cols].copy().sort_values(["Composite","EstimatedTickets_Final"], ascending=[False, False])
-            st.dataframe(
-                rank_df.style.format({"Composite":"{:.1f}","EstimatedTickets_Final":"{:,.0f}"}),
-                use_container_width=True, hide_index=True
-            )
-    
+# --- Tabs: Table | City split chart | Rank by Composite | Season Scatter ---
+tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
+    ["Table", "City Split by Month", "Rank by Composite", "Season Scatter"]
+)
+
+with tab_table:
+    st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
+    st.dataframe(
+        plan_df.style.format({
+            "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
+            "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
+            "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
+            "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
+            "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
+            "EstimatedTickets_Final":"{:,.0f}",
+            "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
+            "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
+            "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
+        }),
+        use_container_width=True, hide_index=True
+    )
+
+with tab_city:
+    # stacked bar: by month with 4 stacks (YYC Singles/Subs, YEG Singles/Subs)
+    try:
+        plot_df = (plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
+                   .copy().groupby("Month", as_index=False).sum())
+        plot_df = plot_df.sort_values("Month", key=lambda s: s.str.extract(r"(\w+)\s(\d+)", expand=True)[0])
+
+        fig, ax = plt.subplots()
+        ax.bar(plot_df["Month"], plot_df["YYC_Singles"], label="YYC Singles")
+        ax.bar(plot_df["Month"], plot_df["YYC_Subs"], bottom=plot_df["YYC_Singles"], label="YYC Subs")
+        ax.bar(plot_df["Month"], plot_df["YEG_Singles"],
+               bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"]), label="YEG Singles")
+        ax.bar(plot_df["Month"], plot_df["YEG_Subs"],
+               bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"] + plot_df["YEG_Singles"]), label="YEG Subs")
+        ax.set_title("City split by month (stacked)")
+        ax.set_xlabel("Month")
+        ax.set_ylabel("Tickets (final)")
+        ax.legend()
+        ax.tick_params(axis='x', rotation=45)
+        st.pyplot(fig)
+    except Exception as e:
+        st.caption(f"City split chart unavailable: {e}")
+
+with tab_rank:
+    rank_cols = ["Month","Title","Category","PrimarySegment","SecondarySegment","Composite","EstimatedTickets_Final"]
+    rank_df = plan_df[rank_cols].copy().sort_values(["Composite","EstimatedTickets_Final"], ascending=[False, False])
+    st.dataframe(
+        rank_df.style.format({"Composite":"{:.1f}","EstimatedTickets_Final":"{:,.0f}"}),
+        use_container_width=True, hide_index=True
+    )
+
 with tab_scatter:
     try:
         scat_df = plan_df.copy()
