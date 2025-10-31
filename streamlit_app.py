@@ -15,6 +15,16 @@ import requests
 from textwrap import dedent
 
 # -------------------------
+# App setup
+# -------------------------
+st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
+if "results" not in st.session_state:
+    st.session_state["results"] = None
+
+st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9.2)")
+st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
+
+# -------------------------
 # METHODOLOGY & GLOSSARY SECTION
 # -------------------------
 with st.expander("📘 About This App — Methodology & Glossary"):
@@ -85,15 +95,6 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     Screen potential titles, estimate proportional appeal by segment and month,  
     and calibrate marketing expectations for programming, pricing, and touring.
     """))
-# -------------------------
-# App setup
-# -------------------------
-st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
-if "results" not in st.session_state:
-    st.session_state["results"] = None
-
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9.2)")
-st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
 # PRIORS learning (YYC/YEG + Singles/Subs) — self-contained
