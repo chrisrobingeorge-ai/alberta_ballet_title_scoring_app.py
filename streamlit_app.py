@@ -1527,33 +1527,33 @@ def render_results():
 
     # --- Wide (months as columns) view + CSV ---
     import calendar
+    from numbers import Number
 
-    # Column order matching your allowed_months UI
+    # 1) Preserve the UI month order from allowed_months
     month_name_order = ["September","October","January","February","March","May"]
 
-    # Make compact headers like "Sep-26"
-    def _month_label(m_full: str) -> str:
+    def _month_label(month_full: str) -> str:
+        """Convert 'September 2026' -> 'Sep-26' safely."""
         try:
-            name, year = m_full.split()
+            name, year = month_full.split()
             m_num = list(calendar.month_name).index(name)
             return f"{calendar.month_abbr[m_num]}-{str(int(year))[-2:]}"
         except Exception:
-            return m_full
+            return month_full
 
-    # Keep only months the user actually picked, in the desired visual order
+    # Keep only the months the user actually picked, in UI order
     picked = (
         plan_df.copy()
         .assign(_mname=lambda d: d["Month"].str.split().str[0])
         .pipe(lambda d: d[d["_mname"].isin(month_name_order)])
     )
-    # preserve UI order
     picked["_order"] = picked["_mname"].apply(lambda n: month_name_order.index(n))
     picked = picked.sort_values("_order")
 
-    # Map month label -> row dict
+    # Build dict: { "Sep-26": row_as_dict, ... }
     month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
+    month_cols = list(month_to_row.keys())
 
-    # Metrics (rows) you want in the wide display
     metrics = [
         "Title","Category","PrimarySegment","SecondarySegment",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
@@ -1566,21 +1566,23 @@ def render_results():
         "CityShare_Calgary","CityShare_Edmonton",
     ]
 
-    # Build a wide dataframe where rows = metrics and columns = months
+    # Assemble wide DF: rows = metrics, columns = month labels
     df_wide = pd.DataFrame(
-        { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_to_row.keys() },
+        { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
         index=metrics
-    )
+    ).rename_axis("Metric").reset_index()
+
+    # Safe numeric formatter: only format numbers; leave text as-is
+    def _fmt_num(x):
+        if isinstance(x, Number) and np.isfinite(x):
+            # percentages appear as fractions in data; keep raw numbers here
+            # you can customize per-metric if you want (e.g., pct rows)
+            return f"{x:,.0f}"
+        return x
 
     st.markdown("#### 🗓️ Season table (months as columns)")
     st.dataframe(
-        df_wide
-            .rename_axis("Metric")
-            .reset_index()
-            .style.format({
-                "Sep-26":"{:,.0f}", "Oct-26":"{:,.0f}", "Jan-27":"{:,.0f}", "Feb-27":"{:,.0f}", "Mar-27":"{:,.0f}", "May-27":"{:,.0f}",
-            })
-            .format_index(na_rep=""),
+        df_wide.style.format({ col: _fmt_num for col in month_cols }),
         use_container_width=True,
         hide_index=True
     )
@@ -1588,7 +1590,7 @@ def render_results():
     # CSV download (wide)
     st.download_button(
         "⬇️ Download Season (wide) CSV",
-        df_wide.to_csv(index=True).encode("utf-8"),
+        df_wide.to_csv(index=False).encode("utf-8"),
         file_name=f"season_plan_wide_{season_year}.csv",
         mime="text/csv"
     )
