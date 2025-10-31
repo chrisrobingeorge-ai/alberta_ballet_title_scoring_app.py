@@ -130,7 +130,7 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
     ]
 
     # Order months as in UI
-    month_order = ["September","October","December","January","February","March","May"]
+    month_order = ["September","October","January","February","March","May"]
     df = plan_df.copy()
     df["_mname"] = df["Month"].str.split().str[0]
     df = df[df["_mname"].isin(month_order)].copy()
@@ -1649,7 +1649,7 @@ def render_results():
         st.warning("Couldn’t infer benchmark tickets for conversion. Season projections will show index-only where needed.")
         bench_med_deseason_est = None
 
-    allowed_months = [("September", 9), ("October", 10), ("December", 12),
+    allowed_months = [("September", 9), ("October", 10),
                       ("January", 1), ("February", 2), ("March", 3), ("May", 5)]
     title_options = ["— None —"] + sorted(df["Title"].unique().tolist())
     month_to_choice = {}
@@ -1793,7 +1793,7 @@ def render_results():
         from numbers import Number
 
         # UI month order to display (include any you allow in the picker)
-        month_name_order = ["September","October","December","January","February","March","May"]
+        month_name_order = ["September","October","January","February","March","May"]
 
         def _month_label(month_full: str) -> str:
             # "September 2026" -> "Sep-26"
