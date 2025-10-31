@@ -1218,6 +1218,7 @@ def compute_scores_and_store(
 # Render
 # -------------------------
 def render_results():
+    SHOW_LEGACY_SEASON = False
     import calendar
     R = st.session_state.get("results")
     if not R or "df" not in R or R["df"] is None:
@@ -1483,18 +1484,18 @@ def render_results():
         ]
         plan_df = pd.DataFrame(plan_rows)[desired_order]
         total_final = int(plan_df["EstimatedTickets_Final"].sum())
-
+    
         # --- Executive summary KPIs (after you have plan_df and total_final) ---
         with st.container():
             st.markdown("### 📊 Season at a glance")
             c1, c2, c3, c4 = st.columns(4)
-        
+    
             yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
             yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
             singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
             subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
             grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
-        
+    
             with c1:
                 st.metric("Projected Season Total", f"{grand:,}")
             with c2:
@@ -1503,7 +1504,26 @@ def render_results():
                 st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
             with c4:
                 st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
-        
+
+    # --- Single season table + download (authoritative) ---
+    st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
+
+    # Show the exact columns/fields you requested
+    st.dataframe(
+        plan_df,  # already in desired_order above
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # Nicely formatted CSV export of the visible table
+    st.download_button(
+        "⬇️ Download Season Plan (full fields)",
+        plan_df.to_csv(index=False).encode("utf-8"),
+        file_name=f"season_plan_full_{season_year}-{season_year+1}.csv",
+        mime="text/csv",
+        key="dl_season_plan_full"  # unique key to avoid DuplicateElementId
+    )
+
         # --- Tabs: Table | City split chart | Rank by Composite ---
         tab_table, tab_city, tab_rank = st.tabs(["Table", "City Split by Month", "Rank by Composite"])
         
