@@ -1465,10 +1465,26 @@ for m_name, m_num in allowed_months:
         "CityShare_Edmonton": float(e_sh),
     })
 
-# --- If no season yet, show a gentle prompt and exit early ---
+# --- If no season yet, show a gentle prompt and guard the rest ---
 if not plan_rows:
     st.caption("Pick at least one month/title above to see your season projection, charts, and scatter.")
-    return
+else:
+    # everything that currently follows (desired_order → plan_df → KPIs → tabs → charts)
+    desired_order = [
+        "Month","Title","Category","PrimarySegment","SecondarySegment",
+        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+        "Familiarity","Motivation",
+        "TicketHistory","TicketIndex used","TicketIndexSource",
+        "FutureSeasonalityFactor","HistSeasonalityFactor",
+        "Composite","Score",
+        "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "CityShare_Calgary","CityShare_Edmonton",
+    ]
+    plan_df = pd.DataFrame(plan_rows)[desired_order]
+    total_final = int(plan_df["EstimatedTickets_Final"].sum())
+
+    # (keep your KPI tiles, the three tabs, and the scatter exactly as you have them)
 
 # --- From here on, we’re guaranteed to have data ---
 desired_order = [
