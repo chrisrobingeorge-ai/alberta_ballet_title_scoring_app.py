@@ -1,4 +1,4 @@
-# Alberta Ballet — Title Familiarity & Motivation Scorer (v9.2)
+# Alberta Ballet — Title Scorer (v9.2)
 # - Learns YYC/YEG & Singles/Subs from history.csv (or uploaded CSV)
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
@@ -224,7 +224,7 @@ st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation
 if "results" not in st.session_state:
     st.session_state["results"] = None
 
-st.title("🎭 Alberta Ballet — Title Familiarity & Motivation Scorer (v9.2)")
+st.title("Alberta Ballet — Title Scorer (v9.239)")
 st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
