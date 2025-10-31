@@ -1503,10 +1503,10 @@ def render_results():
         with c4:
             st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
 
-    # --- Tabs: Table | City split | Rank | Scatter ---
-    tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
-        ["Table", "City Split by Month", "Rank by Composite", "Season Scatter"]
-    )
+# --- Tabs: Season table (wide) | City split | Rank | Scatter ---
+tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
+    ["Season table (months as columns)", "City Split by Month", "Rank by Composite", "Season Scatter"]
+)
 
 with tab_table:
     # --- Wide (months as columns) view + CSV ---
@@ -1517,7 +1517,7 @@ with tab_table:
     month_name_order = ["September","October","January","February","March","May"]
 
     def _month_label(month_full: str) -> str:
-        """Convert 'September 2026' -> 'Sep-26' safely."""
+        # "September 2026" -> "Sep-26"
         try:
             name, year = str(month_full).split()
             m_num = list(calendar.month_name).index(name)
@@ -1525,7 +1525,7 @@ with tab_table:
         except Exception:
             return str(month_full)
 
-    # Only months the user picked, in UI order
+    # only months the user actually picked, preserved in UI order
     picked = (
         plan_df.copy()
         .assign(_mname=lambda d: d["Month"].str.split().str[0])
@@ -1534,7 +1534,7 @@ with tab_table:
     picked["_order"] = picked["_mname"].apply(lambda n: month_name_order.index(n))
     picked = picked.sort_values("_order")
 
-    # Build dict: { "Sep-26": row_as_series, ... }
+    # map month label -> row
     month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
     month_cols = list(month_to_row.keys())
 
@@ -1550,13 +1550,12 @@ with tab_table:
         "CityShare_Calgary","CityShare_Edmonton",
     ]
 
-    # Assemble wide DF: rows = metrics, columns = month labels
+    # assemble wide DF: rows = metrics, columns = month labels
     df_wide = pd.DataFrame(
         { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
         index=metrics
     ).rename_axis("Metric").reset_index()
 
-    # Friendly numeric formatting only where numeric
     def _fmt_num(x):
         if isinstance(x, Number) and np.isfinite(x):
             return f"{x:,.0f}"
@@ -1569,7 +1568,7 @@ with tab_table:
         hide_index=True
     )
 
-    # CSV download (wide)
+    # CSV download (wide) — replaces the old "Projected season total" CSV
     st.download_button(
         "⬇️ Download Season (wide) CSV",
         df_wide.to_csv(index=False).encode("utf-8"),
