@@ -1375,68 +1375,107 @@ def render_results():
     def _run_year_for_month(month_num: int, start_year: int) -> int:
         return start_year if month_num in (9, 10, 12) else (start_year + 1)
 
+    # --- Build a Season: collect rows with full detail ---
     plan_rows = []
     for m_name, m_num in allowed_months:
         title_sel = month_to_choice.get(m_name)
         if not title_sel or title_sel == "— None —":
             continue
+    
         r = df[df["Title"] == title_sel].head(1)
         if r.empty:
             continue
         r = r.iloc[0]
-        cat = str(r.get("Category", "dramatic"))
+    
+        cat = str(r.get("Category", ""))
         run_year = _run_year_for_month(m_num, int(season_year))
         run_date = date(run_year, int(m_num), 15)
+    
+        # seasonality + index for the chosen month
         f_season = float(seasonality_factor(cat, run_date))
         idx_deseason = float(r.get("TicketIndex_DeSeason_Used", np.nan))
         if not np.isfinite(idx_deseason):
             idx_deseason = float(r.get("SignalOnly", 100.0))
         eff_idx = idx_deseason * f_season
+    
+        # convert to tickets if we inferred a benchmark
         if bench_med_deseason_est is not None and np.isfinite(bench_med_deseason_est):
             est_tix = round((eff_idx / 100.0) * bench_med_deseason_est)
         else:
             est_tix = np.nan
+    
+        # remount decay
         decay_factor = remount_novelty_factor(title_sel, run_date)
         est_tix_final = int(round((est_tix if np.isfinite(est_tix) else 0) * decay_factor))
-        mix_gp = float(r.get("Mix_GP", 0.0))
-        mix_core = float(r.get("Mix_Core", 0.0))
-        mix_family = float(r.get("Mix_Family", 0.0))
-        mix_ea = float(r.get("Mix_EA", 0.0))
+    
+        # row with all requested fields
         plan_rows.append({
-            "MonthOrder": len(plan_rows),
-            "Month": f"{m_name} {run_year}", "MonthName": m_name, "MonthNum": m_num, "RunYear": run_year,
-            "Title": title_sel, "Category": cat,
-            "PrimarySegment": r.get("PredictedPrimarySegment", ""), "SecondarySegment": r.get("PredictedSecondarySegment", ""),
-            "SeasonalityFactor": f"{f_season:.3f}", "EffTicketIndex": f"{eff_idx:.1f}",
-            "EstTickets_beforeDecay": (None if not np.isfinite(est_tix) else int(est_tix)),
-            "ReturnDecayFactor": f"{float(decay_factor):.2f}", "EstimatedTickets_Final": est_tix_final,
-            "Seg_GP_Tickets": int(round(est_tix_final * mix_gp)),
-            "Seg_Core_Tickets": int(round(est_tix_final * mix_core)),
-            "Seg_Family_Tickets": int(round(est_tix_final * mix_family)),
-            "Seg_EA_Tickets": int(round(est_tix_final * mix_ea)),
+            "Month": f"{m_name} {run_year}",
+            "Title": title_sel,
+            "Category": cat,
+            "PrimarySegment": r.get("PredictedPrimarySegment", ""),
+            "SecondarySegment": r.get("PredictedSecondarySegment", ""),
+    
+            "WikiIdx": r.get("WikiIdx", np.nan),
+            "TrendsIdx": r.get("TrendsIdx", np.nan),
+            "YouTubeIdx": r.get("YouTubeIdx", np.nan),
+            "SpotifyIdx": r.get("SpotifyIdx", np.nan),
+    
+            "Familiarity": r.get("Familiarity", np.nan),
+            "Motivation": r.get("Motivation", np.nan),
+    
+            # History / indices
+            "TicketHistory": r.get("TicketMedian", np.nan),
+            "TicketIndex used": eff_idx,  # effective (de-seasoned × future month factor)
+            "TicketIndexSource": r.get("TicketIndexSource", ""),
+    
+            "FutureSeasonalityFactor": f_season,
+            "HistSeasonalityFactor": r.get("HistSeasonalityFactor", np.nan),
+    
+            "Composite": r.get("Composite", np.nan),
+            "Score": r.get("Score", ""),
+    
+            # Tickets (before & after decay)
+            "EstimatedTickets": (None if not np.isfinite(est_tix) else int(est_tix)),
+            "ReturnDecayFactor": float(decay_factor),
+            "ReturnDecayPct": float(1.0 - decay_factor),
+            "EstimatedTickets_Final": est_tix_final,
         })
-
+    
     if plan_rows:
-        plan_df = pd.DataFrame(plan_rows).sort_values("MonthOrder")
+        desired_order = [
+            "Month","Title","Category","PrimarySegment","SecondarySegment",
+            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+            "Familiarity","Motivation",
+            "TicketHistory","TicketIndex used","TicketIndexSource",
+            "FutureSeasonalityFactor","HistSeasonalityFactor",
+            "Composite","Score",
+            "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+        ]
+        plan_df = pd.DataFrame(plan_rows)[desired_order]
         total_final = int(plan_df["EstimatedTickets_Final"].sum())
+    
         st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
         st.dataframe(
-            plan_df[
-                ["Month","Title","Category","PrimarySegment","SecondarySegment",
-                 "SeasonalityFactor","EffTicketIndex",
-                 "EstTickets_beforeDecay","ReturnDecayFactor","EstimatedTickets_Final",
-                 "Seg_GP_Tickets","Seg_Core_Tickets","Seg_Family_Tickets","Seg_EA_Tickets"]
-            ],
+            plan_df.style.format({
+                "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
+                "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
+                "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
+                "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
+                "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
+                "EstimatedTickets_Final":"{:,.0f}",
+            }),
             use_container_width=True, hide_index=True
         )
         st.download_button(
             "⬇️ Download Season Plan CSV",
-            plan_df.drop(columns=["MonthOrder"]).to_csv(index=False).encode("utf-8"),
+            plan_df.to_csv(index=False).encode("utf-8"),
             file_name=f"season_plan_{season_year}-{season_year+1}.csv",
             mime="text/csv"
         )
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
+
 
     # Calgary / Edmonton split quick view
     with st.expander("🏙️ Calgary / Edmonton split (singles vs subs)"):
