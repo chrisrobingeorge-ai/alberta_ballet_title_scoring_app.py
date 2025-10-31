@@ -1470,137 +1470,53 @@ def render_results():
             "CityShare_Edmonton": float(e_sh),
         })
     
-    if plan_rows:
-        desired_order = [
-            "Month","Title","Category","PrimarySegment","SecondarySegment",
-            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-            "Familiarity","Motivation",
-            "TicketHistory","TicketIndex used","TicketIndexSource",
-            "FutureSeasonalityFactor","HistSeasonalityFactor",
-            "Composite","Score",
-            "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-            "CityShare_Calgary","CityShare_Edmonton",
-        ]
-        plan_df = pd.DataFrame(plan_rows)[desired_order]
-        total_final = int(plan_df["EstimatedTickets_Final"].sum())
-    
-        # --- Executive summary KPIs (after you have plan_df and total_final) ---
-        with st.container():
-            st.markdown("### 📊 Season at a glance")
-            c1, c2, c3, c4 = st.columns(4)
-    
-            yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
-            yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
-            singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
-            subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
-            grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
-    
-            with c1:
-                st.metric("Projected Season Total", f"{grand:,}")
-            with c2:
-                st.metric("Calgary • share", f"{yyc_tot:,}", delta=f"{yyc_tot/grand:.1%}")
-            with c3:
-                st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
-            with c4:
-                st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
+if plan_rows:
+    desired_order = [
+        "Month","Title","Category","PrimarySegment","SecondarySegment",
+        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+        "Familiarity","Motivation",
+        "TicketHistory","TicketIndex used","TicketIndexSource",
+        "FutureSeasonalityFactor","HistSeasonalityFactor",
+        "Composite","Score",
+        "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "CityShare_Calgary","CityShare_Edmonton",
+    ]
+    plan_df = pd.DataFrame(plan_rows)[desired_order]
+    total_final = int(plan_df["EstimatedTickets_Final"].sum())
 
-    # --- Single season table + download (authoritative) ---
+    # --- Executive summary KPIs ---
+    with st.container():
+        st.markdown("### 📊 Season at a glance")
+        c1, c2, c3, c4 = st.columns(4)
+
+        yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
+        yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
+        singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
+        subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
+        grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
+
+        with c1:
+            st.metric("Projected Season Total", f"{grand:,}")
+        with c2:
+            st.metric("Calgary • share", f"{yyc_tot:,}", delta=f"{yyc_tot/grand:.1%}")
+        with c3:
+            st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
+        with c4:
+            st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
+
+    # --- Authoritative season table + download ---
     st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
-
-    # Show the exact columns/fields you requested
-    st.dataframe(
-        plan_df,  # already in desired_order above
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # Nicely formatted CSV export of the visible table
+    st.dataframe(plan_df, use_container_width=True, hide_index=True)
     st.download_button(
         "⬇️ Download Season Plan (full fields)",
         plan_df.to_csv(index=False).encode("utf-8"),
         file_name=f"season_plan_full_{season_year}-{season_year+1}.csv",
         mime="text/csv",
-        key="dl_season_plan_full"  # unique key to avoid DuplicateElementId
+        key="dl_season_plan_full"
     )
 
-    # --- Tabs: Table | City split chart | Rank by Composite ---
-    tab_table, tab_city, tab_rank = st.tabs(["Table", "City Split by Month", "Rank by Composite"])
-        
-    with tab_table:
-        st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
-        st.dataframe(
-            plan_df.style.format({
-                "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
-                "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
-                "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
-                "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
-                "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
-                "EstimatedTickets_Final":"{:,.0f}",
-                "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
-                "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
-                "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
-            }),
-            use_container_width=True, hide_index=True
-        )
-        
-    with tab_city:
-        # stacked bar: by month with 4 stacks (YYC Singles/Subs, YEG Singles/Subs)
-        try:
-            plot_df = (plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
-                        .copy().groupby("Month", as_index=False).sum())
-            plot_df = plot_df.sort_values("Month", key=lambda s: s.str.extract(r"(\w+)\s(\d+)", expand=True)[0])  # keep your existing order if you prefer
-        
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots()
-            ax.bar(plot_df["Month"], plot_df["YYC_Singles"], label="YYC Singles")
-            ax.bar(plot_df["Month"], plot_df["YYC_Subs"], bottom=plot_df["YYC_Singles"], label="YYC Subs")
-            ax.bar(plot_df["Month"], plot_df["YEG_Singles"],
-                    bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"]), label="YEG Singles")
-            ax.bar(plot_df["Month"], plot_df["YEG_Subs"],
-                    bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"] + plot_df["YEG_Singles"]), label="YEG Subs")
-            ax.set_title("City split by month (stacked)")
-            ax.set_xlabel("Month")
-            ax.set_ylabel("Tickets (final)")
-            ax.legend()
-            ax.tick_params(axis='x', rotation=45)
-            st.pyplot(fig)
-        except Exception as e:
-            st.caption(f"City split chart unavailable: {e}")
-        
-    with tab_rank:
-        rank_cols = ["Month","Title","Category","PrimarySegment","SecondarySegment","Composite","EstimatedTickets_Final"]
-        rank_df = plan_df[rank_cols].copy().sort_values(["Composite","EstimatedTickets_Final"], ascending=[False, False])
-        st.dataframe(
-            rank_df.style.format({"Composite":"{:.1f}","EstimatedTickets_Final":"{:,.0f}"}),
-            use_container_width=True, hide_index=True
-        )
-    
-        st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
-        st.dataframe(
-            plan_df.style.format({
-                "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
-                "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
-                "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
-                "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
-                "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
-                "EstimatedTickets_Final":"{:,.0f}",
-                "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
-                "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
-                "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
-            }),
-            use_container_width=True, hide_index=True
-        )
-        st.download_button(
-            "⬇️ Download Season Plan CSV",
-            plan_df.to_csv(index=False).encode("utf-8"),
-            file_name=f"season_plan_{season_year}-{season_year+1}.csv",
-            mime="text/csv"
-        )
-    else:
-        st.caption("Pick at least one month/title above to see your season projection.")
-
-    # Calgary / Edmonton split quick view
+    # --- Calgary / Edmonton split quick view ---
     with st.expander("🏙️ Calgary / Edmonton split (singles vs subs)"):
         cols = ["Title","Category","EstimatedTickets_Final",
                 "YYC_Total","YYC_Singles","YYC_Subs",
@@ -1627,13 +1543,15 @@ def render_results():
                 "YEG_Subs": int(df["YEG_Subs"].sum()),
                 "EstimatedTickets_Final": int(df["EstimatedTickets_Final"].sum()),
             }
-            st.caption(f"Totals — YYC: {tot['YYC_Total']:,} (Singles {tot['YYC_Singles']:,} / Subs {tot['YYC_Subs']:,}) · "
-                       f"YEG: {tot['YEG_Total']:,} (Singles {tot['YEG_Singles']:,} / Subs {tot['YEG_Subs']:,}) · "
-                       f"All-in: {tot['EstimatedTickets_Final']:,}")
+            st.caption(
+                f"Totals — YYC: {tot['YYC_Total']:,} (Singles {tot['YYC_Singles']:,} / Subs {tot['YYC_Subs']:,}) · "
+                f"YEG: {tot['YEG_Total']:,} (Singles {tot['YEG_Singles']:,} / Subs {tot['YEG_Subs']:,}) · "
+                f"All-in: {tot['EstimatedTickets_Final']:,}"
+            )
         except Exception:
             pass
 
-    # Scatter chart
+    # --- Scatter chart (optional) ---
     try:
         if "Familiarity" in df.columns and "Motivation" in df.columns:
             fig, ax = plt.subplots()
@@ -1648,6 +1566,9 @@ def render_results():
             st.pyplot(fig)
     except Exception:
         pass
+
+else:
+    st.caption("Pick at least one month/title above to see your season projection.")
 
 # -------------------------
 # Button + render
