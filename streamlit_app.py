@@ -1510,8 +1510,10 @@ def render_results():
             with c4:
                 st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
         
-        # --- Tabs: Table | City split chart | Rank by Composite ---
-        tab_table, tab_city, tab_rank = st.tabs(["Table", "City Split by Month", "Rank by Composite"])
+        # --- Tabs: Table | City split chart | Rank by Composite | Season Scatter ---
+        tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
+            ["Table", "City Split by Month", "Rank by Composite", "Season Scatter"]
+        )
         
         with tab_table:
             st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
@@ -1562,24 +1564,47 @@ def render_results():
                 use_container_width=True, hide_index=True
             )
     
+    with tab_scatter:
+    try:
+        scat_df = plan_df.copy()
+        # Keep only rows with familiarity/motivation and a numeric final estimate
+        scat_df = scat_df[
+            scat_df["Familiarity"].notna() &
+            scat_df["Motivation"].notna() &
+            pd.to_numeric(scat_df["EstimatedTickets_Final"], errors="coerce").notna()
+        ].copy()
+
+        if scat_df.empty:
+            st.caption("Add at least one title to the season to see the scatter.")
+        else:
+            # Bubble size ~ sqrt(tickets) for readable scaling
+            vals = scat_df["EstimatedTickets_Final"].astype(float).clip(lower=0)
+            size = np.sqrt(vals.replace(0, 1.0)) * 3.0  # tweak factor if you want bigger/smaller bubbles
+
+            fig, ax = plt.subplots()
+            ax.scatter(scat_df["Familiarity"], scat_df["Motivation"], s=size)
+
+            # Annotate each point with Month: Title
+            for _, rr in scat_df.iterrows():
+                label = f"{rr['Month']}: {rr['Title']}"
+                ax.annotate(label, (rr["Familiarity"], rr["Motivation"]), fontsize=8, xytext=(3,3), textcoords="offset points")
+
+            # Reference medians (season-only)
+            ax.axvline(scat_df["Familiarity"].median(), linestyle="--")
+            ax.axhline(scat_df["Motivation"].median(), linestyle="--")
+
+            ax.set_xlabel("Familiarity (benchmark = 100 index)")
+            ax.set_ylabel("Motivation (benchmark = 100 index)")
+            ax.set_title("Season scatter — Familiarity vs Motivation (bubble size = EstimatedTickets_Final)")
+            st.pyplot(fig)
+
+            # Small legend hint
+            st.caption("Bubble size is proportional to **EstimatedTickets_Final** (after remount decay & seasonality).")
+    except Exception as e:
+        st.caption(f"Season scatter unavailable: {e}")
+
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
-
-    # Scatter chart
-    try:
-        if "Familiarity" in df.columns and "Motivation" in df.columns:
-            fig, ax = plt.subplots()
-            ax.scatter(df["Familiarity"], df["Motivation"])
-            for _, rr in df.iterrows():
-                ax.annotate(rr["Title"], (rr["Familiarity"], rr["Motivation"]), fontsize=8)
-            ax.axvline(df["Familiarity"].median(), linestyle="--")
-            ax.axhline(df["Motivation"].median(), linestyle="--")
-            ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
-            ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
-            ax.set_title("Familiarity vs Motivation — General Population / AB-wide")
-            st.pyplot(fig)
-    except Exception:
-        pass
 
 # -------------------------
 # Button + render
