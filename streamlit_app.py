@@ -160,37 +160,6 @@ def subs_share_for(category: str | None, city: str) -> float:
         return float(SUBS_SHARE_BY_CATEGORY_CITY[city][category])
     return float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
 
-replace this:
-
-# --- UI: upload or use local history, then learn priors ---
-with st.expander("Historicals (optional): upload or use data/history.csv", expanded=False):
-    uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
-
-if "hist_df" not in st.session_state:
-    try:
-        local_hist = pd.read_csv("data/history_city_sales.csv")
-    except FileNotFoundError:
-        local_hist = pd.DataFrame()
-    st.session_state["hist_df"] = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
-if not st.session_state["hist_df"].empty:
-    st.caption(f"Historicals loaded: {len(st.session_state['hist_df'])} rows from CSV")
-
-elif uploaded_hist is not None:
-    st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
-
-if "priors_summary" not in st.session_state or uploaded_hist is not None:
-    s = learn_priors_from_history(st.session_state["hist_df"])
-    st.session_state["priors_summary"] = s
-
-s = st.session_state.get("priors_summary", {}) or {}
-st.caption(
-    f"Learned priors → titles: {s.get('titles_learned',0)}, "
-    f"categories: {s.get('categories_learned',0)}, "
-    f"subs-shares: {s.get('subs_shares_learned',0)}"
-)
-
-with this?
-
 # --- Historicals (robust loader + auto re-learn if file changes) ---
 import os, hashlib
 
