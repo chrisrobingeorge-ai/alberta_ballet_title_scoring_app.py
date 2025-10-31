@@ -1564,14 +1564,14 @@ def render_results():
                 use_container_width=True, hide_index=True
             )
     
-    with tab_scatter:
+with tab_scatter:
     try:
         scat_df = plan_df.copy()
         # Keep only rows with familiarity/motivation and a numeric final estimate
         scat_df = scat_df[
-            scat_df["Familiarity"].notna() &
-            scat_df["Motivation"].notna() &
-            pd.to_numeric(scat_df["EstimatedTickets_Final"], errors="coerce").notna()
+            scat_df["Familiarity"].notna()
+            & scat_df["Motivation"].notna()
+            & pd.to_numeric(scat_df["EstimatedTickets_Final"], errors="coerce").notna()
         ].copy()
 
         if scat_df.empty:
@@ -1579,7 +1579,7 @@ def render_results():
         else:
             # Bubble size ~ sqrt(tickets) for readable scaling
             vals = scat_df["EstimatedTickets_Final"].astype(float).clip(lower=0)
-            size = np.sqrt(vals.replace(0, 1.0)) * 3.0  # tweak factor if you want bigger/smaller bubbles
+            size = np.sqrt(vals.replace(0, 1.0)) * 3.0  # adjust multiplier to taste
 
             fig, ax = plt.subplots()
             ax.scatter(scat_df["Familiarity"], scat_df["Motivation"], s=size)
@@ -1587,7 +1587,13 @@ def render_results():
             # Annotate each point with Month: Title
             for _, rr in scat_df.iterrows():
                 label = f"{rr['Month']}: {rr['Title']}"
-                ax.annotate(label, (rr["Familiarity"], rr["Motivation"]), fontsize=8, xytext=(3,3), textcoords="offset points")
+                ax.annotate(
+                    label,
+                    (rr["Familiarity"], rr["Motivation"]),
+                    fontsize=8,
+                    xytext=(3, 3),
+                    textcoords="offset points",
+                )
 
             # Reference medians (season-only)
             ax.axvline(scat_df["Familiarity"].median(), linestyle="--")
@@ -1598,13 +1604,9 @@ def render_results():
             ax.set_title("Season scatter — Familiarity vs Motivation (bubble size = EstimatedTickets_Final)")
             st.pyplot(fig)
 
-            # Small legend hint
             st.caption("Bubble size is proportional to **EstimatedTickets_Final** (after remount decay & seasonality).")
     except Exception as e:
         st.caption(f"Season scatter unavailable: {e}")
-
-    else:
-        st.caption("Pick at least one month/title above to see your season projection.")
 
 # -------------------------
 # Button + render
