@@ -1350,13 +1350,6 @@ def render_results():
         hide_index=True
     )
 
-    st.download_button(
-        "⬇️ Download Scores CSV",
-        df_show[present_cols].to_csv(index=False).encode("utf-8"),
-        "title_scores.csv",
-        "text/csv"
-    )
-
     # === 📅 Build a Season (assign titles to months) ===
     st.subheader("📅 Build a Season (assign titles to months)")
     default_year = (datetime.utcnow().year + 1)
@@ -1531,6 +1524,16 @@ def render_results():
             }),
             use_container_width=True, hide_index=True
         )
+        
+        # Download: Build a Season table
+        season_csv = plan_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Download Season Plan CSV",
+            season_csv,
+            file_name=f"season_plan_{season_year}.csv",
+            mime="text/csv"
+        )
+
 
     with tab_city:
         try:
