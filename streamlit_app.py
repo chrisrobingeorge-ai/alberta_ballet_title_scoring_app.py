@@ -1278,23 +1278,60 @@ def render_results():
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
 
-    # Calgary / Edmonton split quick view (already included in main table)
-    with st.expander("🏙️ YYC/YEG split summary"):
-        try:
-            tot = {
-                "YYC_Total": int(df["YYC_Total"].sum()),
-                "YYC_Singles": int(df["YYC_Singles"].sum()),
-                "YYC_Subs": int(df["YYC_Subs"].sum()),
-                "YEG_Total": int(df["YEG_Total"].sum()),
-                "YEG_Singles": int(df["YEG_Singles"].sum()),
-                "YEG_Subs": int(df["YEG_Subs"].sum()),
-                "EstimatedTickets_Final": int(df["EstimatedTickets_Final"].sum()),
-            }
-            st.caption(f"Totals — YYC: {tot['YYC_Total']:,} (Singles {tot['YYC_Singles']:,} / Subs {tot['YYC_Subs']:,}) · "
-                       f"YEG: {tot['YEG_Total']:,} (Singles {tot['YEG_Singles']:,} / Subs {tot['YEG_Subs']:,}) · "
-                       f"All-in: {tot['EstimatedTickets_Final']:,}")
-        except Exception:
-            pass
+# --- Replace your current "🏙️ YYC/YEG split summary" block with this ---
+with st.expander("🏙️ YYC/YEG split summary"):
+    if df is None or df.empty:
+        st.caption("No rows to summarize yet. Click **Score Titles** above.")
+    else:
+        need = [
+            "YYC_Total","YYC_Singles","YYC_Subs",
+            "YEG_Total","YEG_Singles","YEG_Subs",
+            "EstimatedTickets_Final"
+        ]
+        missing = [c for c in need if c not in df.columns]
+        if missing:
+            st.caption("City-split columns not present yet "
+                       f"(missing: {', '.join(missing)}). Run a score first.")
+        else:
+            # Coerce to numeric, treat bad/missing as 0
+            tmp = (df[need]
+                   .apply(pd.to_numeric, errors="coerce")
+                   .fillna(0))
+
+            totals = tmp.sum(numeric_only=True)
+            # ints for display
+            yyc_total      = int(round(totals.get("YYC_Total", 0)))
+            yyc_singles    = int(round(totals.get("YYC_Singles", 0)))
+            yyc_subs       = int(round(totals.get("YYC_Subs", 0)))
+            yeg_total      = int(round(totals.get("YEG_Total", 0)))
+            yeg_singles    = int(round(totals.get("YEG_Singles", 0)))
+            yeg_subs       = int(round(totals.get("YEG_Subs", 0)))
+            all_in         = int(round(totals.get("EstimatedTickets_Final", 0)))
+
+            st.caption(
+                f"Totals — YYC: {yyc_total:,} "
+                f"(Singles {yyc_singles:,} / Subs {yyc_subs:,}) · "
+                f"YEG: {yeg_total:,} "
+                f"(Singles {yeg_singles:,} / Subs {yeg_subs:,}) · "
+                f"All-in: {all_in:,}"
+            )
+
+            # optional: quick sanity table per title
+            with st.popover("Show per-title city split table"):
+                show_cols = [
+                    "Title","EstimatedTickets_Final",
+                    "YYC_Total","YYC_Singles","YYC_Subs",
+                    "YEG_Total","YEG_Singles","YEG_Subs",
+                    "CityShare_Calgary","CityShare_Edmonton"
+                ]
+                present_cols = [c for c in show_cols if c in df.columns]
+                st.dataframe(
+                    (df[present_cols]
+                        .copy()
+                        .apply(pd.to_numeric, errors="ignore")
+                        .fillna(0)),
+                    use_container_width=True, hide_index=True
+                )
 
     # Scatter chart
     try:
