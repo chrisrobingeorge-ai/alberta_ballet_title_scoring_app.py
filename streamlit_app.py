@@ -216,22 +216,26 @@ def subs_share_for(category: str | None, city: str) -> float:
     return float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
 
 # --- Historicals (loads your wide CSV and learns) ---
-with st.expander("Historicals (optional): upload or use data/history_city_sales.csv", expanded=False):
+with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
     uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
+    relearn = st.button("🔁 Force re-learn from history", use_container_width=False)
 
-if "hist_df" not in st.session_state:
-    try:
-        local_hist = pd.read_csv("data/history_city_sales.csv")
-    except FileNotFoundError:
-        local_hist = pd.DataFrame()
-    st.session_state["hist_df"] = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
+# (Re)load the history df
+if ("hist_df" not in st.session_state) or relearn:
+    if uploaded_hist is not None:
+        st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
+    else:
+        # try your preferred filename first, then the old one; else empty
+        try:
+            st.session_state["hist_df"] = pd.read_csv("data/history_city_sales.csv")
+        except Exception:
+            try:
+                st.session_state["hist_df"] = pd.read_csv("data/history.csv")
+            except Exception:
+                st.session_state["hist_df"] = pd.DataFrame()
 
-# Force re-learn button to avoid stale cache
-if st.button("🔁 Force re-learn from history", use_container_width=False):
-    st.session_state.pop("priors_summary", None)
-
-if "priors_summary" not in st.session_state:
-    st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
+# (Re)learn priors every time we (re)load history
+st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
 
 s = st.session_state.get("priors_summary", {}) or {}
 st.caption(
