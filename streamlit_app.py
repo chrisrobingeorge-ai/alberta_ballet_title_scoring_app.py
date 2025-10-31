@@ -1381,12 +1381,45 @@ def render_results():
     def _run_year_for_month(month_num: int, start_year: int) -> int:
         return start_year if month_num in (9, 10, 12) else (start_year + 1)
 
+# 📅 Build a Season (assign titles to months)
+st.subheader("📅 Build a Season (assign titles to months)")
+default_year = (datetime.utcnow().year + 1)
+season_year = st.number_input("Season year (start of season)", min_value=2000, max_value=2100, value=default_year, step=1)
+
+# Infer benchmark tickets (unchanged)
+bench_med_deseason_est = None
+try:
+    eff = df["TicketIndex_DeSeason_Used"].astype(float) * df["FutureSeasonalityFactor"].astype(float)
+    good = (eff > 0) & df["EstimatedTickets"].notna()
+    if good.any():
+        ratios = (df.loc[good, "EstimatedTickets"].astype(float) / eff[good]) * 100.0
+        bench_med_deseason_est = float(np.nanmedian(ratios.values))
+except Exception:
+    bench_med_deseason_est = None
+if bench_med_deseason_est is None or not np.isfinite(bench_med_deseason_est):
+    st.warning("Couldn’t infer benchmark tickets for conversion. Season projections will show index-only where needed.")
+    bench_med_deseason_est = None
+
+# Define months + pickers in the SAME scope as where we use them
+allowed_months = [("September", 9), ("October", 10), ("December", 12),
+                  ("January", 1), ("February", 2), ("March", 3), ("May", 5)]
+title_options = ["— None —"] + sorted(df["Title"].unique().tolist())
+month_to_choice = {}
+cols = st.columns(3, gap="large")
+for i, (m_name, _) in enumerate(allowed_months):
+    with cols[i % 3]:
+        month_to_choice[m_name] = st.selectbox(m_name, options=title_options, index=0, key=f"season_pick_{m_name}")
+
+def _run_year_for_month(month_num: int, start_year: int) -> int:
+    return start_year if month_num in (9, 10, 12) else (start_year + 1)
+
 # --- Build a Season: collect rows with full detail ---
 plan_rows = []
 for m_name, m_num in allowed_months:
     title_sel = month_to_choice.get(m_name)
     if not title_sel or title_sel == "— None —":
         continue
+
     r = df[df["Title"] == title_sel].head(1)
     if r.empty:
         continue
@@ -1414,7 +1447,7 @@ for m_name, m_num in allowed_months:
     est_tix_final = int(round((est_tix if np.isfinite(est_tix) else 0) * decay_factor))
 
     # --- City split (recompute for season-picked month) ---
-    split = city_split_for(title_sel, cat)
+    split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
     c_sh = float(split.get("Calgary", 0.60))
     e_sh = float(split.get("Edmonton", 0.40))
     s = (c_sh + e_sh) or 1.0
@@ -1465,11 +1498,10 @@ for m_name, m_num in allowed_months:
         "CityShare_Edmonton": float(e_sh),
     })
 
-# --- If no season yet, show a gentle prompt and guard the rest ---
+# --- Guard/Render the rest of the season outputs in one block ---
 if not plan_rows:
     st.caption("Pick at least one month/title above to see your season projection, charts, and scatter.")
 else:
-    # everything that currently follows (desired_order → plan_df → KPIs → tabs → charts)
     desired_order = [
         "Month","Title","Category","PrimarySegment","SecondarySegment",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
@@ -1484,22 +1516,6 @@ else:
     plan_df = pd.DataFrame(plan_rows)[desired_order]
     total_final = int(plan_df["EstimatedTickets_Final"].sum())
 
-    # (keep your KPI tiles, the three tabs, and the scatter exactly as you have them)
-
-# --- From here on, we’re guaranteed to have data ---
-desired_order = [
-    "Month","Title","Category","PrimarySegment","SecondarySegment",
-    "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-    "Familiarity","Motivation",
-    "TicketHistory","TicketIndex used","TicketIndexSource",
-    "FutureSeasonalityFactor","HistSeasonalityFactor",
-    "Composite","Score",
-    "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-    "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-    "CityShare_Calgary","CityShare_Edmonton",
-]
-plan_df = pd.DataFrame(plan_rows)[desired_order]
-total_final = int(plan_df["EstimatedTickets_Final"].sum())
 
 # --- Executive summary KPIs ---
 with st.container():
