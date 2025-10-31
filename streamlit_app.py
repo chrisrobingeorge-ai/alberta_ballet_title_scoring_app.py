@@ -14,6 +14,77 @@ import matplotlib.pyplot as plt
 import requests
 
 # -------------------------
+# METHODOLOGY & GLOSSARY SECTION
+# -------------------------
+with st.expander("📘 About This App — Methodology & Glossary"):
+    st.markdown(dedent("""
+    ### Purpose
+    The Alberta Ballet Familiarity & Motivation Scorer estimates how recognizable a title is and how strongly audiences are motivated to attend.  
+    It blends online visibility data (Wikipedia, YouTube, Google Trends, Spotify) with past ticket sales and context multipliers for audience segments, regions, and timing.  
+    The goal is to compare titles on a consistent, normalized 100-point benchmark and estimate potential ticket results by segment and month.
+
+    ### Methodology Overview
+    **1. Data Sources**
+    - **Wikipedia** – cultural awareness  
+    - **Google Trends** – active interest  
+    - **YouTube** – video engagement intensity (normalized and outlier-winsorized)  
+    - **Spotify** – musical familiarity  
+    - **Ticket Priors** – median historical sales (used for ground truth)  
+    - **Live Analytics Overlays** – timing, channel, and price behaviours mapped by program category  
+
+    **2. Score Construction**
+    | Stage | Calculation | Description |
+    |:--|:--|:--|
+    | Familiarity | 0.55·Wiki + 0.30·Trends + 0.15·Spotify | Overall awareness index |
+    | Motivation | 0.45·YouTube + 0.25·Trends + 0.15·Spotify + 0.15·Wiki | Active intent index |
+    | Multipliers | × Segment × Region | Adjusts for who and where the interest is |
+    | Normalization | ÷ Benchmark × 100 | Benchmark = user-selected baseline (e.g., *Swan Lake*) |
+    | Ticket Index | Historical or predicted | Converts de-seasonalized ticket medians into 100-scaled indices |
+    | Composite | 50% Online + 50% Ticket Index | Balances digital signals with real sales |
+    | Seasonality | Category×Month factor | Applies multiplicative adjustment for expected month performance |
+    | Remount Decay | −0–25% | Reduces estimates for titles staged recently |
+    | Final Estimate | Composite × Benchmark tickets × Seasonal × Decay | Outputs ticket forecast |
+
+    **3. Segment Propensity (Output)**
+    - Each title’s signals are recalculated for all four segments:  
+      _General Population_, _Core Classical (F35-64)_, _Family (Parents w/ Kids)_, _Emerging Adults (18-34)_  
+    - Segment priors from Live Analytics weight expected shares per region & category.  
+    - Outputs include:
+      - Predicted **primary** and **secondary** segment  
+      - Segment **share %**  
+      - Estimated **tickets per segment**
+
+    **4. Live Analytics Overlays**
+    Overlays attach average behavioral patterns by category, such as:  
+    - Timing (early buyers vs. week-of buyers)  
+    - Channel (internet, mobile, phone)  
+    - Ticket bundle size (1–2 vs. 3–4 vs. 5–8 tickets)  
+    - Price elasticity (price sensitivity flag)  
+    These variables contextualize sales strategy rather than altering the score.
+
+    **5. Seasonality and Remount Logic**
+    - Historical run data is used to infer Category×Month multipliers (median-to-overall ratios).  
+    - Factors are shrunk toward 1.0 for low-sample months and clipped between 0.85 and 1.25.  
+    - Remount decay applies 30–10% demand reduction depending on how recently the ballet was staged.
+
+    ### Glossary
+    - **Familiarity**: Cultural awareness of the title.  
+    - **Motivation**: Audience enthusiasm or viewing intent.  
+    - **Ticket Index**: A 100-based scale representing ticket-sale potential vs. the benchmark.  
+    - **Composite**: Weighted blend of online and ticket performance (default 50/50).  
+    - **Benchmark**: The title to which all others are normalized (set by user).  
+    - **Segment Propensity**: Likelihood of appeal to each audience segment.  
+    - **Live Analytics Overlay**: Real market behavior patterns by program type.  
+    - **Seasonality Factor**: Adjustment by month to reflect typical ticket demand.  
+    - **Remount Decay**: Discount applied to titles restaged too soon after a previous run.  
+    - **Estimated Tickets (Final)**: Projected attendance after all adjustments.
+
+    ---
+    **Recommended use:**  
+    Screen potential titles, estimate proportional appeal by segment and month,  
+    and calibrate marketing expectations for programming, pricing, and touring.
+    """))
+# -------------------------
 # App setup
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
