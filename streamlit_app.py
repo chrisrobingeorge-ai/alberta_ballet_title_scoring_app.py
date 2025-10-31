@@ -804,8 +804,14 @@ with st.expander("🔑 API Configuration (used for NEW titles only if enabled)")
     use_live = st.checkbox("Use Live Data for Unknown Titles", value=False)
     st.caption("Keys are optional and only used when scoring unknown titles with live fetch.")
 
-region = st.selectbox("Region", ["Province", "Calgary", "Edmonton"], index=0)
-segment = st.selectbox("Audience Segment", list(SEGMENT_MULT.keys()), index=0)
+# Fixed mode: AB-wide (Province) + General Population
+SEGMENT_DEFAULT = "General Population"
+REGION_DEFAULT = "Province"
+segment = SEGMENT_DEFAULT
+region  = REGION_DEFAULT
+
+st.caption("Mode: **Alberta-wide** (Calgary/Edmonton split learned & applied later) • Audience: **General Population**")
+
 
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
 proposed_run_date = None
@@ -1293,7 +1299,7 @@ def render_results():
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
     table_cols = [
-        "Title","Region","Segment","Gender","Category",
+        "Title","Gender","Category",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory",
@@ -1603,7 +1609,7 @@ def render_results():
             ax.axhline(df["Motivation"].median(), linestyle="--")
             ax.set_xlabel(f"Familiarity ({benchmark_title} = 100 index)")
             ax.set_ylabel(f"Motivation ({benchmark_title} = 100 index)")
-            ax.set_title(f"Familiarity vs Motivation — {segment} / {region}")
+            ax.set_title("Familiarity vs Motivation — General Population / AB-wide")
             st.pyplot(fig)
     except Exception:
         pass
