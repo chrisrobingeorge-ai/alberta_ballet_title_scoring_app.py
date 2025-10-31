@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
+from textwrap import dedent
 
 # -------------------------
 # METHODOLOGY & GLOSSARY SECTION
@@ -314,71 +315,6 @@ st.caption(
     f"categories: {s.get('categories_learned',0)}, "
     f"subs-shares: {s.get('subs_shares_learned',0)}"
 )
-
-# 1) load historics (uploaded wins)
-local_hist = _read_first_existing(["data/history_city_sales.csv", "data/history.csv"])
-hist_df = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
-
-# 2) normalize city column if present
-if not hist_df.empty:
-    # try to find the city column name
-    city_col_guess = None
-    for guess in ["City", "city", "CITY", "VenueCity", "venue_city", "Market", "market"]:
-        if guess in hist_df.columns:
-            city_col_guess = guess
-            break
-    if city_col_guess:
-        hist_df[city_col_guess] = _canon_city_series(hist_df[city_col_guess])
-        hist_df = hist_df[hist_df[city_col_guess].isin(["Calgary", "Edmonton"])]
-
-# 3) stash + detect changes
-new_hash = _hash_df(hist_df)
-if "hist_df" not in st.session_state:
-    st.session_state["hist_df"] = hist_df
-    st.session_state["hist_hash"] = new_hash
-    st.session_state["priors_summary"] = learn_priors_from_history(hist_df)
-else:
-    # re-learn if (a) upload happened, (b) Force button, or (c) file changed
-    if (uploaded_hist is not None) or force_relearn or (new_hash != st.session_state.get("hist_hash")):
-        st.session_state["hist_df"] = hist_df
-        st.session_state["hist_hash"] = new_hash
-        st.session_state["priors_summary"] = learn_priors_from_history(hist_df)
-
-# 4) feedback
-s = st.session_state.get("priors_summary", {}) or {}
-rows = len(st.session_state.get("hist_df", pd.DataFrame()))
-st.caption(
-    f"Historicals loaded: **{rows}** rows · "
-    f"Learned priors → titles: **{s.get('titles_learned',0)}**, "
-    f"categories: **{s.get('categories_learned',0)}**, "
-    f"subs-shares: **{s.get('subs_shares_learned',0)}**"
-)
-
-# 5) tiny debug view: show what split the model will use for a few items
-try:
-    if rows:
-        sample = st.session_state["hist_df"].copy()
-        # attempt to find Title/Category columns
-        def _pick(df, names):
-            nn = {c.lower().strip(): c for c in df.columns}
-            for n in names:
-                if n.lower() in nn: return nn[n.lower()]
-            for want in names:
-                for k, orig in nn.items():
-                    if want.lower() in k: return orig
-            return None
-        tcol = _pick(sample, ["title","production","show"])
-        ccol = _pick(sample, ["category","segment","genre"])
-        if tcol and ccol:
-            ex = (sample[[tcol, ccol]].dropna().drop_duplicates().head(6)
-                  .rename(columns={tcol:"Title", ccol:"Category"}))
-            # ask the current app priors what split it will use
-            splits = ex.apply(lambda r: city_split_for(str(r["Title"]), str(r["Category"])), axis=1)
-            ex["YYC_share"] = splits.apply(lambda x: x[0] if isinstance(x, (list, tuple)) else (x.get("Calgary", np.nan)))
-            ex["YEG_share"] = splits.apply(lambda x: x[1] if isinstance(x, (list, tuple)) else (x.get("Edmonton", np.nan)))
-            st.dataframe(ex, use_container_width=True, hide_index=True)
-except Exception:
-    pass
 
 # -------------------------
 # Optional APIs (used only if toggled ON)
@@ -966,6 +902,45 @@ def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
         return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
     df["LA_PriceFlag"] = df["LA_PriceHiPct"].apply(_price_flag)
     return df
+
+# Fallback estimator for unknown titles when live fetch is OFF
+def estimate_unknown_title(title: str) -> Dict[str, float | str]:
+    # Use baseline medians, then nudge by inferred category
+    try:
+        base_df = pd.DataFrame(BASELINES).T
+        wiki_med = float(base_df["wiki"].median())
+        tr_med   = float(base_df["trends"].median())
+        yt_med   = float(base_df["youtube"].median())
+        sp_med   = float(base_df["spotify"].median())
+    except Exception:
+        wiki_med, tr_med, yt_med, sp_med = 60.0, 55.0, 60.0, 58.0
+
+    gender, category = infer_gender_and_category(title)
+
+    # gentle category nudges so everything isn't identical
+    bumps = {
+        "family_classic":   {"wiki": +6, "trends": +3, "spotify": +2},
+        "classic_romance":  {"wiki": +4, "trends": +2},
+        "contemporary":     {"youtube": +6, "trends": +2},
+        "pop_ip":           {"spotify": +10, "trends": +5, "youtube": +4},
+        "romantic_tragedy": {"wiki": +3},
+        "classic_comedy":   {"trends": +2},
+        "dramatic":         {},
+    }
+    b = bumps.get(category, {})
+
+    wiki = wiki_med + b.get("wiki", 0.0)
+    tr   = tr_med   + b.get("trends", 0.0)
+    yt   = yt_med   + b.get("youtube", 0.0)
+    sp   = sp_med   + b.get("spotify", 0.0)
+
+    # keep within sane bounds
+    wiki = float(np.clip(wiki, 30.0, 120.0))
+    tr   = float(np.clip(tr,   30.0, 120.0))
+    yt   = float(np.clip(yt,   40.0, 140.0))
+    sp   = float(np.clip(sp,   35.0, 120.0))
+
+    return {"wiki": wiki, "trends": tr, "youtube": yt, "spotify": sp, "gender": gender, "category": category}
 
 def compute_scores_and_store(
     titles,
