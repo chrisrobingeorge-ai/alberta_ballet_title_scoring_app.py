@@ -1508,7 +1508,7 @@ def render_results():
         ["Table", "City Split by Month", "Rank by Composite", "Season Scatter"]
     )
 
-    with tab_table:
+with tab_table:
     # --- Wide (months as columns) view + CSV ---
     import calendar
     from numbers import Number
