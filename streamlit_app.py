@@ -1565,39 +1565,6 @@ def render_results():
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
 
-    # Calgary / Edmonton split quick view
-    with st.expander("🏙️ Calgary / Edmonton split (singles vs subs)"):
-        cols = ["Title","Category","EstimatedTickets_Final",
-                "YYC_Total","YYC_Singles","YYC_Subs",
-                "YEG_Total","YEG_Singles","YEG_Subs",
-                "CityShare_Calgary","CityShare_Edmonton"]
-        present = [c for c in cols if c in df.columns]
-        st.dataframe(
-            df[present].sort_values("EstimatedTickets_Final", ascending=False)
-              .style.format({
-                  "EstimatedTickets_Final": "{:,.0f}",
-                  "YYC_Total": "{:,.0f}", "YYC_Singles": "{:,.0f}", "YYC_Subs": "{:,.0f}",
-                  "YEG_Total": "{:,.0f}", "YEG_Singles": "{:,.0f}", "YEG_Subs": "{:,.0f}",
-                  "CityShare_Calgary": "{:.1%}", "CityShare_Edmonton": "{:.1%}",
-              }),
-            use_container_width=True, hide_index=True
-        )
-        try:
-            tot = {
-                "YYC_Total": int(df["YYC_Total"].sum()),
-                "YYC_Singles": int(df["YYC_Singles"].sum()),
-                "YYC_Subs": int(df["YYC_Subs"].sum()),
-                "YEG_Total": int(df["YEG_Total"].sum()),
-                "YEG_Singles": int(df["YEG_Singles"].sum()),
-                "YEG_Subs": int(df["YEG_Subs"].sum()),
-                "EstimatedTickets_Final": int(df["EstimatedTickets_Final"].sum()),
-            }
-            st.caption(f"Totals — YYC: {tot['YYC_Total']:,} (Singles {tot['YYC_Singles']:,} / Subs {tot['YYC_Subs']:,}) · "
-                       f"YEG: {tot['YEG_Total']:,} (Singles {tot['YEG_Singles']:,} / Subs {tot['YEG_Subs']:,}) · "
-                       f"All-in: {tot['EstimatedTickets_Final']:,}")
-        except Exception:
-            pass
-
     # Scatter chart
     try:
         if "Familiarity" in df.columns and "Motivation" in df.columns:
