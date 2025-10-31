@@ -458,29 +458,6 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
-# LA overlays by category
-LA_BY_CATEGORY = {
-    "pop_ip": {"Presale":12,"FirstDay":7,"FirstWeek":5,"WeekOf":20,"Internet":58,"Mobile":41,"Phone":1,"Tix_1_2":73,"Tix_3_4":22,"Tix_5_8":5,"Premium":4.5,"LT10mi":71,
-               "Price_Low":18,"Price_Fair":32,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10,
-               "Age":49.6,"Age_18_24":8,"Age_25_34":5,"Age_35_44":26,"Age_45_54":20,"Age_55_64":26,"Age_65_plus":15},
-    "classic_romance": {"Presale":10,"FirstDay":6,"FirstWeek":4,"WeekOf":20,"Internet":55,"Mobile":44,"Phone":1,"Tix_1_2":69,"Tix_3_4":25,"Tix_5_8":5,"Premium":4.1,"LT10mi":69,
-                        "Price_Low":20,"Price_Fair":29,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10},
-    "classic_comedy": {"Presale":10,"FirstDay":6,"FirstWeek":4,"WeekOf":20,"Internet":55,"Mobile":44,"Phone":1,"Tix_1_2":69,"Tix_3_4":25,"Tix_5_8":5,"Premium":4.1,"LT10mi":69,
-                       "Price_Low":20,"Price_Fair":29,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10},
-    "romantic_comedy": {"Presale":10,"FirstDay":6,"FirstWeek":4,"WeekOf":20,"Internet":55,"Mobile":44,"Phone":1,"Tix_1_2":69,"Tix_3_4":25,"Tix_5_8":5,"Premium":4.1,"LT10mi":69,
-                        "Price_Low":20,"Price_Fair":29,"Price_Good":24,"Price_VeryGood":16,"Price_Best":10},
-    "contemporary": {"Presale":11,"FirstDay":6,"FirstWeek":5,"WeekOf":21,"Internet":59,"Mobile":40,"Phone":1,"Tix_1_2":72,"Tix_3_4":23,"Tix_5_8":5,"Premium":3.9,"LT10mi":70,
-                     "Price_Low":18,"Price_Fair":32,"Price_Good":25,"Price_VeryGood":15,"Price_Best":11},
-    "family_classic": {"Presale":10,"FirstDay":6,"FirstWeek":5,"WeekOf":19,"Internet":53,"Mobile":45,"Phone":1,"Tix_1_2":67,"Tix_3_4":27,"Tix_5_8":6,"Premium":4.0,"LT10mi":66,
-                       "Price_Low":21,"Price_Fair":28,"Price_Good":24,"Price_VeryGood":17,"Price_Best":10},
-    "romantic_tragedy": {"Presale":11,"FirstDay":6,"FirstWeek":5,"WeekOf":20,"Internet":59,"Mobile":39,"Phone":2,"Tix_1_2":72,"Tix_3_4":22,"Tix_5_8":5,"Premium":4.2,"LT10mi":71,
-                         "Price_Low":18,"Price_Fair":28,"Price_Good":27,"Price_VeryGood":16,"Price_Best":11},
-    "dramatic": {"Presale":12,"FirstDay":7,"FirstWeek":5,"WeekOf":20,"Internet":54,"Mobile":44,"Phone":1,"Tix_1_2":72,"Tix_3_4":23,"Tix_5_8":5,"Premium":4.3,"LT10mi":68,
-                 "Price_Low":18,"Price_Fair":31,"Price_Good":24,"Price_VeryGood":16,"Price_Best":11},
-}
-
-def _la_for_category(cat: str) -> dict:
-    return LA_BY_CATEGORY.get(str(cat), {})
 
 # Heuristics for unknown titles
 def infer_gender_and_category(title: str) -> Tuple[str, str]:
@@ -1092,9 +1069,6 @@ def compute_scores_and_store(
     bench_med_future = bench_med_deseason
     df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
 
-    # 9) Overlays
-    df = _add_live_analytics_overlays(df)
-
     # 10) Segment propensity + per-segment tickets
     bench_entry_for_mix = BASELINES[benchmark_title]
     prim_list, sec_list = [], []
@@ -1241,130 +1215,6 @@ def compute_scores_and_store(
     }
 
 # -------------------------
-# Deep LA report attachment
-# -------------------------
-LA_DEEP_BY_CATEGORY = {
-    # (trim to what you need; keeping two for demo)
-    "pop_ip": {
-        "DA_Customers": 15861, "DA_CustomersWithLiveEvents": 13813, "DA_CustomersWithDemo_CAN": 14995,
-        "CES_Gender_Male_pct": 44, "CES_Gender_Female_pct": 56, "CES_Age_Mean": 49.6,
-        "CES_Age_18_24_pct": 8, "CES_Age_25_34_pct": 5, "CES_Age_35_44_pct": 26, "CES_Age_45_54_pct": 20,
-        "CES_Age_55_64_pct": 26, "CES_Age_65_plus_pct": 15,
-        "CEP_NeverPurchased_pct": 25.9, "CEP_1Event_pct": 43.2, "CEP_2_3Events_pct": 22.0,
-        "CEP_4_5Events_pct": 5.7, "CEP_6_10Events_pct": 2.8, "CEP_11plusEvents_pct": 0.3,
-        "CESpend_le_250_pct": 64.7, "CESpend_251_500_pct": 19.8, "CESpend_501_1000_pct": 11.2,
-        "CESpend_1001_2000_pct": 3.6, "CESpend_2001plus_pct": 0.6,
-        "SOW_ClientEvents_pct": 26, "SOW_NonClientEvents_pct": 74,
-        "LS_ClientEvents_usd": 268, "LS_NonClientEvents_usd": 2207,
-        "TPE_ClientEvents": 2.3, "TPE_NonClientEvents": 2.6,
-        "SPE_ClientEvents_usd": 187, "SPE_NonClientEvents_usd": 209,
-        "ATP_ClientEvents_usd": 83, "ATP_NonClientEvents_usd": 84,
-        "DIM_Generation_Millennials_pct": 24, "DIM_Generation_X_pct": 34, "DIM_Generation_Babyboomers_pct": 31, "DIM_Generation_Z_pct": 5,
-        "DIM_Occ_Professionals_pct": 64, "DIM_Occ_SelfEmployed_pct": 0, "DIM_Occ_Retired_pct": 3, "DIM_Occ_Students_pct": 0,
-        "DIM_Household_WorkingMoms_pct": 8, "DIM_Financial_Affluent_pct": 9,
-        "DIM_Live_Major_Concerts_pct": 47, "DIM_Live_Major_Arts_pct": 76, "DIM_Live_Major_Sports_pct": 27, "DIM_Live_Major_Family_pct": 7,
-        "DIM_Live_Major_MultiCategories_pct": 45, "DIM_Live_Freq_ActiveBuyers_pct": 60, "DIM_Live_Freq_RepeatBuyers_pct": 67,
-        "DIM_Live_Timing_EarlyBuyers_pct": 37, "DIM_Live_Timing_LateBuyers_pct": 38,
-        "DIM_Live_Product_PremiumBuyers_pct": 18, "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
-        "DIM_Live_Spend_HighSpenders_gt1k_pct": 5, "DIM_Live_Distance_Travelers_gt500mi_pct": 14,
-    },
-    "classic_romance": {
-        "DA_Customers": 15294, "DA_CustomersWithLiveEvents": 11881, "DA_CustomersWithDemo_CAN": 12832,
-        "CES_Gender_Male_pct": 47, "CES_Gender_Female_pct": 53, "CES_Age_Mean": 46.5,
-        "CES_Age_18_24_pct": 14, "CES_Age_25_34_pct": 5, "CES_Age_35_44_pct": 23, "CES_Age_45_54_pct": 27,
-        "CES_Age_55_64_pct": 19, "CES_Age_65_plus_pct": 13,
-        "CEP_NeverPurchased_pct": 23.2, "CEP_1Event_pct": 39.1, "CEP_2_3Events_pct": 26.1,
-        "CEP_4_5Events_pct": 7.3, "CEP_6_10Events_pct": 3.9, "CEP_11plusEvents_pct": 0.4,
-        "CESpend_le_250_pct": 58.4, "CESpend_251_500_pct": 21.4, "CESpend_501_1000_pct": 13.8,
-        "CESpend_1001_2000_pct": 5.4, "CESpend_2001plus_pct": 1.1,
-        "SOW_ClientEvents_pct": 35, "SOW_NonClientEvents_pct": 65,
-        "LS_ClientEvents_usd": 325, "LS_NonClientEvents_usd": 1832,
-        "TPE_ClientEvents": 2.4, "TPE_NonClientEvents": 2.6,
-        "SPE_ClientEvents_usd": 195, "SPE_NonClientEvents_usd": 212,
-        "ATP_ClientEvents_usd": 82, "ATP_NonClientEvents_usd": 84,
-        "DIM_Generation_Millennials_pct": 29, "DIM_Generation_X_pct": 37, "DIM_Generation_Babyboomers_pct": 26, "DIM_Generation_Z_pct": 5,
-        "DIM_Occ_Professionals_pct": 83, "DIM_Occ_SelfEmployed_pct": 0, "DIM_Occ_Retired_pct": 0, "DIM_Occ_Students_pct": 0,
-        "DIM_Household_WorkingMoms_pct": 13, "DIM_Financial_Affluent_pct": 9,
-        "DIM_Live_Major_Concerts_pct": 38, "DIM_Live_Major_Arts_pct": 82, "DIM_Live_Major_Sports_pct": 25, "DIM_Live_Major_Family_pct": 8,
-        "DIM_Live_Major_MultiCategories_pct": 42, "DIM_Live_Freq_ActiveBuyers_pct": 66, "DIM_Live_Freq_RepeatBuyers_pct": 66,
-        "DIM_Live_Timing_EarlyBuyers_pct": 32, "DIM_Live_Timing_LateBuyers_pct": 38,
-        "DIM_Live_Product_PremiumBuyers_pct": 18, "DIM_Live_Product_AncillaryUpsellBuyers_pct": 2,
-        "DIM_Live_Spend_HighSpenders_gt1k_pct": 4, "DIM_Live_Distance_Travelers_gt500mi_pct": 12,
-    },
-}
-
-LA_DEEP_SCHEMA = [
-    ("LA_DA_Customers", "DA_Customers"),
-    ("LA_DA_CustomersWithLiveEvents", "DA_CustomersWithLiveEvents"),
-    ("LA_DA_CustomersWithDemo_CAN", "DA_CustomersWithDemo_CAN"),
-    ("LA_CES_Gender_Male_pct", "CES_Gender_Male_pct"),
-    ("LA_CES_Gender_Female_pct", "CES_Gender_Female_pct"),
-    ("LA_CES_Age_Mean", "CES_Age_Mean"),
-    ("LA_CES_Age_18_24_pct", "CES_Age_18_24_pct"),
-    ("LA_CES_Age_25_34_pct", "CES_Age_25_34_pct"),
-    ("LA_CES_Age_35_44_pct", "CES_Age_35_44_pct"),
-    ("LA_CES_Age_45_54_pct", "CES_Age_45_54_pct"),
-    ("LA_CES_Age_55_64_pct", "CES_Age_55_64_pct"),
-    ("LA_CES_Age_65_plus_pct", "CES_Age_65_plus_pct"),
-    ("LA_CEP_NeverPurchased_pct", "CEP_NeverPurchased_pct"),
-    ("LA_CEP_1Event_pct", "CEP_1Event_pct"),
-    ("LA_CEP_2_3Events_pct", "CEP_2_3Events_pct"),
-    ("LA_CEP_4_5Events_pct", "CEP_4_5Events_pct"),
-    ("LA_CEP_6_10Events_pct", "CEP_6_10Events_pct"),
-    ("LA_CEP_11plusEvents_pct", "CEP_11plusEvents_pct"),
-    ("LA_CESpend_le_250_pct", "CESpend_le_250_pct"),
-    ("LA_CESpend_251_500_pct", "CESpend_251_500_pct"),
-    ("LA_CESpend_501_1000_pct", "CESpend_501_1000_pct"),
-    ("LA_CESpend_1001_2000_pct", "CESpend_1001_2000_pct"),
-    ("LA_CESpend_2001plus_pct", "CESpend_2001plus_pct"),
-    ("LA_SOW_ClientEvents_pct", "SOW_ClientEvents_pct"),
-    ("LA_SOW_NonClientEvents_pct", "SOW_NonClientEvents_pct"),
-    ("LA_LS_ClientEvents_usd", "LS_ClientEvents_usd"),
-    ("LA_LS_NonClientEvents_usd", "LS_NonClientEvents_usd"),
-    ("LA_TPE_ClientEvents", "TPE_ClientEvents"),
-    ("LA_TPE_NonClientEvents", "TPE_NonClientEvents"),
-    ("LA_SPE_ClientEvents_usd", "SPE_ClientEvents_usd"),
-    ("LA_SPE_NonClientEvents_usd", "SPE_NonClientEvents_usd"),
-    ("LA_ATP_ClientEvents_usd", "ATP_ClientEvents_usd"),
-    ("LA_ATP_NonClientEvents_usd", "ATP_NonClientEvents_usd"),
-    ("LA_DIM_Generation_Millennials_pct", "DIM_Generation_Millennials_pct"),
-    ("LA_DIM_Generation_X_pct", "DIM_Generation_X_pct"),
-    ("LA_DIM_Generation_Babyboomers_pct", "DIM_Generation_Babyboomers_pct"),
-    ("LA_DIM_Generation_Z_pct", "DIM_Generation_Z_pct"),
-    ("LA_DIM_Occ_Professionals_pct", "DIM_Occ_Professionals_pct"),
-    ("LA_DIM_Occ_SelfEmployed_pct", "DIM_Occ_SelfEmployed_pct"),
-    ("LA_DIM_Occ_Retired_pct", "DIM_Occ_Retired_pct"),
-    ("LA_DIM_Occ_Students_pct", "DIM_Occ_Students_pct"),
-    ("LA_DIM_Household_WorkingMoms_pct", "DIM_Household_WorkingMoms_pct"),
-    ("LA_DIM_Financial_Affluent_pct", "DIM_Financial_Affluent_pct"),
-    ("LA_DIM_Live_Major_Concerts_pct", "DIM_Live_Major_Concerts_pct"),
-    ("LA_DIM_Live_Major_Arts_pct", "DIM_Live_Major_Arts_pct"),
-    ("LA_DIM_Live_Major_Sports_pct", "DIM_Live_Major_Sports_pct"),
-    ("LA_DIM_Live_Major_Family_pct", "DIM_Live_Major_Family_pct"),
-    ("LA_DIM_Live_Major_MultiCategories_pct", "DIM_Live_Major_MultiCategories_pct"),
-    ("LA_DIM_Live_Freq_ActiveBuyers_pct", "DIM_Live_Freq_ActiveBuyers_pct"),
-    ("LA_DIM_Live_Freq_RepeatBuyers_pct", "DIM_Live_Freq_RepeatBuyers_pct"),
-    ("LA_DIM_Live_Timing_EarlyBuyers_pct", "DIM_Live_Timing_EarlyBuyers_pct"),
-    ("LA_DIM_Live_Timing_LateBuyers_pct", "DIM_Live_Timing_LateBuyers_pct"),
-    ("LA_DIM_Live_Product_PremiumBuyers_pct", "DIM_Live_Product_PremiumBuyers_pct"),
-    ("LA_DIM_Live_Product_AncillaryUpsellBuyers_pct", "DIM_Live_Product_AncillaryUpsellBuyers_pct"),
-    ("LA_DIM_Live_Spend_HighSpenders_gt1k_pct", "DIM_Live_Spend_HighSpenders_gt1k_pct"),
-    ("LA_DIM_Live_Distance_Travelers_gt500mi_pct", "DIM_Live_Distance_Travelers_gt500mi_pct"),
-]
-
-def attach_la_report_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df_out = df.copy()
-    for col, key in LA_DEEP_SCHEMA:
-        vals = []
-        for _, r in df_out.iterrows():
-            cat = str(r.get("Category"))
-            deep = LA_DEEP_BY_CATEGORY.get(cat, {})
-            v = deep.get(key, np.nan)
-            vals.append(v)
-        df_out[col] = vals
-    return df_out
-
-# -------------------------
 # Render
 # -------------------------
 def render_results():
@@ -1487,18 +1337,11 @@ def render_results():
         hide_index=True
     )
 
-    # Exports
-    df_full = attach_la_report_columns(df)
+    # Export (no Live Analytics columns)
     st.download_button(
-        "⬇️ Download Scores CSV (table columns only)",
+        "⬇️ Download Scores CSV",
         df_show[present_cols].to_csv(index=False).encode("utf-8"),
-        "title_scores_table_view.csv",
-        "text/csv"
-    )
-    st.download_button(
-        "⬇️ Download Full CSV (includes LA deep data where available)",
-        df_full.to_csv(index=False).encode("utf-8"),
-        "title_scores_full_with_LA.csv",
+        "title_scores.csv",
         "text/csv"
     )
 
