@@ -160,6 +160,8 @@ def subs_share_for(category: str | None, city: str) -> float:
         return float(SUBS_SHARE_BY_CATEGORY_CITY[city][category])
     return float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
 
+replace this:
+
 # --- UI: upload or use local history, then learn priors ---
 with st.expander("Historicals (optional): upload or use data/history.csv", expanded=False):
     uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
@@ -186,6 +188,111 @@ st.caption(
     f"categories: {s.get('categories_learned',0)}, "
     f"subs-shares: {s.get('subs_shares_learned',0)}"
 )
+
+with this?
+
+# --- Historicals (robust loader + auto re-learn if file changes) ---
+import os, hashlib
+
+with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
+    uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
+    force_relearn = st.button("🔁 Force re-learn priors from historics")
+
+def _read_first_existing(paths: list[str]) -> pd.DataFrame:
+    for p in paths:
+        if os.path.exists(p):
+            try:
+                return pd.read_csv(p)
+            except Exception:
+                pass
+    return pd.DataFrame()
+
+def _canon_city_series(s: pd.Series) -> pd.Series:
+    def canon(x):
+        if pd.isna(x): return None
+        t = str(x).strip().lower()
+        if any(k in t for k in ["calg", "yyc"]): return "Calgary"
+        if any(k in t for k in ["edm", "yeg"]):  return "Edmonton"
+        if t == "calgary":  return "Calgary"
+        if t == "edmonton": return "Edmonton"
+        return None  # drop everything else
+    return s.apply(canon)
+
+def _hash_df(df: pd.DataFrame) -> str:
+    try:
+        # hash independent of row order: sort columns+rows, fillna
+        d = df.copy()
+        d.columns = [str(c) for c in d.columns]
+        d = d.sort_index(axis=1).fillna("")
+        h = hashlib.md5(pd.util.hash_pandas_object(d, index=True).values).hexdigest()
+        return h
+    except Exception:
+        return str(time.time())  # fallback: force different hash over time
+
+# 1) load historics (uploaded wins)
+local_hist = _read_first_existing(["data/history_city_sales.csv", "data/history.csv"])
+hist_df = pd.read_csv(uploaded_hist) if uploaded_hist else local_hist
+
+# 2) normalize city column if present
+if not hist_df.empty:
+    # try to find the city column name
+    city_col_guess = None
+    for guess in ["City", "city", "CITY", "VenueCity", "venue_city", "Market", "market"]:
+        if guess in hist_df.columns:
+            city_col_guess = guess
+            break
+    if city_col_guess:
+        hist_df[city_col_guess] = _canon_city_series(hist_df[city_col_guess])
+        hist_df = hist_df[hist_df[city_col_guess].isin(["Calgary", "Edmonton"])]
+
+# 3) stash + detect changes
+new_hash = _hash_df(hist_df)
+if "hist_df" not in st.session_state:
+    st.session_state["hist_df"] = hist_df
+    st.session_state["hist_hash"] = new_hash
+    st.session_state["priors_summary"] = learn_priors_from_history(hist_df)
+else:
+    # re-learn if (a) upload happened, (b) Force button, or (c) file changed
+    if (uploaded_hist is not None) or force_relearn or (new_hash != st.session_state.get("hist_hash")):
+        st.session_state["hist_df"] = hist_df
+        st.session_state["hist_hash"] = new_hash
+        st.session_state["priors_summary"] = learn_priors_from_history(hist_df)
+
+# 4) feedback
+s = st.session_state.get("priors_summary", {}) or {}
+rows = len(st.session_state.get("hist_df", pd.DataFrame()))
+st.caption(
+    f"Historicals loaded: **{rows}** rows · "
+    f"Learned priors → titles: **{s.get('titles_learned',0)}**, "
+    f"categories: **{s.get('categories_learned',0)}**, "
+    f"subs-shares: **{s.get('subs_shares_learned',0)}**"
+)
+
+# 5) tiny debug view: show what split the model will use for a few items
+try:
+    if rows:
+        sample = st.session_state["hist_df"].copy()
+        # attempt to find Title/Category columns
+        def _pick(df, names):
+            nn = {c.lower().strip(): c for c in df.columns}
+            for n in names:
+                if n.lower() in nn: return nn[n.lower()]
+            for want in names:
+                for k, orig in nn.items():
+                    if want.lower() in k: return orig
+            return None
+        tcol = _pick(sample, ["title","production","show"])
+        ccol = _pick(sample, ["category","segment","genre"])
+        if tcol and ccol:
+            ex = (sample[[tcol, ccol]].dropna().drop_duplicates().head(6)
+                  .rename(columns={tcol:"Title", ccol:"Category"}))
+            # ask the current app priors what split it will use
+            splits = ex.apply(lambda r: city_split_for(str(r["Title"]), str(r["Category"])), axis=1)
+            ex["YYC_share"] = splits.apply(lambda x: x[0] if isinstance(x, (list, tuple)) else (x.get("Calgary", np.nan)))
+            ex["YEG_share"] = splits.apply(lambda x: x[1] if isinstance(x, (list, tuple)) else (x.get("Edmonton", np.nan)))
+            st.dataframe(ex, use_container_width=True, hide_index=True)
+except Exception:
+    pass
 
 # -------------------------
 # Optional APIs (used only if toggled ON)
