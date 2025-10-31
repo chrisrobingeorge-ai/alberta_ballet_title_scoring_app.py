@@ -1509,39 +1509,23 @@ def render_results():
     )
 
     with tab_table:
-        st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
-        st.dataframe(
-            plan_df.style.format({
-                "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
-                "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
-                "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
-                "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
-                "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
-                "EstimatedTickets_Final":"{:,.0f}",
-                "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
-                "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
-                "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
-            }),
-            use_container_width=True, hide_index=True
-        )
-
     # --- Wide (months as columns) view + CSV ---
     import calendar
     from numbers import Number
 
-    # 1) Preserve the UI month order from allowed_months
+    # Keep the UI month order you already use
     month_name_order = ["September","October","January","February","March","May"]
 
     def _month_label(month_full: str) -> str:
         """Convert 'September 2026' -> 'Sep-26' safely."""
         try:
-            name, year = month_full.split()
+            name, year = str(month_full).split()
             m_num = list(calendar.month_name).index(name)
             return f"{calendar.month_abbr[m_num]}-{str(int(year))[-2:]}"
         except Exception:
-            return month_full
+            return str(month_full)
 
-    # Keep only the months the user actually picked, in UI order
+    # Only months the user picked, in UI order
     picked = (
         plan_df.copy()
         .assign(_mname=lambda d: d["Month"].str.split().str[0])
@@ -1550,7 +1534,7 @@ def render_results():
     picked["_order"] = picked["_mname"].apply(lambda n: month_name_order.index(n))
     picked = picked.sort_values("_order")
 
-    # Build dict: { "Sep-26": row_as_dict, ... }
+    # Build dict: { "Sep-26": row_as_series, ... }
     month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
     month_cols = list(month_to_row.keys())
 
@@ -1572,11 +1556,9 @@ def render_results():
         index=metrics
     ).rename_axis("Metric").reset_index()
 
-    # Safe numeric formatter: only format numbers; leave text as-is
+    # Friendly numeric formatting only where numeric
     def _fmt_num(x):
         if isinstance(x, Number) and np.isfinite(x):
-            # percentages appear as fractions in data; keep raw numbers here
-            # you can customize per-metric if you want (e.g., pct rows)
             return f"{x:,.0f}"
         return x
 
