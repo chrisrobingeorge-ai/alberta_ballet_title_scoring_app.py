@@ -1556,21 +1556,6 @@ def render_results():
                 use_container_width=True, hide_index=True
             )
     
-        st.markdown(f"**Projected season total (final, after decay):** {total_final:,}")
-        st.dataframe(
-            plan_df.style.format({
-                "WikiIdx":"{:.0f}","TrendsIdx":"{:.0f}","YouTubeIdx":"{:.0f}","SpotifyIdx":"{:.0f}",
-                "Familiarity":"{:.1f}","Motivation":"{:.1f}","Composite":"{:.1f}",
-                "TicketHistory":"{:,.0f}","TicketIndex used":"{:.1f}",
-                "FutureSeasonalityFactor":"{:.3f}","HistSeasonalityFactor":"{:.3f}",
-                "EstimatedTickets":"{:,.0f}","ReturnDecayFactor":"{:.2f}","ReturnDecayPct":"{:.0%}",
-                "EstimatedTickets_Final":"{:,.0f}",
-                "YYC_Singles":"{:,.0f}","YYC_Subs":"{:,.0f}",
-                "YEG_Singles":"{:,.0f}","YEG_Subs":"{:,.0f}",
-                "CityShare_Calgary":"{:.1%}","CityShare_Edmonton":"{:.1%}",
-            }),
-            use_container_width=True, hide_index=True
-        )
     else:
         st.caption("Pick at least one month/title above to see your season projection.")
 
