@@ -671,7 +671,7 @@ except Exception:
 # -------------------------
 # Data (your existing constants)
 # -------------------------
-SHOW_BASELINES = {
+BASELINES = {
     "Cinderella": {
         "wiki": 88, "trends": 80, "youtube": 82, "spotify": 80,
         "category": "family_classic", "gender": "female",
