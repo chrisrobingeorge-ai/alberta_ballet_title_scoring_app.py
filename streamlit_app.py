@@ -697,7 +697,7 @@ BASELINES = {
     Handmaids Tale	: {	wiki	: 93, 	trends	: 72, 	youtube	: 0, 	spotify	: 73, 	category	: 	family_classic	, 	gender	: 	female	},
     Hansel & Gretel	: {	wiki	: 86, 	trends	: 87, 	youtube	: 0, 	spotify	: 87, 	category	: 	family_classic	, 	gender	: 	female	},
     La Sylphide	: {	wiki	: 53, 	trends	: 83, 	youtube	: 0, 	spotify	: 66, 	category	: 	classic_romance	, 	gender	: 	female	},
-    Midsummer Night's Dream	: {	wiki	: 93, 	trends	: 89, 	youtube	: 0, 	spotify	: 81, 	category	: 	family_classic	, 	gender	: 	female	},
+    Midsummer Nights Dream	: {	wiki	: 93, 	trends	: 89, 	youtube	: 0, 	spotify	: 81, 	category	: 	family_classic	, 	gender	: 	female	},
     Momix	: {	wiki	: 28, 	trends	: 86, 	youtube	: 0, 	spotify	: 0, 	category	: 	contemporary	, 	gender	: 	female	},
     Nijinsky	: {	wiki	: 70, 	trends	: 82, 	youtube	: 0, 	spotify	: 26, 	category	: 	contemporary	, 	gender	: 	male	},
     Our Canada - Gordon Lightfoot	: {	wiki	: 91, 	trends	: 24, 	youtube	: 0, 	spotify	: 94, 	category	: 	family_classic	, 	gender	: 	female	},
