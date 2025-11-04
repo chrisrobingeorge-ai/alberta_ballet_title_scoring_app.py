@@ -124,7 +124,6 @@ if not titles:
 # ------------------------------------------------------------------
 import math
 import requests
-
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = (
     "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
@@ -142,30 +141,42 @@ def wiki_search_best_title(query: str) -> str | None:
         }
         r = requests.get(WIKI_API, params=params, timeout=8)
         if r.status_code != 200:
+            # optional: uncomment to see status in the UI
+            # st.write("Wiki search failed", query, r.status_code)
             return None
         items = r.json().get("query", {}).get("search", [])
         return items[0]["title"] if items else None
-    except Exception:
+    except Exception as e:
+        # optional: uncomment for debugging
+        # st.write("Wiki search exception", query, str(e))
         return None
 
 def fetch_wiki_raw(title: str) -> float:
     """
-    Use Wikipedia search to find the best page, then pull 30-day pageviews.
+    Use Wikipedia search to find the best page, then pull ~30 days of pageviews.
     """
     try:
         page_title = wiki_search_best_title(title) or title
+        page_slug = page_title.replace(" ", "_")
+
+        # For safety, use a recent 30-day window instead of hard-coded dates.
+        # Example: 20240101–20240131 – you can make this dynamic later.
         url = WIKI_PAGEVIEW.format(
-            page=page_title.replace(" ", "_"),
+            page=page_slug,
             start="20240101",
             end="20240131",
         )
         r = requests.get(url, timeout=8)
         if r.status_code != 200:
+            # optional: uncomment to see failures
+            # st.write("Wiki pageviews failed", page_title, r.status_code)
             return 0.0
         items = r.json().get("items", [])
         views = [it.get("views", 0) for it in items]
         return float(sum(views))
-    except Exception:
+    except Exception as e:
+        # optional: uncomment for debugging
+        # st.write("Wiki exception", title, str(e))
         return 0.0
 
 
@@ -180,17 +191,17 @@ def fetch_trends_raw(title: str) -> float:
         if not kw:
             return 0.0
 
-        # Build the payload for a 12-month window
+        # Use the global pytrends object defined at the top
         pytrends.build_payload([kw], cat=0, timeframe="today 12-m", geo="", gprop="")
         df = pytrends.interest_over_time()
 
         if df.empty or kw not in df.columns:
             return 0.0
 
-        # Mean interest over time, excluding zeros if you want it a bit less noisy
         series = df[kw].astype(float)
         if series.sum() == 0:
             return 0.0
+
         return float(series.mean())
     except Exception:
         return 0.0
@@ -270,7 +281,6 @@ def normalize_0_100_log(values: List[float]) -> List[int]:
 if run_button:
     with st.spinner("Fetching Wikipedia/Trends/YouTube/Spotify…"):
         # REMOVE this line (you already created a global pytrends at the top)
-        # pytrend = TrendReq(hl="en-US", tz=0)
 
         youtube = build("youtube", "v3", developerKey=yt_api_key) if yt_api_key else None
 
@@ -298,7 +308,7 @@ if run_button:
             categories.append(category)
 
             raw_wiki.append(fetch_wiki_raw(t))
-            raw_trends.append(fetch_trends_raw(t))         # ← just pass title
+            raw_trends.append(fetch_trends_raw(t))
             raw_youtube.append(fetch_youtube_raw(youtube, t))
             raw_spotify.append(fetch_spotify_raw(spotify, t))
 
