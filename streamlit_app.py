@@ -694,7 +694,7 @@ BASELINES = {
     Frankenstein	: {	wiki	: 98, 	trends	: 69, 	youtube	: 0, 	spotify	: 93, 	category	: 	romantic_tragedy	, 	gender	: 	male	},
     Giselle	: {	wiki	: 79, 	trends	: 96, 	youtube	: 0, 	spotify	: 90, 	category	: 	classic_romance	, 	gender	: 	female	},
     Grimm	: {	wiki	: 32, 	trends	: 98, 	youtube	: 0, 	spotify	: 85, 	category	: 	contemporary	, 	gender	: 	female	},
-    Handmaid's Tale	: {	wiki	: 93, 	trends	: 72, 	youtube	: 0, 	spotify	: 73, 	category	: 	family_classic	, 	gender	: 	female	},
+    Handmaids Tale	: {	wiki	: 93, 	trends	: 72, 	youtube	: 0, 	spotify	: 73, 	category	: 	family_classic	, 	gender	: 	female	},
     Hansel & Gretel	: {	wiki	: 86, 	trends	: 87, 	youtube	: 0, 	spotify	: 87, 	category	: 	family_classic	, 	gender	: 	female	},
     La Sylphide	: {	wiki	: 53, 	trends	: 83, 	youtube	: 0, 	spotify	: 66, 	category	: 	classic_romance	, 	gender	: 	female	},
     Midsummer Night’s Dream	: {	wiki	: 93, 	trends	: 89, 	youtube	: 0, 	spotify	: 81, 	category	: 	family_classic	, 	gender	: 	female	},
