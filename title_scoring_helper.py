@@ -269,8 +269,8 @@ def normalize_0_100_log(values: List[float]) -> List[int]:
 # ------------------------------------------------------------------
 if run_button:
     with st.spinner("Fetching Wikipedia/Trends/YouTube/Spotify…"):
-        # Clients
-        pytrend = TrendReq(hl="en-US", tz=0)
+        # REMOVE this line (you already created a global pytrends at the top)
+        # pytrend = TrendReq(hl="en-US", tz=0)
 
         youtube = build("youtube", "v3", developerKey=yt_api_key) if yt_api_key else None
 
@@ -290,10 +290,7 @@ if run_button:
         categories = []
 
         for t in titles:
-            # auto infer gender & category from the same logic as main app
             g_infer, c_infer = infer_gender_and_category(t)
-
-            # fallback if heuristic is weak
             gender = g_infer if g_infer != "na" else default_gender
             category = c_infer if c_infer != "dramatic" else default_category
 
@@ -301,7 +298,7 @@ if run_button:
             categories.append(category)
 
             raw_wiki.append(fetch_wiki_raw(t))
-            raw_trends.append(fetch_trends_raw(pytrend, t))
+            raw_trends.append(fetch_trends_raw(t))         # ← just pass title
             raw_youtube.append(fetch_youtube_raw(youtube, t))
             raw_spotify.append(fetch_spotify_raw(spotify, t))
 
