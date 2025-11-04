@@ -20,7 +20,47 @@ st.caption(
 )
 
 # ------------------------------------------------------------------
-# 1) Sidebar: titles + defaults + API keys
+# 0) Same infer_gender_and_category as your main app
+# ------------------------------------------------------------------
+def infer_gender_and_category(title: str) -> tuple[str, str]:
+    t = title.lower()
+    gender = "na"
+    female_keys = [
+        "cinderella", "sleeping", "beauty and the beast", "beauty",
+        "giselle", "swan", "widow", "alice", "juliet", "sylphide"
+    ]
+    male_keys = [
+        "pinocchio", "peter pan", "don quixote", "hunchback",
+        "hamlet", "frankenstein", "romeo", "nijinsky"
+    ]
+    if "romeo" in t and "juliet" in t:
+        gender = "co"
+    elif any(k in t for k in female_keys):
+        gender = "female"
+    elif any(k in t for k in male_keys):
+        gender = "male"
+
+    if any(k in t for k in ["wizard", "peter pan", "pinocchio", "hansel", "frozen", "beauty", "alice"]):
+        cat = "family_classic"
+    elif any(k in t for k in ["swan", "sleeping", "cinderella", "giselle", "sylphide"]):
+        cat = "classic_romance"
+    elif any(k in t for k in ["romeo", "hunchback", "notre dame", "hamlet", "frankenstein"]):
+        cat = "romantic_tragedy"
+    elif any(k in t for k in ["don quixote", "merry widow"]):
+        cat = "classic_comedy"
+    elif any(k in t for k in [
+        "contemporary", "boyz", "ballet boyz", "momix", "complexions",
+        "grimm", "nijinsky", "shadowland", "deviate", "phi"
+    ]):
+        cat = "contemporary"
+    elif any(k in t for k in ["taj", "tango", "harlem", "tragically hip", "l cohen", "leonard cohen"]):
+        cat = "pop_ip"
+    else:
+        cat = "dramatic"
+    return gender, cat
+
+# ------------------------------------------------------------------
+# 1) Sidebar: titles + fallback defaults + API keys
 # ------------------------------------------------------------------
 with st.sidebar:
     st.header("Titles")
@@ -30,9 +70,9 @@ with st.sidebar:
         height=200,
     )
 
-    st.header("Defaults (for category/gender)")
+    st.header("Fallback defaults (used only if heuristic is weak)")
     default_category = st.selectbox(
-        "Default category",
+        "Default category (fallback)",
         options=[
             "family_classic",
             "classic_romance",
@@ -46,7 +86,7 @@ with st.sidebar:
         index=0,
     )
     default_gender = st.selectbox(
-        "Default gender",
+        "Default gender (fallback)",
         options=["female", "male", "co", "na"],
         index=0,
     )
@@ -81,10 +121,9 @@ if not titles:
 # ------------------------------------------------------------------
 # 2) Fetchers
 # ------------------------------------------------------------------
-
 def fetch_wiki_raw(title: str) -> float:
     """
-    Use Wikipedia pageviews (last 365 days, enwiki) as a raw familiarity signal.
+    Wikipedia pageviews (last 365 days, enwiki) as a raw familiarity signal.
     """
     try:
         from datetime import datetime, timedelta
@@ -122,7 +161,7 @@ def fetch_trends_raw(pytrend: TrendReq, title: str) -> float:
 
 def fetch_youtube_raw(youtube, title: str) -> float:
     """
-    YouTube: log-transformed sum of view counts for top few results.
+    YouTube: log-transformed total view counts for top 5 results.
     """
     if youtube is None:
         return 0.0
@@ -149,7 +188,6 @@ def fetch_youtube_raw(youtube, title: str) -> float:
             vc = item.get("statistics", {}).get("viewCount")
             if vc is not None:
                 total_views += int(vc)
-        # log so huge channels don't dominate
         return float(math.log10(total_views + 1.0))
     except Exception:
         return 0.0
@@ -157,7 +195,7 @@ def fetch_youtube_raw(youtube, title: str) -> float:
 
 def fetch_spotify_raw(sp: spotipy.Spotify | None, title: str) -> float:
     """
-    Spotify: max track popularity (0–100) among top results.
+    Spotify: max track popularity (0–100) among top 5 results.
     """
     if sp is None:
         return 0.0
@@ -182,7 +220,6 @@ def normalize_0_100_log(values: List[float]) -> List[int]:
     v_min = min(logs)
     v_max = max(logs)
     if v_max <= v_min:
-        # all equal (or all zero)
         return [0 for _ in logs]
     return [
         int(round(100 * (lv - v_min) / (v_max - v_min)))
@@ -195,7 +232,7 @@ def normalize_0_100_log(values: List[float]) -> List[int]:
 # ------------------------------------------------------------------
 if run_button:
     with st.spinner("Fetching Wikipedia/Trends/YouTube/Spotify…"):
-        # Build clients
+        # Clients
         pytrend = TrendReq(hl="en-US", tz=0)
 
         youtube = build("youtube", "v3", developerKey=yt_api_key) if yt_api_key else None
@@ -212,8 +249,20 @@ if run_button:
         raw_trends = []
         raw_youtube = []
         raw_spotify = []
+        genders = []
+        categories = []
 
         for t in titles:
+            # auto infer gender & category from the same logic as main app
+            g_infer, c_infer = infer_gender_and_category(t)
+
+            # fallback if heuristic is weak
+            gender = g_infer if g_infer != "na" else default_gender
+            category = c_infer if c_infer != "dramatic" else default_category
+
+            genders.append(gender)
+            categories.append(category)
+
             raw_wiki.append(fetch_wiki_raw(t))
             raw_trends.append(fetch_trends_raw(pytrend, t))
             raw_youtube.append(fetch_youtube_raw(youtube, t))
@@ -234,11 +283,11 @@ if run_button:
         "trends": trends_scores,
         "youtube": youtube_scores,
         "spotify": spotify_scores,
-        "category": default_category,
-        "gender": default_gender,
+        "category": categories,
+        "gender": genders,
     })
 
-    st.subheader("Raw & normalized scores")
+    st.subheader("Raw & normalized scores (with inferred category/gender)")
     st.dataframe(
         df[[
             "title",
@@ -251,7 +300,7 @@ if run_button:
     )
 
     # ------------------------------------------------------------------
-    # 4) Generate BASELINES dict snippet
+    # 4) Generated BASELINES dict
     # ------------------------------------------------------------------
     st.subheader("Generated BASELINES dict (copy into main app)")
 
