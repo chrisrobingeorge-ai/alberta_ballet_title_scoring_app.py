@@ -317,8 +317,6 @@ def normalize_0_100_log(values: List[float]) -> List[int]:
 # ------------------------------------------------------------------
 if run_button:
     with st.spinner("Fetching Wikipedia/Trends/YouTube/Spotify…"):
-        # REMOVE this line (you already created a global pytrends at the top)
-
         youtube = build("youtube", "v3", developerKey=yt_api_key) if yt_api_key else None
 
         spotify = None
@@ -330,14 +328,14 @@ if run_button:
             spotify = spotipy.Spotify(client_credentials_manager=auth)
 
         raw_wiki = []
-        raw_trends = []
+        raw_trends = []          # Alberta-wide (CA-AB)
+        raw_trends_cgy = []      # Calgary
+        raw_trends_yeg = []      # Edmonton
         raw_youtube = []
         raw_spotify = []
         genders = []
         categories = []
-        raw_trends_cgy = []
-        raw_trends_yeg = []
-        
+
         for t in titles:
             g_infer, c_infer = infer_gender_and_category(t)
             gender = g_infer if g_infer != "na" else default_gender
@@ -347,12 +345,11 @@ if run_button:
             categories.append(category)
 
             raw_wiki.append(fetch_wiki_raw(t))
-            raw_trends.append(fetch_trends_raw(t))
-            raw_youtube.append(fetch_youtube_raw(youtube, t))
-            raw_spotify.append(fetch_spotify_raw(spotify, t))
-            raw_trends.append(fetch_trends_raw(t))  # Alberta-wide
+            raw_trends.append(fetch_trends_raw(t))                 # Alberta-only (CA-AB) ONCE
             raw_trends_cgy.append(fetch_trends_city_raw(t, "Calgary"))
             raw_trends_yeg.append(fetch_trends_city_raw(t, "Edmonton"))
+            raw_youtube.append(fetch_youtube_raw(youtube, t))
+            raw_spotify.append(fetch_spotify_raw(spotify, t))
 
         wiki_scores = normalize_0_100_log(raw_wiki)
         trends_scores = normalize_0_100_log(raw_trends)
@@ -362,7 +359,7 @@ if run_button:
     df = pd.DataFrame({
         "title": titles,
         "wiki_raw": raw_wiki,
-        "trends_raw": raw_trends,
+        "trends_raw": raw_trends,               # Alberta
         "trends_calgary_raw": raw_trends_cgy,
         "trends_edmonton_raw": raw_trends_yeg,
         "youtube_raw": raw_youtube,
@@ -379,7 +376,12 @@ if run_button:
     st.dataframe(
         df[[
             "title",
-            "wiki_raw", "trends_raw", "youtube_raw", "spotify_raw",
+            "wiki_raw",
+            "trends_raw",
+            "trends_calgary_raw",
+            "trends_edmonton_raw",
+            "youtube_raw",
+            "spotify_raw",
             "wiki", "trends", "youtube", "spotify",
             "category", "gender",
         ]],
