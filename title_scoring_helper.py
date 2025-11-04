@@ -191,17 +191,16 @@ def fetch_wiki_raw(title: str) -> float:
 
 def fetch_trends_raw(title: str) -> float:
     """
-    Use Google Trends via pytrends to get an average interest score
-    over the last 12 months for this title.
-    Returns a raw value (0–100); we later normalize across titles.
+    Google Trends, Alberta-only (CA-AB), avg interest over last 12 months.
     """
     try:
         kw = title.strip()
         if not kw:
             return 0.0
 
-        # Use the global pytrends object defined at the top
-        pytrends.build_payload([kw], cat=0, timeframe="today 12-m", geo="", gprop="")
+        # note geo="CA-AB" instead of ""
+        pytrends.build_payload([kw], cat=0, timeframe="today 12-m",
+                               geo="CA-AB", gprop="")
         df = pytrends.interest_over_time()
 
         if df.empty or kw not in df.columns:
@@ -212,6 +211,35 @@ def fetch_trends_raw(title: str) -> float:
             return 0.0
 
         return float(series.mean())
+    except Exception:
+        return 0.0
+
+def fetch_trends_city_raw(title: str, city_name: str) -> float:
+    """
+    Google Trends city-level interest (e.g. 'Calgary', 'Edmonton'),
+    relative 0–100 within Canada over last 12 months.
+    """
+    try:
+        kw = title.strip()
+        if not kw:
+            return 0.0
+
+        pytrends.build_payload([kw], cat=0, timeframe="today 12-m",
+                               geo="CA", gprop="")
+        df = pytrends.interest_by_region(
+            resolution="CITY",
+            inc_low_vol=True,
+            inc_geo_code=False,
+        )
+        if df.empty or kw not in df.columns:
+            return 0.0
+
+        mask = df.index.str.contains(city_name, case=False, na=False)
+        sub = df.loc[mask, kw]
+        if sub.empty:
+            return 0.0
+
+        return float(sub.iloc[0])  # already 0–100
     except Exception:
         return 0.0
 
@@ -307,7 +335,9 @@ if run_button:
         raw_spotify = []
         genders = []
         categories = []
-
+        raw_trends_cgy = []
+        raw_trends_yeg = []
+        
         for t in titles:
             g_infer, c_infer = infer_gender_and_category(t)
             gender = g_infer if g_infer != "na" else default_gender
@@ -320,6 +350,9 @@ if run_button:
             raw_trends.append(fetch_trends_raw(t))
             raw_youtube.append(fetch_youtube_raw(youtube, t))
             raw_spotify.append(fetch_spotify_raw(spotify, t))
+            raw_trends.append(fetch_trends_raw(t))  # Alberta-wide
+            raw_trends_cgy.append(fetch_trends_city_raw(t, "Calgary"))
+            raw_trends_yeg.append(fetch_trends_city_raw(t, "Edmonton"))
 
         wiki_scores = normalize_0_100_log(raw_wiki)
         trends_scores = normalize_0_100_log(raw_trends)
@@ -330,6 +363,8 @@ if run_button:
         "title": titles,
         "wiki_raw": raw_wiki,
         "trends_raw": raw_trends,
+        "trends_calgary_raw": raw_trends_cgy,
+        "trends_edmonton_raw": raw_trends_yeg,
         "youtube_raw": raw_youtube,
         "spotify_raw": raw_spotify,
         "wiki": wiki_scores,
