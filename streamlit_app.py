@@ -672,7 +672,6 @@ except Exception:
 # Data (your existing constants)
 # -------------------------
 BASELINES = {
-BASELINES = {
     "Alice in Wonderland": {"wiki": 0, "trends": 92, "youtube": 95, "spotify": 92, "category": "family_classic", "gender": "female"},
     "All of Us - Tragically Hip": {"wiki": 0, "trends": 0, "youtube": 84, "spotify": 88, "category": "pop_ip", "gender": "female"},
     "Away We Go – Mixed Bill": {"wiki": 0, "trends": 0, "youtube": 96, "spotify": 81, "category": "family_classic", "gender": "female"},
