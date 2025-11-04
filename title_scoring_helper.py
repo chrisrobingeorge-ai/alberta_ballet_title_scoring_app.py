@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from pytrends.request import TrendReq
+pytrends = TrendReq(hl="en-US", tz=0)
 from googleapiclient.discovery import build
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -121,40 +122,76 @@ if not titles:
 # ------------------------------------------------------------------
 # 2) Fetchers
 # ------------------------------------------------------------------
+import math
+import requests
+
+WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_PAGEVIEW = (
+    "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+    "en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
+)
+
+def wiki_search_best_title(query: str) -> str | None:
+    try:
+        params = {
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "format": "json",
+            "srlimit": 5,
+        }
+        r = requests.get(WIKI_API, params=params, timeout=8)
+        if r.status_code != 200:
+            return None
+        items = r.json().get("query", {}).get("search", [])
+        return items[0]["title"] if items else None
+    except Exception:
+        return None
+
 def fetch_wiki_raw(title: str) -> float:
     """
-    Wikipedia pageviews (last 365 days, enwiki) as a raw familiarity signal.
+    Use Wikipedia search to find the best page, then pull 30-day pageviews.
     """
     try:
-        from datetime import datetime, timedelta
-
-        end = datetime.utcnow().strftime("%Y%m%d")
-        start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
-        url = (
-            "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-            "en.wikipedia/all-access/user/"
-            f"{requests.utils.quote(title.replace(' ', '_'))}/daily/{start}/{end}"
+        page_title = wiki_search_best_title(title) or title
+        url = WIKI_PAGEVIEW.format(
+            page=page_title.replace(" ", "_"),
+            start="20240101",
+            end="20240131",
         )
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, timeout=8)
         if r.status_code != 200:
             return 0.0
         items = r.json().get("items", [])
         views = [it.get("views", 0) for it in items]
-        return float(sum(views) / 365.0) if views else 0.0
+        return float(sum(views))
     except Exception:
         return 0.0
 
 
-def fetch_trends_raw(pytrend: TrendReq, title: str) -> float:
+def fetch_trends_raw(title: str) -> float:
     """
-    Google Trends: average interest over last 5 years.
+    Use Google Trends via pytrends to get an average interest score
+    over the last 12 months for this title.
+    Returns a raw value (0–100); we later normalize across titles.
     """
     try:
-        pytrend.build_payload([title], cat=0, timeframe="today 5-y", geo="", gprop="")
-        df = pytrend.interest_over_time()
-        if df.empty or title not in df.columns:
+        kw = title.strip()
+        if not kw:
             return 0.0
-        return float(df[title].mean())
+
+        # Build the payload for a 12-month window
+        pytrends.build_payload([kw], cat=0, timeframe="today 12-m", geo="", gprop="")
+        df = pytrends.interest_over_time()
+
+        if df.empty or kw not in df.columns:
+            return 0.0
+
+        # Mean interest over time, excluding zeros if you want it a bit less noisy
+        series = df[kw].astype(float)
+        if series.sum() == 0:
+            return 0.0
+        return float(series.mean())
     except Exception:
         return 0.0
 
