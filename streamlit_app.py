@@ -1184,7 +1184,7 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
     return _softmax_like(pri, temperature=temperature)
 
 # --- Post-COVID adjustment (hard-coded from audience research) ---
-POSTCOVID_FACTOR = 0.5  # 15% haircut vs pre-COVID baseline
+POSTCOVID_FACTOR = 0.85  # 15% haircut vs pre-COVID baseline
 
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
