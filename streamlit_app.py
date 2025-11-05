@@ -1183,6 +1183,8 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
+# --- Post-COVID adjustment (hard-coded from audience research) ---
+POSTCOVID_FACTOR = 0.85  # 15% haircut vs pre-COVID baseline
 
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
@@ -1567,14 +1569,11 @@ region  = REGION_DEFAULT
 
 st.caption("Mode: **Alberta-wide** (Calgary/Edmonton split learned & applied later) • Audience: **General Population**")
 
-# Post-COVID demand adjustment (global haircut)
-postcovid_factor = st.slider(
-    "Post-COVID demand adjustment (global haircut)",
-    min_value=0.60,
-    max_value=1.00,
-    value=0.85,
-    step=0.01,
-    help="All ticket, revenue, and marketing forecasts are multiplied by this factor (e.g. 0.85 = 15% haircut).",
+# Post-COVID demand adjustment (global haircut, fixed)
+postcovid_factor = POSTCOVID_FACTOR
+st.caption(
+    f"Post-COVID adjustment is hard-coded at ×{postcovid_factor:.2f} "
+    "(e.g. 0.85 = 15% haircut vs pre-COVID baseline, based on audience research)."
 )
 
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
@@ -2533,7 +2532,7 @@ if run:
         sp_secret=sp_secret,
         benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
         proposed_run_date=proposed_run_date,
-        postcovid_factor=postcovid_factor,
+        postcovid_factor=postcovid_factor, 
     )
 
 if st.session_state.get("results") is not None:
