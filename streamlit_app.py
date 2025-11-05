@@ -127,6 +127,8 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
         "Title","Category","PrimarySegment","SecondarySegment",
         "TicketIndex used","FutureSeasonalityFactor","ReturnDecayPct",
         "EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "YYC_Single_Revenue","YYC_Subs_Revenue",
+        "YEG_Single_Revenue","YEG_Subs_Revenue",
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
     ]
 
@@ -147,6 +149,8 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
         for _, r in df.iterrows():
             v = r.get(m, "")
             if m in ("EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+                     "YYC_Single_Revenue","YYC_Subs_Revenue",
+                     "YEG_Single_Revenue","YEG_Subs_Revenue",
                      "YYC_Revenue","YEG_Revenue","Total_Revenue"):
                 values.append(_num(v))
             elif m in ("FutureSeasonalityFactor",):
@@ -1968,17 +1972,22 @@ def render_results():
         yyc_sub_ratio = float(subs_share_for(cat, "Calgary"))
         yeg_sub_ratio = float(subs_share_for(cat, "Edmonton"))
 
-        # Singles vs Subs by city
         yyc_subs = int(round(yyc_total * yyc_sub_ratio))
         yyc_singles = int(round(yyc_total * (1.0 - yyc_sub_ratio)))
         yeg_subs = int(round(yeg_total * yeg_sub_ratio))
         yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
 
-        # --- Revenue estimates ---
-        yyc_revenue = yyc_singles * YYC_SINGLE_AVG + yyc_subs * YYC_SUB_AVG
-        yeg_revenue = yeg_singles * YEG_SINGLE_AVG + yeg_subs * YEG_SUB_AVG
+        # --- Revenue estimates (Singles vs Subs, by city) ---
+        yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
+        yyc_sub_rev    = yyc_subs * YYC_SUB_AVG
+        yeg_single_rev = yeg_singles * YEG_SINGLE_AVG
+        yeg_sub_rev    = yeg_subs * YEG_SUB_AVG
+
+        yyc_revenue = yyc_single_rev + yyc_sub_rev
+        yeg_revenue = yeg_single_rev + yeg_sub_rev
         total_revenue = yyc_revenue + yeg_revenue
 
+        plan_rows.append({
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
             "Title": title_sel,
@@ -2008,6 +2017,14 @@ def render_results():
             "YEG_Subs": int(yeg_subs),
             "CityShare_Calgary": float(c_sh),
             "CityShare_Edmonton": float(e_sh),
+
+            # NEW: revenue by city × type
+            "YYC_Single_Revenue": float(yyc_single_rev),
+            "YYC_Subs_Revenue":   float(yyc_sub_rev),
+            "YEG_Single_Revenue": float(yeg_single_rev),
+            "YEG_Subs_Revenue":   float(yeg_sub_rev),
+
+            # existing totals
             "YYC_Revenue": float(yyc_revenue),
             "YEG_Revenue": float(yeg_revenue),
             "Total_Revenue": float(total_revenue),
@@ -2028,6 +2045,8 @@ def render_results():
         "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
         "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
         "CityShare_Calgary","CityShare_Edmonton",
+        "YYC_Single_Revenue","YYC_Subs_Revenue",
+        "YEG_Single_Revenue","YEG_Subs_Revenue",
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
     ]
     plan_df = pd.DataFrame(plan_rows)[desired_order]
@@ -2101,8 +2120,11 @@ def render_results():
             "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
             "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
             "CityShare_Calgary","CityShare_Edmonton",
+            "YYC_Single_Revenue","YYC_Subs_Revenue",
+            "YEG_Single_Revenue","YEG_Subs_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
         ]
+
 
         from pandas import IndexSlice as _S
         
@@ -2119,6 +2141,8 @@ def render_results():
         sty = sty.format("{:,.0f}", subset=_S[
             ["TicketHistory","EstimatedTickets","EstimatedTickets_Final",
              "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+             "YYC_Single_Revenue","YYC_Subs_Revenue",
+             "YEG_Single_Revenue","YEG_Subs_Revenue",
              "YYC_Revenue","YEG_Revenue","Total_Revenue"], :
         ])
         
