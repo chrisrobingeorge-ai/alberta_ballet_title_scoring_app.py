@@ -196,38 +196,45 @@ def fetch_wiki_raw(title: str) -> float:
 def fetch_trends_raw(title: str) -> float:
     """
     Google Trends, Alberta-only (CA-AB), avg interest over last 12 months.
+    If the API / pytrends fails or returns empty, fall back to a simple heuristic.
     """
-    try:
-        kw = title.strip()
-        if not kw:
-            return 0.0
+    kw = title.strip()
+    if not kw:
+        return 0.0
 
-        # note geo="CA-AB" instead of ""
+    try:
         pytrends.build_payload([kw], cat=0, timeframe="today 12-m",
                                geo="CA-AB", gprop="")
         df = pytrends.interest_over_time()
 
-        if df.empty or kw not in df.columns:
-            return 0.0
+        if df.empty:
+            raise RuntimeError("empty Trends dataframe")
+
+        if kw not in df.columns:
+            raise RuntimeError(f"keyword '{kw}' not in Trends dataframe")
 
         series = df[kw].astype(float)
         if series.sum() == 0:
-            return 0.0
+            raise RuntimeError("Trends series all zeros")
 
         return float(series.mean())
-    except Exception:
-        return 0.0
+    except Exception as e:
+        # Optional: surface this so you see it in the UI
+        st.warning(f"Google Trends failed for '{title}': {e}")
+        # Heuristic fallback so it's not always 0
+        return float(len(title) * 2.0)
+
 
 def fetch_trends_city_raw(title: str, city_name: str) -> float:
     """
     Google Trends city-level interest (e.g. 'Calgary', 'Edmonton'),
     relative 0–100 within Canada over last 12 months.
     """
-    try:
-        kw = title.strip()
-        if not kw:
-            return 0.0
+    kw = title.strip()
+    if not kw:
+        return 0.0
 
+    try:
         pytrends.build_payload([kw], cat=0, timeframe="today 12-m",
                                geo="CA", gprop="")
         df = pytrends.interest_by_region(
@@ -235,17 +242,23 @@ def fetch_trends_city_raw(title: str, city_name: str) -> float:
             inc_low_vol=True,
             inc_geo_code=False,
         )
-        if df.empty or kw not in df.columns:
-            return 0.0
+
+        if df.empty:
+            raise RuntimeError("empty Trends-by-region dataframe")
+
+        if kw not in df.columns:
+            raise RuntimeError(f"keyword '{kw}' not in region dataframe")
 
         mask = df.index.str.contains(city_name, case=False, na=False)
         sub = df.loc[mask, kw]
         if sub.empty:
-            return 0.0
+            raise RuntimeError(f"no city row matching '{city_name}'")
 
         return float(sub.iloc[0])  # already 0–100
-    except Exception:
-        return 0.0
+    except Exception as e:
+        st.warning(f"Google Trends city-level failed for '{title}' ({city_name}): {e}")
+        # Simple heuristic
+        return float(len(title))
 
 
 def fetch_youtube_raw(youtube, title: str) -> float:
@@ -309,7 +322,8 @@ def normalize_0_100_log(values: List[float]) -> List[int]:
     v_min = min(logs)
     v_max = max(logs)
     if v_max <= v_min:
-        return [0 for _ in logs]
+        # Everything is identical (e.g. all 0) → neutral mid-score instead of 0
+        return [50 for _ in logs]
     return [
         int(round(100 * (lv - v_min) / (v_max - v_min)))
         for lv in logs
