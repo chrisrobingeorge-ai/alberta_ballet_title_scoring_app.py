@@ -473,6 +473,32 @@ def _canon_city(x):
     if "edm" in s:  return "Edmonton"
     return x if x in ("Calgary", "Edmonton") else None
 
+# Heuristics for unknown titles
+def infer_gender_and_category(title: str) -> Tuple[str, str]:
+    t = title.lower()
+    gender = "na"
+    female_keys = ["cinderella","sleeping","beauty and the beast","beauty","giselle","swan","widow","alice","juliet","sylphide"]
+    male_keys = ["pinocchio","peter pan","don quixote","hunchback","hamlet","frankenstein","romeo","nijinsky"]
+    if "romeo" in t and "juliet" in t: gender = "co"
+    elif any(k in t for k in female_keys): gender = "female"
+    elif any(k in t for k in male_keys): gender = "male"
+
+    if any(k in t for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
+        cat = "family_classic"
+    elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
+        cat = "classic_romance"
+    elif any(k in t for k in ["romeo","hunchback","notre dame","hamlet","frankenstein"]):
+        cat = "romantic_tragedy"
+    elif any(k in t for k in ["don quixote","merry widow"]):
+        cat = "classic_comedy"
+    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi"]):
+        cat = "contemporary"
+    elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen"]):
+        cat = "pop_ip"
+    else:
+        cat = "dramatic"
+    return gender, cat
+
 # --- Marketing spend priors (per-ticket, by title × city and category × city) ---
 MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
 MARKETING_SPT_CATEGORY_CITY: dict[str, dict[str, float]] = {}   # {"classic_romance": {"Calgary": 9.0, "Edmonton": 7.5}, ...}
@@ -790,22 +816,7 @@ st.caption(
     f"category×city: {mkt_summary.get('cat_city',0)}"
 )
 
-with st.expander("Marketing history (optional): upload per-ticket spend", expanded=False):
-    uploaded_mkt = st.file_uploader(
-        "Upload marketing spend CSV", type=["csv"], key="mkt_uploader_v1"
-    )
 
-# (Re)load the marketing df
-if "mkt_df" not in st.session_state:
-    if uploaded_mkt is not None:
-        st.session_state["mkt_df"] = pd.read_csv(uploaded_mkt)
-    else:
-        try:
-            st.session_state["mkt_df"] = pd.read_csv("data/marketing_spend_per_ticket.csv")
-        except Exception:
-            st.session_state["mkt_df"] = pd.DataFrame()
-
-mkt_df = st.session_state["mkt_df"]
 # -------------------------
 # Optional APIs (used only if toggled ON)
 # -------------------------
@@ -1087,32 +1098,6 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
-
-# Heuristics for unknown titles
-def infer_gender_and_category(title: str) -> Tuple[str, str]:
-    t = title.lower()
-    gender = "na"
-    female_keys = ["cinderella","sleeping","beauty and the beast","beauty","giselle","swan","widow","alice","juliet","sylphide"]
-    male_keys = ["pinocchio","peter pan","don quixote","hunchback","hamlet","frankenstein","romeo","nijinsky"]
-    if "romeo" in t and "juliet" in t: gender = "co"
-    elif any(k in t for k in female_keys): gender = "female"
-    elif any(k in t for k in male_keys): gender = "male"
-
-    if any(k in t for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
-        cat = "family_classic"
-    elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
-        cat = "classic_romance"
-    elif any(k in t for k in ["romeo","hunchback","notre dame","hamlet","frankenstein"]):
-        cat = "romantic_tragedy"
-    elif any(k in t for k in ["don quixote","merry widow"]):
-        cat = "classic_comedy"
-    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi"]):
-        cat = "contemporary"
-    elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen"]):
-        cat = "pop_ip"
-    else:
-        cat = "dramatic"
-    return gender, cat
 
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
