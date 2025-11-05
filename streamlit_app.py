@@ -1184,7 +1184,7 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
     return _softmax_like(pri, temperature=temperature)
 
 # --- Post-COVID adjustment (hard-coded from audience research) ---
-POSTCOVID_FACTOR = 0.85  # 15% haircut vs pre-COVID baseline
+POSTCOVID_FACTOR = 0.5  # 15% haircut vs pre-COVID baseline
 
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
@@ -1935,7 +1935,7 @@ def compute_scores_and_store(
 
         factor = 1.0 - decay_pct
         est_after_remount = est_base * factor
-        est_final = round(est_after_remount * postcovid_factor)
+        est_final = round(est_after_remount * POSTCOVID_FACTOR)
 
         decay_pcts.append(decay_pct)
         decay_factors.append(factor)
@@ -1988,7 +1988,7 @@ def compute_scores_and_store(
         "region": region,
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
-        "postcovid_factor": postcovid_factor,
+        "postcovid_factor": POSTCOVID_FACTOR,
     }
 
 # -------------------------
@@ -2187,7 +2187,7 @@ def render_results():
         # remount decay + post-COVID haircut
         decay_factor = remount_novelty_factor(title_sel, run_date)
         est_tix_raw = (est_tix if np.isfinite(est_tix) else 0) * decay_factor
-        est_tix_final = int(round(est_tix_raw * postcovid_factor))
+        est_tix_final = int(round(est_tix_raw * POSTCOVID_FACTOR))
 
         # --- City split (recompute for season-picked month) ---
         split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
@@ -2330,6 +2330,11 @@ def render_results():
             )
        
         st.caption(f"Post-COVID adjustment applied: ×{postcovid_factor:.2f} (e.g. 0.85 = 15% haircut vs raw model).")
+        
+        st.caption(
+            f"Post-COVID adjustment applied: ×{POSTCOVID_FACTOR:.2f} "
+            f"(e.g. 0.85 = 15% haircut vs pre-COVID baseline)."
+        )
 
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
