@@ -142,7 +142,7 @@ def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
     blocks.append(Spacer(1, 0.2*inch))
     return blocks
 
-def def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
+def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
     """
     Rebuilds the wide table (months as columns) for the PDF using a focused metric subset
     to stay readable on Letter size, including revenue and marketing spend.
