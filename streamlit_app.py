@@ -1974,6 +1974,76 @@ def compute_scores_and_store(
     df["YEG_Singles"] = edm_singles
     df["YEG_Subs"] = edm_subs
 
+    # 13) Revenue & marketing (title-level, for table view)
+    yyc_single_rev = []
+    yyc_sub_rev = []
+    yeg_single_rev = []
+    yeg_sub_rev = []
+    yyc_rev = []
+    yeg_rev = []
+    total_rev = []
+    yyc_spt = []
+    yeg_spt = []
+    yyc_mkt = []
+    yeg_mkt = []
+    total_mkt = []
+
+    for _, r in df.iterrows():
+        title = str(r.get("Title", ""))
+        cat   = str(r.get("Category", ""))
+
+        yyc_sing = float(r.get("YYC_Singles", 0.0) or 0.0)
+        yyc_subs = float(r.get("YYC_Subs", 0.0) or 0.0)
+        yeg_sing = float(r.get("YEG_Singles", 0.0) or 0.0)
+        yeg_subs = float(r.get("YEG_Subs", 0.0) or 0.0)
+
+        # Revenue by city × type
+        ysr   = yyc_sing * YYC_SINGLE_AVG
+        ysubr = yyc_subs * YYC_SUB_AVG
+        esr   = yeg_sing * YEG_SINGLE_AVG
+        esubr = yeg_subs * YEG_SUB_AVG
+
+        yyc_single_rev.append(ysr)
+        yyc_sub_rev.append(ysubr)
+        yeg_single_rev.append(esr)
+        yeg_sub_rev.append(esubr)
+
+        yyc_tot_r = ysr + ysubr
+        yeg_tot_r = esr + esubr
+        tot_r     = yyc_tot_r + yeg_tot_r
+
+        yyc_rev.append(yyc_tot_r)
+        yeg_rev.append(yeg_tot_r)
+        total_rev.append(tot_r)
+
+        # Marketing $/ticket and spend
+        spt_yyc = marketing_spt_for(title, cat, "Calgary")
+        spt_yeg = marketing_spt_for(title, cat, "Edmonton")
+        yyc_spt.append(spt_yyc)
+        yeg_spt.append(spt_yeg)
+
+        yyc_tix = yyc_sing + yyc_subs
+        yeg_tix = yeg_sing + yeg_subs
+        yyc_m = yyc_tix * spt_yyc
+        yeg_m = yeg_tix * spt_yeg
+        yyc_mkt.append(yyc_m)
+        yeg_mkt.append(yeg_m)
+        total_mkt.append(yyc_m + yeg_m)
+
+    df["YYC_Single_Revenue"] = yyc_single_rev
+    df["YYC_Subs_Revenue"]   = yyc_sub_rev
+    df["YEG_Single_Revenue"] = yeg_single_rev
+    df["YEG_Subs_Revenue"]   = yeg_sub_rev
+    df["YYC_Revenue"]        = yyc_rev
+    df["YEG_Revenue"]        = yeg_rev
+    df["Total_Revenue"]      = total_rev
+
+    df["YYC_Mkt_SPT"]    = yyc_spt
+    df["YEG_Mkt_SPT"]    = yeg_spt
+    df["YYC_Mkt_Spend"]  = yyc_mkt
+    df["YEG_Mkt_Spend"]  = yeg_mkt
+    df["Total_Mkt_Spend"] = total_mkt
+
     # 13) Seasonality meta
     seasonality_on_flag = proposed_run_date is not None
     df["SeasonalityApplied"] = bool(seasonality_on_flag)
@@ -2080,6 +2150,7 @@ def render_results():
 
     table_cols = [
         "Title","Gender","Category",
+        "PredictedPrimarySegment","PredictedSecondarySegment",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory",
@@ -2088,6 +2159,13 @@ def render_results():
         "Composite","Score",
         "EstimatedTickets",
         "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "CityShare_Calgary","CityShare_Edmonton",
+        "YYC_Single_Revenue","YYC_Subs_Revenue",
+        "YEG_Single_Revenue","YEG_Subs_Revenue",
+        "YYC_Revenue","YEG_Revenue","Total_Revenue",
+        "YYC_Mkt_SPT","YEG_Mkt_SPT",
+        "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
     ]
     present_cols = [c for c in table_cols if c in df_show.columns]
 
@@ -2097,8 +2175,9 @@ def render_results():
         df_show[present_cols]
           .sort_values(
               by=[
-                  "EstimatedTickets" if "EstimatedTickets" in df_show.columns else "Composite",
-                  "Composite", "Motivation", "Familiarity"
+                  "EstimatedTickets_Final" if "EstimatedTickets_Final" in df_show.columns else
+                  ("EstimatedTickets" if "EstimatedTickets" in df_show.columns else "Composite"),
+                  "Composite", "Motivation", "Familiarity",
               ],
               ascending=[False, False, False, False]
           )
@@ -2112,13 +2191,31 @@ def render_results():
               "Motivation": "{:.1f}",
               "Composite": "{:.1f}",
               "TicketIndex used": "{:.1f}",
-              "EstimatedTickets": "{:,.0f}",
               "TicketHistory": "{:,.0f}",
+              "EstimatedTickets": "{:,.0f}",
+              "EstimatedTickets_Final": "{:,.0f}",
               "FutureSeasonalityFactor": "{:.3f}",
               "HistSeasonalityFactor": "{:.3f}",
               "ReturnDecayPct": "{:.0%}",
               "ReturnDecayFactor": "{:.2f}",
-              "EstimatedTickets_Final": "{:,.0f}",
+              "YYC_Singles": "{:,.0f}",
+              "YYC_Subs": "{:,.0f}",
+              "YEG_Singles": "{:,.0f}",
+              "YEG_Subs": "{:,.0f}",
+              "CityShare_Calgary": "{:.0%}",
+              "CityShare_Edmonton": "{:.0%}",
+              "YYC_Single_Revenue": "{:,.0f}",
+              "YYC_Subs_Revenue": "{:,.0f}",
+              "YEG_Single_Revenue": "{:,.0f}",
+              "YEG_Subs_Revenue": "{:,.0f}",
+              "YYC_Revenue": "{:,.0f}",
+              "YEG_Revenue": "{:,.0f}",
+              "Total_Revenue": "{:,.0f}",
+              "YYC_Mkt_SPT": "{:.2f}",
+              "YEG_Mkt_SPT": "{:.2f}",
+              "YYC_Mkt_Spend": "{:,.0f}",
+              "YEG_Mkt_Spend": "{:,.0f}",
+              "Total_Mkt_Spend": "{:,.0f}",
           }),
         use_container_width=True,
         hide_index=True
