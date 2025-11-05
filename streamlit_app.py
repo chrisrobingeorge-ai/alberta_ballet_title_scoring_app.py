@@ -2162,6 +2162,13 @@ def render_results():
             "YYC_Revenue": float(yyc_revenue),
             "YEG_Revenue": float(yeg_revenue),
             "Total_Revenue": float(total_revenue),
+            
+            # 🔹 NEW: marketing per-ticket + total spend
+            "YYC_Mkt_SPT":  float(spt_yyc),
+            "YEG_Mkt_SPT":  float(spt_yeg),
+            "YYC_Mkt_Spend": float(yyc_mkt),
+            "YEG_Mkt_Spend": float(yeg_mkt),
+            "Total_Mkt_Spend": float(total_mkt),
         })
 
     # Guard + render
@@ -2182,6 +2189,8 @@ def render_results():
         "YYC_Single_Revenue","YYC_Subs_Revenue",
         "YEG_Single_Revenue","YEG_Subs_Revenue",
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
+        "YYC_Mkt_SPT","YEG_Mkt_SPT",
+        "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
     ]
     plan_df = pd.DataFrame(plan_rows)[desired_order]
     total_final = int(plan_df["EstimatedTickets_Final"].sum())
@@ -2200,6 +2209,7 @@ def render_results():
         total_rev = float(plan_df["Total_Revenue"].sum())
         yyc_rev   = float(plan_df["YYC_Revenue"].sum())
         yeg_rev   = float(plan_df["YEG_Revenue"].sum())
+        total_mkt = float(plan_df["Total_Mkt_Spend"].sum())
 
         with c1:
             st.metric("Projected Season Tickets", f"{grand:,}")
@@ -2208,7 +2218,12 @@ def render_results():
         with c3:
             st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
         with c4:
-            st.metric("Projected Revenue", f"${total_rev:,.0f}", delta=f"YYC ${yyc_rev:,.0f} / YEG ${yeg_rev:,.0f}")
+            st.metric(
+                "Projected Marketing Spend",
+                f"${total_mkt:,.0f}",
+                delta=f"${(total_mkt / max(grand,1)):.0f} per ticket"
+            )
+
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
     tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
@@ -2257,6 +2272,8 @@ def render_results():
             "YYC_Single_Revenue","YYC_Subs_Revenue",
             "YEG_Single_Revenue","YEG_Subs_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
+            "YYC_Mkt_SPT","YEG_Mkt_SPT",
+            "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
         ]
 
 
@@ -2277,7 +2294,8 @@ def render_results():
              "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
              "YYC_Single_Revenue","YYC_Subs_Revenue",
              "YEG_Single_Revenue","YEG_Subs_Revenue",
-             "YYC_Revenue","YEG_Revenue","Total_Revenue"], :
+             "YYC_Revenue","YEG_Revenue","Total_Revenue",
+             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend"], :
         ])
         
         # Indices / composite (one decimal)
@@ -2291,7 +2309,7 @@ def render_results():
             ["FutureSeasonalityFactor","HistSeasonalityFactor"], :
         ])
         sty = sty.format("{:.2f}", subset=_S[
-            ["ReturnDecayFactor"], :
+            ["ReturnDecayFactor","YYC_Mkt_SPT","YEG_Mkt_SPT"], :
         ])
         
         # Percentages (as %)
