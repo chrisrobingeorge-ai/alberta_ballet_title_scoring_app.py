@@ -664,6 +664,22 @@ st.caption(
     f"subs-shares: {s.get('subs_shares_learned',0)}"
 )
 
+with st.expander("Marketing history (optional): upload per-ticket spend", expanded=False):
+    uploaded_mkt = st.file_uploader(
+        "Upload marketing spend CSV", type=["csv"], key="mkt_uploader_v1"
+    )
+
+# (Re)load the marketing df
+if "mkt_df" not in st.session_state:
+    if uploaded_mkt is not None:
+        st.session_state["mkt_df"] = pd.read_csv(uploaded_mkt)
+    else:
+        try:
+            st.session_state["mkt_df"] = pd.read_csv("data/marketing_spend_per_ticket.csv")
+        except Exception:
+            st.session_state["mkt_df"] = pd.DataFrame()
+
+mkt_df = st.session_state["mkt_df"]
 # -------------------------
 # Optional APIs (used only if toggled ON)
 # -------------------------
