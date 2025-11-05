@@ -70,7 +70,8 @@ def _methodology_glossary_text() -> list:
         "We anchor everything to a <b>benchmark title</b> so scores are on a shared 0–100+ scale.",
         "We connect those scores to real ticket history to estimate a <b>Ticket Index</b> for each title.",
         "We adjust for the <b>month</b> you plan to run it (some months sell better), and for <b>recency</b> if it’s a quick remount.",
-        "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned historical shares and then into <b>Singles/Subscribers</b>."
+        "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned historical shares and then into <b>Singles/Subscribers</b>.",
+        "We convert tickets into <b>revenue</b> using typical realized prices by city & product, and into recommended <b>marketing spend</b> using learned per-ticket marketing $ by title/category and city.",
     ]
     for b in bullets: out += [P(f"• {b}", styles["body"])]
     out += [SP(1, 10)]
@@ -82,10 +83,14 @@ def _methodology_glossary_text() -> list:
         "<b>Seasonality</b>: some months sell better than others for a given type of show.",
         "<b>Remount</b>: recent repeats often sell a bit less; we reduce estimates accordingly.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
+        "<b>Revenue estimate</b>: Singles/Subs tickets in each city multiplied by typical realized prices from the last season.",
+        "<b>Marketing spend per ticket</b>: historic median $ of paid media per sold ticket, learned by title×city where possible, then category×city, then city-wide.",
+        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = marketing $/ticket × forecast tickets in each city.",
     ]
     for g in gl: out += [P(f"• {g}", styles["body"])]
     out += [SP(1, 14)]
     return out
+
 
 def _narrative_for_row(r: dict) -> str:
     title = r.get("Title",""); month = r.get("Month",""); cat = r.get("Category","")
@@ -201,7 +206,10 @@ def build_full_pdf_report(methodology_paragraphs: list,
 
     # Title
     story.append(Paragraph(f"{org_name} — Season Report ({season_year})", styles["h1"]))
-    story.append(Paragraph("Familiarity & Motivation • Ticket Index • Seasonality • Remount • City/Segment splits", styles["small"]))
+    story.append(Paragraph(
+        "Familiarity & Motivation • Ticket Index • Seasonality • Remount • City/Segment splits • Revenue & Marketing spend",
+        styles["small"]
+    ))
     story.append(Spacer(1, 0.25*inch))
 
     # (1) Season Rationale
@@ -295,7 +303,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown(dedent("""
     ### Purpose
-    This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles/Subs mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder.
+    This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles/Subs mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder with **revenue** and **marketing spend** recommendations.
 
     ---
     ## Methods (end-to-end)
@@ -311,7 +319,8 @@ with st.expander("📘 About This App — Methodology & Glossary"):
 
     **History & context**  
     - **Ticket priors**: per-title median tickets (from your `TICKET_PRIORS_RAW`).  
-    - **Past runs**: title → `(start, end)` dates to derive a mid-run month for seasonality learning and remount timing.
+    - **Past runs**: title → `(start, end)` dates to derive a mid-run month for seasonality learning and remount timing.  
+    - **Marketing spend history (optional)**: `data/marketing_spend_per_ticket.csv` with per-ticket $ spend by city for past shows.
 
     > Unknown titles can be scored **two ways**:
     > - **Live** (optional keys): Wikipedia + YouTube + Spotify lookups, then category winsorizing.  
@@ -354,12 +363,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
       \]
 
     ### 5) Remount decay (recency adjustment)
-    Based on years since the last run’s mid-date (using either the **proposed month** or current year if not set):  
-    - <1 year: **−25%** (factor 0.75)  
-    - 1–<3 years: **−20%** (0.80)  
-    - 3–<5 years: **−12%** (0.88)  
-    - ≥5 years: **−5%** (0.95)  
-    - no history: **0%**  
+    Based on years since the last run’s mid-date (using either the **proposed month** or current year if not set), remounts are reduced stepwise so that very fresh repeats get the largest haircut and older titles are only nudged. A typical pattern is up to ~25% reduction for a repeat within a year, easing down to ~5% once the title hasn’t appeared for several seasons.  
     Result is **EstimatedTickets_Final**.
 
     ### 6) YYC/YEG split and Singles/Subs allocation
@@ -377,12 +381,48 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **General Population**, **Core Classical (F35–64)**, **Family (Parents w/ kids)**, **Emerging Adults (18–34)**.  
     These shares are applied to **EstimatedTickets_Final** to get per-segment ticket estimates and the **primary/secondary segment**.
 
+    ### 8) Revenue & marketing spend recommendations
+    **Revenue estimates**  
+    - The app uses fixed **average realized ticket prices** from the last season:  
+      - YYC Singles / Subs: `YYC_SINGLE_AVG`, `YYC_SUB_AVG`  
+      - YEG Singles / Subs: `YEG_SINGLE_AVG`, `YEG_SUB_AVG`  
+    - For each season plan (in **📅 Build a Season**), it multiplies:
+      - YYC Singles / Subs counts by their YYC averages  
+      - YEG Singles / Subs counts by their YEG averages  
+      - and then sums to get **YYC_Revenue**, **YEG_Revenue**, and **Total_Revenue**.
+
+    **Marketing spend per ticket (SPT)**  
+    - From `data/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold ticket**:  
+      - **Title×City median** $/ticket where data exist (e.g., *Cinderella* in YYC).  
+      - **Category×City median** $/ticket as a fallback (e.g., `classic_romance` in YEG).  
+      - **City-wide median** $/ticket as a final default.  
+    - The helper `marketing_spt_for(title, category, city)` picks the best available prior:
+      1. Title×City  
+      2. Category×City  
+      3. City-wide default
+
+    **Recommended marketing budgets in the season builder**  
+    - For each picked show in **📅 Build a Season**, the app:
+      1. Forecasts final tickets in YYC and YEG (after seasonality & remount).  
+      2. Retrieves **SPT** for YYC and YEG via `marketing_spt_for`.  
+      3. Multiplies tickets × SPT to get:  
+         - `YYC_Mkt_Spend` = YYC tickets × YYC_SPT  
+         - `YEG_Mkt_Spend` = YEG tickets × YEG_SPT  
+         - `Total_Mkt_Spend` = YYC + YEG  
+    - These appear in the **Season table**, **wide CSV**, and in the **Season at a glance** header as the projected season-level marketing spend and $/ticket.
+
     ---
     ## Seasonality model (Category × Month)
     - Built from `PAST_RUNS` + `TICKET_PRIORS_RAW`.  
-    - For each category: compute the **overall median**, then per-month medians, then a **ratio** (month/overall).  
-    - **Shrinkage**: \( w = \\frac{n}{n+K} \), with **K=3** (low-sample months pulled toward 1.0).  
-    - **Clipping**: factors constrained to **[0.85, 1.25]**.  
+    - Within each category we first remove global outliers using an IQR fence on ticket medians.  
+    - We compute a **trimmed median** ticket level for the category (dropping one high/low value when there are ≥4 runs).  
+    - For each month we use:
+      - A trimmed median for that (Category, Month) if there are at least **N_MIN = 3** runs.  
+      - A **pooled winter median** for Dec/Jan/Feb when individual winter months are sparse.  
+      - Otherwise, the category’s overall level.  
+    - Raw month factors are the ratio (month median / overall median).  
+    - **Shrinkage**: \( w = \\frac{n}{n+K} \), with **K = 5**, pulling low-sample months toward 1.0.  
+    - **Clipping**: factors constrained to **[0.90, 1.15]** to avoid extreme up/down months.  
     - **Historical factor**: used to de-seasonalize per-title medians (when available).  
     - **Future factor**: used when you pick an **assumed run month**.
 
@@ -391,30 +431,37 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Familiarity vs Motivation**: plot quadrants reveal whether a title is known but “sleepy” (high Familiarity, low Motivation) vs buzzy but less known (reverse).  
     - **Composite**: best single index for ranking if you plan to blend signal and sales history.  
     - **EstimatedTickets_Final**: planning number after **future seasonality** and **remount decay**.  
+    - **Revenue columns**: YYC/YEG/Singles/Subs revenue built from ticket counts × typical realized prices — useful for season-level financial framing.  
+    - **Marketing columns**: `YYC_Mkt_SPT`, `YEG_Mkt_SPT`, city-level and total marketing spend — a guide to how much paid media is typically required to support the forecast.  
     - **Segment & city breakouts**: use for campaign design, pricing tests, and inventory planning.
 
     ---
     ## Assumptions & guardrails
     - Linear link between **SignalOnly** and **TicketIndex_DeSeason** (by category where possible).  
     - Outlier control: **YouTube** is winsorized within category (3rd–97th percentile).  
+    - Seasonality is conservative: outliers trimmed, winter months pooled, and factors shrunk and clipped.  
     - Benchmark normalization cancels unit differences across segments/region.  
-    - Defaults are conservative (clipped shares; shrinkage toward 1.0 seasonality).  
+    - Revenue uses **fixed average prices** (not a pricing model): treat as directional unless refreshed regularly.  
+    - Marketing SPT uses **medians** and ignores extreme per-ticket spends (>200$) to avoid campaign one-offs dominating.  
     - Heuristics are used when live APIs are off or data are thin (clearly labelled in the UI).
 
     ---
     ## Tunable constants (advanced)
     - **TICKET_BLEND_WEIGHT** = `0.50`  
-    - **K_SHRINK** = `3.0`; **MINF/MAXF** = `0.85/1.25` (seasonality)  
+    - **K_SHRINK** = `5.0`; **MINF/MAXF** = `0.90/1.15` (seasonality)  
+    - **N_MIN** (per Category×Month before trusting a specific month) = `3`  
     - **DEFAULT_BASE_CITY_SPLIT** = `Calgary 0.60 / Edmonton 0.40`, **_CITY_CLIP_RANGE** = `[0.15, 0.85]`  
     - **_DEFAULT_SUBS_SHARE** = `YYC 0.35 / YEG 0.45`, clipped to `[0.05, 0.95]`  
     - **Prediction clip** for ticket index: `[20, 180]`  
-    - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)
+    - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)  
+    - **DEFAULT_MARKETING_SPT_CITY**: initial city-wide per-ticket $ before learning from marketing history (`Calgary 10 / Edmonton 8`).
 
     ---
     ## Limitations
     - Sparse categories/months reduce model power; app falls back to overall fits or signals-only where needed.  
     - Google Trends and Spotify heuristics are proxies when live APIs are off—treat as directional.  
-    - Title disambiguation (e.g., films vs ballets) is handled heuristically; review unknown-title results.
+    - Title disambiguation (e.g., films vs ballets) is handled heuristically; review unknown-title results.  
+    - Revenue and marketing outputs assume that **historic per-ticket prices and spend are roughly stable**; if your pricing or media strategy shifts significantly, those columns should be re-anchored.
 
     ---
     ## Glossary
@@ -431,11 +478,13 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Primary/Secondary Segment**: segments with the highest modeled shares.  
     - **YYC/YEG Split**: learned Calgary/Edmonton allocation for the title or its category.  
     - **Singles/Subs Mix**: learned subscriber share by **Category×City** (fallbacks if thin).  
-    - **EstimatedTickets / Final**: projected tickets before/after remount decay.
+    - **EstimatedTickets / Final**: projected tickets before/after remount decay.  
+    - **YYC_/YEG_ Revenue**: revenue by city = Singles/Subs tickets × typical realized prices.  
+    - **Marketing SPT (YYC_Mkt_SPT / YEG_Mkt_SPT)**: typical $ of paid media per sold ticket in each city.  
+    - **Marketing Spend (YYC_Mkt_Spend / YEG_Mkt_Spend / Total_Mkt_Spend)**: recommended campaign budget derived from SPT × forecast tickets.
 
     ---
-    **Recommendation:** Use **Composite** to rank programs, **EstimatedTickets_Final** for capacity planning, and the **segment/city splits** to shape pricing, messaging, and distribution.
-
+    **Recommendation:** Use **Composite** to rank programs, **EstimatedTickets_Final** for capacity planning, use the **revenue columns** for financial framing, and the **marketing columns** to benchmark and budget your paid media for each title.
     """))
 
 # -------------------------
