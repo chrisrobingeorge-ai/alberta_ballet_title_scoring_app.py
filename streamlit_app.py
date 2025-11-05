@@ -1097,54 +1097,57 @@ BASELINES = {
         "wiki": 52, "trends": 72, "youtube": 98, "spotify": 91,
         "category": "family_classic", "gender": "female",
     },
-    "La Fille mal gardée": {
-        "wiki": 6, "trends": 0, "youtube": 51, "spotify": 74, 
-        "category": "family_classic", "gender": "female"},
-    "La Bayadere": {
-        "wiki": 15, "trends": 0, "youtube": 37, "spotify": 63, 
-        "category": "family_classic", "gender": "female"},
-    "Coppelia": {
-        "wiki": 31, "trends": 0, "youtube": 58, "spotify": 74, 
-        "category": "family_classic", "gender": "female"},
-    "Othello": {
-        "wiki": 66, "trends": 0, "youtube": 51, "spotify": 70, 
-        "category": "family_classic", "gender": "female"},
-    "Caravaggio": {
-        "wiki": 68, "trends": 0, "youtube": 56, "spotify": 81, 
-        "category": "family_classic", "gender": "female"},
-    "Opera - the Ballet": {
-        "wiki": 6, "trends": 0, "youtube": 73, "spotify": 58, 
-        "category": "family_classic", "gender": "female"},
-    "Pulcinella": {
-        "wiki": 30, "trends": 0, "youtube": 78, "spotify": 62, 
-        "category": "family_classic", "gender": "female"},
-    "Emma Bovary": {
-        "wiki": 50, "trends": 0, "youtube": 52, "spotify": 0, 
-        "category": "family_classic", "gender": "female"},
-    "Lady Chatterley's Lover": {
-        "wiki": 58, "trends": 0, "youtube": 61, "spotify": 91, 
-        "category": "family_classic", "gender": "female"},
-    "Jungle Book": {
-        "wiki": 54, "trends": 0, "youtube": 100, "spotify": 80, 
-        "category": "family_classic", "gender": "female"},
-    "Great Gatsby": {
-        "wiki": 84, "trends": 0, "youtube": 89, "spotify": 86, 
-        "category": "family_classic", "gender": "female"},
     "Addams Family": {
-        "wiki": 72, "trends": 0, "youtube": 76, "spotify": 90, 
-        "category": "family_classic", "gender": "female"},
-    "Charlie Chaplin": {
-        "wiki": 100, "trends": 0, "youtube": 95, "spotify": 62, 
-        "category": "family_classic", "gender": "female"},
-    "Love in the Time of Cholera": {
-        "wiki": 44, "trends": 0, "youtube": 38, "spotify": 100, 
-        "category": "family_classic", "gender": "female"},
-    "The Stone Angel": {
-        "wiki": 0, "trends": 0, "youtube": 0, "spotify": 91, 
-        "category": "family_classic", "gender": "female"},
+        "wiki": 72	 "trends": 39	 "youtube": 76	 "spotify": 86	 
+        "category": "family_classic"	 "gender": "female"}
     "Balanchine, William Forsythe, Justin Peck": {
-        "wiki": 44, "trends": 0, "youtube": 22, "spotify": 33, 
-        "category": "family_classic", "gender": "female"},
+        "wiki": 31	 "trends": 35	 "youtube": 43	 "spotify": 27	 
+        "category": "family_classic"	 "gender": "female"}
+    "Caravaggio": {
+        "wiki": 68	 "trends": 22	 "youtube": 56	 "spotify": 60	 
+        "category": "family_classic"	 "gender": "female"}
+    "Charlie Chaplin": {
+        "wiki": 100	 "trends": 49	 "youtube": 95	 "spotify": 49	 
+        "category": "family_classic"	 "gender": "female"}
+    "Coppelia": {
+        "wiki": 31	 "trends": 8	 "youtube": 57	 "spotify": 65	 
+        "category": "family_classic"	 "gender": "female"}
+    "Emma Bovary": {
+        "wiki": 50	 "trends": 29	 "youtube": 52	 "spotify": 31	 
+        "category": "family_classic"	 "gender": "female"}
+    "Great Gatsby": {
+        "wiki": 84	 "trends": 34	 "youtube": 89	 "spotify": 81	 
+        "category": "family_classic"	 "gender": "female"}
+    "Jungle Book": {
+        "wiki": 54	 "trends": 29	 "youtube": 100	 "spotify": 74	 
+        "category": "family_classic"	 "gender": "female"}
+    "La Bayadere": {
+        "wiki": 15	 "trends": 29	 "youtube": 37	 "spotify": 67	 
+        "category": "family_classic"	 "gender": "female"}
+    "La Fille mal gardée": {
+        "wiki": 6	 "trends": 64	 "youtube": 51	 "spotify": 62	 
+        "category": "family_classic"	 "gender": "female"}
+    "Lady Chatterley's Lover": {
+        "wiki": 58	 "trends": 76	 "youtube": 61	 "spotify": 88	 
+        "category": "family_classic"	 "gender": "female"}
+    "Love in the Time of Cholera": {
+        "wiki": 44	 "trends": 87	 "youtube": 38	 "spotify": 100	 
+        "category": "family_classic"	 "gender": "female"}
+    "Opera - the Ballet": {
+        "wiki": 6	 "trends": 60	 "youtube": 72	 "spotify": 51	 
+        "category": "family_classic"	 "gender": "female"}
+    "Othello": {
+        "wiki": 66	 "trends": 0	 "youtube": 51	 "spotify": 59	 
+        "category": "family_classic"	 "gender": "female"}
+    "Pulcinella": {
+        "wiki": 30	 "trends": 22	 "youtube": 78	 "spotify": 49	 
+        "category": "family_classic"	 "gender": "female"}
+    "The Stone Angel": {
+        "wiki": 0	 "trends": 49	 "youtube": 0	 "spotify": 88	 
+        "category": "family_classic"	 "gender": "female"}
+    "Lady Macbeth": {
+        "wiki": 43	 "trends": 34	 "youtube": 43	 "spotify": 48	 
+        "category": "family_classic"	 "gender": "female"}
 }
 
 SEGMENT_MULT = {
