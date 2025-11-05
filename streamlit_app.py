@@ -829,7 +829,7 @@ BASELINES = {
         "category": "classic_comedy", "gender": "female",
     },
     "Trockadero": {
-        "wiki": 43, "trends": 71, "youtube": 0, "spotify": 88,
+        "wiki": 43, "trends": 71, "youtube": 91, "spotify": 88,
         "category": "family_classic", "gender": "female",
     },
     "Unleashed – Mixed Bill": {
