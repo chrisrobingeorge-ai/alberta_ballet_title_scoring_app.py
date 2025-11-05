@@ -1439,7 +1439,7 @@ if not RUNS_DF.empty:
 # Replaces the block that builds RUNS_DF → SEASONALITY_DF / SEASONALITY_TABLE
 
 # Tunables (safer defaults for sparse data)
-K_SHRINK = 5.0          # stronger pull toward 1.00 when samples are small
+K_SHRINK = 3.0          # stronger pull toward 1.00 when samples are small
 MINF, MAXF = 0.90, 1.15 # tighter caps than 0.85/1.25
 N_MIN = 3               # require at least 3 runs in a (category, month) before trusting a month-specific signal
 WINTER_POOL = {12, 1, 2}
