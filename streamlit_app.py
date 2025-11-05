@@ -127,6 +127,7 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
         "Title","Category","PrimarySegment","SecondarySegment",
         "TicketIndex used","FutureSeasonalityFactor","ReturnDecayPct",
         "EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "YYC_Revenue","YEG_Revenue","Total_Revenue",
     ]
 
     # Order months as in UI
@@ -145,7 +146,8 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
         values = []
         for _, r in df.iterrows():
             v = r.get(m, "")
-            if m in ("EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"):
+            if m in ("EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+                     "YYC_Revenue","YEG_Revenue","Total_Revenue"):
                 values.append(_num(v))
             elif m in ("FutureSeasonalityFactor",):
                 values.append(_dec(v,3))
@@ -444,6 +446,11 @@ SUBS_SHARE_BY_CATEGORY_CITY: dict[str, dict[str, float | None]] = {"Calgary": {}
 DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}  # Calgary majority unless learned otherwise
 _DEFAULT_SUBS_SHARE = {"Calgary": 0.35, "Edmonton": 0.45}
 _CITY_CLIP_RANGE = (0.15, 0.85)
+# --- Average realized ticket prices (last season) ---
+YYC_SINGLE_AVG = 85.47
+YEG_SINGLE_AVG = 92.12
+YYC_SUB_AVG    = 99.97
+YEG_SUB_AVG    = 96.99
 
 def _pick_col(df: pd.DataFrame, names: list[str]) -> str | None:
     cols_norm = {c.lower().strip(): c for c in df.columns}
@@ -1967,6 +1974,11 @@ def render_results():
         yeg_subs = int(round(yeg_total * yeg_sub_ratio))
         yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
 
+        # --- Revenue estimates ---
+        yyc_revenue = yyc_singles * YYC_SINGLE_AVG + yyc_subs * YYC_SUB_AVG
+        yeg_revenue = yeg_singles * YEG_SINGLE_AVG + yeg_subs * YEG_SUB_AVG
+        total_revenue = yyc_revenue + yeg_revenue
+
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
             "Title": title_sel,
@@ -1996,6 +2008,9 @@ def render_results():
             "YEG_Subs": int(yeg_subs),
             "CityShare_Calgary": float(c_sh),
             "CityShare_Edmonton": float(e_sh),
+            "YYC_Revenue": float(yyc_revenue),
+            "YEG_Revenue": float(yeg_revenue),
+            "Total_Revenue": float(total_revenue),
         })
 
     # Guard + render
@@ -2013,6 +2028,7 @@ def render_results():
         "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
         "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
         "CityShare_Calgary","CityShare_Edmonton",
+        "YYC_Revenue","YEG_Revenue","Total_Revenue",
     ]
     plan_df = pd.DataFrame(plan_rows)[desired_order]
     total_final = int(plan_df["EstimatedTickets_Final"].sum())
@@ -2026,14 +2042,20 @@ def render_results():
         singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
         subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
         grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
+
+        # Revenue totals
+        total_rev = float(plan_df["Total_Revenue"].sum())
+        yyc_rev   = float(plan_df["YYC_Revenue"].sum())
+        yeg_rev   = float(plan_df["YEG_Revenue"].sum())
+
         with c1:
-            st.metric("Projected Season Total", f"{grand:,}")
+            st.metric("Projected Season Tickets", f"{grand:,}")
         with c2:
             st.metric("Calgary • share", f"{yyc_tot:,}", delta=f"{yyc_tot/grand:.1%}")
         with c3:
             st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
         with c4:
-            st.metric("Singles vs Subs", f"{singles_tot:,} / {subs_tot:,}", delta=f"subs {subs_tot/grand:.1%}")
+            st.metric("Projected Revenue", f"${total_rev:,.0f}", delta=f"YYC ${yyc_rev:,.0f} / YEG ${yeg_rev:,.0f}")
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
     tab_table, tab_city, tab_rank, tab_scatter = st.tabs(
@@ -2079,6 +2101,7 @@ def render_results():
             "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
             "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
             "CityShare_Calgary","CityShare_Edmonton",
+            "YYC_Revenue","YEG_Revenue","Total_Revenue",
         ]
 
         from pandas import IndexSlice as _S
@@ -2095,7 +2118,8 @@ def render_results():
         # Integer counts (tickets)
         sty = sty.format("{:,.0f}", subset=_S[
             ["TicketHistory","EstimatedTickets","EstimatedTickets_Final",
-             "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"], :
+             "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+             "YYC_Revenue","YEG_Revenue","Total_Revenue"], :
         ])
         
         # Indices / composite (one decimal)
