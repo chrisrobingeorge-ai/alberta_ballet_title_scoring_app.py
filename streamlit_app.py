@@ -1033,6 +1033,10 @@ BASELINES = {
         "wiki": 70, "trends": 82, "youtube": 88, "spotify": 26,
         "category": "contemporary", "gender": "male",
     },
+    "Once Upon a Time": {
+        "wiki": 0, "trends": 0, "youtube": 44, "spotify": 100, 
+        "category": "family_classic", "gender": "female"
+    },
     "Our Canada - Gordon Lightfoot": {
         "wiki": 90, "trends": 24, "youtube": 94, "spotify": 94,
         "category": "family_classic", "gender": "female",
@@ -1343,6 +1347,7 @@ TICKET_PRIORS_RAW = {
     "Midsummer Night’s Dream": [6587],
     "Momix": [8391],
     "Nijinsky": [4752],
+    "Once Upon a Time": [6190],
     "Our Canada - Gordon Lightfoot": [10138],
     "Phi – David Bowie": [12336],
     "Shaping Sound": [10208],
@@ -1389,6 +1394,7 @@ PAST_RUNS = [
     ("Midsummer Night's Dream","2019-03-13","2019-03-16"),
     ("Momix","2018-02-15","2018-02-22"),
     ("Nijinsky","2025-10-16","2025-10-25"),
+    ("Once Upon a time","2025-09-11","2025-09-20"),
     ("Our Canada - Gordon Lightfoot","2017-05-04","2017-05-13"),
     ("Phi – David Bowie","2022-03-10","2022-03-19"),
     ("Shaping Sound","2018-01-19","2018-01-20"),
