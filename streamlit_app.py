@@ -130,7 +130,7 @@ def _narrative_for_row(r: dict) -> str:
     if total_mkt:
         extra = f" (~${_dec(mkt_per_ticket,2)} in paid media per ticket)" if mkt_per_ticket else ""
         parts.append(f"Based on historic marketing spend per ticket, the recommended paid-media budget is about <b>${_num(total_mkt)}</b>{extra}.")
-    return \" \".join(parts)
+    return " ".join(parts)
 
 
 def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
