@@ -150,14 +150,18 @@ def wiki_search_best_title(query: str) -> str | None:
     except Exception:
         return None
 
+WIKI_PAGE_OVERRIDE = {
+    "Peter Pan": "Peter Pan",                     # main franchise page
+    "Alice in Wonderland": "Alice's Adventures in Wonderland",
+    "Nijinsky": "Vaslav Nijinsky",
+    # add any others you care about
+}
+
 def fetch_wiki_raw(title: str) -> float:
-    """
-    Try Wikipedia pageviews; if that fails (blocked / error), fall back
-    to a simple heuristic based on title length so we still get variation.
-    """
     try:
-        # Identify the most likely page
-        page_title = wiki_search_best_title(title) or title
+        # Use override first, then search, then raw title
+        override = WIKI_PAGE_OVERRIDE.get(title.strip())
+        page_title = override or wiki_search_best_title(title) or title
         page_slug = page_title.replace(" ", "_")
 
         headers = {
