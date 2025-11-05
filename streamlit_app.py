@@ -1114,7 +1114,7 @@ BASELINES = {
         "category": "family_classic"	 "gender": "female"}
     "Emma Bovary": {
         "wiki": 50,	 "trends": 29,	 "youtube": 52,	 "spotify": 31,	 
-        "category": "family_classic",	 "gender": "female"},
+        "category": "family_classic"	 "gender": "female"}
     "Great Gatsby": {
         "wiki": 84,	 "trends": 34,	 "youtube": 89,	 "spotify": 81,	 
         "category": "family_classic",	 "gender": "female"},
