@@ -1988,7 +1988,6 @@ def render_results():
         total_revenue = yyc_revenue + yeg_revenue
 
         plan_rows.append({
-        plan_rows.append({
             "Month": f"{m_name} {run_year}",
             "Title": title_sel,
             "Category": cat,
