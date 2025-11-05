@@ -1567,6 +1567,15 @@ region  = REGION_DEFAULT
 
 st.caption("Mode: **Alberta-wide** (Calgary/Edmonton split learned & applied later) • Audience: **General Population**")
 
+# Post-COVID demand adjustment (global haircut)
+postcovid_factor = st.slider(
+    "Post-COVID demand adjustment (global haircut)",
+    min_value=0.60,
+    max_value=1.00,
+    value=0.85,
+    step=0.01,
+    help="All ticket, revenue, and marketing forecasts are multiplied by this factor (e.g. 0.85 = 15% haircut).",
+)
 
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
 proposed_run_date = None
@@ -1691,6 +1700,7 @@ def compute_scores_and_store(
     sp_secret,
     benchmark_title,
     proposed_run_date=None,
+    postcovid_factor: float = 1.0,
 ):
     rows = []
     unknown_used_live, unknown_used_est = [], []
@@ -1901,7 +1911,7 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # 11) Remount decay
+    # 11) Remount decay + post-COVID haircut
     decay_pcts, decay_factors, est_after_decay = [], [], []
     today_year = datetime.utcnow().year
     for _, r in df.iterrows():
@@ -1912,6 +1922,7 @@ def compute_scores_and_store(
             yrs_since = (proposed_run_date.year - last_mid.year) if proposed_run_date else (today_year - last_mid.year)
         else:
             yrs_since = None
+
         if yrs_since is None:
             decay_pct = 0.00
         elif yrs_since >= 5:
@@ -1922,9 +1933,14 @@ def compute_scores_and_store(
             decay_pct = 0.20
         else:
             decay_pct = 0.25
+
         factor = 1.0 - decay_pct
-        est_final = round(est_base * factor)
-        decay_pcts.append(decay_pct); decay_factors.append(factor); est_after_decay.append(est_final)
+        est_after_remount = est_base * factor
+        est_final = round(est_after_remount * postcovid_factor)
+
+        decay_pcts.append(decay_pct)
+        decay_factors.append(factor)
+        est_after_decay.append(est_final)
 
     df["ReturnDecayPct"] = decay_pcts
     df["ReturnDecayFactor"] = decay_factors
@@ -1973,18 +1989,22 @@ def compute_scores_and_store(
         "region": region,
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
+        "postcovid_factor": postcovid_factor,
     }
 
 # -------------------------
 # Render
 # -------------------------
 def render_results():
-    import calendar
     R = st.session_state.get("results")
     if not R or "df" not in R or R["df"] is None:
         return
 
     df = R["df"]
+    postcovid_factor = float(R.get("postcovid_factor", 1.0))
+
+    import calendar
+
     if df is None or df.empty:
         st.warning("No scored rows to display yet.")
         return
@@ -2165,9 +2185,10 @@ def render_results():
         else:
             est_tix = np.nan
 
-        # remount decay
+        # remount decay + post-COVID haircut
         decay_factor = remount_novelty_factor(title_sel, run_date)
-        est_tix_final = int(round((est_tix if np.isfinite(est_tix) else 0) * decay_factor))
+        est_tix_raw = (est_tix if np.isfinite(est_tix) else 0) * decay_factor
+        est_tix_final = int(round(est_tix_raw * postcovid_factor))
 
         # --- City split (recompute for season-picked month) ---
         split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
@@ -2308,6 +2329,8 @@ def render_results():
                 f"${total_mkt:,.0f}",
                 delta=f"${(total_mkt / max(grand,1)):.0f} per ticket"
             )
+       
+        st.caption(f"Post-COVID adjustment applied: ×{postcovid_factor:.2f} (e.g. 0.85 = 15% haircut vs raw model).")
 
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
@@ -2510,6 +2533,7 @@ if run:
         sp_secret=sp_secret,
         benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
         proposed_run_date=proposed_run_date,
+        postcovid_factor=postcovid_factor,
     )
 
 if st.session_state.get("results") is not None:
