@@ -1492,14 +1492,25 @@ if not RUNS_DF.empty:
         for m in range(1, 13):
             g_m = g_cat[g_cat["Month"] == m]
             n = int(len(g_m))
-            if n >= N_MIN:
+        
+            if n >= 1:
+                # use whatever data we have, but shrink hard when n is small
                 m_med = _trimmed_median(g_m["TicketMedian"].tolist())
+            elif m in WINTER_POOL and winter_has_signal:
+                m_med = winter_med
             else:
-                # Too few samples: if it's a winter month and we have a pooled winter signal, use it; else fall back to overall
-                if m in WINTER_POOL and winter_has_signal:
-                    m_med = winter_med
-                else:
-                    m_med = cat_overall_med  # → factor will be ≈ 1.0 after shrink
+                m_med = cat_overall_med
+        
+            if not np.isfinite(m_med) or m_med <= 0:
+                continue
+        
+            raw = float(m_med / cat_overall_med)
+            w = n / (n + K_SHRINK)  # with K_SHRINK = 5 this shrinks 1–2-run months a lot
+            shrunk = 1.0 + w * (raw - 1.0)
+            factor_final = float(np.clip(shrunk, MINF, MAXF))
+        
+            _season_rows.append({"Category": cat, "Month": m, "Factor": factor_final, "n": n})
+
 
             # Guard
             if not np.isfinite(m_med) or m_med <= 0:
