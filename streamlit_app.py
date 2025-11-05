@@ -97,10 +97,22 @@ def _narrative_for_row(r: dict) -> str:
     idx_used = r.get("TicketIndex used", None)
     f_season = r.get("FutureSeasonalityFactor", None)
     decay_pct = r.get("ReturnDecayPct", 0.0)
+
     yyc = (r.get("YYC_Singles",0) or 0) + (r.get("YYC_Subs",0) or 0)
     yeg = (r.get("YEG_Singles",0) or 0) + (r.get("YEG_Subs",0) or 0)
     c_share = r.get("CityShare_Calgary", None); e_share = r.get("CityShare_Edmonton", None)
+
     pri = r.get("PrimarySegment",""); sec = r.get("SecondarySegment","")
+
+    # Revenue + marketing
+    total_rev = r.get("Total_Revenue", 0) or 0
+    total_mkt = r.get("Total_Mkt_Spend", 0) or 0
+    final_tix = r.get("EstimatedTickets_Final", 0) or 0
+    try:
+        mkt_per_ticket = (float(total_mkt) / float(final_tix)) if final_tix else 0.0
+    except Exception:
+        mkt_per_ticket = 0.0
+
     parts = []
     parts.append(f"<b>{month} — {title}</b> ({cat})")
     parts.append(f"Estimated demand comes from a combined interest score converted into a <b>Ticket Index</b> of {_dec(idx_used,1)}.")
@@ -109,9 +121,17 @@ def _narrative_for_row(r: dict) -> str:
         parts.append(f"We apply a small repeat reduction of {_pct(decay_pct)} due to recent performances.")
     if pri:
         parts.append(f"Likely audience skews to <b>{pri}</b>{' (then '+sec+')' if sec else ''}.")
-    parts.append(f"We split sales using learned shares: Calgary {_pct(c_share,0)} / Edmonton {_pct(e_share,0)}, giving "
-                 f"<b>{_num(yyc)}</b> tickets in YYC and <b>{_num(yeg)}</b> in YEG.")
-    return " ".join(parts)
+    parts.append(
+        f"We split sales using learned shares: Calgary {_pct(c_share,0)} / Edmonton {_pct(e_share,0)}, giving "
+        f"<b>{_num(yyc)}</b> tickets in YYC and <b>{_num(yeg)}</b> in YEG."
+    )
+    if total_rev:
+        parts.append(f"At typical realized prices this equates to about <b>${_num(total_rev)}</b> in total revenue.")
+    if total_mkt:
+        extra = f" (~${_dec(mkt_per_ticket,2)} in paid media per ticket)" if mkt_per_ticket else ""
+        parts.append(f"Based on historic marketing spend per ticket, the recommended paid-media budget is about <b>${_num(total_mkt)}</b>{extra}.")
+    return \" \".join(parts)
+
 
 def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
     styles = _make_styles()
@@ -122,10 +142,10 @@ def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
     blocks.append(Spacer(1, 0.2*inch))
     return blocks
 
-def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
+def def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
     """
     Rebuilds the wide table (months as columns) for the PDF using a focused metric subset
-    to stay readable on Letter size.
+    to stay readable on Letter size, including revenue and marketing spend.
     """
     # Choose a concise, high-signal set for PDF
     metrics = [
@@ -135,6 +155,9 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
         "YYC_Single_Revenue","YYC_Subs_Revenue",
         "YEG_Single_Revenue","YEG_Subs_Revenue",
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
+        # 🔹 NEW: marketing
+        "YYC_Mkt_SPT","YEG_Mkt_SPT",
+        "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
     ]
 
     # Order months as in UI
@@ -153,10 +176,13 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
         values = []
         for _, r in df.iterrows():
             v = r.get(m, "")
-            if m in ("EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-                     "YYC_Single_Revenue","YYC_Subs_Revenue",
-                     "YEG_Single_Revenue","YEG_Subs_Revenue",
-                     "YYC_Revenue","YEG_Revenue","Total_Revenue"):
+            if m in (
+                "EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+                "YYC_Single_Revenue","YYC_Subs_Revenue",
+                "YEG_Single_Revenue","YEG_Subs_Revenue",
+                "YYC_Revenue","YEG_Revenue","Total_Revenue",
+                "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+            ):
                 values.append(_num(v))
             elif m in ("FutureSeasonalityFactor",):
                 values.append(_dec(v,3))
@@ -164,6 +190,8 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
                 values.append(_pct(v,0))
             elif m in ("TicketIndex used",):
                 values.append(_dec(v,1))
+            elif m in ("YYC_Mkt_SPT","YEG_Mkt_SPT"):
+                values.append(_dec(v,2))
             else:
                 values.append("" if pd.isna(v) else str(v))
         rows.append([m] + values)
