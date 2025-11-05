@@ -330,6 +330,12 @@ with st.expander("👋 How to use this app (step-by-step)"):
 # -------------------------
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown(dedent("""
+    ## Simple Terms
+    This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Spotify) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton, and between single tickets and subscriptions.
+
+    On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. From there, it uses typical average ticket prices to turn ticket counts into rough revenue numbers for each city and for singles vs subs. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.
+
+    ---
     ### Purpose
     This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles/Subs mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder with **revenue** and **marketing spend** recommendations.
 
