@@ -737,7 +737,7 @@ BASELINES = {
         "category": "classic_comedy", "gender": "male",
     },
     "Dona Peron": {
-        "wiki": 94, "trends": 0, "youtube": 0, "spotify": 30,
+        "wiki": 94, "trends": 0, "youtube": 76, "spotify": 30,
         "category": "family_classic", "gender": "female",
     },
     "Dracula": {
@@ -761,7 +761,7 @@ BASELINES = {
         "category": "contemporary", "gender": "female",
     },
     "Handmaid's Tale": {
-        "wiki": 93, "trends": 72, "youtube": 0, "spotify": 73,
+        "wiki": 93, "trends": 72, "youtube": 100, "spotify": 73,
         "category": "family_classic", "gender": "female",
     },
     "Hansel & Gretel": {
@@ -781,11 +781,11 @@ BASELINES = {
         "category": "contemporary", "gender": "female",
     },
     "Nijinsky": {
-        "wiki": 70, "trends": 82, "youtube": 0, "spotify": 26,
+        "wiki": 70, "trends": 82, "youtube": 88, "spotify": 26,
         "category": "contemporary", "gender": "male",
     },
     "Our Canada - Gordon Lightfoot": {
-        "wiki": 90, "trends": 24, "youtube": 0, "spotify": 94,
+        "wiki": 90, "trends": 24, "youtube": 94, "spotify": 94,
         "category": "family_classic", "gender": "female",
     },
     "Peter Pan": {
@@ -825,7 +825,7 @@ BASELINES = {
         "category": "pop_ip", "gender": "female",
     },
     "The Merry Widow": {
-        "wiki": 61, "trends": 52, "youtube": 0, "spotify": 72,
+        "wiki": 61, "trends": 52, "youtube": 87, "spotify": 72,
         "category": "classic_comedy", "gender": "female",
     },
     "Trockadero": {
@@ -837,11 +837,11 @@ BASELINES = {
         "category": "family_classic", "gender": "female",
     },
     "Winter Gala": {
-        "wiki": 77, "trends": 86, "youtube": 0, "spotify": 76,
+        "wiki": 77, "trends": 86, "youtube": 74, "spotify": 76,
         "category": "family_classic", "gender": "female",
     },
     "Wizard of Oz": {
-        "wiki": 52, "trends": 72, "youtube": 0, "spotify": 91,
+        "wiki": 52, "trends": 72, "youtube": 98, "spotify": 91,
         "category": "family_classic", "gender": "female",
     },
 }
