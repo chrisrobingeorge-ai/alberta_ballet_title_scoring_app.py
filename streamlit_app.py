@@ -1142,6 +1142,9 @@ BASELINES = {
     "The Stone Angel": {
         "wiki": 0, "trends": 0, "youtube": 0, "spotify": 91, 
         "category": "family_classic", "gender": "female"},
+    "Balanchine, William Forsythe, Justin Peck": {
+        "wiki": 44, "trends": 0, "youtube": 22, "spotify": 33, 
+        "category": "family_classic", "gender": "female"},
 }
 
 SEGMENT_MULT = {
