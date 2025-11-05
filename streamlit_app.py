@@ -473,6 +473,121 @@ def _canon_city(x):
     if "edm" in s:  return "Edmonton"
     return x if x in ("Calgary", "Edmonton") else None
 
+# --- Marketing spend priors (per-ticket, by title × city and category × city) ---
+MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
+MARKETING_SPT_CATEGORY_CITY: dict[str, dict[str, float]] = {}   # {"classic_romance": {"Calgary": 9.0, "Edmonton": 7.5}, ...}
+DEFAULT_MARKETING_SPT_CITY: dict[str, float] = {"Calgary": 10.0, "Edmonton": 8.0}  # overwritten by learner
+
+
+def learn_marketing_spt_from_history(mkt_df: pd.DataFrame) -> dict:
+    """
+    Expects columns:
+      - Show Title
+      - Calgary Show Date
+      - Edmonton Show Date
+      - Marketing Spend - Calgary   (per-ticket $)
+      - Marketing Spend - Edmonton  (per-ticket $)
+    Learns:
+      - MARKETING_SPT_TITLE_CITY[title][city]  (median $/ticket)
+      - MARKETING_SPT_CATEGORY_CITY[category][city]
+      - DEFAULT_MARKETING_SPT_CITY[city]       (city-wide median)
+    """
+    global MARKETING_SPT_TITLE_CITY, MARKETING_SPT_CATEGORY_CITY, DEFAULT_MARKETING_SPT_CITY
+    MARKETING_SPT_TITLE_CITY = {}
+    MARKETING_SPT_CATEGORY_CITY = {}
+    DEFAULT_MARKETING_SPT_CITY = {"Calgary": 10.0, "Edmonton": 8.0}
+
+    if mkt_df is None or mkt_df.empty:
+        return {"title_city": 0, "cat_city": 0, "note": "empty marketing history"}
+
+    df = mkt_df.copy()
+
+    def _find_col(cands):
+        lc = {c.lower().strip(): c for c in df.columns}
+        for want in cands:
+            if want.lower() in lc:
+                return lc[want.lower()]
+        for want in cands:
+            for k, orig in lc.items():
+                if want.lower() in k:
+                    return orig
+        return None
+
+    title_col = _find_col(["Show Title","Title","Production","Show"])
+    cal_col   = _find_col(["Marketing Spend - Calgary","Calgary Spend"])
+    edm_col   = _find_col(["Marketing Spend - Edmonton","Edmonton Spend"])
+
+    if title_col is None or cal_col is None or edm_col is None:
+        return {"title_city": 0, "cat_city": 0, "note": "missing columns"}
+
+    df[title_col] = df[title_col].astype(str).str.strip()
+
+    def _num(x):
+        try:
+            if pd.isna(x): return 0.0
+            return float(str(x).replace(",","").strip() or 0)
+        except Exception:
+            return 0.0
+
+    df[cal_col] = df[cal_col].map(_num)
+    df[edm_col] = df[edm_col].map(_num)
+
+    # Long form: one row per (Title, Category, City, SPT)
+    rows = []
+    for _, r in df.iterrows():
+        title = str(r[title_col]).strip()
+        if not title:
+            continue
+        cat = infer_gender_and_category(title)[1]
+
+        cal_spt = _num(r[cal_col])
+        edm_spt = _num(r[edm_col])
+
+        if cal_spt > 0:
+            rows.append((title, cat, "Calgary", cal_spt))
+        if edm_spt > 0:
+            rows.append((title, cat, "Edmonton", edm_spt))
+
+    if not rows:
+        return {"title_city": 0, "cat_city": 0, "note": "no positive spend rows"}
+
+    long_df = pd.DataFrame(rows, columns=["Title","Category","City","SPT"])
+
+    # Title × City medians
+    title_city_count = 0
+    for (title, city), g in long_df.groupby(["Title","City"]):
+        val = float(np.median(g["SPT"].values))
+        if val <= 0 or val > 200:
+            continue
+        MARKETING_SPT_TITLE_CITY.setdefault(title, {})[city] = val
+        title_city_count += 1
+
+    # Category × City medians
+    cat_city_count = 0
+    for (cat, city), g in long_df.groupby(["Category","City"]):
+        val = float(np.median(g["SPT"].values))
+        if val <= 0 or val > 200:
+            continue
+        MARKETING_SPT_CATEGORY_CITY.setdefault(cat, {})[city] = val
+        cat_city_count += 1
+
+    # City-wide defaults (medians over all titles)
+    for city, g in long_df.groupby("City"):
+        val = float(np.median(g["SPT"].values))
+        if val > 0 and val < 200:
+            DEFAULT_MARKETING_SPT_CITY[city] = val
+
+    return {"title_city": title_city_count, "cat_city": cat_city_count}
+
+def marketing_spt_for(title: str, category: str, city: str) -> float:
+    city_key = "Calgary" if "calg" in city.lower() else ("Edmonton" if "edm" in city.lower() else city)
+    t = title.strip()
+    if t in MARKETING_SPT_TITLE_CITY and city_key in MARKETING_SPT_TITLE_CITY[t]:
+        return MARKETING_SPT_TITLE_CITY[t][city_key]
+    if category in MARKETING_SPT_CATEGORY_CITY and city_key in MARKETING_SPT_CATEGORY_CITY[category]:
+        return MARKETING_SPT_CATEGORY_CITY[category][city_key]
+    return DEFAULT_MARKETING_SPT_CITY.get(city_key, 8.0)
+
 def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
     """
     Wide schema support for:
@@ -662,6 +777,17 @@ st.caption(
     f"Learned priors → titles: {s.get('titles_learned',0)}, "
     f"categories: {s.get('categories_learned',0)}, "
     f"subs-shares: {s.get('subs_shares_learned',0)}"
+)
+# --- Marketing spend (fixed CSV from disk) ---
+try:
+    mkt_df = pd.read_csv("data/marketing_spend_per_ticket.csv")
+except Exception:
+    mkt_df = pd.DataFrame()
+
+mkt_summary = learn_marketing_spt_from_history(mkt_df)
+st.caption(
+    f"Marketing priors → title×city: {mkt_summary.get('title_city',0)}, "
+    f"category×city: {mkt_summary.get('cat_city',0)}"
 )
 
 with st.expander("Marketing history (optional): upload per-ticket spend", expanded=False):
@@ -1993,6 +2119,13 @@ def render_results():
         yeg_subs = int(round(yeg_total * yeg_sub_ratio))
         yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
 
+        # --- Recommended marketing spend (per city, based on $/ticket) ---
+        spt_yyc = marketing_spt_for(title_sel, cat, "Calgary")
+        spt_yeg = marketing_spt_for(title_sel, cat, "Edmonton")
+        yyc_mkt = yyc_total * spt_yyc
+        yeg_mkt = yeg_total * spt_yeg
+        total_mkt = yyc_mkt + yeg_mkt
+
         # --- Revenue estimates (Singles vs Subs, by city) ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
         yyc_sub_rev    = yyc_subs * YYC_SUB_AVG
@@ -2002,6 +2135,7 @@ def render_results():
         yyc_revenue = yyc_single_rev + yyc_sub_rev
         yeg_revenue = yeg_single_rev + yeg_sub_rev
         total_revenue = yyc_revenue + yeg_revenue
+
 
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
