@@ -2204,7 +2204,7 @@ def render_results():
               "YEG_Subs": "{:,.0f}",
               "CityShare_Calgary": "{:.0%}",
               "CityShare_Edmonton": "{:.0%}",
-              "YYC_Single_Revenue": "{:,.0f}",
+              "YYC_Single_Revenue": "${:,.0f}",
               "YYC_Subs_Revenue": "{:,.0f}",
               "YEG_Single_Revenue": "{:,.0f}",
               "YEG_Subs_Revenue": "{:,.0f}",
