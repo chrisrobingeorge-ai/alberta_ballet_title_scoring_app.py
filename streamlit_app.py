@@ -2551,24 +2551,51 @@ def render_results():
         st.caption("Pick at least one month/title above to see your season projection, charts, and scatter.")
         return
 
+    plan_df = pd.DataFrame(plan_rows)
+
     desired_order = [
-        "Month","Title","Category","ShowType","PrimarySegment","SecondarySegment",
-        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-        "Familiarity","Motivation",
-        "TicketHistory","TicketIndex used","TicketIndexSource",
-        "FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score",
-        "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-        "CityShare_Calgary","CityShare_Edmonton",
-        "YYC_Single_Revenue","YYC_Subs_Revenue",
-        "YEG_Single_Revenue","YEG_Subs_Revenue",
-        "YYC_Revenue","YEG_Revenue","Total_Revenue",
-        "YYC_Mkt_SPT","YEG_Mkt_SPT",
-        "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+        "Month",
+        "Title",
+        "Category",
+        "PrimarySegment",
+        "SecondarySegment",
+        "TicketIndex used",
+        "FutureSeasonalityFactor",
+        "ReturnDecayPct",
+        "EstimatedTickets_Final",
+        "YYC_Singles",
+        "YYC_Subs",
+        "YEG_Singles",
+        "YEG_Subs",
+        "CityShare_Calgary",
+        "CityShare_Edmonton",
+        "YYC_Single_Revenue",
+        "YYC_Subs_Revenue",
+        "YEG_Single_Revenue",
+        "YEG_Subs_Revenue",
+        "YYC_Revenue",
+        "YEG_Revenue",
+        "Total_Revenue",
+        "YYC_Mkt_SPT",
+        "YEG_Mkt_SPT",
+        "YYC_Mkt_Spend",
+        "YEG_Mkt_Spend",
+        "Total_Mkt_Spend",
+        "Prod_Expense",
         "Net_Contribution",
     ]
-    plan_df = pd.DataFrame(plan_rows)[desired_order]
+    
+    # Keep only columns that actually exist to avoid KeyError
+    present_cols = [c for c in desired_order if c in plan_df.columns]
+    missing_cols = [c for c in desired_order if c not in plan_df.columns]
+    
+    if missing_cols:
+        st.warning(
+            "These season columns were requested but not present and have been skipped: "
+            + ", ".join(missing_cols)
+        )
+    
+    plan_df = plan_df[present_cols]
     total_final = int(plan_df["EstimatedTickets_Final"].sum())
 
     # --- Executive summary KPIs ---
