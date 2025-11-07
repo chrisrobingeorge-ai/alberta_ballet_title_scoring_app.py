@@ -980,258 +980,69 @@ except Exception:
 # Data (your existing constants)
 # -------------------------
 BASELINES = {
-    "Alice in Wonderland": {
-        "wiki": 95, "trends": 92, "youtube": 95, "spotify": 92,
-        "category": "family_classic", "gender": "female",
-    },
-    "All of Us - Tragically Hip": {
-        "wiki": 70, "trends": 0, "youtube": 78, "spotify": 88,
-        "category": "pop_ip", "gender": "female",
-    },
-    "Away We Go – Mixed Bill": {
-        "wiki": 97, "trends": 0, "youtube": 58, "spotify": 81,
-        "category": "family_classic", "gender": "female",
-    },
-    "Ballet BC": {
-        "wiki": 4, "trends": 85, "youtube": 53, "spotify": 70,
-        "category": "family_classic", "gender": "female",
-    },
-    "Ballet Boyz": {
-        "wiki": 0, "trends": 31, "youtube": 60, "spotify": 75,
-        "category": "contemporary", "gender": "female",
-    },
-    "Beauty and the Beast": {
-        "wiki": 80, "trends": 96, "youtube": 92, "spotify": 99,
-        "category": "family_classic", "gender": "female",
-    },
-    "BJM - Leonard Cohen": {
-        "wiki": 14, "trends": 0, "youtube": 100, "spotify": 92,
-        "category": "pop_ip", "gender": "female",
-    },
-    "Botero": {
-        "wiki": 70, "trends": 95, "youtube": 62, "spotify": 82,
-        "category": "family_classic", "gender": "female",
-    },
-    "Cinderella": {
-        "wiki": 88, "trends": 100, "youtube": 82, "spotify": 94,
-        "category": "classic_romance", "gender": "female",
-    },
-    "Complexions - Lenny Kravitz": {
-        "wiki": 8, "trends": 0, "youtube": 66, "spotify": 98,
-        "category": "contemporary", "gender": "female",
-    },
-    "Contemporary Classical": {
-        "wiki": 61, "trends": 93, "youtube": 58, "spotify": 87,
-        "category": "contemporary", "gender": "female",
-    },
-    "Dance Theatre of Harlem": {
-        "wiki": 29, "trends": 68, "youtube": 74, "spotify": 99,
-        "category": "pop_ip", "gender": "female",
-    },
-    "Dangerous Liaisons": {
-        "wiki": 79, "trends": 92, "youtube": 63, "spotify": 76,
-        "category": "family_classic", "gender": "female",
-    },
-    "deViate - Mixed Bill": {
-        "wiki": 82, "trends": 0, "youtube": 0, "spotify": 91,
-        "category": "contemporary", "gender": "female",
-    },
-    "Der Wolf": {
-        "wiki": 19, "trends": 16, "youtube": 81, "spotify": 45, 
-        "category": "family_classic", "gender": "female"
-    },
-    "Diavolo": {
-        "wiki": 25, "trends": 89, "youtube": 66, "spotify": 83,
-        "category": "family_classic", "gender": "female",
-    },
-    "Don Quixote": {
-        "wiki": 98, "trends": 98, "youtube": 72, "spotify": 89,
-        "category": "classic_comedy", "gender": "male",
-    },
-    "Dona Peron": {
-        "wiki": 94, "trends": 0, "youtube": 76, "spotify": 30,
-        "category": "family_classic", "gender": "female",
-    },
-    "Dracula": {
-        "wiki": 94, "trends": 80, "youtube": 70, "spotify": 100,
-        "category": "family_classic", "gender": "female",
-    },
-    "Fiddle & the Drum – Joni Mitchell": {
-        "wiki": 21, "trends": 0, "youtube": 62, "spotify": 61,
-        "category": "family_classic", "gender": "female",
-    },
-    "Frankenstein": {
-        "wiki": 98, "trends": 69, "youtube": 66, "spotify": 93,
-        "category": "romantic_tragedy", "gender": "male",
-    },
-    "Giselle": {
-        "wiki": 78, "trends": 96, "youtube": 65, "spotify": 90,
-        "category": "classic_romance", "gender": "female",
-    },
-    "Grimm": {
-        "wiki": 32, "trends": 98, "youtube": 50, "spotify": 85,
-        "category": "contemporary", "gender": "female",
-    },
-    "Handmaid's Tale": {
-        "wiki": 93, "trends": 72, "youtube": 100, "spotify": 73,
-        "category": "family_classic", "gender": "female",
-    },
-    "Hansel & Gretel": {
-        "wiki": 86, "trends": 87, "youtube": 65, "spotify": 87,
-        "category": "family_classic", "gender": "female",
-    },
-    "La Sylphide": {
-        "wiki": 53, "trends": 83, "youtube": 60, "spotify": 66,
-        "category": "classic_romance", "gender": "female",
-    },
-    "Midsummer Night’s Dream": {
-        "wiki": 93, "trends": 89, "youtube": 70, "spotify": 81,
-        "category": "family_classic", "gender": "female",
-    },
-    "Momix": {
-        "wiki": 28, "trends": 86, "youtube": 68, "spotify": 0,
-        "category": "contemporary", "gender": "female",
-    },
-    "Nijinsky": {
-        "wiki": 70, "trends": 82, "youtube": 88, "spotify": 26,
-        "category": "contemporary", "gender": "male",
-    },
-    "Once Upon a Time": {
-        "wiki": 0, "trends": 0, "youtube": 44, "spotify": 100,
-        "category": "family_classic", "gender": "female",
-    },
-    "Our Canada - Gordon Lightfoot": {
-        "wiki": 90, "trends": 24, "youtube": 94, "spotify": 94,
-        "category": "family_classic", "gender": "female",
-    },
-    "Peter Pan": {
-        "wiki": 92, "trends": 95, "youtube": 85, "spotify": 93,
-        "category": "family_classic", "gender": "male",
-    },
-    "Phi – David Bowie": {
-        "wiki": 73, "trends": 24, "youtube": 72, "spotify": 97,
-        "category": "contemporary", "gender": "female",
-    },
-    "Pinocchio": {
-        "wiki": 88, "trends": 100, "youtube": 70, "spotify": 80,
-        "category": "family_classic", "gender": "male",
-    },
-    "Rite of Spring": {
-        "wiki": 74, "trends": 28, "youtube": 89, "spotify": 43, 
-        "category": "family_classic", "gender": "female"
-    },
-    "Romeo and Juliet": {
-        "wiki": 100, "trends": 91, "youtube": 79, "spotify": 98,
-        "category": "romantic_tragedy", "gender": "co",
-    },
-    "Shaping Sound": {
-        "wiki": 30, "trends": 86, "youtube": 70, "spotify": 76,
-        "category": "family_classic", "gender": "female",
-    },
-    "Sleeping Beauty": {
-        "wiki": 84, "trends": 99, "youtube": 78, "spotify": 82,
-        "category": "family_classic", "gender": "female",
-    },
-    "Swan Lake": {
-        "wiki": 90, "trends": 95, "youtube": 88, "spotify": 94,
-        "category": "classic_romance", "gender": "female",
-    },
-    "Taj Express": {
-        "wiki": 21, "trends": 88, "youtube": 68, "spotify": 77,
-        "category": "pop_ip", "gender": "female",
-    },
-    "Tango Fire": {
-        "wiki": 73, "trends": 85, "youtube": 55, "spotify": 81,
-        "category": "pop_ip", "gender": "female",
-    },
-    "The Merry Widow": {
-        "wiki": 61, "trends": 52, "youtube": 87, "spotify": 72,
-        "category": "classic_comedy", "gender": "female",
-    },
-    "Trockadero": {
-        "wiki": 43, "trends": 71, "youtube": 91, "spotify": 88,
-        "category": "family_classic", "gender": "female",
-    },
-    "Unleashed – Mixed Bill": {
-        "wiki": 41, "trends": 0, "youtube": 60, "spotify": 91,
-        "category": "family_classic", "gender": "female",
-    },
-    "Winter Gala": {
-        "wiki": 77, "trends": 86, "youtube": 74, "spotify": 76,
-        "category": "family_classic", "gender": "female",
-    },
-    "Wizard of Oz": {
-        "wiki": 52, "trends": 72, "youtube": 98, "spotify": 91,
-        "category": "family_classic", "gender": "female",
-    },
-    "Addams Family": {
-        "wiki": 72, "trends": 39, "youtube": 76, "spotify": 86,
-        "category": "family_classic", "gender": "female",
-    },
-    "Balanchine, William Forsythe, Justin Peck": {
-        "wiki": 31, "trends": 35, "youtube": 43, "spotify": 27,
-        "category": "family_classic", "gender": "female",
-    },
-    "Caravaggio": {
-        "wiki": 68, "trends": 22, "youtube": 56, "spotify": 60,
-        "category": "family_classic", "gender": "female",
-    },
-    "Charlie Chaplin": {
-        "wiki": 100, "trends": 49, "youtube": 95, "spotify": 49,
-        "category": "family_classic", "gender": "female",
-    },
-    "Coppelia": {
-        "wiki": 31, "trends": 8, "youtube": 57, "spotify": 65,
-        "category": "family_classic", "gender": "female",
-    },
-    "Emma Bovary": {
-        "wiki": 50, "trends": 29, "youtube": 52, "spotify": 31,
-        "category": "family_classic", "gender": "female",
-    },
-    "Great Gatsby": {
-        "wiki": 84, "trends": 34, "youtube": 89, "spotify": 81,
-        "category": "family_classic", "gender": "female",
-    },
-    "Jungle Book": {
-        "wiki": 54, "trends": 29, "youtube": 100, "spotify": 74,
-        "category": "family_classic", "gender": "female",
-    },
-    "La Bayadere": {
-        "wiki": 15, "trends": 29, "youtube": 37, "spotify": 67,
-        "category": "family_classic", "gender": "female",
-    },
-    "La Fille mal gardée": {
-        "wiki": 6, "trends": 64, "youtube": 51, "spotify": 62,
-        "category": "family_classic", "gender": "female",
-    },
-    "Lady Chatterley's Lover": {
-        "wiki": 58, "trends": 76, "youtube": 61, "spotify": 88,
-        "category": "family_classic", "gender": "female",
-    },
-    "Love in the Time of Cholera": {
-        "wiki": 44, "trends": 87, "youtube": 38, "spotify": 100,
-        "category": "family_classic", "gender": "female",
-    },
-    "Opera - the Ballet": {
-        "wiki": 6, "trends": 60, "youtube": 72, "spotify": 51,
-        "category": "family_classic", "gender": "female",
-    },
-    "Othello": {
-        "wiki": 66, "trends": 0, "youtube": 51, "spotify": 59,
-        "category": "family_classic", "gender": "female",
-    },
-    "Pulcinella": {
-        "wiki": 30, "trends": 22, "youtube": 78, "spotify": 49,
-        "category": "family_classic", "gender": "female",
-    },
-    "The Stone Angel": {
-        "wiki": 0, "trends": 49, "youtube": 0, "spotify": 88,
-        "category": "family_classic", "gender": "female",
-    },
-    "Lady Macbeth": {
-        "wiki": 43, "trends": 34, "youtube": 43, "spotify": 48,
-        "category": "family_classic", "gender": "female",
-    },
+    "Addams Family": {"wiki": 83, "trends": 26, "youtube": 95, "spotify": 76, "category": "family_classic", "gender": "female"},
+    "Alice in Wonderland": {"wiki": 83, "trends": 38, "youtube": 96, "spotify": 68, "category": "family_classic", "gender": "female"},
+    "All of Us - Tragically Hip": {"wiki": 70, "trends": 52, "youtube": 71, "spotify": 75, "category": "pop_ip", "gender": "female"},
+    "Away We Go – Mixed Bill": {"wiki": 85, "trends": 46, "youtube": 98, "spotify": 56, "category": "family_classic", "gender": "female"},
+    "Balanchine, William Forsythe, Justin Peck": {"wiki": 47, "trends": 82, "youtube": 53, "spotify": 0, "category": "family_classic", "gender": "female"},
+    "Ballet BC": {"wiki": 35, "trends": 18, "youtube": 54, "spotify": 45, "category": "family_classic", "gender": "female"},
+    "Ballet Boyz": {"wiki": 33, "trends": 22, "youtube": 84, "spotify": 34, "category": "contemporary", "gender": "female"},
+    "Beauty and the Beast": {"wiki": 75, "trends": 40, "youtube": 100, "spotify": 83, "category": "family_classic", "gender": "female"},
+    "BJM - Leonard Cohen": {"wiki": 40, "trends": 38, "youtube": 100, "spotify": 68, "category": "pop_ip", "gender": "female"},
+    "Botero": {"wiki": 70, "trends": 12, "youtube": 87, "spotify": 49, "category": "family_classic", "gender": "female"},
+    "Caravaggio": {"wiki": 81, "trends": 20, "youtube": 85, "spotify": 45, "category": "family_classic", "gender": "female"},
+    "Charlie Chaplin": {"wiki": 93, "trends": 30, "youtube": 100, "spotify": 41, "category": "family_classic", "gender": "female"},
+    "Cinderella": {"wiki": 80, "trends": 20, "youtube": 100, "spotify": 72, "category": "classic_romance", "gender": "female"},
+    "Complexions - Lenny Kravitz": {"wiki": 37, "trends": 54, "youtube": 60, "spotify": 79, "category": "contemporary", "gender": "female"},
+    "Contemporary Classical": {"wiki": 65, "trends": 44, "youtube": 90, "spotify": 58, "category": "contemporary", "gender": "female"},
+    "Coppelia": {"wiki": 68, "trends": 16, "youtube": 85, "spotify": 50, "category": "family_classic", "gender": "female"},
+    "Dance Theatre of Harlem": {"wiki": 48, "trends": 46, "youtube": 70, "spotify": 84, "category": "pop_ip", "gender": "female"},
+    "Dangerous Liaisons": {"wiki": 75, "trends": 36, "youtube": 79, "spotify": 36, "category": "family_classic", "gender": "female"},
+    "Der Wolf": {"wiki": 19, "trends": 16, "youtube": 81, "spotify": 45, "category": "family_classic", "gender": "female"},
+    "deViate - Mixed Bill": {"wiki": 77, "trends": 40, "youtube": 70, "spotify": 64, "category": "contemporary", "gender": "female"},
+    "Diavolo": {"wiki": 46, "trends": 14, "youtube": 89, "spotify": 50, "category": "family_classic", "gender": "female"},
+    "Don Quixote": {"wiki": 85, "trends": 22, "youtube": 84, "spotify": 61, "category": "classic_comedy", "gender": "male"},
+    "Dona Peron": {"wiki": 83, "trends": 20, "youtube": 53, "spotify": 11, "category": "family_classic", "gender": "female"},
+    "Dracula": {"wiki": 83, "trends": 14, "youtube": 99, "spotify": 86, "category": "family_classic", "gender": "female"},
+    "Emma Bovary": {"wiki": 75, "trends": 22, "youtube": 82, "spotify": 25, "category": "family_classic", "gender": "female"},
+    "Fiddle & the Drum – Joni Mitchell": {"wiki": 44, "trends": 66, "youtube": 68, "spotify": 25, "category": "family_classic", "gender": "female"},
+    "Frankenstein": {"wiki": 85, "trends": 24, "youtube": 92, "spotify": 69, "category": "romantic_tragedy", "gender": "male"},
+    "Giselle": {"wiki": 74, "trends": 14, "youtube": 89, "spotify": 62, "category": "classic_romance", "gender": "female"},
+    "Great Gatsby": {"wiki": 87, "trends": 24, "youtube": 100, "spotify": 69, "category": "family_classic", "gender": "female"},
+    "Grimm": {"wiki": 50, "trends": 10, "youtube": 89, "spotify": 54, "category": "contemporary", "gender": "female"},
+    "Handmaid's Tale": {"wiki": 82, "trends": 30, "youtube": 86, "spotify": 37, "category": "family_classic", "gender": "female"},
+    "Hansel & Gretel": {"wiki": 79, "trends": 30, "youtube": 94, "spotify": 58, "category": "family_classic", "gender": "female"},
+    "Jungle Book": {"wiki": 76, "trends": 22, "youtube": 100, "spotify": 59, "category": "family_classic", "gender": "female"},
+    "La Bayadere": {"wiki": 62, "trends": 22, "youtube": 75, "spotify": 37, "category": "family_classic", "gender": "female"},
+    "La Fille mal gardée": {"wiki": 59, "trends": 38, "youtube": 82, "spotify": 47, "category": "family_classic", "gender": "female"},
+    "La Sylphide": {"wiki": 61, "trends": 22, "youtube": 67, "spotify": 30, "category": "classic_romance", "gender": "female"},
+    "Lady Chatterley's Lover": {"wiki": 78, "trends": 46, "youtube": 87, "spotify": 79, "category": "family_classic", "gender": "female"},
+    "Lady Macbeth": {"wiki": 72, "trends": 24, "youtube": 77, "spotify": 35, "category": "family_classic", "gender": "female"},
+    "Love in the Time of Cholera": {"wiki": 73, "trends": 54, "youtube": 84, "spotify": 100, "category": "family_classic", "gender": "female"},
+    "Midsummer Night’s Dream": {"wiki": 82, "trends": 46, "youtube": 79, "spotify": 47, "category": "family_classic", "gender": "female"},
+    "Momix": {"wiki": 48, "trends": 10, "youtube": 70, "spotify": 3, "category": "contemporary", "gender": "female"},
+    "Nijinsky": {"wiki": 70, "trends": 16, "youtube": 69, "spotify": 2, "category": "contemporary", "gender": "male"},
+    "Once Upon a Time": {"wiki": 59, "trends": 32, "youtube": 0, "spotify": 87, "category": "family_classic", "gender": "female"},
+    "Opera - the Ballet": {"wiki": 44, "trends": 36, "youtube": 0, "spotify": 32, "category": "family_classic", "gender": "female"},
+    "Othello": {"wiki": 81, "trends": 14, "youtube": 0, "spotify": 44, "category": "family_classic", "gender": "female"},
+    "Our Canada - Gordon Lightfoot": {"wiki": 81, "trends": 58, "youtube": 92, "spotify": 72, "category": "family_classic", "gender": "female"},
+    "Peter Pan": {"wiki": 81, "trends": 18, "youtube": 0, "spotify": 70, "category": "family_classic", "gender": "male"},
+    "Phi – David Bowie": {"wiki": 71, "trends": 34, "youtube": 0, "spotify": 78, "category": "contemporary", "gender": "female"},
+    "Pinocchio": {"wiki": 80, "trends": 18, "youtube": 0, "spotify": 46, "category": "family_classic", "gender": "male"},
+    "Pulcinella": {"wiki": 68, "trends": 20, "youtube": 0, "spotify": 36, "category": "family_classic", "gender": "female"},
+    "Rite of Spring": {"wiki": 74, "trends": 28, "youtube": 0, "spotify": 43, "category": "family_classic", "gender": "female"},
+    "Romeo and Juliet": {"wiki": 86, "trends": 32, "youtube": 0, "spotify": 80, "category": "romantic_tragedy", "gender": "co"},
+    "Shaping Sound": {"wiki": 49, "trends": 26, "youtube": 0, "spotify": 40, "category": "family_classic", "gender": "female"},
+    "Sleeping Beauty": {"wiki": 77, "trends": 30, "youtube": 0, "spotify": 70, "category": "family_classic", "gender": "female"},
+    "Swan Lake": {"wiki": 80, "trends": 18, "youtube": 0, "spotify": 71, "category": "classic_romance", "gender": "female"},
+    "Taj Express": {"wiki": 44, "trends": 22, "youtube": 0, "spotify": 42, "category": "pop_ip", "gender": "female"},
+    "Tango Fire": {"wiki": 72, "trends": 20, "youtube": 0, "spotify": 52, "category": "pop_ip", "gender": "female"},
+    "The Merry Widow": {"wiki": 65, "trends": 30, "youtube": 0, "spotify": 36, "category": "classic_comedy", "gender": "female"},
+    "The Stone Angel": {"wiki": 57, "trends": 30, "youtube": 0, "spotify": 78, "category": "family_classic", "gender": "female"},
+    "Trockadero": {"wiki": 56, "trends": 20, "youtube": 0, "spotify": 59, "category": "family_classic", "gender": "female"},
+    "Unleashed – Mixed Bill": {"wiki": 54, "trends": 44, "youtube": 0, "spotify": 64, "category": "family_classic", "gender": "female"},
+    "Winter Gala": {"wiki": 74, "trends": 22, "youtube": 0, "spotify": 41, "category": "family_classic", "gender": "female"},
+    "Wizard of Oz": {"wiki": 60, "trends": 30, "youtube": 0, "spotify": 64, "category": "family_classic", "gender": "female"},
 }
 
 SEGMENT_MULT = {
