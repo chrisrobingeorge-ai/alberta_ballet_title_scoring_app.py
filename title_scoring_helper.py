@@ -245,7 +245,8 @@ def fetch_trends_city_raw(title: str, city_name: str) -> float:
 
 def fetch_youtube_raw(youtube, title: str) -> float:
     """
-    YouTube: log-transformed total view counts for top 5 results.
+    YouTube: total view counts for top 5 results (raw sum of views).
+    We'll map this to 0–100 later with a fixed log scale.
     """
     if youtube is None:
         return 0.0
@@ -263,16 +264,20 @@ def fetch_youtube_raw(youtube, title: str) -> float:
         ]
         if not video_ids:
             return 0.0
+
         stats_resp = youtube.videos().list(
             id=",".join(video_ids),
             part="statistics",
         ).execute()
+
         total_views = 0
         for item in stats_resp.get("items", []):
             vc = item.get("statistics", {}).get("viewCount")
             if vc is not None:
                 total_views += int(vc)
-        return float(math.log10(total_views + 1.0))
+
+        # <-- IMPORTANT: return raw total views, not log()
+        return float(total_views)
     except Exception:
         return 0.0
 
@@ -293,23 +298,37 @@ def fetch_spotify_raw(sp: spotipy.Spotify | None, title: str) -> float:
         return 0.0
 
 
-def normalize_0_100_log(values: List[float]) -> List[int]:
+def wiki_to_score(views: float) -> int:
     """
-    Take raw positive values and normalize to 0–100 across the batch,
-    with log(1+x) compression for skewed distributions.
+    Map Wikipedia pageviews to a 0–100 score using a fixed log scale.
+    Rough idea: 0 views -> 0, ~1M+ views -> ~100.
     """
-    if not values:
-        return []
-    logs = [math.log1p(max(v, 0.0)) for v in values]
-    v_min = min(logs)
-    v_max = max(logs)
-    if v_max <= v_min:
-        # Everything is identical (e.g. all 0) → neutral mid-score instead of 0
-        return [50 for _ in logs]
-    return [
-        int(round(100 * (lv - v_min) / (v_max - v_min)))
-        for lv in logs
-    ]
+    v = max(0.0, views)
+    logv = math.log10(v + 1.0)      # 0 .. ~6 for 1M
+    score = (logv / 6.0) * 100.0    # 6 ~ 1,000,000 views
+    score = max(0.0, min(100.0, score))
+    return int(round(score))
+
+
+def youtube_to_score(views: float) -> int:
+    """
+    Map YouTube total views to 0–100.
+    Rough idea: 0 views -> 0, ~100M+ views -> ~100.
+    """
+    v = max(0.0, views)
+    logv = math.log10(v + 1.0)      # 0 .. ~8 for 100M
+    score = (logv / 8.0) * 100.0
+    score = max(0.0, min(100.0, score))
+    return int(round(score))
+
+
+def clamp_0_100(x: float) -> int:
+    """
+    Clamp any numeric value into [0,100] and round.
+    Useful for Trends (already 0–100) and Spotify popularity (0–100).
+    """
+    return int(round(max(0.0, min(100.0, float(x)))))
+
 
 
 # ------------------------------------------------------------------
@@ -351,10 +370,10 @@ if run_button:
             raw_youtube.append(fetch_youtube_raw(youtube, t))
             raw_spotify.append(fetch_spotify_raw(spotify, t))
 
-        wiki_scores = normalize_0_100_log(raw_wiki)
-        trends_scores = normalize_0_100_log(raw_trends)
-        youtube_scores = normalize_0_100_log(raw_youtube)
-        spotify_scores = normalize_0_100_log(raw_spotify)
+        wiki_scores    = [wiki_to_score(v) for v in raw_wiki]
+        trends_scores  = [clamp_0_100(v) for v in raw_trends]     # Trends already 0–100-ish
+        youtube_scores = [youtube_to_score(v) for v in raw_youtube]
+        spotify_scores = [clamp_0_100(v) for v in raw_spotify]    # Spotify popularity 0–100
 
     df = pd.DataFrame({
         "title": titles,
