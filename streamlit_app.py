@@ -718,7 +718,7 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
         cat = "romantic_tragedy"
     elif any(k in t for k in ["don quixote","merry widow"]):
         cat = "classic_comedy"
-    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi","der wolf","rite of spring"]):
+    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi","der wolf","rite of spring","beethoven"]):
         cat = "contemporary"
     elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen"]):
         cat = "pop_ip"
@@ -1008,7 +1008,7 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         if any(k in tl for k in ["swan","sleeping","cinderella","giselle","sylphide"]):                      return "classic_romance"
         if any(k in tl for k in ["romeo","hunchback","notre dame","hamlet","frankenstein","dracula"]):        return "romantic_tragedy"
         if any(k in tl for k in ["don quixote","merry widow","comedy"]):                                      return "classic_comedy"
-        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","unleashed","botero","ballet bc","der wolf","rite of spring"]):
+        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","unleashed","botero","ballet bc","der wolf","rite of spring","beethoven"]):
             return "contemporary"
         if any(k in tl for k in ["taj","tango","harlem","tragically hip","leonard cohen","joni","david bowie","gordon lightfoot","phi"]):
             return "pop_ip"
@@ -1206,7 +1206,15 @@ BASELINES = {
         "category": "family_classic",
         "gender": "female",
     },
-    "BJM - Leonard Cohen": {
+	"Beethoven": {
+		"wiki": 88,
+		"trends": 18,
+		"youtube": 100,
+		"spotify": 55,
+		"category": "family_classic",
+		"gender": "female"
+	},
+	"BJM - Leonard Cohen": {
         "wiki": 40,
         "trends": 38,
         "youtube": 100,
