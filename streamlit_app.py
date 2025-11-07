@@ -1313,7 +1313,7 @@ BASELINES = {
         "trends": 16,
         "youtube": 69,
         "spotify": 2,
-        "category": "adult_literary_drama",
+        "category": "contemporary",
         "gender": "male",
     },
     "Once Upon a Time": {
