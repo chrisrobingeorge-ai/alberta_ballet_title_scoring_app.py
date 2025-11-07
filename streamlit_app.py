@@ -978,8 +978,8 @@ BASELINES = {
         "category": "contemporary", "gender": "female",
     },
     "Der Wolf": {
-        "wiki": 25, "trends": 89, "youtube": 43, "spotify": 83,
-        "category": "family_classic", "gender": "female",
+        "wiki": 19, "trends": 16, "youtube": 81, "spotify": 45, 
+        "category": "family_classic", "gender": "female"
     },
     "Diavolo": {
         "wiki": 25, "trends": 89, "youtube": 66, "spotify": 83,
@@ -1058,9 +1058,9 @@ BASELINES = {
         "category": "family_classic", "gender": "male",
     },
     "Rite of Spring": {
-        "wiki": 100, "trends": 91, "youtube": 95, "spotify": 98,
-        "category": "romantic_tragedy", "gender": "co",
-    },    
+        "wiki": 74, "trends": 28, "youtube": 89, "spotify": 43, 
+        "category": "family_classic", "gender": "female"
+    },
     "Romeo and Juliet": {
         "wiki": 100, "trends": 91, "youtube": 79, "spotify": 98,
         "category": "romantic_tragedy", "gender": "co",
