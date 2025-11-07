@@ -607,11 +607,11 @@ def infer_show_type(title: str, category: str) -> str:
         "dance theatre of harlem", "complexions",
         "bjm", "momix", "ballet boyz", "diavolo",
     ]
-    if any(k in t for k in guest_keys):
+    if any(k in t for k in guest_keys) or c == "touring_contemporary_company":
         return "guest_company"
 
     # Mixed bills
-    if "mixed bill" in t or any(k in t for k in ["unleashed", "deviate"]):
+    if "mixed bill" in t or any(k in t for k in ["unleashed", "deviate"]) or c == "contemporary_mixed_bill":
         return "mixed_bill"
 
     # Explicit contemporary one-offs you listed
@@ -637,11 +637,16 @@ def infer_show_type(title: str, category: str) -> str:
     if any(k in t for k in classical_title_keys) or c in ("classic_romance", "classic_comedy", "romantic_tragedy"):
         return "classical_ballet"
 
+    # Adult lit drama – treat like contemporary_show for budgeting
+    if c == "adult_literary_drama":
+        return "contemporary_show"
+
     # Remaining contemporary / pop / dramatic → treat as contemporary_show for budgeting
     if c in ("contemporary", "pop_ip", "dramatic"):
         return "contemporary_show"
 
     return "unknown"
+
 
 # --- Marketing spend priors (per-ticket, by title × city and category × city) ---
 MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
@@ -749,14 +754,32 @@ def learn_marketing_spt_from_history(mkt_df: pd.DataFrame) -> dict:
 
     return {"title_city": title_city_count, "cat_city": cat_city_count}
 
+CATEGORY_FALLBACK = {
+    "adult_literary_drama": "dramatic",
+    "contemporary_mixed_bill": "contemporary",
+    "touring_contemporary_company": "contemporary",
+}
+
 def marketing_spt_for(title: str, category: str, city: str) -> float:
-    city_key = "Calgary" if "calg" in city.lower() else ("Edmonton" if "edm" in city.lower() else city)
-    t = title.strip()
+    city_norm = (city or "").lower()
+    city_key = "Calgary" if "calg" in city_norm else ("Edmonton" if "edm" in city_norm else (city or "Calgary"))    
+	t = title.strip()
+
+    # 1) Title × City wins if present
     if t in MARKETING_SPT_TITLE_CITY and city_key in MARKETING_SPT_TITLE_CITY[t]:
         return MARKETING_SPT_TITLE_CITY[t][city_key]
-    if category in MARKETING_SPT_CATEGORY_CITY and city_key in MARKETING_SPT_CATEGORY_CITY[category]:
-        return MARKETING_SPT_CATEGORY_CITY[category][city_key]
+
+    # 2) Category × City, with fallback mapping for new categories
+    cat_key = (category or "").strip()
+    if cat_key not in MARKETING_SPT_CATEGORY_CITY and cat_key in CATEGORY_FALLBACK:
+        cat_key = CATEGORY_FALLBACK[cat_key]
+
+    if cat_key in MARKETING_SPT_CATEGORY_CITY and city_key in MARKETING_SPT_CATEGORY_CITY[cat_key]:
+        return MARKETING_SPT_CATEGORY_CITY[cat_key][city_key]
+
+    # 3) City-wide default
     return DEFAULT_MARKETING_SPT_CITY.get(city_key, 8.0)
+
 
 def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
     """
@@ -1486,21 +1509,62 @@ BASELINES = {
     },
 }
 																														
-
 SEGMENT_MULT = {
-    "General Population": {"female": 1.00, "male": 1.00, "co": 1.00, "na": 1.00,
-                           "family_classic": 1.00, "classic_romance": 1.00, "romantic_tragedy": 1.00,
-                           "classic_comedy": 1.00, "contemporary": 1.00, "pop_ip": 1.00, "dramatic": 1.00},
-    "Core Classical (F35–64)": {"female": 1.12, "male": 0.95, "co": 1.05, "na": 1.00,
-                                 "family_classic": 1.10, "classic_romance": 1.08, "romantic_tragedy": 1.05,
-                                 "classic_comedy": 1.02, "contemporary": 0.90, "pop_ip": 1.00, "dramatic": 1.00},
-    "Family (Parents w/ kids)": {"female": 1.10, "male": 0.92, "co": 1.06, "na": 1.00,
-                                  "family_classic": 1.18, "classic_romance": 0.95, "romantic_tragedy": 0.85,
-                                  "classic_comedy": 1.05, "contemporary": 0.82, "pop_ip": 1.20, "dramatic": 0.90},
-    "Emerging Adults (18–34)": {"female": 1.02, "male": 1.02, "co": 1.00, "na": 1.00,
-                                 "family_classic": 0.95, "classic_romance": 0.92, "romantic_tragedy": 0.90,
-                                 "classic_comedy": 0.98, "contemporary": 1.25, "pop_ip": 1.15, "dramatic": 1.05},
+    "General Population": {
+        "female": 1.00, "male": 1.00, "co": 1.00, "na": 1.00,
+        "family_classic": 1.00,
+        "classic_romance": 1.00,
+        "romantic_tragedy": 1.00,
+        "classic_comedy": 1.00,
+        "contemporary": 1.00,
+        "pop_ip": 1.00,
+        "dramatic": 1.00,
+        # new categories – neutral
+        "adult_literary_drama": 1.00,          # like dramatic
+        "contemporary_mixed_bill": 1.00,       # like contemporary
+        "touring_contemporary_company": 1.00,  # like contemporary
+    },
+    "Core Classical (F35–64)": {
+        "female": 1.12, "male": 0.95, "co": 1.05, "na": 1.00,
+        "family_classic": 1.10,
+        "classic_romance": 1.08,
+        "romantic_tragedy": 1.05,
+        "classic_comedy": 1.02,
+        "contemporary": 0.90,
+        "pop_ip": 1.00,
+        "dramatic": 1.00,
+        "adult_literary_drama": 1.00,      # like dramatic
+        "contemporary_mixed_bill": 0.90,   # like contemporary
+        "touring_contemporary_company": 0.90,
+    },
+    "Family (Parents w/ kids)": {
+        "female": 1.10, "male": 0.92, "co": 1.06, "na": 1.00,
+        "family_classic": 1.18,
+        "classic_romance": 0.95,
+        "romantic_tragedy": 0.85,
+        "classic_comedy": 1.05,
+        "contemporary": 0.82,
+        "pop_ip": 1.20,
+        "dramatic": 0.90,
+        "adult_literary_drama": 0.90,      # like dramatic
+        "contemporary_mixed_bill": 0.82,   # like contemporary
+        "touring_contemporary_company": 0.82,
+    },
+    "Emerging Adults (18–34)": {
+        "female": 1.02, "male": 1.02, "co": 1.00, "na": 1.00,
+        "family_classic": 0.95,
+        "classic_romance": 0.92,
+        "romantic_tragedy": 0.90,
+        "classic_comedy": 0.98,
+        "contemporary": 1.25,
+        "pop_ip": 1.15,
+        "dramatic": 1.05,
+        "adult_literary_drama": 1.05,          # like dramatic
+        "contemporary_mixed_bill": 1.25,       # like contemporary
+        "touring_contemporary_company": 1.25,
+    },
 }
+
 REGION_MULT = {"Province": 1.00, "Calgary": 1.05, "Edmonton": 0.95}
 
 # === City split + subscriber share logic (uses learned priors above) ===
@@ -1527,6 +1591,9 @@ SEGMENT_PRIORS = {
         "romantic_tragedy":  {"General Population": 1.00, "Core Classical (F35–64)": 1.10, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.98},
         "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 0.98},
         "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},
+		"adult_literary_drama":  {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},  # like dramatic
+        "contemporary_mixed_bill": {"General Population": 0.98, "Core Classical (F35–64)": 0.90, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.25},  # like contemporary
+        "touring_contemporary_company": {"General Population": 0.98, "Core Classical (F35–64)": 0.90, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.25},
     },
     "Calgary": {
         "classic_romance":   {"General Population": 0.98, "Core Classical (F35–64)": 1.25, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.95},
@@ -1536,6 +1603,9 @@ SEGMENT_PRIORS = {
         "romantic_tragedy":  {"General Population": 0.98, "Core Classical (F35–64)": 1.15, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.98},
         "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.02, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 0.98},
         "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.08, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},
+        "adult_literary_drama":  {"General Population": 1.05, "Core Classical (F35–64)": 1.08, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},  # like dramatic
+        "contemporary_mixed_bill": {"General Population": 0.98, "Core Classical (F35–64)": 0.88, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.28},  # like contemporary
+        "touring_contemporary_company": {"General Population": 0.98, "Core Classical (F35–64)": 0.88, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.28},
     },
     "Edmonton": {
         "classic_romance":   {"General Population": 1.02, "Core Classical (F35–64)": 1.15, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 0.98},
@@ -1545,6 +1615,9 @@ SEGMENT_PRIORS = {
         "romantic_tragedy":  {"General Population": 1.02, "Core Classical (F35–64)": 1.10, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},
         "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 1.00},
         "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},
+        "adult_literary_drama":  {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},  # like dramatic
+        "contemporary_mixed_bill": {"General Population": 1.00, "Core Classical (F35–64)": 0.92, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 1.22},  # like contemporary
+        "touring_contemporary_company": {"General Population": 1.00, "Core Classical (F35–64)": 0.92, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 1.22},
     },
 }
 SEGMENT_PRIOR_STRENGTH = 1.0
@@ -2075,6 +2148,10 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
         "romantic_tragedy": {"wiki": +3},
         "classic_comedy":   {"trends": +2},
         "dramatic":         {},
+        # new categories → reuse nearest neighbour
+        "adult_literary_drama":      {"wiki": +3, "trends": +3},              # like dramatic-ish
+        "contemporary_mixed_bill":   {"youtube": +4, "trends": +2},           # like contemporary-ish
+        "touring_contemporary_company": {"youtube": +5, "trends": +3, "spotify": +2},  # slightly more pop-facing
     }
     b = bumps.get(category, {})
 
