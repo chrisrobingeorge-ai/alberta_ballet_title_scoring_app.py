@@ -3183,22 +3183,6 @@ def render_results():
     present_plan_cols = [c for c in desired_order if c in plan_df.columns]
     plan_view = plan_df[present_plan_cols].copy()
 
-    # === NEW: Season financial summary table + CSV download ===
-    summary_df = build_season_financial_summary_table(plan_df)
-
-    if not summary_df.empty:
-        st.subheader("📊 Season Financial Summary (months as columns)")
-        st.dataframe(summary_df, use_container_width=True)
-
-        csv_bytes = summary_df.to_csv(index=True).encode("utf-8")
-        st.download_button(
-            "Download Season Summary CSV",
-            data=csv_bytes,
-            file_name=f"season_financial_summary_{season_year}.csv",
-            mime="text/csv",
-            use_container_width=False,
-        )
-
     # --- Executive summary KPIs ---
     with st.container():
         st.markdown("### 📊 Season at a glance")
@@ -3428,6 +3412,22 @@ def render_results():
         except Exception as e:
             st.caption(f"Season scatter unavailable: {e}")
 
+    # === NEW: Season financial summary table + CSV download ===
+    summary_df = build_season_financial_summary_table(plan_df)
+
+    if not summary_df.empty:
+        st.subheader("📊 Season Financial Summary (months as columns)")
+        st.dataframe(summary_df, use_container_width=True)
+
+        csv_bytes = summary_df.to_csv(index=True).encode("utf-8")
+        st.download_button(
+            "Download Season Summary CSV",
+            data=csv_bytes,
+            file_name=f"season_financial_summary_{season_year}.csv",
+            mime="text/csv",
+            use_container_width=False,
+        )
+		
 # -------------------------
 # Button + render
 # -------------------------
