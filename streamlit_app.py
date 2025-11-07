@@ -210,6 +210,99 @@ def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
     ]))
     return table
 
+def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build a wide season summary with months as columns and rows:
+      Show Title, Estimated Tickets, YYC/YEG Singles & Subs,
+      Revenue, Marketing, Production, Net Income (Deficit).
+    """
+    # Month order & labels
+    month_order = ["September", "October", "January", "February", "March", "May"]
+    label_map = {m: m.upper() for m in month_order}
+
+    df = plan_df.copy()
+    df["_mname"] = df["Month"].astype(str).str.split().str[0]
+    df = df[df["_mname"].isin(month_order)].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    order_map = {m: i for i, m in enumerate(month_order)}
+    df["_order"] = df["_mname"].map(order_map)
+    df = df.sort_values("_order")
+
+    month_cols = [label_map[m] for m in df["_mname"].tolist()]
+
+    index_labels = [
+        "Show Title",
+        "Estimated Tickets",
+        "YYC Singles",
+        "YEG Singles",
+        "YYC Subscriptions",
+        "YEG Subscriptions",
+        "",
+        "REVENUE",
+        "YYC Singles Revenue",
+        "YEG Singles Revenue",
+        "YYC Subscription Revenue",
+        "YEG Subscription Revenue",
+        "Total Revenue",
+        "",
+        "EXPENSES",
+        "Average YYC Marketing Spend",
+        "Average YEG Marketing Spend",
+        "YYC Marketing Spend",
+        "YEG Marketing Spend",
+        "Total Marketing Spend",
+        "Total Production Expenses",
+        "Total Expenses",
+        "",
+        "Net Income (Deficit)",
+    ]
+
+    out = pd.DataFrame(index=index_labels, columns=month_cols, dtype=object)
+
+    for col_name, (_, r) in zip(month_cols, df.iterrows()):
+        # Tickets
+        est_tix = r.get("EstimatedTickets_Final", r.get("EstimatedTickets", np.nan))
+        out.at["Show Title", col_name] = r.get("Title", "")
+        out.at["Estimated Tickets", col_name] = int(round(est_tix)) if pd.notna(est_tix) else ""
+
+        out.at["YYC Singles", col_name] = int(r.get("YYC_Singles", 0) or 0)
+        out.at["YEG Singles", col_name] = int(r.get("YEG_Singles", 0) or 0)
+        out.at["YYC Subscriptions", col_name] = int(r.get("YYC_Subs", 0) or 0)
+        out.at["YEG Subscriptions", col_name] = int(r.get("YEG_Subs", 0) or 0)
+
+        # Revenue
+        out.at["YYC Singles Revenue", col_name]       = round(r.get("YYC_Single_Revenue", 0) or 0)
+        out.at["YEG Singles Revenue", col_name]       = round(r.get("YEG_Single_Revenue", 0) or 0)
+        out.at["YYC Subscription Revenue", col_name]  = round(r.get("YYC_Subs_Revenue", 0) or 0)
+        out.at["YEG Subscription Revenue", col_name]  = round(r.get("YEG_Subs_Revenue", 0) or 0)
+        out.at["Total Revenue", col_name]             = round(r.get("Total_Revenue", 0) or 0)
+
+        # Expenses
+        # Treat "Average ... Marketing Spend" as per-ticket $ (SPT)
+        out.at["Average YYC Marketing Spend", col_name] = round(float(r.get("YYC_Mkt_SPT", 0) or 0), 2)
+        out.at["Average YEG Marketing Spend", col_name] = round(float(r.get("YEG_Mkt_SPT", 0) or 0), 2)
+
+        yyc_mkt = float(r.get("YYC_Mkt_Spend", 0) or 0)
+        yeg_mkt = float(r.get("YEG_Mkt_Spend", 0) or 0)
+        tot_mkt = float(r.get("Total_Mkt_Spend", 0) or (yyc_mkt + yeg_mkt))
+
+        out.at["YYC Marketing Spend", col_name] = round(yyc_mkt)
+        out.at["YEG Marketing Spend", col_name] = round(yeg_mkt)
+        out.at["Total Marketing Spend", col_name] = round(tot_mkt)
+
+        prod = float(r.get("Prod_Expense", 0) or 0)
+        out.at["Total Production Expenses", col_name] = round(prod) if prod else 0
+
+        total_exp = tot_mkt + prod
+        out.at["Total Expenses", col_name] = round(total_exp)
+
+        net = float(r.get("Total_Revenue", 0) or 0) - total_exp
+        out.at["Net Income (Deficit)", col_name] = round(net)
+
+    return out
+
 def build_full_pdf_report(methodology_paragraphs: list,
                           plan_df: "pd.DataFrame",
                           season_year: int,
@@ -3089,6 +3182,22 @@ def render_results():
     ]
     present_plan_cols = [c for c in desired_order if c in plan_df.columns]
     plan_view = plan_df[present_plan_cols].copy()
+
+    # === NEW: Season financial summary table + CSV download ===
+    summary_df = build_season_financial_summary_table(plan_df)
+
+    if not summary_df.empty:
+        st.subheader("📊 Season Financial Summary (months as columns)")
+        st.dataframe(summary_df, use_container_width=True)
+
+        csv_bytes = summary_df.to_csv(index=True).encode("utf-8")
+        st.download_button(
+            "Download Season Summary CSV",
+            data=csv_bytes,
+            file_name=f"season_financial_summary_{season_year}.csv",
+            mime="text/csv",
+            use_container_width=False,
+        )
 
     # --- Executive summary KPIs ---
     with st.container():
