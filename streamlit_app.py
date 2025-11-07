@@ -266,7 +266,7 @@ st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation
 if "results" not in st.session_state:
     st.session_state["results"] = None
 
-st.title("Alberta Ballet — Title Scorer (v9.239)")
+st.title("Alberta Ballet — Title Scorer (v9.2)")
 st.caption("Hard-coded AB-wide baselines (normalized to your benchmark = 100). Add new titles; choose live fetch or offline estimate.")
 
 # -------------------------
@@ -541,6 +541,15 @@ YEG_SINGLE_AVG = 92.12
 YYC_SUB_AVG    = 99.97
 YEG_SUB_AVG    = 96.99
 
+# --- Production expense by show type (per run) ---
+SHOWTYPE_EXPENSE = {
+    "contemporary_show": 346_300,   # Nijinsky, Der Wolf, Rite of Spring, Grimm, etc.
+    "guest_company":     466_100,   # Trockadero, Ballet BC, Shaping Sound, DTH, Complexions, BJM, Momix, Ballet Boyz…
+    "mixed_bill":        877_300,   # Unleashed, deViate, Away We Go
+    "classical_ballet":  807_300,   # Sleeping Beauty, Romeo & Juliet, Swan Lake, Giselle, etc.
+    "family_ballet":     634_300,   # Wizard of Oz, Hansel & Gretel, Cinderella, etc.
+}
+
 def _pick_col(df: pd.DataFrame, names: list[str]) -> str | None:
     cols_norm = {c.lower().strip(): c for c in df.columns}
     for n in names:
@@ -583,6 +592,56 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
     else:
         cat = "dramatic"
     return gender, cat
+
+def infer_show_type(title: str, category: str) -> str:
+    """
+    Map a title + category to one of:
+      contemporary_show, guest_company, mixed_bill, classical_ballet, family_ballet, or 'unknown'.
+    """
+    t = title.lower().strip()
+    c = (category or "").lower().strip()
+
+    # Guest companies (touring / visiting)
+    guest_keys = [
+        "trockadero", "ballet bc", "shaping sound",
+        "dance theatre of harlem", "complexions",
+        "bjm", "momix", "ballet boyz", "diavolo",
+    ]
+    if any(k in t for k in guest_keys):
+        return "guest_company"
+
+    # Mixed bills
+    if "mixed bill" in t or any(k in t for k in ["unleashed", "deviate"]):
+        return "mixed_bill"
+
+    # Explicit contemporary one-offs you listed
+    contemp_title_keys = ["nijinsky", "der wolf", "rite of spring", "grimm"]
+    if any(k in t for k in contemp_title_keys):
+        return "contemporary_show"
+
+    # Family ballets – storybook / kids-focused titles
+    family_title_keys = [
+        "wizard of oz", "hansel", "cinderella",
+        "peter pan", "pinocchio", "once upon a time",
+        "jungle book", "addams family",
+    ]
+    if any(k in t for k in family_title_keys) or c == "family_classic":
+        return "family_ballet"
+
+    # Classical full-lengths (the big warhorses)
+    classical_title_keys = [
+        "sleeping beauty", "romeo and juliet", "swan lake",
+        "giselle", "don quixote", "la sylphide",
+        "coppelia", "la bayadere", "la fille mal gardée",
+    ]
+    if any(k in t for k in classical_title_keys) or c in ("classic_romance", "classic_comedy", "romantic_tragedy"):
+        return "classical_ballet"
+
+    # Remaining contemporary / pop / dramatic → treat as contemporary_show for budgeting
+    if c in ("contemporary", "pop_ip", "dramatic"):
+        return "contemporary_show"
+
+    return "unknown"
 
 # --- Marketing spend priors (per-ticket, by title × city and category × city) ---
 MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
@@ -1602,13 +1661,6 @@ if not RUNS_DF.empty:
             if not np.isfinite(m_med) or m_med <= 0:
                 continue
 
-            raw = float(m_med / cat_overall_med)
-            w = n / (n + K_SHRINK)  # stronger shrinkage than before
-            shrunk = 1.0 + w * (raw - 1.0)
-            factor_final = float(np.clip(shrunk, MINF, MAXF))
-
-            _season_rows.append({"Category": cat, "Month": m, "Factor": factor_final, "n": n})
-
 SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
 SEASONALITY_TABLE = { (r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows() }
 
@@ -1826,6 +1878,13 @@ def compute_scores_and_store(
     if df.empty:
         st.error("No titles to score — check the Titles box.")
         return
+
+    # Attach show type + production expense
+    df["ShowType"] = df.apply(
+        lambda r: infer_show_type(r["Title"], r["Category"]),
+        axis=1
+    )
+    df["Prod_Expense"] = df["ShowType"].map(lambda t: SHOWTYPE_EXPENSE.get(t, np.nan))
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
@@ -2246,8 +2305,9 @@ def render_results():
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
     table_cols = [
-        "Title","Gender","Category",
+        "Title","Gender","Category","ShowType","Prod_Expense",
         "PredictedPrimarySegment","PredictedSecondarySegment",
+
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory",
@@ -2313,6 +2373,7 @@ def render_results():
               "YYC_Mkt_Spend": "${:,.0f}",
               "YEG_Mkt_Spend": "${:,.0f}",
               "Total_Mkt_Spend": "${:,.0f}",
+              "Prod_Expense": "${:,.0f}",
           }),
         use_container_width=True,
         hide_index=True
@@ -2420,6 +2481,12 @@ def render_results():
         yeg_revenue = yeg_single_rev + yeg_sub_rev
         total_revenue = yyc_revenue + yeg_revenue
 
+        # Show type + production expense for budgeting
+        show_type = infer_show_type(title_sel, cat)
+        prod_expense = float(SHOWTYPE_EXPENSE.get(show_type, 0.0))
+
+        # Net contribution after production + marketing
+        net_contribution = float(total_revenue) - prod_expense - float(total_mkt)
 
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
@@ -2461,6 +2528,15 @@ def render_results():
             "YYC_Revenue": float(yyc_revenue),
             "YEG_Revenue": float(yeg_revenue),
             "Total_Revenue": float(total_revenue),
+
+            # Production expense + marketing + net
+            "Prod_Expense": float(prod_expense),
+            "YYC_Mkt_SPT":  float(spt_yyc),
+            "YEG_Mkt_SPT":  float(spt_yeg),
+            "YYC_Mkt_Spend": float(yyc_mkt),
+            "YEG_Mkt_Spend": float(yeg_mkt),
+            "Total_Mkt_Spend": float(total_mkt),
+            "Net_Contribution": float(net_contribution),
             
             # 🔹 NEW: marketing per-ticket + total spend
             "YYC_Mkt_SPT":  float(spt_yyc),
@@ -2476,7 +2552,8 @@ def render_results():
         return
 
     desired_order = [
-        "Month","Title","Category","PrimarySegment","SecondarySegment",
+    desired_order = [
+        "Month","Title","Category","ShowType","PrimarySegment","SecondarySegment",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
         "TicketHistory","TicketIndex used","TicketIndexSource",
@@ -2490,6 +2567,7 @@ def render_results():
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
         "YYC_Mkt_SPT","YEG_Mkt_SPT",
         "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+        "Net_Contribution",
     ]
     plan_df = pd.DataFrame(plan_rows)[desired_order]
     total_final = int(plan_df["EstimatedTickets_Final"].sum())
@@ -2509,6 +2587,9 @@ def render_results():
         yyc_rev   = float(plan_df["YYC_Revenue"].sum())
         yeg_rev   = float(plan_df["YEG_Revenue"].sum())
         total_mkt = float(plan_df["Total_Mkt_Spend"].sum())
+        total_prod = float(plan_df["Prod_Expense"].sum())
+        net_season = float(plan_df["Net_Contribution"].sum())
+
 
         with c1:
             st.metric("Projected Season Tickets", f"{grand:,}")
@@ -2522,6 +2603,11 @@ def render_results():
                 f"${total_mkt:,.0f}",
                 delta=f"${(total_mkt / max(grand,1)):.0f} per ticket"
             )
+        with c5:
+            st.metric("Season Production Expense", f"${total_prod:,.0f}")
+        with c6:
+            st.metric("Net Contribution (after prod + mkt)", f"${net_season:,.0f}")
+
        
         st.caption(f"Post-COVID adjustment applied: ×{postcovid_factor:.2f} (e.g. 0.85 = 15% haircut vs raw model).")
         
@@ -2580,6 +2666,7 @@ def render_results():
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+            "Prod_Expense","Net_Contribution",
         ]
 
 
@@ -2601,7 +2688,8 @@ def render_results():
              "YYC_Single_Revenue","YYC_Subs_Revenue",
              "YEG_Single_Revenue","YEG_Subs_Revenue",
              "YYC_Revenue","YEG_Revenue","Total_Revenue",
-             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend"], :
+             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend"], 
+             "Prod_Expense","Net_Contribution",:
         ])
         
         # Indices / composite (one decimal)
