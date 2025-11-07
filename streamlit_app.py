@@ -214,7 +214,8 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
     """
     Build a wide season summary with months as columns and rows:
       Show Title, Estimated Tickets, YYC/YEG Singles & Subs,
-      Revenue, Marketing, Production, Net Income (Deficit).
+      Revenue, Marketing, Production, Net Income (Deficit),
+    with all $ values formatted with dollar signs (table + CSV).
     """
     # Month order & labels
     month_order = ["September", "October", "January", "February", "March", "May"]
@@ -272,36 +273,75 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         out.at["YYC Subscriptions", col_name] = int(r.get("YYC_Subs", 0) or 0)
         out.at["YEG Subscriptions", col_name] = int(r.get("YEG_Subs", 0) or 0)
 
-        # Revenue
-        out.at["YYC Singles Revenue", col_name]       = round(r.get("YYC_Single_Revenue", 0) or 0)
-        out.at["YEG Singles Revenue", col_name]       = round(r.get("YEG_Single_Revenue", 0) or 0)
-        out.at["YYC Subscription Revenue", col_name]  = round(r.get("YYC_Subs_Revenue", 0) or 0)
-        out.at["YEG Subscription Revenue", col_name]  = round(r.get("YEG_Subs_Revenue", 0) or 0)
-        out.at["Total Revenue", col_name]             = round(r.get("Total_Revenue", 0) or 0)
+        # Revenue (numeric for now; we format later)
+        out.at["YYC Singles Revenue", col_name]       = float(r.get("YYC_Single_Revenue", 0) or 0)
+        out.at["YEG Singles Revenue", col_name]       = float(r.get("YEG_Single_Revenue", 0) or 0)
+        out.at["YYC Subscription Revenue", col_name]  = float(r.get("YYC_Subs_Revenue", 0) or 0)
+        out.at["YEG Subscription Revenue", col_name]  = float(r.get("YEG_Subs_Revenue", 0) or 0)
+        out.at["Total Revenue", col_name]             = float(r.get("Total_Revenue", 0) or 0)
 
-        # Expenses
-        # Treat "Average ... Marketing Spend" as per-ticket $ (SPT)
-        out.at["Average YYC Marketing Spend", col_name] = round(float(r.get("YYC_Mkt_SPT", 0) or 0), 2)
-        out.at["Average YEG Marketing Spend", col_name] = round(float(r.get("YEG_Mkt_SPT", 0) or 0), 2)
+        # Expenses (numeric for now)
+        out.at["Average YYC Marketing Spend", col_name] = float(r.get("YYC_Mkt_SPT", 0) or 0)
+        out.at["Average YEG Marketing Spend", col_name] = float(r.get("YEG_Mkt_SPT", 0) or 0)
 
         yyc_mkt = float(r.get("YYC_Mkt_Spend", 0) or 0)
         yeg_mkt = float(r.get("YEG_Mkt_Spend", 0) or 0)
         tot_mkt = float(r.get("Total_Mkt_Spend", 0) or (yyc_mkt + yeg_mkt))
 
-        out.at["YYC Marketing Spend", col_name] = round(yyc_mkt)
-        out.at["YEG Marketing Spend", col_name] = round(yeg_mkt)
-        out.at["Total Marketing Spend", col_name] = round(tot_mkt)
+        out.at["YYC Marketing Spend", col_name] = yyc_mkt
+        out.at["YEG Marketing Spend", col_name] = yeg_mkt
+        out.at["Total Marketing Spend", col_name] = tot_mkt
 
         prod = float(r.get("Prod_Expense", 0) or 0)
-        out.at["Total Production Expenses", col_name] = round(prod) if prod else 0
+        out.at["Total Production Expenses", col_name] = prod
 
         total_exp = tot_mkt + prod
-        out.at["Total Expenses", col_name] = round(total_exp)
+        out.at["Total Expenses", col_name] = total_exp
 
         net = float(r.get("Total_Revenue", 0) or 0) - total_exp
-        out.at["Net Income (Deficit)", col_name] = round(net)
+        out.at["Net Income (Deficit)", col_name] = net
+
+    # --- Format all $ fields with dollar signs (for table + CSV) ---
+    currency_rows = [
+        "YYC Singles Revenue",
+        "YEG Singles Revenue",
+        "YYC Subscription Revenue",
+        "YEG Subscription Revenue",
+        "Total Revenue",
+        "Average YYC Marketing Spend",
+        "Average YEG Marketing Spend",
+        "YYC Marketing Spend",
+        "YEG Marketing Spend",
+        "Total Marketing Spend",
+        "Total Production Expenses",
+        "Total Expenses",
+        "Net Income (Deficit)",
+    ]
+
+    for row in currency_rows:
+        if row not in out.index:
+            continue
+        formatted_vals = []
+        for col in out.columns:
+            v = out.at[row, col]
+            if v == "" or pd.isna(v):
+                formatted_vals.append("")
+                continue
+            try:
+                fv = float(v)
+            except Exception:
+                formatted_vals.append(str(v))
+                continue
+
+            # Averages keep 2 decimals; everything else whole dollars
+            if "Average" in row:
+                formatted_vals.append(f"${fv:,.2f}")
+            else:
+                formatted_vals.append(f"${fv:,.0f}")
+        out.loc[row] = formatted_vals
 
     return out
+
 
 def build_full_pdf_report(methodology_paragraphs: list,
                           plan_df: "pd.DataFrame",
