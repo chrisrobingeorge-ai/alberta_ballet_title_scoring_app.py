@@ -2552,7 +2552,6 @@ def render_results():
         return
 
     desired_order = [
-    desired_order = [
         "Month","Title","Category","ShowType","PrimarySegment","SecondarySegment",
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
         "Familiarity","Motivation",
