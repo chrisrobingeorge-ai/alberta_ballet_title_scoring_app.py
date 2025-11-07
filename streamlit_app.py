@@ -2228,10 +2228,17 @@ titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
 if not titles:
     titles = list(BASELINES.keys())
 
+benchmark_options = list(BASELINES.keys())
+default_benchmark_index = (
+    benchmark_options.index("Cinderella")
+    if "Cinderella" in benchmark_options
+    else 0
+)
+
 benchmark_title = st.selectbox(
     "Choose Benchmark Title for Normalization",
-    options=list(BASELINES.keys()),
-    index=0,
+    options=benchmark_options,
+    index=default_benchmark_index,
     key="benchmark_title"
 )
 
