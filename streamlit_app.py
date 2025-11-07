@@ -762,8 +762,14 @@ CATEGORY_FALLBACK = {
 
 def marketing_spt_for(title: str, category: str, city: str) -> float:
     city_norm = (city or "").lower()
-    city_key = "Calgary" if "calg" in city_norm else ("Edmonton" if "edm" in city_norm else (city or "Calgary"))    
-	t = title.strip()
+    if "calg" in city_norm:
+        city_key = "Calgary"
+    elif "edm" in city_norm:
+        city_key = "Edmonton"
+    else:
+        city_key = city or "Calgary"
+
+    t = (title or "").strip()
 
     # 1) Title × City wins if present
     if t in MARKETING_SPT_TITLE_CITY and city_key in MARKETING_SPT_TITLE_CITY[t]:
@@ -1584,42 +1590,193 @@ SEGMENT_KEYS_IN_ORDER = [
 ]
 SEGMENT_PRIORS = {
     "Province": {
-        "classic_romance":   {"General Population": 1.00, "Core Classical (F35–64)": 1.20, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 0.95},
-        "family_classic":    {"General Population": 1.00, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.20, "Emerging Adults (18–34)": 0.95},
-        "contemporary":      {"General Population": 0.98, "Core Classical (F35–64)": 0.90, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.25},
-        "pop_ip":            {"General Population": 1.05, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.15, "Emerging Adults (18–34)": 1.10},
-        "romantic_tragedy":  {"General Population": 1.00, "Core Classical (F35–64)": 1.10, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.98},
-        "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 0.98},
-        "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},
-		"adult_literary_drama":  {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},  # like dramatic
-        "contemporary_mixed_bill": {"General Population": 0.98, "Core Classical (F35–64)": 0.90, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.25},  # like contemporary
-        "touring_contemporary_company": {"General Population": 0.98, "Core Classical (F35–64)": 0.90, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.25},
+        "classic_romance": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 1.20,
+            "Family (Parents w/ kids)": 0.95,
+            "Emerging Adults (18–34)": 0.95,
+        },
+        "family_classic": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 0.95,
+            "Family (Parents w/ kids)": 1.20,
+            "Emerging Adults (18–34)": 0.95,
+        },
+        "contemporary": {
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 0.90,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.25,
+        },
+        "pop_ip": {
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 0.95,
+            "Family (Parents w/ kids)": 1.15,
+            "Emerging Adults (18–34)": 1.10,
+        },
+        "romantic_tragedy": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 1.10,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "classic_comedy": {
+            "General Population": 1.02,
+            "Core Classical (F35–64)": 1.00,
+            "Family (Parents w/ kids)": 1.05,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "dramatic": {
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 1.05,
+            "Family (Parents w/ kids)": 0.90,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "adult_literary_drama": {  # like dramatic
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 1.05,
+            "Family (Parents w/ kids)": 0.90,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "contemporary_mixed_bill": {  # like contemporary
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 0.90,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.25,
+        },
+        "touring_contemporary_company": {
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 0.90,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.25,
+        },
     },
     "Calgary": {
-        "classic_romance":   {"General Population": 0.98, "Core Classical (F35–64)": 1.25, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.95},
-        "family_classic":    {"General Population": 1.00, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.18, "Emerging Adults (18–34)": 0.95},
-        "contemporary":      {"General Population": 0.98, "Core Classical (F35–64)": 0.88, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.28},
-        "pop_ip":            {"General Population": 1.05, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.12, "Emerging Adults (18–34)": 1.10},
-        "romantic_tragedy":  {"General Population": 0.98, "Core Classical (F35–64)": 1.15, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 0.98},
-        "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.02, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 0.98},
-        "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.08, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},
-        "adult_literary_drama":  {"General Population": 1.05, "Core Classical (F35–64)": 1.08, "Family (Parents w/ kids)": 0.90, "Emerging Adults (18–34)": 0.98},  # like dramatic
-        "contemporary_mixed_bill": {"General Population": 0.98, "Core Classical (F35–64)": 0.88, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.28},  # like contemporary
-        "touring_contemporary_company": {"General Population": 0.98, "Core Classical (F35–64)": 0.88, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.28},
+        "classic_romance": {
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 1.25,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 0.95,
+        },
+        "family_classic": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 1.00,
+            "Family (Parents w/ kids)": 1.18,
+            "Emerging Adults (18–34)": 0.95,
+        },
+        "contemporary": {
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 0.88,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.28,
+        },
+        "pop_ip": {
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 0.95,
+            "Family (Parents w/ kids)": 1.12,
+            "Emerging Adults (18–34)": 1.10,
+        },
+        "romantic_tragedy": {
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 1.15,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "classic_comedy": {
+            "General Population": 1.02,
+            "Core Classical (F35–64)": 1.02,
+            "Family (Parents w/ kids)": 1.05,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "dramatic": {
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 1.08,
+            "Family (Parents w/ kids)": 0.90,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "adult_literary_drama": {  # like dramatic
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 1.08,
+            "Family (Parents w/ kids)": 0.90,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "contemporary_mixed_bill": {  # like contemporary
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 0.88,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.28,
+        },
+        "touring_contemporary_company": {
+            "General Population": 0.98,
+            "Core Classical (F35–64)": 0.88,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.28,
+        },
     },
     "Edmonton": {
-        "classic_romance":   {"General Population": 1.02, "Core Classical (F35–64)": 1.15, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 0.98},
-        "family_classic":    {"General Population": 1.00, "Core Classical (F35–64)": 0.98, "Family (Parents w/ kids)": 1.15, "Emerging Adults (18–34)": 0.95},
-        "contemporary":      {"General Population": 1.00, "Core Classical (F35–64)": 0.92, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 1.22},
-        "pop_ip":            {"General Population": 1.05, "Core Classical (F35–64)": 0.95, "Family (Parents w/ kids)": 1.10, "Emerging Adults (18–34)": 1.10},
-        "romantic_tragedy":  {"General Population": 1.02, "Core Classical (F35–64)": 1.10, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},
-        "classic_comedy":    {"General Population": 1.02, "Core Classical (F35–64)": 1.00, "Family (Parents w/ kids)": 1.05, "Emerging Adults (18–34)": 1.00},
-        "dramatic":          {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},
-        "adult_literary_drama":  {"General Population": 1.05, "Core Classical (F35–64)": 1.05, "Family (Parents w/ kids)": 0.92, "Emerging Adults (18–34)": 1.00},  # like dramatic
-        "contemporary_mixed_bill": {"General Population": 1.00, "Core Classical (F35–64)": 0.92, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 1.22},  # like contemporary
-        "touring_contemporary_company": {"General Population": 1.00, "Core Classical (F35–64)": 0.92, "Family (Parents w/ kids)": 0.95, "Emerging Adults (18–34)": 1.22},
+        "classic_romance": {
+            "General Population": 1.02,
+            "Core Classical (F35–64)": 1.15,
+            "Family (Parents w/ kids)": 0.95,
+            "Emerging Adults (18–34)": 0.98,
+        },
+        "family_classic": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 0.98,
+            "Family (Parents w/ kids)": 1.15,
+            "Emerging Adults (18–34)": 0.95,
+        },
+        "contemporary": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 0.92,
+            "Family (Parents w/ kids)": 0.95,
+            "Emerging Adults (18–34)": 1.22,
+        },
+        "pop_ip": {
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 0.95,
+            "Family (Parents w/ kids)": 1.10,
+            "Emerging Adults (18–34)": 1.10,
+        },
+        "romantic_tragedy": {
+            "General Population": 1.02,
+            "Core Classical (F35–64)": 1.10,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.00,
+        },
+        "classic_comedy": {
+            "General Population": 1.02,
+            "Core Classical (F35–64)": 1.00,
+            "Family (Parents w/ kids)": 1.05,
+            "Emerging Adults (18–34)": 1.00,
+        },
+        "dramatic": {
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 1.05,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.00,
+        },
+        "adult_literary_drama": {  # like dramatic
+            "General Population": 1.05,
+            "Core Classical (F35–64)": 1.05,
+            "Family (Parents w/ kids)": 0.92,
+            "Emerging Adults (18–34)": 1.00,
+        },
+        "contemporary_mixed_bill": {  # like contemporary
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 0.92,
+            "Family (Parents w/ kids)": 0.95,
+            "Emerging Adults (18–34)": 1.22,
+        },
+        "touring_contemporary_company": {
+            "General Population": 1.00,
+            "Core Classical (F35–64)": 0.92,
+            "Family (Parents w/ kids)": 0.95,
+            "Emerging Adults (18–34)": 1.22,
+        },
     },
 }
+
 SEGMENT_PRIOR_STRENGTH = 1.0
 
 def _prior_weights_for(region_key: str, category: str) -> dict:
