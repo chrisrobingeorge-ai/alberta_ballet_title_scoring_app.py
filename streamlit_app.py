@@ -710,7 +710,7 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
     elif any(k in t for k in female_keys): gender = "female"
     elif any(k in t for k in male_keys): gender = "male"
 
-    if any(k in t for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice"]):
+    if any(k in t for k in ["wizard","peter pan","pinocchio","hansel","frozen","beauty","alice","die fledermaus"]):
         cat = "family_classic"
     elif any(k in t for k in ["swan","sleeping","cinderella","giselle","sylphide"]):
         cat = "classic_romance"
@@ -765,7 +765,7 @@ def infer_show_type(title: str, category: str) -> str:
     classical_title_keys = [
         "sleeping beauty", "romeo and juliet", "swan lake",
         "giselle", "don quixote", "la sylphide",
-        "coppelia", "la bayadere", "la fille mal gardée",
+        "coppelia", "la bayadere", "la fille mal gardée", "die fledermaus"
     ]
     if any(k in t for k in classical_title_keys) or c in ("classic_romance", "classic_comedy", "romantic_tragedy"):
         return "classical_ballet"
@@ -1318,7 +1318,15 @@ BASELINES = {
         "category": "touring_contemporary_company",
         "gender": "co",
     },
-    "Don Quixote": {
+    "Die Fledermaus": {
+		"wiki": 69, 
+		"trends": 28, 
+		"youtube": 86, 
+		"spotify": 47, 
+		"category": "family_classic", 
+		"gender": "female"
+	},
+	"Don Quixote": {
         "wiki": 85,
         "trends": 22,
         "youtube": 84,
