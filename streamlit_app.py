@@ -576,7 +576,7 @@ def infer_gender_and_category(title: str) -> Tuple[str, str]:
         cat = "romantic_tragedy"
     elif any(k in t for k in ["don quixote","merry widow"]):
         cat = "classic_comedy"
-    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi"]):
+    elif any(k in t for k in ["contemporary","boyz","ballet boyz","momix","complexions","grimm","nijinsky","shadowland","deviate","phi","der wolf","rite of spring"]):
         cat = "contemporary"
     elif any(k in t for k in ["taj","tango","harlem","tragically hip","l cohen","leonard cohen"]):
         cat = "pop_ip"
@@ -787,7 +787,7 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         if any(k in tl for k in ["swan","sleeping","cinderella","giselle","sylphide"]):                      return "classic_romance"
         if any(k in tl for k in ["romeo","hunchback","notre dame","hamlet","frankenstein","dracula"]):        return "romantic_tragedy"
         if any(k in tl for k in ["don quixote","merry widow","comedy"]):                                      return "classic_comedy"
-        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","unleashed","botero","ballet bc"]):
+        if any(k in tl for k in ["contemporary","boyz","momix","complexions","grimm","nijinsky","deviate","phi","away we go","unleashed","botero","ballet bc","der wolf","rite of spring"]):
             return "contemporary"
         if any(k in tl for k in ["taj","tango","harlem","tragically hip","leonard cohen","joni","david bowie","gordon lightfoot","phi"]):
             return "pop_ip"
@@ -977,6 +977,10 @@ BASELINES = {
         "wiki": 82, "trends": 0, "youtube": 0, "spotify": 91,
         "category": "contemporary", "gender": "female",
     },
+    "Der Wolf": {
+        "wiki": 25, "trends": 89, "youtube": 43, "spotify": 83,
+        "category": "family_classic", "gender": "female",
+    },
     "Diavolo": {
         "wiki": 25, "trends": 89, "youtube": 66, "spotify": 83,
         "category": "family_classic", "gender": "female",
@@ -1053,6 +1057,10 @@ BASELINES = {
         "wiki": 88, "trends": 100, "youtube": 70, "spotify": 80,
         "category": "family_classic", "gender": "male",
     },
+    "Rite of Spring": {
+        "wiki": 100, "trends": 91, "youtube": 95, "spotify": 98,
+        "category": "romantic_tragedy", "gender": "co",
+    },    
     "Romeo and Juliet": {
         "wiki": 100, "trends": 91, "youtube": 79, "spotify": 98,
         "category": "romantic_tragedy", "gender": "co",
@@ -1401,6 +1409,7 @@ TICKET_PRIORS_RAW = {
     "Dance Theatre of Harlem": [7269],
     "Dangerous Liaisons": [6875],
     "deViate - Mixed Bill": [5144],
+    "Der Wolf": [2397],
     "Diavolo": [10673],
     "Don Quixote": [5650],
     "Dona Peron": [5221],
@@ -1418,6 +1427,7 @@ TICKET_PRIORS_RAW = {
     "Once Upon a Time": [6190],
     "Our Canada - Gordon Lightfoot": [10138],
     "Phi – David Bowie": [12336],
+    "Rite of Spring": [2396],
     "Shaping Sound": [10208],
     "Sleeping Beauty": [9596.5],
     "Swan Lake": [13157],
@@ -1449,6 +1459,7 @@ PAST_RUNS = [
     ("Dangerous Liaisons","2017-10-26","2017-11-04"),
     ("deViate - Mixed Bill","2019-02-15","2019-02-16"),
     ("Diavolo","2020-01-21","2020-01-22"),
+    ("Der Wolf","2024-05-02","2024-05-11"),
     ("Don Quixote","2025-05-01","2025-05-10"),
     ("Dona Peron","2023-09-14","2023-09-23"),
     ("Dracula","2016-10-27","2016-11-05"),
@@ -1465,6 +1476,7 @@ PAST_RUNS = [
     ("Once Upon a time","2025-09-11","2025-09-20"),
     ("Our Canada - Gordon Lightfoot","2017-05-04","2017-05-13"),
     ("Phi – David Bowie","2022-03-10","2022-03-19"),
+    ("Rite of Spring","2024-05-02","2024-05-11"),
     ("Shaping Sound","2018-01-19","2018-01-20"),
     ("Sleeping Beauty","2023-10-26","2023-11-04"),
     ("Swan Lake","2021-10-21","2021-11-07"),
