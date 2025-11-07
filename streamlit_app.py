@@ -1211,8 +1211,8 @@ BASELINES = {
 		"trends": 18,
 		"youtube": 100,
 		"spotify": 55,
-		"category": "family_classic",
-		"gender": "female"
+		"category": "contemporary",
+		"gender": "co"
 	},
 	"BJM - Leonard Cohen": {
         "wiki": 40,
