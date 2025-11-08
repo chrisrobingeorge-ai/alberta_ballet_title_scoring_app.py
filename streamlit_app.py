@@ -1234,530 +1234,57 @@ except Exception:
     SpotifyClientCredentials = None
 
 # -------------------------
-# Data (your existing constants)
+# Data (from CSV: baselines)
 # -------------------------
-BASELINES = {
-    "Addams Family": {
-        "wiki": 83,
-        "trends": 26,
-        "youtube": 95,
-        "spotify": 76,
-        "category": "pop_ip",
-        "gender": "male",
-    },
-    "Alice in Wonderland": {
-        "wiki": 83,
-        "trends": 38,
-        "youtube": 96,
-        "spotify": 68,
-        "category": "family_classic",
-        "gender": "female",
-    },
-    "All of Us - Tragically Hip": {
-        "wiki": 70,
-        "trends": 52,
-        "youtube": 71,
-        "spotify": 75,
-        "category": "pop_ip",
-        "gender": "co",
-    },
-    "Away We Go – Mixed Bill": {
-        "wiki": 85,
-        "trends": 46,
-        "youtube": 98,
-        "spotify": 56,
-        "category": "contemporary_mixed_bill",
-        "gender": "female",
-    },
-    "Balanchine, William Forsythe, Justin Peck": {
-        "wiki": 47,
-        "trends": 82,
-        "youtube": 53,
-        "spotify": 0,
-        "category": "contemporary_mixed_bill",
-        "gender": "co",
-    },
-    "Ballet BC": {
-        "wiki": 35,
-        "trends": 18,
-        "youtube": 54,
-        "spotify": 45,
-        "category": "touring_contemporary_company",
-        "gender": "co",
-    },
-    "Ballet Boyz": {
-        "wiki": 33,
-        "trends": 22,
-        "youtube": 84,
-        "spotify": 34,
-        "category": "touring_contemporary_company",
-        "gender": "male",
-    },
-    "Beauty and the Beast": {
-        "wiki": 75,
-        "trends": 40,
-        "youtube": 100,
-        "spotify": 83,
-        "category": "family_classic",
-        "gender": "female",
-    },
-	"Beethoven": {
-		"wiki": 88,
-		"trends": 18,
-		"youtube": 100,
-		"spotify": 55,
-		"category": "contemporary",
-		"gender": "co"
-	},
-	"BJM - Leonard Cohen": {
-        "wiki": 40,
-        "trends": 38,
-        "youtube": 100,
-        "spotify": 68,
-        "category": "pop_ip",
-        "gender": "co",
-    },
-    "Botero": {
-        "wiki": 70,
-        "trends": 12,
-        "youtube": 87,
-        "spotify": 49,
-        "category": "contemporary",
-        "gender": "male",
-    },
-    "Caravaggio": {
-        "wiki": 81,
-        "trends": 20,
-        "youtube": 85,
-        "spotify": 45,
-        "category": "adult_literary_drama",
-        "gender": "male",
-    },
-    "Charlie Chaplin": {
-        "wiki": 93,
-        "trends": 30,
-        "youtube": 100,
-        "spotify": 41,
-        "category": "family_classic",
-        "gender": "male",
-    },
-    "Cinderella": {
-        "wiki": 80,
-        "trends": 20,
-        "youtube": 100,
-        "spotify": 72,
-        "category": "family_classic",
-        "gender": "female",
-    },
-    "Complexions - Lenny Kravitz": {
-        "wiki": 37,
-        "trends": 54,
-        "youtube": 60,
-        "spotify": 79,
-        "category": "pop_ip",
-        "gender": "co",
-    },
-    "Contemporary Classical": {
-        "wiki": 65,
-        "trends": 44,
-        "youtube": 90,
-        "spotify": 58,
-        "category": "contemporary_mixed_bill",
-        "gender": "co",
-    },
-    "Coppelia": {
-        "wiki": 68,
-        "trends": 16,
-        "youtube": 85,
-        "spotify": 50,
-        "category": "classic_comedy",
-        "gender": "female",
-    },
-    "Dance Theatre of Harlem": {
-        "wiki": 48,
-        "trends": 46,
-        "youtube": 70,
-        "spotify": 84,
-        "category": "touring_contemporary_company",
-        "gender": "co",
-    },
-    "Dangerous Liaisons": {
-        "wiki": 75,
-        "trends": 36,
-        "youtube": 79,
-        "spotify": 36,
-        "category": "adult_literary_drama",
-        "gender": "co",
-    },
-    "Der Wolf": {
-        "wiki": 19,
-        "trends": 16,
-        "youtube": 81,
-        "spotify": 45,
-        "category": "contemporary",
-        "gender": "female",
-    },
-    "deViate - Mixed Bill": {
-        "wiki": 77,
-        "trends": 40,
-        "youtube": 70,
-        "spotify": 64,
-        "category": "contemporary_mixed_bill",
-        "gender": "co",
-    },
-    "Diavolo": {
-        "wiki": 46,
-        "trends": 14,
-        "youtube": 89,
-        "spotify": 50,
-        "category": "touring_contemporary_company",
-        "gender": "co",
-    },
-    "Die Fledermaus": {
-		"wiki": 69, 
-		"trends": 28, 
-		"youtube": 86, 
-		"spotify": 47, 
-		"category": "family_classic", 
-		"gender": "female"
-	},
-	"Don Quixote": {
-        "wiki": 85,
-        "trends": 22,
-        "youtube": 84,
-        "spotify": 61,
-        "category": "classic_comedy",
-        "gender": "co",
-    },
-    "Dona Peron": {
-        "wiki": 83,
-        "trends": 20,
-        "youtube": 53,
-        "spotify": 11,
-        "category": "adult_literary_drama",
-        "gender": "female",
-    },
-    "Dracula": {
-        "wiki": 83,
-        "trends": 14,
-        "youtube": 99,
-        "spotify": 86,
-        "category": "romantic_tragedy",
-        "gender": "male",
-    },
-    "Emma Bovary": {
-        "wiki": 75,
-        "trends": 22,
-        "youtube": 82,
-        "spotify": 25,
-        "category": "adult_literary_drama",
-        "gender": "female",
-    },
-    "Fiddle & the Drum – Joni Mitchell": {
-        "wiki": 44,
-        "trends": 66,
-        "youtube": 68,
-        "spotify": 25,
-        "category": "pop_ip",
-        "gender": "co",
-    },
-    "Frankenstein": {
-        "wiki": 85,
-        "trends": 24,
-        "youtube": 92,
-        "spotify": 69,
-        "category": "adult_literary_drama",
-        "gender": "male",
-    },
-    "Giselle": {
-        "wiki": 74,
-        "trends": 14,
-        "youtube": 89,
-        "spotify": 62,
-        "category": "romantic_tragedy",
-        "gender": "female",
-    },
-    "Great Gatsby": {
-        "wiki": 87,
-        "trends": 24,
-        "youtube": 100,
-        "spotify": 69,
-        "category": "adult_literary_drama",
-        "gender": "male",
-    },
-    "Grimm": {
-        "wiki": 50,
-        "trends": 10,
-        "youtube": 89,
-        "spotify": 54,
-        "category": "family_classic",
-        "gender": "female",
-    },
-    "Handmaid's Tale": {
-        "wiki": 82,
-        "trends": 30,
-        "youtube": 86,
-        "spotify": 37,
-        "category": "adult_literary_drama",
-        "gender": "female",
-    },
-    "Hansel & Gretel": {
-        "wiki": 79,
-        "trends": 30,
-        "youtube": 94,
-        "spotify": 58,
-        "category": "family_classic",
-        "gender": "co",
-    },
-    "Jungle Book": {
-        "wiki": 76,
-        "trends": 22,
-        "youtube": 100,
-        "spotify": 59,
-        "category": "family_classic",
-        "gender": "male",
-    },
-    "La Bayadere": {
-        "wiki": 62,
-        "trends": 22,
-        "youtube": 75,
-        "spotify": 37,
-        "category": "romantic_tragedy",
-        "gender": "female",
-    },
-    "La Fille mal gardée": {
-        "wiki": 59,
-        "trends": 38,
-        "youtube": 82,
-        "spotify": 47,
-        "category": "classic_comedy",
-        "gender": "female",
-    },
-    "La Sylphide": {
-        "wiki": 61,
-        "trends": 22,
-        "youtube": 67,
-        "spotify": 30,
-        "category": "romantic_tragedy",
-        "gender": "co",
-    },
-    "Lady Chatterley's Lover": {
-        "wiki": 78,
-        "trends": 46,
-        "youtube": 87,
-        "spotify": 79,
-        "category": "adult_literary_drama",
-        "gender": "female",
-    },
-    "Lady Macbeth": {
-        "wiki": 72,
-        "trends": 24,
-        "youtube": 77,
-        "spotify": 35,
-        "category": "adult_literary_drama",
-        "gender": "female",
-    },
-    "Love in the Time of Cholera": {
-        "wiki": 73,
-        "trends": 54,
-        "youtube": 84,
-        "spotify": 100,
-        "category": "adult_literary_drama",
-        "gender": "male",
-    },
-    "Midsummer Night’s Dream": {
-        "wiki": 82,
-        "trends": 46,
-        "youtube": 79,
-        "spotify": 47,
-        "category": "classic_romance",
-        "gender": "male",
-    },
-    "Momix": {
-        "wiki": 48,
-        "trends": 10,
-        "youtube": 70,
-        "spotify": 3,
-        "category": "touring_contemporary_company",
-        "gender": "co",
-    },
-    "Nijinsky": {
-        "wiki": 70,
-        "trends": 16,
-        "youtube": 69,
-        "spotify": 2,
-        "category": "contemporary",
-        "gender": "male",
-    },
-    "Once Upon a Time": {
-        "wiki": 59,
-        "trends": 32,
-        "youtube": 0,
-        "spotify": 87,
-        "category": "family_classic",
-        "gender": "co",
-    },
-    "Opera - the Ballet": {
-        "wiki": 44,
-        "trends": 36,
-        "youtube": 0,
-        "spotify": 32,
-        "category": "contemporary_mixed_bill",
-        "gender": "female",
-    },
-    "Othello": {
-        "wiki": 81,
-        "trends": 14,
-        "youtube": 0,
-        "spotify": 44,
-        "category": "adult_literary_drama",
-        "gender": "male",
-    },
-    "Our Canada - Gordon Lightfoot": {
-        "wiki": 81,
-        "trends": 58,
-        "youtube": 92,
-        "spotify": 72,
-        "category": "pop_ip",
-        "gender": "co",
-    },
-    "Peter Pan": {
-        "wiki": 81,
-        "trends": 18,
-        "youtube": 0,
-        "spotify": 70,
-        "category": "family_classic",
-        "gender": "male",
-    },
-    "Phi – David Bowie": {
-        "wiki": 71,
-        "trends": 34,
-        "youtube": 0,
-        "spotify": 78,
-        "category": "pop_ip",
-        "gender": "male",
-    },
-    "Pinocchio": {
-        "wiki": 80,
-        "trends": 18,
-        "youtube": 0,
-        "spotify": 46,
-        "category": "family_classic",
-        "gender": "male",
-    },
-    "Pulcinella": {
-        "wiki": 68,
-        "trends": 20,
-        "youtube": 0,
-        "spotify": 36,
-        "category": "classic_comedy",
-        "gender": "male",
-    },
-    "Rite of Spring": {
-        "wiki": 74,
-        "trends": 28,
-        "youtube": 0,
-        "spotify": 43,
-        "category": "contemporary",
-        "gender": "co",
-    },
-    "Romeo and Juliet": {
-        "wiki": 86,
-        "trends": 32,
-        "youtube": 0,
-        "spotify": 80,
-        "category": "romantic_tragedy",
-        "gender": "co",
-    },
-    "Shaping Sound": {
-        "wiki": 49,
-        "trends": 26,
-        "youtube": 0,
-        "spotify": 40,
-        "category": "touring_contemporary_company",
-        "gender": "male",
-    },
-    "Sleeping Beauty": {
-        "wiki": 77,
-        "trends": 30,
-        "youtube": 0,
-        "spotify": 70,
-        "category": "classic_romance",
-        "gender": "female",
-    },
-    "Swan Lake": {
-        "wiki": 80,
-        "trends": 18,
-        "youtube": 0,
-        "spotify": 71,
-        "category": "romantic_tragedy",
-        "gender": "female",
-    },
-    "Taj Express": {
-        "wiki": 44,
-        "trends": 22,
-        "youtube": 0,
-        "spotify": 42,
-        "category": "touring_contemporary_company",
-        "gender": "male",
-    },
-    "Tango Fire": {
-        "wiki": 72,
-        "trends": 20,
-        "youtube": 0,
-        "spotify": 52,
-        "category": "touring_contemporary_company",
-        "gender": "co",
-    },
-    "The Merry Widow": {
-        "wiki": 65,
-        "trends": 30,
-        "youtube": 0,
-        "spotify": 36,
-        "category": "classic_comedy",
-        "gender": "female",
-    },
-    "The Stone Angel": {
-        "wiki": 57,
-        "trends": 30,
-        "youtube": 0,
-        "spotify": 78,
-        "category": "adult_literary_drama",
-        "gender": "female",
-    },
-    "Trockadero": {
-        "wiki": 56,
-        "trends": 20,
-        "youtube": 0,
-        "spotify": 59,
-        "category": "touring_contemporary_company",
-        "gender": "male",
-    },
-    "Unleashed – Mixed Bill": {
-        "wiki": 54,
-        "trends": 44,
-        "youtube": 0,
-        "spotify": 64,
-        "category": "contemporary_mixed_bill",
-        "gender": "co",
-    },
-    "Winter Gala": {
-        "wiki": 74,
-        "trends": 22,
-        "youtube": 0,
-        "spotify": 41,
-        "category": "contemporary_mixed_bill",
-        "gender": "co",
-    },
-    "Wizard of Oz": {
-        "wiki": 60,
-        "trends": 30,
-        "youtube": 0,
-        "spotify": 64,
-        "category": "family_classic",
-        "gender": "female",
-    },
-}
+
+BASELINES: dict[str, dict] = {}
+
+def load_baselines(path: str = "data/baselines.csv") -> None:
+    """
+    Load baseline familiarity/motivation inputs from CSV.
+
+    Expected columns (case-insensitive):
+        title, wiki, trends, youtube, spotify, category, gender
+    """
+    global BASELINES
+
+    try:
+        df = pd.read_csv(path)
+    except Exception as e:
+        # Hard fail (or soften this if you prefer)
+        st.error(f"Could not load baselines CSV at '{path}': {e}")
+        BASELINES = {}
+        return
+
+    # Normalize column names
+    colmap = {c.lower(): c for c in df.columns}
+    required = {"title", "wiki", "trends", "youtube", "spotify", "category", "gender"}
+    missing = [c for c in required if c not in colmap]
+    if missing:
+        st.error(f"Baselines CSV is missing required columns: {', '.join(missing)}")
+        BASELINES = {}
+        return
+
+    df[colmap["title"]] = df[colmap["title"]].astype(str).str.strip()
+
+    baselines: dict[str, dict] = {}
+    for _, r in df.iterrows():
+        title = str(r[colmap["title"]]).strip()
+        if not title:
+            continue
+        baselines[title] = {
+            "wiki":     float(r[colmap["wiki"]]),
+            "trends":   float(r[colmap["trends"]]),
+            "youtube":  float(r[colmap["youtube"]]),
+            "spotify":  float(r[colmap["spotify"]]),
+            "category": str(r[colmap["category"]]),
+            "gender":   str(r[colmap["gender"]]),
+        }
+
+    BASELINES = baselines
+
+# Load immediately so everything below can use BASELINES
+load_baselines()
 																														
 SEGMENT_MULT = {
     "General Population": {
@@ -2181,131 +1708,155 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     mot *= REGION_MULT[reg_key]
     return fam, mot
 
-# Ticket priors (your table)
-TICKET_PRIORS_RAW = {
-    "Alice in Wonderland": [11216],
-    "All of Us - Tragically Hip": [15488],
-    "Away We Go – Mixed Bill": [4649],
-    "Ballet BC": [4013],
-    "Ballet Boyz": [7401],
-    "BJM - Leonard Cohen": [7819],
-    "Botero": [5460],
-    "Cinderella": [16304],
-    "Complexions - Lenny Kravitz": [7096],
-    "Dance Theatre of Harlem": [7269],
-    "Dangerous Liaisons": [6875],
-    "deViate - Mixed Bill": [5144],
-    "Der Wolf": [2397],
-    "Diavolo": [10673],
-    "Don Quixote": [5650],
-    "Dona Peron": [5221],
-    "Dracula": [11285],
-    "Fiddle & the Drum – Joni Mitchell": [6024],
-    "Frankenstein": [10470],
-    "Giselle": [9111],
-    "Grimm": [6362],
-    "Handmaid's Tale": [6842],
-    "Hansel & Gretel": [7290],
-    "La Sylphide": [5221],
-    "Midsummer Night’s Dream": [6587],
-    "Momix": [8391],
-    "Nijinsky": [4752],
-    "Once Upon a Time": [6190],
-    "Our Canada - Gordon Lightfoot": [10138],
-    "Phi – David Bowie": [12336],
-    "Rite of Spring": [2396],
-    "Shaping Sound": [10208],
-    "Sleeping Beauty": [9596.5],
-    "Swan Lake": [13157],
-    "Taj Express": [10314],
-    "Tango Fire": [7251],
-    "Trockadero": [5476],
-    "Unleashed – Mixed Bill": [5221],
-    "Winter Gala": [1321],
-    "Wizard of Oz": [8468],
-}
+# --- Ticket priors (from CSV) ---
+# CSV: data/ticket_priors.csv
+# Expected columns (case-insensitive):
+#   title, tickets
+# One row per run: multiple rows per title are allowed; we keep a list per title.
+
+TICKET_PRIORS_RAW: dict[str, list[float]] = {}
+
 def _median(xs):
     xs = sorted([float(x) for x in xs if x is not None])
-    if not xs: return None
+    if not xs:
+        return None
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
-# Seasonality build
-PAST_RUNS = [
-    ("Alice in Wonderland","2017-03-16","2017-03-25"),
-    ("All of Us - Tragically Hip","2018-05-02","2018-05-12"),
-    ("Away We Go – Mixed Bill","2022-10-27","2022-11-05"),
-    ("Ballet BC","2019-01-19","2019-01-23"),
-    ("Ballet Boyz","2017-02-16","2017-02-25"),
-    ("BJM - Leonard Cohen","2018-09-20","2018-09-22"),
-    ("Botero","2023-05-05","2023-05-13"),
-    ("Cinderella","2022-04-28","2022-05-14"),
-    ("Complexions - Lenny Kravitz","2023-02-10","2023-02-18"),
-    ("Dance Theatre of Harlem","2025-02-13","2025-02-22"),
-    ("Dangerous Liaisons","2017-10-26","2017-11-04"),
-    ("deViate - Mixed Bill","2019-02-15","2019-02-16"),
-    ("Diavolo","2020-01-21","2020-01-22"),
-    ("Der Wolf","2024-05-02","2024-05-11"),
-    ("Don Quixote","2025-05-01","2025-05-10"),
-    ("Dona Peron","2023-09-14","2023-09-23"),
-    ("Dracula","2016-10-27","2016-11-05"),
-    ("Fiddle and the Drum - Joni Mitchell","2019-05-01","2019-05-11"),
-    ("Frankenstein","2019-10-23","2019-11-02"),
-    ("Giselle","2023-03-09","2023-03-25"),
-    ("Grimm","2024-10-17","2024-10-26"),
-    ("Handmaid's Tale","2022-09-14","2022-09-24"),
-    ("Hansel & Gretel","2024-03-07","2024-03-23"),
-    ("La Sylphide","2024-09-12","2024-09-21"),
-    ("Midsummer Night's Dream","2019-03-13","2019-03-16"),
-    ("Momix","2018-02-15","2018-02-22"),
-    ("Nijinsky","2025-10-16","2025-10-25"),
-    ("Once Upon a time","2025-09-11","2025-09-20"),
-    ("Our Canada - Gordon Lightfoot","2017-05-04","2017-05-13"),
-    ("Phi – David Bowie","2022-03-10","2022-03-19"),
-    ("Rite of Spring","2024-05-02","2024-05-11"),
-    ("Shaping Sound","2018-01-19","2018-01-20"),
-    ("Sleeping Beauty","2023-10-26","2023-11-04"),
-    ("Swan Lake","2021-10-21","2021-11-07"),
-    ("Taj Express","2019-09-12","2019-09-21"),
-    ("Tango Fire","2017-09-21","2017-09-28"),
-    ("Trockadero","2017-01-12","2017-01-14"),
-    ("Unleashed – Mixed Bill","2020-02-13","2020-02-22"),
-    ("Winter Gala","2025-01-18","2025-01-25"),
-    ("Wizard of Oz","2025-03-13","2025-03-22"),
-]
+def load_ticket_priors(path: str = "data/ticket_priors.csv") -> None:
+    global TICKET_PRIORS_RAW
+    try:
+        df = pd.read_csv(path)
+    except Exception as e:
+        st.error(f"Could not load ticket priors CSV at '{path}': {e}")
+        TICKET_PRIORS_RAW = {}
+        return
+
+    # normalize columns
+    colmap = {c.lower().strip(): c for c in df.columns}
+    title_col = colmap.get("title")
+    tix_col = colmap.get("tickets") or colmap.get("ticket_median")
+
+    if not title_col or not tix_col:
+        st.error("ticket_priors.csv must have columns: 'title' and 'tickets'")
+        TICKET_PRIORS_RAW = {}
+        return
+
+    df[title_col] = df[title_col].astype(str).str.strip()
+
+    def _num(x):
+        try:
+            if pd.isna(x):
+                return None
+            s = str(x).strip().replace(",", "")
+            if not s:
+                return None
+            return float(s)
+        except Exception:
+            return None
+
+    df[tix_col] = df[tix_col].map(_num)
+
+    priors: dict[str, list[float]] = {}
+    for title, g in df.groupby(title_col):
+        vals = [v for v in g[tix_col].tolist() if v is not None and v > 0]
+        if not vals:
+            continue
+        priors[str(title)] = vals
+
+    TICKET_PRIORS_RAW = priors
+
+# Load priors now so everything below can use them
+load_ticket_priors()
+
+# --- Past runs (for seasonality) from CSV ---
+# CSV: data/past_runs.csv
+# Expected columns (case-insensitive):
+#   title, start_date, end_date
+# Dates in ISO format: YYYY-MM-DD
+
+RUNS_DF: pd.DataFrame = pd.DataFrame()
+TITLE_TO_MIDDATE: dict[str, date] = {}
 
 def _to_date(s: str) -> date:
-    return datetime.strptime(s, "%Y-%m-%d").date()
+    return datetime.strptime(str(s), "%Y-%m-%d").date()
+
 def _mid_date(a: date, b: date) -> date:
     return a + (b - a) // 2
 
-_runs_rows = []
-for title, s, e in PAST_RUNS:
-    d1, d2 = _to_date(s), _to_date(e)
-    mid = _mid_date(d1, d2)
-    if title in BASELINES:
-        cat = BASELINES[title].get("category", infer_gender_and_category(title)[1])
-    else:
-        cat = infer_gender_and_category(title)[1]
-    aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
-    key = aliases.get(title.strip(), title.strip())
-    tix_med = _median(TICKET_PRIORS_RAW.get(key, []))
-    _runs_rows.append({
-        "Title": title,
-        "Category": cat,
-        "Start": d1,
-        "End": d2,
-        "MidDate": mid,
-        "Month": mid.month,
-        "Year": mid.year,
-        "TicketMedian": tix_med
-    })
-RUNS_DF = pd.DataFrame(_runs_rows)
+def load_past_runs(path: str = "data/past_runs.csv") -> None:
+    """
+    Build RUNS_DF with columns:
+      Title, Category, Start, End, MidDate, Month, Year, TicketMedian
+    and TITLE_TO_MIDDATE {title -> MidDate}.
+    """
+    global RUNS_DF, TITLE_TO_MIDDATE
 
-TITLE_TO_MIDDATE = {}
-if not RUNS_DF.empty:
-    for _, r in RUNS_DF.iterrows():
-        TITLE_TO_MIDDATE[str(r["Title"]).strip()] = r["MidDate"]
+    try:
+        df = pd.read_csv(path)
+    except Exception as e:
+        st.error(f"Could not load past runs CSV at '{path}': {e}")
+        RUNS_DF = pd.DataFrame()
+        TITLE_TO_MIDDATE = {}
+        return
+
+    colmap = {c.lower().strip(): c for c in df.columns}
+    t_col = colmap.get("title")
+    s_col = colmap.get("start_date")
+    e_col = colmap.get("end_date")
+
+    if not t_col or not s_col or not e_col:
+        st.error("past_runs.csv must have columns: 'title', 'start_date', 'end_date'")
+        RUNS_DF = pd.DataFrame()
+        TITLE_TO_MIDDATE = {}
+        return
+
+    df[t_col] = df[t_col].astype(str).str.strip()
+
+    rows = []
+    aliases = {"Handmaid’s Tale": "Handmaid's Tale"}
+
+    for _, r in df.iterrows():
+        title = str(r[t_col]).strip()
+        if not title:
+            continue
+
+        try:
+            d1 = _to_date(r[s_col])
+            d2 = _to_date(r[e_col])
+        except Exception:
+            continue
+
+        mid = _mid_date(d1, d2)
+
+        # Category from BASELINES or heuristic
+        if title in BASELINES:
+            cat = BASELINES[title].get("category", infer_gender_and_category(title)[1])
+        else:
+            cat = infer_gender_and_category(title)[1]
+
+        key = aliases.get(title, title)
+        tix_med = _median(TICKET_PRIORS_RAW.get(key, []))
+
+        rows.append({
+            "Title": title,
+            "Category": cat,
+            "Start": d1,
+            "End": d2,
+            "MidDate": mid,
+            "Month": mid.month,
+            "Year": mid.year,
+            "TicketMedian": tix_med,
+        })
+
+    RUNS_DF = pd.DataFrame(rows)
+    TITLE_TO_MIDDATE = {}
+    if not RUNS_DF.empty:
+        for _, r in RUNS_DF.iterrows():
+            TITLE_TO_MIDDATE[str(r["Title"]).strip()] = r["MidDate"]
+
+# Load runs before building seasonality
+load_past_runs()
 
 # ========= Robust Seasonality (Category × Month) =========
 # Replaces the block that builds RUNS_DF → SEASONALITY_DF / SEASONALITY_TABLE
