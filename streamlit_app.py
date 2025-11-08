@@ -1915,7 +1915,7 @@ if apply_seasonality:
     month_idx = dict(_months)[sel]
     proposed_run_date = date(datetime.utcnow().year, month_idx, 15)
 
-default_list = list(BASELINES.keys())[:50]
+default_list = list(BASELINES.keys())
 st.markdown("**Titles to score** (one per line). Add NEW titles freely:")
 titles_input = st.text_area("Enter titles", value="\n".join(default_list), height=220)
 titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
