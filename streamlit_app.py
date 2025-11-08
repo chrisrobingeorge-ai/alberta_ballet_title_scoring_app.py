@@ -1709,7 +1709,7 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     return fam, mot
 
 # --- Ticket priors (from CSV) ---
-# CSV: data/ticket_priors.csv
+# CSV: data/ticket_priors_raw.csv
 # Expected columns (case-insensitive):
 #   title, tickets
 # One row per run: multiple rows per title are allowed; we keep a list per title.
@@ -1723,7 +1723,7 @@ def _median(xs):
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
-def load_ticket_priors(path: str = "data/ticket_priors.csv") -> None:
+def load_ticket_priors(path: str = "data/ticket_priors_raw.csv") -> None:
     global TICKET_PRIORS_RAW
     try:
         df = pd.read_csv(path)
@@ -1738,7 +1738,7 @@ def load_ticket_priors(path: str = "data/ticket_priors.csv") -> None:
     tix_col = colmap.get("tickets") or colmap.get("ticket_median")
 
     if not title_col or not tix_col:
-        st.error("ticket_priors.csv must have columns: 'title' and 'tickets'")
+        st.error("ticket_priors_raw.csv must have columns: 'title' and 'tickets'")
         TICKET_PRIORS_RAW = {}
         return
 
@@ -1767,7 +1767,7 @@ def load_ticket_priors(path: str = "data/ticket_priors.csv") -> None:
     TICKET_PRIORS_RAW = priors
 
 # Load priors now so everything below can use them
-load_ticket_priors()
+load_ticket_priors_raw()
 
 # --- Past runs (for seasonality) from CSV ---
 # CSV: data/past_runs.csv
