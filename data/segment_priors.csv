@@ -1,0 +1,121 @@
+region,category,segment,weight
+Province,classic_romance,General Population,1.00
+Province,classic_romance,Core Classical (F35–64),1.20
+Province,classic_romance,Family (Parents w/ kids),0.95
+Province,classic_romance,Emerging Adults (18–34),0.95
+Province,family_classic,General Population,1.00
+Province,family_classic,Core Classical (F35–64),0.95
+Province,family_classic,Family (Parents w/ kids),1.20
+Province,family_classic,Emerging Adults (18–34),0.95
+Province,contemporary,General Population,0.98
+Province,contemporary,Core Classical (F35–64),0.90
+Province,contemporary,Family (Parents w/ kids),0.92
+Province,contemporary,Emerging Adults (18–34),1.25
+Province,pop_ip,General Population,1.05
+Province,pop_ip,Core Classical (F35–64),0.95
+Province,pop_ip,Family (Parents w/ kids),1.15
+Province,pop_ip,Emerging Adults (18–34),1.10
+Province,romantic_tragedy,General Population,1.00
+Province,romantic_tragedy,Core Classical (F35–64),1.10
+Province,romantic_tragedy,Family (Parents w/ kids),0.92
+Province,romantic_tragedy,Emerging Adults (18–34),0.98
+Province,classic_comedy,General Population,1.02
+Province,classic_comedy,Core Classical (F35–64),1.00
+Province,classic_comedy,Family (Parents w/ kids),1.05
+Province,classic_comedy,Emerging Adults (18–34),0.98
+Province,dramatic,General Population,1.05
+Province,dramatic,Core Classical (F35–64),1.05
+Province,dramatic,Family (Parents w/ kids),0.90
+Province,dramatic,Emerging Adults (18–34),0.98
+Province,adult_literary_drama,General Population,1.05
+Province,adult_literary_drama,Core Classical (F35–64),1.05
+Province,adult_literary_drama,Family (Parents w/ kids),0.90
+Province,adult_literary_drama,Emerging Adults (18–34),0.98
+Province,contemporary_mixed_bill,General Population,0.98
+Province,contemporary_mixed_bill,Core Classical (F35–64),0.90
+Province,contemporary_mixed_bill,Family (Parents w/ kids),0.92
+Province,contemporary_mixed_bill,Emerging Adults (18–34),1.25
+Province,touring_contemporary_company,General Population,0.98
+Province,touring_contemporary_company,Core Classical (F35–64),0.90
+Province,touring_contemporary_company,Family (Parents w/ kids),0.92
+Province,touring_contemporary_company,Emerging Adults (18–34),1.25
+Calgary,classic_romance,General Population,0.98
+Calgary,classic_romance,Core Classical (F35–64),1.25
+Calgary,classic_romance,Family (Parents w/ kids),0.92
+Calgary,classic_romance,Emerging Adults (18–34),0.95
+Calgary,family_classic,General Population,1.00
+Calgary,family_classic,Core Classical (F35–64),1.00
+Calgary,family_classic,Family (Parents w/ kids),1.18
+Calgary,family_classic,Emerging Adults (18–34),0.95
+Calgary,contemporary,General Population,0.98
+Calgary,contemporary,Core Classical (F35–64),0.88
+Calgary,contemporary,Family (Parents w/ kids),0.92
+Calgary,contemporary,Emerging Adults (18–34),1.28
+Calgary,pop_ip,General Population,1.05
+Calgary,pop_ip,Core Classical (F35–64),0.95
+Calgary,pop_ip,Family (Parents w/ kids),1.12
+Calgary,pop_ip,Emerging Adults (18–34),1.10
+Calgary,romantic_tragedy,General Population,0.98
+Calgary,romantic_tragedy,Core Classical (F35–64),1.15
+Calgary,romantic_tragedy,Family (Parents w/ kids),0.92
+Calgary,romantic_tragedy,Emerging Adults (18–34),0.98
+Calgary,classic_comedy,General Population,1.02
+Calgary,classic_comedy,Core Classical (F35–64),1.02
+Calgary,classic_comedy,Family (Parents w/ kids),1.05
+Calgary,classic_comedy,Emerging Adults (18–34),0.98
+Calgary,dramatic,General Population,1.05
+Calgary,dramatic,Core Classical (F35–64),1.08
+Calgary,dramatic,Family (Parents w/ kids),0.90
+Calgary,dramatic,Emerging Adults (18–34),0.98
+Calgary,adult_literary_drama,General Population,1.05
+Calgary,adult_literary_drama,Core Classical (F35–64),1.08
+Calgary,adult_literary_drama,Family (Parents w/ kids),0.90
+Calgary,adult_literary_drama,Emerging Adults (18–34),0.98
+Calgary,contemporary_mixed_bill,General Population,0.98
+Calgary,contemporary_mixed_bill,Core Classical (F35–64),0.88
+Calgary,contemporary_mixed_bill,Family (Parents w/ kids),0.92
+Calgary,contemporary_mixed_bill,Emerging Adults (18–34),1.28
+Calgary,touring_contemporary_company,General Population,0.98
+Calgary,touring_contemporary_company,Core Classical (F35–64),0.88
+Calgary,touring_contemporary_company,Family (Parents w/ kids),0.92
+Calgary,touring_contemporary_company,Emerging Adults (18–34),1.28
+Edmonton,classic_romance,General Population,1.02
+Edmonton,classic_romance,Core Classical (F35–64),1.15
+Edmonton,classic_romance,Family (Parents w/ kids),0.95
+Edmonton,classic_romance,Emerging Adults (18–34),0.98
+Edmonton,family_classic,General Population,1.00
+Edmonton,family_classic,Core Classical (F35–64),0.98
+Edmonton,family_classic,Family (Parents w/ kids),1.15
+Edmonton,family_classic,Emerging Adults (18–34),0.95
+Edmonton,contemporary,General Population,1.00
+Edmonton,contemporary,Core Classical (F35–64),0.92
+Edmonton,contemporary,Family (Parents w/ kids),0.95
+Edmonton,contemporary,Emerging Adults (18–34),1.22
+Edmonton,pop_ip,General Population,1.05
+Edmonton,pop_ip,Core Classical (F35–64),0.95
+Edmonton,pop_ip,Family (Parents w/ kids),1.10
+Edmonton,pop_ip,Emerging Adults (18–34),1.10
+Edmonton,romantic_tragedy,General Population,1.02
+Edmonton,romantic_tragedy,Core Classical (F35–64),1.10
+Edmonton,romantic_tragedy,Family (Parents w/ kids),0.92
+Edmonton,romantic_tragedy,Emerging Adults (18–34),1.00
+Edmonton,classic_comedy,General Population,1.02
+Edmonton,classic_comedy,Core Classical (F35–64),1.00
+Edmonton,classic_comedy,Family (Parents w/ kids),1.05
+Edmonton,classic_comedy,Emerging Adults (18–34),1.00
+Edmonton,dramatic,General Population,1.05
+Edmonton,dramatic,Core Classical (F35–64),1.05
+Edmonton,dramatic,Family (Parents w/ kids),0.92
+Edmonton,dramatic,Emerging Adults (18–34),1.00
+Edmonton,adult_literary_drama,General Population,1.05
+Edmonton,adult_literary_drama,Core Classical (F35–64),1.05
+Edmonton,adult_literary_drama,Family (Parents w/ kids),0.92
+Edmonton,adult_literary_drama,Emerging Adults (18–34),1.00
+Edmonton,contemporary_mixed_bill,General Population,1.00
+Edmonton,contemporary_mixed_bill,Core Classical (F35–64),0.92
+Edmonton,contemporary_mixed_bill,Family (Parents w/ kids),0.95
+Edmonton,contemporary_mixed_bill,Emerging Adults (18–34),1.22
+Edmonton,touring_contemporary_company,General Population,1.00
+Edmonton,touring_contemporary_company,Core Classical (F35–64),0.92
+Edmonton,touring_contemporary_company,Family (Parents w/ kids),0.95
+Edmonton,touring_contemporary_company,Emerging Adults (18–34),1.22
