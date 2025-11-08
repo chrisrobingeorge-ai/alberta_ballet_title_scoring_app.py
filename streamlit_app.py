@@ -2125,35 +2125,33 @@ def compute_scores_and_store(
         return
 
     # Attach show type + production expense
-	df["ShowType"] = df.apply(
-	    lambda r: infer_show_type(r["Title"], r["Category"]),
-	    axis=1
-	)
-	
-	def _prod_exp_for_row(r):
-	    t = str(r["Title"]).strip()
-	    stype = r["ShowType"]
-	
-	    # 1) In-app budget overrides (from Streamlit UI)
-	    budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
-	    budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
-	
-	    if t in budget_by_title:
-	        return budget_by_title[t]
-	    if stype in budget_by_showtype:
-	        return budget_by_showtype[stype]
-	
-	    # 2) History-based medians (learned from production_expenses.csv)
-	    if t in PROD_EXPENSE_TITLE:
-	        return PROD_EXPENSE_TITLE[t]
-	    if stype in PROD_EXPENSE_SHOWTYPE:
-	        return PROD_EXPENSE_SHOWTYPE[stype]
-	
-	    # 3) No signal
-	    return np.nan
-	
-	df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
+    df["ShowType"] = df.apply(
+        lambda r: infer_show_type(r["Title"], r["Category"]),
+        axis=1,
+    )
 
+    def _prod_exp_for_row(r):
+        t = str(r["Title"]).strip()
+        stype = r["ShowType"]
+
+        # 1) In-app overrides
+        budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
+        budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
+
+        if t in budget_by_title:
+            return budget_by_title[t]
+        if stype in budget_by_showtype:
+            return budget_by_showtype[stype]
+
+        # 2) History-based medians
+        if t in PROD_EXPENSE_TITLE:
+            return PROD_EXPENSE_TITLE[t]
+        if stype in PROD_EXPENSE_SHOWTYPE:
+            return PROD_EXPENSE_SHOWTYPE[stype]
+
+        return np.nan
+
+    df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
