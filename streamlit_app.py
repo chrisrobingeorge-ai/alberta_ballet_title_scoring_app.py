@@ -2236,18 +2236,17 @@ def compute_scores_and_store(
         axis=1,
     )
 
-	def _prod_exp_for_row(r):
-	    t = str(r["Title"]).strip()
-	    stype = r["ShowType"]
-	    if t in PROD_EXPENSE_TITLE:
-	        return PROD_EXPENSE_TITLE[t]
-	    if stype in PROD_EXPENSE_SHOWTYPE:
-	        return PROD_EXPENSE_SHOWTYPE[stype]
-	    # no hard-coded fallback: if we have no data, leave as NaN
-	    return np.nan
+    def _prod_exp_for_row(r):
+        t = str(r["Title"]).strip()
+        stype = r["ShowType"]
+        if t in PROD_EXPENSE_TITLE:
+            return PROD_EXPENSE_TITLE[t]
+        if stype in PROD_EXPENSE_SHOWTYPE:
+            return PROD_EXPENSE_SHOWTYPE[stype]
+        # no hard-coded fallback: if we have no data, leave as NaN
+        return np.nan
 
     df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
-
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
