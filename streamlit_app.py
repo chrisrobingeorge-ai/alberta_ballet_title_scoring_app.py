@@ -727,57 +727,6 @@ YEG_SINGLE_AVG = 92.12
 YYC_SUB_AVG    = 99.97
 YEG_SUB_AVG    = 96.99
 
-# --- Production expense by show type (per run) from CSV ---
-# CSV: data/showtype_expense.csv
-# Expected columns (case-insensitive):
-#   show_type, expense
-
-SHOWTYPE_EXPENSE: dict[str, float] = {}
-
-def load_showtype_expense(path: str = "data/showtype_expense.csv") -> None:
-    global SHOWTYPE_EXPENSE
-    try:
-        df = pd.read_csv(path)
-    except Exception as e:
-        st.error(f"Could not load showtype_expense CSV at '{path}': {e}")
-        SHOWTYPE_EXPENSE = {}
-        return
-
-    colmap = {c.lower().strip(): c for c in df.columns}
-    st_col = colmap.get("show_type")
-    exp_col = colmap.get("expense") or colmap.get("prod_expense")
-
-    if not st_col or not exp_col:
-        st.error("showtype_expense.csv must have columns: 'show_type' and 'expense'")
-        SHOWTYPE_EXPENSE = {}
-        return
-
-    def _num(x):
-        try:
-            if pd.isna(x):
-                return None
-            s = str(x).strip().replace(",", "")
-            if not s:
-                return None
-            return float(s)
-        except Exception:
-            return None
-
-    df[st_col] = df[st_col].astype(str).str.strip()
-    df[exp_col] = df[exp_col].map(_num)
-
-    out: dict[str, float] = {}
-    for _, r in df.iterrows():
-        stype = str(r[st_col]).strip()
-        val = r[exp_col]
-        if not stype or val is None or val <= 0:
-            continue
-        out[stype] = float(val)
-
-    SHOWTYPE_EXPENSE = out
-
-# Load once at startup
-load_showtype_expense()
 
 def _pick_col(df: pd.DataFrame, names: list[str]) -> str | None:
     cols_norm = {c.lower().strip(): c for c in df.columns}
