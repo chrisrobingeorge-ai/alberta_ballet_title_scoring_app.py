@@ -833,6 +833,46 @@ def infer_show_type(title: str, category: str) -> str:
 
     return "unknown"
 
+PROD_EXPENSE_TITLE: dict[str, float] = {}
+PROD_EXPENSE_SHOWTYPE: dict[str, float] = {}
+
+def learn_production_expenses(path="data/production_expenses.csv"):
+    global PROD_EXPENSE_TITLE, PROD_EXPENSE_SHOWTYPE
+
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        PROD_EXPENSE_TITLE = {}
+        PROD_EXPENSE_SHOWTYPE = {}
+        return
+
+    # Clean
+    df["title"] = df["title"].astype(str).str.strip()
+    df["prod_expense"] = (
+        df["prod_expense"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+        .astype(float)
+    )
+
+    # 1) per-title median
+    PROD_EXPENSE_TITLE = (
+        df.groupby("title")["prod_expense"]
+          .median()
+          .to_dict()
+    )
+
+    # 2) per-show_type median as fallback
+    def _show_type_for(t):
+        # reuse your infer_show_type here (or a lighter version)
+        return infer_show_type(t, infer_gender_and_category(t)[1])
+
+    df["show_type"] = df["title"].map(_show_type_for)
+    PROD_EXPENSE_SHOWTYPE = (
+        df.groupby("show_type")["prod_expense"]
+          .median()
+          .to_dict()
+    )
 
 # --- Marketing spend priors (per-ticket, by title × city and category × city) ---
 MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
@@ -1174,6 +1214,8 @@ st.caption(
     f"Marketing priors → title×city: {mkt_summary.get('title_city',0)}, "
     f"category×city: {mkt_summary.get('cat_city',0)}"
 )
+# --- Production expenses (per title / show type) ---
+learn_production_expenses("data/production_expenses.csv")
 
 
 # -------------------------
@@ -2578,11 +2620,23 @@ def compute_scores_and_store(
         return
 
     # Attach show type + production expense
-    df["ShowType"] = df.apply(
-        lambda r: infer_show_type(r["Title"], r["Category"]),
-        axis=1
-    )
-    df["Prod_Expense"] = df["ShowType"].map(lambda t: SHOWTYPE_EXPENSE.get(t, np.nan))
+	df["ShowType"] = df.apply(
+	    lambda r: infer_show_type(r["Title"], r["Category"]),
+	    axis=1
+	)
+	
+	def _prod_exp_for_row(r):
+	    t = str(r["Title"]).strip()
+	    stype = r["ShowType"]
+	    if t in PROD_EXPENSE_TITLE:
+	        return PROD_EXPENSE_TITLE[t]
+	    if stype in PROD_EXPENSE_SHOWTYPE:
+	        return PROD_EXPENSE_SHOWTYPE[stype]
+	    # optional: last-resort fallback to old hard-coded dict
+	    return SHOWTYPE_EXPENSE.get(stype, np.nan)
+	
+	df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
+
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
