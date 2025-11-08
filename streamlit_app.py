@@ -879,7 +879,12 @@ def infer_show_type(title: str, category: str) -> str:
 PROD_EXPENSE_TITLE: dict[str, float] = {}
 PROD_EXPENSE_SHOWTYPE: dict[str, float] = {}
 
-def learn_production_expenses(path="data/production_expenses.csv"):
+def learn_production_expenses(path: str = "data/showtype_expense.csv") -> None:
+    """
+    Expects a CSV with columns:
+      fiscal_year, title, prod_expense
+    Uses all years, takes medians per title and per inferred show_type.
+    """
     global PROD_EXPENSE_TITLE, PROD_EXPENSE_SHOWTYPE
 
     try:
@@ -890,29 +895,42 @@ def learn_production_expenses(path="data/production_expenses.csv"):
         return
 
     # Clean
-    df["title"] = df["title"].astype(str).str.strip()
-    df["prod_expense"] = (
-        df["prod_expense"]
-        .astype(str)
-        .str.replace(",", "", regex=False)
-        .astype(float)
-    )
+    colmap = {c.lower().strip(): c for c in df.columns}
+    tcol = colmap.get("title", "title")
+    ecol = colmap.get("prod_expense", "prod_expense")
+
+    df[tcol] = df[tcol].astype(str).str.strip()
+
+    def _num(x):
+        try:
+            if pd.isna(x):
+                return None
+            s = str(x).strip().replace(",", "")
+            if not s:
+                return None
+            return float(s)
+        except Exception:
+            return None
+
+    df[ecol] = df[ecol].map(_num)
+    # drop blank/zero-ish rows
+    df = df[df[ecol].notna() & (df[ecol] > 0)]
 
     # 1) per-title median
     PROD_EXPENSE_TITLE = (
-        df.groupby("title")["prod_expense"]
+        df.groupby(tcol)[ecol]
           .median()
           .to_dict()
     )
 
     # 2) per-show_type median as fallback
-    def _show_type_for(t):
-        # reuse your infer_show_type here (or a lighter version)
+    def _show_type_for(t: str) -> str:
         return infer_show_type(t, infer_gender_and_category(t)[1])
 
-    df["show_type"] = df["title"].map(_show_type_for)
+    df["show_type"] = df[tcol].map(_show_type_for)
+
     PROD_EXPENSE_SHOWTYPE = (
-        df.groupby("show_type")["prod_expense"]
+        df.groupby("show_type")[ecol]
           .median()
           .to_dict()
     )
@@ -1258,8 +1276,7 @@ st.caption(
     f"category×city: {mkt_summary.get('cat_city',0)}"
 )
 # --- Production expenses (per title / show type) ---
-learn_production_expenses("data/production_expenses.csv")
-
+learn_production_expenses("data/showtype_expense.csv")
 
 # -------------------------
 # Optional APIs (used only if toggled ON)
@@ -2219,15 +2236,15 @@ def compute_scores_and_store(
         axis=1,
     )
 
-    def _prod_exp_for_row(r):
-        t = str(r["Title"]).strip()
-        stype = r["ShowType"]
-        if t in PROD_EXPENSE_TITLE:
-            return PROD_EXPENSE_TITLE[t]
-        if stype in PROD_EXPENSE_SHOWTYPE:
-            return PROD_EXPENSE_SHOWTYPE[stype]
-        # Last-resort fallback to hard-coded dict
-        return SHOWTYPE_EXPENSE.get(stype, np.nan)
+	def _prod_exp_for_row(r):
+	    t = str(r["Title"]).strip()
+	    stype = r["ShowType"]
+	    if t in PROD_EXPENSE_TITLE:
+	        return PROD_EXPENSE_TITLE[t]
+	    if stype in PROD_EXPENSE_SHOWTYPE:
+	        return PROD_EXPENSE_SHOWTYPE[stype]
+	    # no hard-coded fallback: if we have no data, leave as NaN
+	    return np.nan
 
     df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
