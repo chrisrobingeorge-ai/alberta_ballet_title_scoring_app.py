@@ -2620,22 +2620,22 @@ def compute_scores_and_store(
         return
 
     # Attach show type + production expense
-	df["ShowType"] = df.apply(
-	    lambda r: infer_show_type(r["Title"], r["Category"]),
-	    axis=1
-	)
-	
-	def _prod_exp_for_row(r):
-	    t = str(r["Title"]).strip()
-	    stype = r["ShowType"]
-	    if t in PROD_EXPENSE_TITLE:
-	        return PROD_EXPENSE_TITLE[t]
-	    if stype in PROD_EXPENSE_SHOWTYPE:
-	        return PROD_EXPENSE_SHOWTYPE[stype]
-	    # optional: last-resort fallback to old hard-coded dict
-	    return SHOWTYPE_EXPENSE.get(stype, np.nan)
-	
-	df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
+    df["ShowType"] = df.apply(
+        lambda r: infer_show_type(r["Title"], r["Category"]),
+        axis=1,
+    )
+
+    def _prod_exp_for_row(r):
+        t = str(r["Title"]).strip()
+        stype = r["ShowType"]
+        if t in PROD_EXPENSE_TITLE:
+            return PROD_EXPENSE_TITLE[t]
+        if stype in PROD_EXPENSE_SHOWTYPE:
+            return PROD_EXPENSE_SHOWTYPE[stype]
+        # Last-resort fallback to hard-coded dict
+        return SHOWTYPE_EXPENSE.get(stype, np.nan)
+
+    df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
 
     # 2) Normalize to benchmark
@@ -2946,10 +2946,10 @@ def compute_scores_and_store(
     df["YEG_Revenue"]        = yeg_rev
     df["Total_Revenue"]      = total_rev
 
-    df["YYC_Mkt_SPT"]    = yyc_spt
-    df["YEG_Mkt_SPT"]    = yeg_spt
-    df["YYC_Mkt_Spend"]  = yyc_mkt
-    df["YEG_Mkt_Spend"]  = yeg_mkt
+    df["YYC_Mkt_SPT"]     = yyc_spt
+    df["YEG_Mkt_SPT"]     = yeg_spt
+    df["YYC_Mkt_Spend"]   = yyc_mkt
+    df["YEG_Mkt_Spend"]   = yeg_mkt
     df["Total_Mkt_Spend"] = total_mkt
 
     # 13) Seasonality meta
