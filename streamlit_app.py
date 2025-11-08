@@ -2764,7 +2764,21 @@ def render_results():
 
         # Show type + production expense for budgeting
         show_type = infer_show_type(title_sel, cat)
-        prod_expense = float(SHOWTYPE_EXPENSE.get(show_type, 0.0))
+
+        # Same priority order as in _prod_exp_for_row
+        budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
+        budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
+
+        if title_sel in budget_by_title:
+            prod_expense = float(budget_by_title[title_sel])
+        elif show_type in budget_by_showtype:
+            prod_expense = float(budget_by_showtype[show_type])
+        elif title_sel in PROD_EXPENSE_TITLE:
+            prod_expense = float(PROD_EXPENSE_TITLE[title_sel])
+        elif show_type in PROD_EXPENSE_SHOWTYPE:
+            prod_expense = float(PROD_EXPENSE_SHOWTYPE[show_type])
+        else:
+            prod_expense = float("nan")  # or 0.0 if you prefer
 
         # Net contribution after production + marketing
         net_contribution = float(total_revenue) - prod_expense - float(total_mkt)
