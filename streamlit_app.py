@@ -21,6 +21,59 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+def load_config(path: str = "config.yaml"):
+    global SEGMENT_MULT, REGION_MULT
+    global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE, _DEFAULT_SUBS_SHARE
+    global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
+    global K_SHRINK, MINF, MAXF, N_MIN
+    global DEFAULT_MARKETING_SPT_CITY
+
+    if yaml is None:
+        # PyYAML not installed – just use hard-coded defaults
+        return
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        # No config file – keep defaults
+        return
+
+    # 1) Segment multipliers
+    if "segment_mult" in cfg:
+        SEGMENT_MULT = cfg["segment_mult"]
+
+    # 2) Region multipliers
+    if "region_mult" in cfg:
+        REGION_MULT = cfg["region_mult"]
+
+    # 3) City splits & subs shares
+    city_cfg = cfg.get("city_splits", {})
+    DEFAULT_BASE_CITY_SPLIT = city_cfg.get("default_base_city_split", DEFAULT_BASE_CITY_SPLIT)
+    _CITY_CLIP_RANGE = tuple(city_cfg.get("city_clip_range", _CITY_CLIP_RANGE))
+    _DEFAULT_SUBS_SHARE = city_cfg.get("default_subs_share", _DEFAULT_SUBS_SHARE)
+
+    # 4) Demand knobs
+    demand_cfg = cfg.get("demand", {})
+    POSTCOVID_FACTOR = demand_cfg.get("postcovid_factor", POSTCOVID_FACTOR)
+    TICKET_BLEND_WEIGHT = demand_cfg.get("ticket_blend_weight", TICKET_BLEND_WEIGHT)
+
+    # 5) Seasonality knobs
+    seas_cfg = cfg.get("seasonality", {})
+    K_SHRINK = seas_cfg.get("k_shrink", K_SHRINK)
+    MINF = seas_cfg.get("min_factor", MINF)
+    MAXF = seas_cfg.get("max_factor", MAXF)
+    N_MIN = seas_cfg.get("n_min", N_MIN)
+
+    # 6) Marketing defaults
+    mkt_cfg = cfg.get("marketing_defaults", {})
+    DEFAULT_MARKETING_SPT_CITY = mkt_cfg.get("default_marketing_spt_city", DEFAULT_MARKETING_SPT_CITY)
+
 def _pct(v, places=0):
     try:
         return f"{float(v):.{places}%}"
@@ -2220,6 +2273,8 @@ K_SHRINK = 3.0          # stronger pull toward 1.00 when samples are small
 MINF, MAXF = 0.90, 1.15 # tighter caps than 0.85/1.25
 N_MIN = 3               # require at least 3 runs in a (category, month) before trusting a month-specific signal
 WINTER_POOL = {12, 1, 2}
+
+load_config()
 
 def _robust_category_frame(runs_df: pd.DataFrame, category: str) -> pd.DataFrame:
     g = runs_df[runs_df["Category"] == category].copy()
