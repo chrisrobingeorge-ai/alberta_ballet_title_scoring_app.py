@@ -1226,6 +1226,63 @@ st.caption(
 )
 # --- Production expenses (per title / show type) ---
 learn_production_expenses("data/showtype_expense.csv")
+# --- In-app production expense budgeting (optional overrides) ---
+with st.expander("💰 Production expense budgeting (optional overrides)"):
+    st.markdown(
+        "Use these to set *budgeted* per-run production expenses by show type "
+        "(and optionally by title). These override the history-based medians "
+        "when forecasting future seasons."
+    )
+
+    # Initialize session defaults from learned history (once)
+    if "budget_prod_expense_showtype" not in st.session_state:
+        st.session_state["budget_prod_expense_showtype"] = PROD_EXPENSE_SHOWTYPE.copy()
+    if "budget_prod_expense_title" not in st.session_state:
+        st.session_state["budget_prod_expense_title"] = {}
+
+    # --- Show-type level controls ---
+    if not PROD_EXPENSE_SHOWTYPE:
+        st.info("No production expense history loaded yet; overrides will apply once history is available.")
+    else:
+        st.subheader("By show type (category-level budgets)")
+        new_showtype_budgets: dict[str, float] = {}
+
+        for stype, hist_val in sorted(PROD_EXPENSE_SHOWTYPE.items()):
+            default_val = float(st.session_state["budget_prod_expense_showtype"].get(stype, hist_val))
+            budget_val = st.number_input(
+                f"{stype}",
+                min_value=0.0,
+                value=default_val,
+                step=10_000.0,
+                format="%.0f",
+                key=f"budget_stype_{stype}",
+            )
+            new_showtype_budgets[stype] = budget_val
+            st.caption(f"Historical median for {stype}: ${hist_val:,.0f}")
+
+        # save back to session
+        st.session_state["budget_prod_expense_showtype"] = new_showtype_budgets
+
+    # --- Optional: title-specific overrides ---
+    st.subheader("Optional: per-title overrides")
+    with st.form("prod_budget_title_form", clear_on_submit=True):
+        title_for_override = st.text_input("Title (exact match to the season builder title)")
+        title_budget = st.number_input(
+            "Budgeted production expense for this title",
+            min_value=0.0,
+            step=10_000.0,
+            format="%.0f",
+        )
+        submitted = st.form_submit_button("Add / update title override")
+        if submitted and title_for_override.strip():
+            st.session_state["budget_prod_expense_title"][title_for_override.strip()] = float(title_budget)
+            st.success(f"Override set for '{title_for_override.strip()}': ${title_budget:,.0f}")
+
+    # Show current title overrides
+    if st.session_state["budget_prod_expense_title"]:
+        st.markdown("**Current title-level overrides:**")
+        for t, v in st.session_state["budget_prod_expense_title"].items():
+            st.write(f"- {t}: ${v:,.0f}")
 
 # -------------------------
 # Optional APIs (used only if toggled ON)
@@ -2068,22 +2125,35 @@ def compute_scores_and_store(
         return
 
     # Attach show type + production expense
-    df["ShowType"] = df.apply(
-        lambda r: infer_show_type(r["Title"], r["Category"]),
-        axis=1,
-    )
+	df["ShowType"] = df.apply(
+	    lambda r: infer_show_type(r["Title"], r["Category"]),
+	    axis=1
+	)
+	
+	def _prod_exp_for_row(r):
+	    t = str(r["Title"]).strip()
+	    stype = r["ShowType"]
+	
+	    # 1) In-app budget overrides (from Streamlit UI)
+	    budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
+	    budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
+	
+	    if t in budget_by_title:
+	        return budget_by_title[t]
+	    if stype in budget_by_showtype:
+	        return budget_by_showtype[stype]
+	
+	    # 2) History-based medians (learned from production_expenses.csv)
+	    if t in PROD_EXPENSE_TITLE:
+	        return PROD_EXPENSE_TITLE[t]
+	    if stype in PROD_EXPENSE_SHOWTYPE:
+	        return PROD_EXPENSE_SHOWTYPE[stype]
+	
+	    # 3) No signal
+	    return np.nan
+	
+	df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
-    def _prod_exp_for_row(r):
-        t = str(r["Title"]).strip()
-        stype = r["ShowType"]
-        if t in PROD_EXPENSE_TITLE:
-            return PROD_EXPENSE_TITLE[t]
-        if stype in PROD_EXPENSE_SHOWTYPE:
-            return PROD_EXPENSE_SHOWTYPE[stype]
-        # no hard-coded fallback: if we have no data, leave as NaN
-        return np.nan
-
-    df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
