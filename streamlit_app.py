@@ -1767,7 +1767,7 @@ def load_ticket_priors(path: str = "data/ticket_priors_raw.csv") -> None:
     TICKET_PRIORS_RAW = priors
 
 # Load priors now so everything below can use them
-load_ticket_priors_raw()
+load_ticket_priors()
 
 # --- Past runs (for seasonality) from CSV ---
 # CSV: data/past_runs.csv
