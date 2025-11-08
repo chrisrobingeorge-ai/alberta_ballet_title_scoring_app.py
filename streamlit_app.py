@@ -1368,194 +1368,82 @@ SEGMENT_KEYS_IN_ORDER = [
     "Family (Parents w/ kids)",
     "Emerging Adults (18–34)",
 ]
-SEGMENT_PRIORS = {
-    "Province": {
-        "classic_romance": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 1.20,
-            "Family (Parents w/ kids)": 0.95,
-            "Emerging Adults (18–34)": 0.95,
-        },
-        "family_classic": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 0.95,
-            "Family (Parents w/ kids)": 1.20,
-            "Emerging Adults (18–34)": 0.95,
-        },
-        "contemporary": {
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 0.90,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.25,
-        },
-        "pop_ip": {
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 0.95,
-            "Family (Parents w/ kids)": 1.15,
-            "Emerging Adults (18–34)": 1.10,
-        },
-        "romantic_tragedy": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 1.10,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "classic_comedy": {
-            "General Population": 1.02,
-            "Core Classical (F35–64)": 1.00,
-            "Family (Parents w/ kids)": 1.05,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "dramatic": {
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 1.05,
-            "Family (Parents w/ kids)": 0.90,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "adult_literary_drama": {  # like dramatic
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 1.05,
-            "Family (Parents w/ kids)": 0.90,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "contemporary_mixed_bill": {  # like contemporary
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 0.90,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.25,
-        },
-        "touring_contemporary_company": {
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 0.90,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.25,
-        },
-    },
-    "Calgary": {
-        "classic_romance": {
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 1.25,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 0.95,
-        },
-        "family_classic": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 1.00,
-            "Family (Parents w/ kids)": 1.18,
-            "Emerging Adults (18–34)": 0.95,
-        },
-        "contemporary": {
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 0.88,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.28,
-        },
-        "pop_ip": {
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 0.95,
-            "Family (Parents w/ kids)": 1.12,
-            "Emerging Adults (18–34)": 1.10,
-        },
-        "romantic_tragedy": {
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 1.15,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "classic_comedy": {
-            "General Population": 1.02,
-            "Core Classical (F35–64)": 1.02,
-            "Family (Parents w/ kids)": 1.05,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "dramatic": {
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 1.08,
-            "Family (Parents w/ kids)": 0.90,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "adult_literary_drama": {  # like dramatic
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 1.08,
-            "Family (Parents w/ kids)": 0.90,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "contemporary_mixed_bill": {  # like contemporary
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 0.88,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.28,
-        },
-        "touring_contemporary_company": {
-            "General Population": 0.98,
-            "Core Classical (F35–64)": 0.88,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.28,
-        },
-    },
-    "Edmonton": {
-        "classic_romance": {
-            "General Population": 1.02,
-            "Core Classical (F35–64)": 1.15,
-            "Family (Parents w/ kids)": 0.95,
-            "Emerging Adults (18–34)": 0.98,
-        },
-        "family_classic": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 0.98,
-            "Family (Parents w/ kids)": 1.15,
-            "Emerging Adults (18–34)": 0.95,
-        },
-        "contemporary": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 0.92,
-            "Family (Parents w/ kids)": 0.95,
-            "Emerging Adults (18–34)": 1.22,
-        },
-        "pop_ip": {
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 0.95,
-            "Family (Parents w/ kids)": 1.10,
-            "Emerging Adults (18–34)": 1.10,
-        },
-        "romantic_tragedy": {
-            "General Population": 1.02,
-            "Core Classical (F35–64)": 1.10,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.00,
-        },
-        "classic_comedy": {
-            "General Population": 1.02,
-            "Core Classical (F35–64)": 1.00,
-            "Family (Parents w/ kids)": 1.05,
-            "Emerging Adults (18–34)": 1.00,
-        },
-        "dramatic": {
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 1.05,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.00,
-        },
-        "adult_literary_drama": {  # like dramatic
-            "General Population": 1.05,
-            "Core Classical (F35–64)": 1.05,
-            "Family (Parents w/ kids)": 0.92,
-            "Emerging Adults (18–34)": 1.00,
-        },
-        "contemporary_mixed_bill": {  # like contemporary
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 0.92,
-            "Family (Parents w/ kids)": 0.95,
-            "Emerging Adults (18–34)": 1.22,
-        },
-        "touring_contemporary_company": {
-            "General Population": 1.00,
-            "Core Classical (F35–64)": 0.92,
-            "Family (Parents w/ kids)": 0.95,
-            "Emerging Adults (18–34)": 1.22,
-        },
-    },
-}
+
+# --- Segment priors by region × category × segment from CSV ---
+# CSV: data/segment_priors.csv
+# Expected columns (case-insensitive):
+#   region, category, segment, weight
+#
+# Example rows:
+#   Province,classic_romance,General Population,1.00
+#   Province,classic_romance,Core Classical (F35–64),1.20
+#   Calgary,contemporary,Emerging Adults (18–34),1.28
+#   ...
+
+SEGMENT_PRIORS: dict[str, dict[str, dict[str, float]]] = {}
+
+SEGMENT_PRIOR_STRENGTH = 1.0  # keep this; used in _prior_weights_for()
+
+def load_segment_priors(path: str = "data/segment_priors.csv") -> None:
+    """
+    Populates SEGMENT_PRIORS as:
+      SEGMENT_PRIORS[region][category][segment] = weight
+    """
+    global SEGMENT_PRIORS
+
+    try:
+        df = pd.read_csv(path)
+    except Exception as e:
+        st.error(f"Could not load segment_priors CSV at '{path}': {e}")
+        SEGMENT_PRIORS = {}
+        return
+
+    colmap = {c.lower().strip(): c for c in df.columns}
+    r_col = colmap.get("region")
+    c_col = colmap.get("category")
+    s_col = colmap.get("segment")
+    w_col = colmap.get("weight")
+
+    if not (r_col and c_col and s_col and w_col):
+        st.error("segment_priors.csv must have columns: 'region', 'category', 'segment', 'weight'")
+        SEGMENT_PRIORS = {}
+        return
+
+    def _num(x):
+        try:
+            if pd.isna(x):
+                return None
+            s = str(x).strip()
+            if not s:
+                return None
+            return float(s)
+        except Exception:
+            return None
+
+    df[r_col] = df[r_col].astype(str).str.strip()
+    df[c_col] = df[c_col].astype(str).str.strip()
+    df[s_col] = df[s_col].astype(str).str.strip()
+    df[w_col] = df[w_col].map(_num)
+
+    priors: dict[str, dict[str, dict[str, float]]] = {}
+    for _, r in df.iterrows():
+        region = r[r_col]
+        cat    = r[c_col]
+        seg    = r[s_col]
+        w      = r[w_col]
+
+        if not region or not cat or not seg or w is None:
+            continue
+        if seg not in SEGMENT_KEYS_IN_ORDER:
+            # Ignore unknown segment labels so typos don't break anything
+            continue
+
+        priors.setdefault(region, {}).setdefault(cat, {})[seg] = float(w)
+
+    SEGMENT_PRIORS = priors
+
+# Load priors once at startup
+load_segment_priors()
 
 SEGMENT_PRIOR_STRENGTH = 1.0
 
