@@ -395,6 +395,36 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
 
     return out
 
+def _make_season_financial_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
+    # This uses the same logic as your CSV
+    summary_df = build_season_financial_summary_table(plan_df)
+    if summary_df.empty:
+        return Table([["No season data"]])
+
+    # Header row
+    rows = [["Metric"] + list(summary_df.columns)]
+
+    # One row per index label from the CSV (including blank spacer rows)
+    for idx in summary_df.index:
+        vals = []
+        for col in summary_df.columns:
+            v = summary_df.at[idx, col]
+            vals.append("" if pd.isna(v) else str(v))
+        rows.append([idx] + vals)
+
+    table = Table(rows, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("FONT", (0,0), (-1,-1), "Helvetica", 9),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#f0f0f5")),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.HexColor("#222222")),
+        ("LINEABOVE", (0,0), (-1,0), 0.75, colors.black),
+        ("LINEBELOW", (0,0), (-1,0), 0.75, colors.black),
+        ("ALIGN", (1,1), (-1,-1), "CENTER"),
+        ("ALIGN", (0,0), (0,-1), "LEFT"),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+        ("GRID", (0,0), (-1,-1), 0.25, colors.HexColor("#aaaaaa")),
+    ]))
+    return table
 
 def build_full_pdf_report(methodology_paragraphs: list,
                           plan_df: "pd.DataFrame",
@@ -440,7 +470,7 @@ def build_full_pdf_report(methodology_paragraphs: list,
         "Key metrics by month. Indices are benchmark-normalized; tickets include future seasonality and remount adjustments.",
         styles["small"]))
     story.append(Spacer(1, 0.15*inch))
-    story.append(_make_season_table_wide(plan_df))
+	story.append(_make_season_financial_summary_table_pdf(plan_df))
 
     doc.build(story)
     return buf.getvalue()
