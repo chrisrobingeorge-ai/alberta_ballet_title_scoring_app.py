@@ -470,10 +470,11 @@ def build_full_pdf_report(methodology_paragraphs: list,
         "Key metrics by month. Indices are benchmark-normalized; tickets include future seasonality and remount adjustments.",
         styles["small"]))
     story.append(Spacer(1, 0.15*inch))
-	story.append(_make_season_financial_summary_table_pdf(plan_df))
+    story.append(_make_season_financial_summary_table_pdf(plan_df))
 
     doc.build(story)
     return buf.getvalue()
+
 
 # -------------------------
 # App setup
