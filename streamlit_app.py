@@ -195,73 +195,13 @@ def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
     blocks.append(Spacer(1, 0.2*inch))
     return blocks
 
-def _make_season_table_wide(plan_df: "pd.DataFrame") -> Table:
+def _make_season_table_wide(plan_df: pd.DataFrame) -> Table:
     """
-    Rebuilds the wide table (months as columns) for the PDF using a focused metric subset
-    to stay readable on Letter size, including revenue and marketing spend.
+    Backwards-compatible wrapper: for PDFs, use the same financial
+    summary layout as the CSV so both stay in sync.
     """
-    # Choose a concise, high-signal set for PDF
-    metrics = [
-        "Title","Category","PrimarySegment","SecondarySegment",
-        "TicketIndex used","FutureSeasonalityFactor","ReturnDecayPct",
-        "EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-        "YYC_Single_Revenue","YYC_Subs_Revenue",
-        "YEG_Single_Revenue","YEG_Subs_Revenue",
-        "YYC_Revenue","YEG_Revenue","Total_Revenue",
-        # 🔹 NEW: marketing
-        "YYC_Mkt_SPT","YEG_Mkt_SPT",
-        "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-    ]
+    return _make_season_financial_summary_table_pdf(plan_df)
 
-    # Order months as in UI
-    month_order = ["September","October","January","February","March","May"]
-    df = plan_df.copy()
-    df["_mname"] = df["Month"].str.split().str[0]
-    df = df[df["_mname"].isin(month_order)].copy()
-    df["_order"] = df["_mname"].apply(lambda n: month_order.index(n))
-    df = df.sort_values("_order")
-
-    month_labels = [_short_month(m) for m in df["Month"].tolist()]
-    rows = [["Metric"] + month_labels]
-
-    # Build each metric row
-    for m in metrics:
-        values = []
-        for _, r in df.iterrows():
-            v = r.get(m, "")
-            if m in (
-                "EstimatedTickets_Final","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-                "YYC_Single_Revenue","YYC_Subs_Revenue",
-                "YEG_Single_Revenue","YEG_Subs_Revenue",
-                "YYC_Revenue","YEG_Revenue","Total_Revenue",
-                "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-            ):
-                values.append(_num(v))
-            elif m in ("FutureSeasonalityFactor",):
-                values.append(_dec(v,3))
-            elif m in ("ReturnDecayPct",):
-                values.append(_pct(v,0))
-            elif m in ("TicketIndex used",):
-                values.append(_dec(v,1))
-            elif m in ("YYC_Mkt_SPT","YEG_Mkt_SPT"):
-                values.append(_dec(v,2))
-            else:
-                values.append("" if pd.isna(v) else str(v))
-        rows.append([m] + values)
-
-    table = Table(rows, repeatRows=1)
-    table.setStyle(TableStyle([
-        ("FONT", (0,0), (-1,-1), "Helvetica", 9),
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#f0f0f5")),
-        ("TEXTCOLOR", (0,0), (-1,0), colors.HexColor("#222222")),
-        ("LINEABOVE", (0,0), (-1,0), 0.75, colors.black),
-        ("LINEBELOW", (0,0), (-1,0), 0.75, colors.black),
-        ("ALIGN", (1,1), (-1,-1), "CENTER"),
-        ("ALIGN", (0,0), (0,-1), "LEFT"),
-        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
-        ("GRID", (0,0), (-1,-1), 0.25, colors.HexColor("#aaaaaa")),
-    ]))
-    return table
 
 def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -395,8 +335,12 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
 
     return out
 
+
 def _make_season_financial_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
-    # This uses the same logic as your CSV
+    """
+    Convert the season financial summary DataFrame into a ReportLab Table
+    for the PDF, using the same structure as the CSV.
+    """
     summary_df = build_season_financial_summary_table(plan_df)
     if summary_df.empty:
         return Table([["No season data"]])
@@ -405,11 +349,16 @@ def _make_season_financial_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     rows = [["Metric"] + list(summary_df.columns)]
 
     # One row per index label from the CSV (including blank spacer rows)
-    for idx in summary_df.index:
+    for idx, row in summary_df.iterrows():
         vals = []
         for col in summary_df.columns:
-            v = summary_df.at[idx, col]
-            vals.append("" if pd.isna(v) else str(v))
+            v = row[col]
+            if isinstance(v, str):
+                vals.append(v)
+            elif pd.isna(v):
+                vals.append("")
+            else:
+                vals.append(str(v))
         rows.append([idx] + vals)
 
     table = Table(rows, repeatRows=1)
