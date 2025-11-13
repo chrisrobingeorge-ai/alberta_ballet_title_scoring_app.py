@@ -1,4 +1,3 @@
-# Alberta Ballet — Title Scorer (v9.2)
 # - Learns YYC/YEG & Singles/Subs from history.csv (or uploaded CSV)
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
@@ -595,7 +594,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
 
     **Marketing spend per ticket (SPT)**  
     - From `data/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold ticket**:  
-      - **Title×City median** $/ticket where data exist (e.g., *Cinderella* in YYC).  
+      - **Title×City median** $/ticket where data exist (e.g., ** in YYC).  
       - **Category×City median** $/ticket as a fallback (e.g., `classic_romance` in YEG).  
       - **City-wide median** $/ticket as a final default.  
     - The helper `marketing_spt_for(title, category, city)` picks the best available prior:
@@ -729,7 +728,7 @@ def _canon_city(x):
 def infer_gender_and_category(title: str) -> Tuple[str, str]:
     t = title.lower()
     gender = "na"
-    female_keys = ["cinderella","sleeping","beauty and the beast","beauty","giselle","swan","widow","alice","juliet","sylphide"]
+    female_keys = ["cinderella","sleeping","beauty and the beast","beauty","giselle","swan","widow","alice","juliet","sylphide","carmina burana"]
     male_keys = ["pinocchio","peter pan","don quixote","hunchback","hamlet","frankenstein","romeo","nijinsky"]
     if "romeo" in t and "juliet" in t: gender = "co"
     elif any(k in t for k in female_keys): gender = "female"
