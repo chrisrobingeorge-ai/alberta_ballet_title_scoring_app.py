@@ -2732,6 +2732,7 @@ def render_results():
         # Marketing spend is benchmarked on singles only
         yyc_mkt = float(yyc_singles or 0) * float(spt_yyc or 0)
         yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
+        total_mkt = float(yyc_mkt) + float(yeg_mkt)  
 
         # --- Revenue estimates (Singles vs Subs, by city) ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
