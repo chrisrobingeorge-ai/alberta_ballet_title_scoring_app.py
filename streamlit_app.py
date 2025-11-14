@@ -2424,10 +2424,9 @@ def compute_scores_and_store(
         yyc_spt.append(spt_yyc)
         yeg_spt.append(spt_yeg)
 
-        yyc_tix = yyc_sing + yyc_subs
-        yeg_tix = yeg_sing + yeg_subs
-        yyc_m = yyc_tix * spt_yyc
-        yeg_m = yeg_tix * spt_yeg
+        # Marketing spend is benchmarked on singles only
+        yyc_m = yyc_sing * spt_yyc
+        yeg_m = yeg_sing * spt_yeg
         yyc_mkt.append(yyc_m)
         yeg_mkt.append(yeg_m)
         total_mkt.append(yyc_m + yeg_m)
@@ -2728,8 +2727,9 @@ def render_results():
         spt_yyc = marketing_spt_for(title_sel, cat, "Calgary")
         spt_yeg = marketing_spt_for(title_sel, cat, "Edmonton")
         yyc_mkt = yyc_total * spt_yyc
-        yeg_mkt = yeg_total * spt_yeg
-        total_mkt = yyc_mkt + yeg_mkt
+        # Marketing spend is benchmarked on singles only
+        yyc_mkt = yyc_singles * spt_yyc
+        yeg_mkt = yeg_singles * spt_yeg
 
         # --- Revenue estimates (Singles vs Subs, by city) ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
