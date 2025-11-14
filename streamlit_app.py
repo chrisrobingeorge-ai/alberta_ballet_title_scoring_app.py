@@ -123,8 +123,7 @@ def _methodology_glossary_text() -> list:
         "We connect those scores to real ticket history to estimate a <b>Ticket Index</b> for each title.",
         "We adjust for the <b>month</b> you plan to run it (some months sell better), and for <b>recency</b> if it’s a quick remount.",
         "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned historical shares and then into <b>Singles/Subscribers</b>.",
-        "We convert tickets into <b>revenue</b> using typical realized prices by city & product, and into recommended <b>marketing spend</b> using learned per-ticket marketing $ by title/category and city.",
-    ]
+        "We convert tickets into <b>revenue</b> using typical realized prices by city & product, and into recommended <b>marketing spend</b> using learned per-single-ticket marketing $ by title/category and city.",    ]
     for b in bullets: out += [P(f"• {b}", styles["body"])]
     out += [SP(1, 10)]
     out += [P("Plain-language glossary", styles["h2"])]
@@ -136,8 +135,8 @@ def _methodology_glossary_text() -> list:
         "<b>Remount</b>: recent repeats often sell a bit less; we reduce estimates accordingly.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
         "<b>Revenue estimate</b>: Singles/Subs tickets in each city multiplied by typical realized prices from the last season.",
-        "<b>Marketing spend per ticket</b>: historic median $ of paid media per sold ticket, learned by title×city where possible, then category×city, then city-wide.",
-        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = marketing $/ticket × forecast tickets in each city.",
+        "<b>Marketing spend per single</b>: historic median $ of paid media per sold single ticket, learned by title×city where possible, then category×city, then city-wide.",
+        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = marketing $/single × forecast singles in each city.",
     ]
     for g in gl: out += [P(f"• {g}", styles["body"])]
     out += [SP(1, 14)]
@@ -159,12 +158,15 @@ def _narrative_for_row(r: dict) -> str:
     # Revenue + marketing
     total_rev = r.get("Total_Revenue", 0) or 0
     total_mkt = r.get("Total_Mkt_Spend", 0) or 0
-    final_tix = r.get("EstimatedTickets_Final", 0) or 0
+    singles_total = (
+        (r.get("YYC_Singles", 0) or 0) +
+        (r.get("YEG_Singles", 0) or 0)
+    )
     try:
-        mkt_per_ticket = (float(total_mkt) / float(final_tix)) if final_tix else 0.0
+        mkt_per_single = (float(total_mkt) / float(singles_total)) if singles_total else 0.0
     except Exception:
-        mkt_per_ticket = 0.0
-
+        mkt_per_single = 0.0
+		
     parts = []
     parts.append(f"<b>{month} — {title}</b> ({cat})")
     parts.append(f"Estimated demand comes from a combined interest score converted into a <b>Ticket Index</b> of {_dec(idx_used,1)}.")
@@ -180,8 +182,8 @@ def _narrative_for_row(r: dict) -> str:
     if total_rev:
         parts.append(f"At typical realized prices this equates to about <b>${_num(total_rev)}</b> in total revenue.")
     if total_mkt:
-        extra = f" (~${_dec(mkt_per_ticket,2)} in paid media per ticket)" if mkt_per_ticket else ""
-        parts.append(f"Based on historic marketing spend per ticket, the recommended paid-media budget is about <b>${_num(total_mkt)}</b>{extra}.")
+        extra = f" (~${_dec(mkt_per_single,2)} in paid media per single)" if mkt_per_single else ""
+        parts.append(f"Based on historic marketing spend per single, the recommended paid-media budget is about <b>${_num(total_mkt)}</b>{extra}.")
     return " ".join(parts)
 
 
@@ -498,12 +500,12 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     ## Simple Terms
     This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Spotify) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton, and between single tickets and subscriptions.
 
-    On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. From there, it uses typical average ticket prices to turn ticket counts into rough revenue numbers for each city and for singles vs subs. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.
+    On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. From there, it uses typical average ticket prices to turn ticket counts into rough revenue numbers for each city and for singles vs subs. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per single ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.
 
-    Finally, if you give it marketing history, it learns roughly how many dollars of paid media you’ve usually spent per ticket in Calgary and Edmonton for different kinds of shows. When you build a season, it uses those “dollars per ticket” figures to suggest marketing budgets city by city, and shows you the total season spend and spend per ticket. The end result: one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.
-    
+    Finally, if you give it marketing history, it learns roughly how many dollars of paid media you’ve usually spent per single ticket in Calgary and Edmonton for different kinds of shows. When you build a season, it uses those “dollars per single” figures to suggest marketing budgets city by city, and shows you the total season spend and spend per single. The end result: one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.   
     ---
-    ### Purpose
+    
+	### Purpose
     This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles/Subs mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder with **revenue** and **marketing spend** recommendations.
 
     ---
@@ -521,8 +523,8 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     **History & context**  
     - **Ticket priors**: per-title median tickets (from your `TICKET_PRIORS_RAW`).  
     - **Past runs**: title → `(start, end)` dates to derive a mid-run month for seasonality learning and remount timing.  
-    - **Marketing spend history (optional)**: `data/marketing_spend_per_ticket.csv` with per-ticket $ spend by city for past shows.
-
+    - **Marketing spend history (optional)**: `data/marketing_spend_per_ticket.csv` with per single-ticket $ spend by city for past shows.
+	
     > Unknown titles can be scored **two ways**:
     > - **Live** (optional keys): Wikipedia + YouTube + Spotify lookups, then category winsorizing.  
     > - **Estimated** (no keys): baseline medians nudged by inferred category/gender.
@@ -592,11 +594,11 @@ with st.expander("📘 About This App — Methodology & Glossary"):
       - YEG Singles / Subs counts by their YEG averages  
       - and then sums to get **YYC_Revenue**, **YEG_Revenue**, and **Total_Revenue**.
 
-    **Marketing spend per ticket (SPT)**  
-    - From `data/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold ticket**:  
-      - **Title×City median** $/ticket where data exist (e.g., ** in YYC).  
-      - **Category×City median** $/ticket as a fallback (e.g., `classic_romance` in YEG).  
-      - **City-wide median** $/ticket as a final default.  
+    **Marketing spend per single ticket (SPT)**
+    - From `data/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold single ticket**:
+      - **Title×City median** $/single where data exist (e.g., ** in YYC).
+      - **Category×City median** $/single as a fallback (e.g., `classic_romance` in YEG).
+      - **City-wide median** $/single as a final default.
     - The helper `marketing_spt_for(title, category, city)` picks the best available prior:
       1. Title×City  
       2. Category×City  
@@ -606,12 +608,12 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - For each picked show in **📅 Build a Season**, the app:
       1. Forecasts final tickets in YYC and YEG (after seasonality & remount).  
       2. Retrieves **SPT** for YYC and YEG via `marketing_spt_for`.  
-      3. Multiplies tickets × SPT to get:  
-         - `YYC_Mkt_Spend` = YYC tickets × YYC_SPT  
-         - `YEG_Mkt_Spend` = YEG tickets × YEG_SPT  
+      3. Multiplies singles × SPT to get:
+         - `YYC_Mkt_Spend` = YYC singles × YYC_SPT
+         - `YEG_Mkt_Spend` = YEG singles × YEG_SPT
          - `Total_Mkt_Spend` = YYC + YEG  
-    - These appear in the **Season table**, **wide CSV**, and in the **Season at a glance** header as the projected season-level marketing spend and $/ticket.
-
+    - These appear in the **Season table**, **wide CSV**, and in the **Season at a glance** header as the projected season-level marketing spend and $/single.
+	
     ---
     ## Seasonality model (Category × Month)
     - Built from `PAST_RUNS` + `TICKET_PRIORS_RAW`.  
@@ -643,8 +645,8 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - Seasonality is conservative: outliers trimmed, winter months pooled, and factors shrunk and clipped.  
     - Benchmark normalization cancels unit differences across segments/region.  
     - Revenue uses **fixed average prices** (not a pricing model): treat as directional unless refreshed regularly.  
-    - Marketing SPT uses **medians** and ignores extreme per-ticket spends (>200$) to avoid campaign one-offs dominating.  
-    - Heuristics are used when live APIs are off or data are thin (clearly labelled in the UI).
+    - Marketing SPT uses **medians** and ignores extreme per single-ticket spends (>200$) to avoid campaign one-offs dominating.
+	- Heuristics are used when live APIs are off or data are thin (clearly labelled in the UI).
 
     ---
     ## Tunable constants (advanced)
@@ -655,15 +657,15 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **_DEFAULT_SUBS_SHARE** = `YYC 0.35 / YEG 0.45`, clipped to `[0.05, 0.95]`  
     - **Prediction clip** for ticket index: `[20, 180]`  
     - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)  
-    - **DEFAULT_MARKETING_SPT_CITY**: initial city-wide per-ticket $ before learning from marketing history (`Calgary 10 / Edmonton 8`).
-
+    - **DEFAULT_MARKETING_SPT_CITY**: initial city-wide per single-ticket $ before learning from marketing history (`Calgary 10 / Edmonton 8`).
+	
     ---
     ## Limitations
     - Sparse categories/months reduce model power; app falls back to overall fits or signals-only where needed.  
     - Google Trends and Spotify heuristics are proxies when live APIs are off—treat as directional.  
     - Title disambiguation (e.g., films vs ballets) is handled heuristically; review unknown-title results.  
-    - Revenue and marketing outputs assume that **historic per-ticket prices and spend are roughly stable**; if your pricing or media strategy shifts significantly, those columns should be re-anchored.
-
+    - Revenue and marketing outputs assume that **historic per-ticket prices and per single-ticket spend are roughly stable**; if your pricing or media strategy shifts significantly, those columns should be re-anchored.
+	
     ---
     ## Glossary
     - **Benchmark**: reference title for normalization (index 100 by definition).  
@@ -681,10 +683,10 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Singles/Subs Mix**: learned subscriber share by **Category×City** (fallbacks if thin).  
     - **EstimatedTickets / Final**: projected tickets before/after remount decay.  
     - **YYC_/YEG_ Revenue**: revenue by city = Singles/Subs tickets × typical realized prices.  
-    - **Marketing SPT (YYC_Mkt_SPT / YEG_Mkt_SPT)**: typical $ of paid media per sold ticket in each city.  
-    - **Marketing Spend (YYC_Mkt_Spend / YEG_Mkt_Spend / Total_Mkt_Spend)**: recommended campaign budget derived from SPT × forecast tickets.
+    - **Marketing SPT (YYC_Mkt_SPT / YEG_Mkt_SPT)**: typical $ of paid media per sold single ticket in each city.
+    - **Marketing Spend (YYC_Mkt_Spend / YEG_Mkt_Spend / Total_Mkt_Spend)**: recommended campaign budget derived from SPT × forecast singles.
 
-    ---
+   ---
     **Recommendation:** Use **Composite** to rank programs, **EstimatedTickets_Final** for capacity planning, use the **revenue columns** for financial framing, and the **marketing columns** to benchmark and budget your paid media for each title.
     """))
 
@@ -863,7 +865,7 @@ def learn_production_expenses(path: str = "data/showtype_expense.csv") -> None:
           .to_dict()
     )
 
-# --- Marketing spend priors (per-ticket, by title × city and category × city) ---
+# --- Marketing spend priors (per single-ticket, by title × city and category × city) ---
 MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
 MARKETING_SPT_CATEGORY_CITY: dict[str, dict[str, float]] = {}   # {"classic_romance": {"Calgary": 9.0, "Edmonton": 7.5}, ...}
 DEFAULT_MARKETING_SPT_CITY: dict[str, float] = {"Calgary": 10.0, "Edmonton": 8.0}  # overwritten by learner
@@ -875,10 +877,10 @@ def learn_marketing_spt_from_history(mkt_df: pd.DataFrame) -> dict:
       - Show Title
       - Calgary Show Date
       - Edmonton Show Date
-      - Marketing Spend - Calgary   (per-ticket $)
-      - Marketing Spend - Edmonton  (per-ticket $)
+      - Marketing Spend - Calgary   (per single-ticket $)
+      - Marketing Spend - Edmonton  (per single-ticket $)
     Learns:
-      - MARKETING_SPT_TITLE_CITY[title][city]  (median $/ticket)
+      - MARKETING_SPT_TITLE_CITY[title][city]  (median $/single)
       - MARKETING_SPT_CATEGORY_CITY[category][city]
       - DEFAULT_MARKETING_SPT_CITY[city]       (city-wide median)
     """
@@ -2728,8 +2730,8 @@ def render_results():
         spt_yeg = marketing_spt_for(title_sel, cat, "Edmonton")
         yyc_mkt = yyc_total * spt_yyc
         # Marketing spend is benchmarked on singles only
-        yyc_mkt = yyc_singles * spt_yyc
-        yeg_mkt = yeg_singles * spt_yeg
+        yyc_mkt = float(yyc_singles or 0) * float(spt_yyc or 0)
+        yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
 
         # --- Revenue estimates (Singles vs Subs, by city) ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
@@ -2871,7 +2873,8 @@ def render_results():
         yyc_rev    = float(plan_df["YYC_Revenue"].sum())
         yeg_rev    = float(plan_df["YEG_Revenue"].sum())
         total_mkt  = float(plan_df["Total_Mkt_Spend"].sum())
-        total_prod = float(plan_df["Prod_Expense"].sum())
+        total_single_tix = max(singles_tot, 1)
+		total_prod = float(plan_df["Prod_Expense"].sum())
         net_season = float(plan_df["Net_Contribution"].sum())
 
         with c1:
@@ -2884,7 +2887,7 @@ def render_results():
             st.metric(
                 "Projected Marketing Spend",
                 f"${total_mkt:,.0f}",
-                delta=f"${(total_mkt / max(grand,1)):.0f} per ticket"
+                delta=f"${(total_mkt / total_single_tix):.0f} per single"
             )
         with c5:
             st.metric("Season Production Expense", f"${total_prod:,.0f}")
