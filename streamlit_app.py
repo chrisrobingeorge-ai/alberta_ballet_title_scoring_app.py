@@ -1332,7 +1332,7 @@ def load_baselines(path: str = "data/baselines.csv") -> None:
 
 # Load immediately so everything below can use BASELINES
 load_baselines()
-																														
+
 SEGMENT_MULT = {
     "General Population": {
         "female": 1.00, "male": 1.00, "co": 1.00, "na": 1.00,
@@ -3103,7 +3103,7 @@ def render_results():
             mime="text/csv",
             use_container_width=False,
         )
-		
+
 # -------------------------
 # Button + render
 # -------------------------
