@@ -2874,7 +2874,7 @@ def render_results():
         yeg_rev    = float(plan_df["YEG_Revenue"].sum())
         total_mkt  = float(plan_df["Total_Mkt_Spend"].sum())
         total_single_tix = max(singles_tot, 1)
-		total_prod = float(plan_df["Prod_Expense"].sum())
+        total_prod = float(plan_df["Prod_Expense"].sum())
         net_season = float(plan_df["Net_Contribution"].sum())
 
         with c1:
