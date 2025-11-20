@@ -1944,10 +1944,10 @@ def validation_title_page():
     def load_history() -> pd.DataFrame:
         try:
             df = pd.read_csv("data/history_city_sales.csv")
-        except (FileNotFoundError, IOError):
+        except Exception:
             try:
                 df = pd.read_csv("data/history.csv")
-            except (FileNotFoundError, IOError):
+            except Exception:
                 df = pd.DataFrame()
         # EXAMPLE: ensure you have these columns; rename if needed
         # df["actual_demand"] = df["Total_Tickets_Sold"]
