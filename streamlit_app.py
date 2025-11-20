@@ -25,6 +25,14 @@ try:
 except ImportError:
     yaml = None
 
+# PyCaret for regression modeling
+try:
+    from pycaret.regression import setup as pycaret_setup, compare_models, create_model, tune_model, predict_model, finalize_model
+    PYCARET_AVAILABLE = True
+except ImportError:
+    PYCARET_AVAILABLE = False
+    st.warning("PyCaret not available. Install with: pip install pycaret>=3.3.0")
+
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
     global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE, _DEFAULT_SUBS_SHARE
@@ -2064,6 +2072,139 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
 
     return {"wiki": wiki, "trends": tr, "youtube": yt, "spotify": sp, "gender": gender, "category": category}
 
+def _fit_pycaret_models(df_known_in: pd.DataFrame):
+    """
+    Train PyCaret regression models (overall and per-category) to predict TicketIndex_DeSeason from SignalOnly.
+    Returns models and their performance metrics.
+    """
+    if not PYCARET_AVAILABLE:
+        return None, {}, {}
+    
+    import warnings
+    warnings.filterwarnings('ignore')
+    
+    overall_model = None
+    overall_metrics = {}
+    cat_models = {}
+    cat_metrics = {}
+    
+    # Train overall model if enough data
+    if len(df_known_in) >= 5:
+        try:
+            # Prepare data for PyCaret
+            train_data = df_known_in[['SignalOnly', 'TicketIndex_DeSeason']].copy()
+            train_data.columns = ['SignalOnly', 'target']
+            
+            # Setup PyCaret environment (silent mode)
+            exp = pycaret_setup(
+                data=train_data,
+                target='target',
+                session_id=42,
+                verbose=False,
+                html=False,
+                silent=True,
+                n_jobs=1
+            )
+            
+            # Create and tune a light gradient boosting model (fast and accurate)
+            model = create_model('lightgbm', verbose=False)
+            tuned_model = tune_model(model, n_iter=5, verbose=False, optimize='MAE')
+            overall_model = finalize_model(tuned_model)
+            
+            # Get model metrics
+            from pycaret.regression import pull
+            metrics_df = pull()
+            if not metrics_df.empty and len(metrics_df) > 0:
+                overall_metrics = {
+                    'MAE': float(metrics_df['MAE'].iloc[0]) if 'MAE' in metrics_df.columns else 0.0,
+                    'RMSE': float(metrics_df['RMSE'].iloc[0]) if 'RMSE' in metrics_df.columns else 0.0,
+                    'R2': float(metrics_df['R2'].iloc[0]) if 'R2' in metrics_df.columns else 0.0,
+                }
+        except Exception as e:
+            st.warning(f"PyCaret overall model training failed: {str(e)[:100]}")
+            overall_model = None
+    
+    # Train per-category models if enough data per category
+    for cat, g in df_known_in.groupby("Category"):
+        if len(g) >= 3:
+            try:
+                train_data = g[['SignalOnly', 'TicketIndex_DeSeason']].copy()
+                train_data.columns = ['SignalOnly', 'target']
+                
+                # Setup PyCaret
+                exp = pycaret_setup(
+                    data=train_data,
+                    target='target',
+                    session_id=42,
+                    verbose=False,
+                    html=False,
+                    silent=True,
+                    n_jobs=1
+                )
+                
+                # For smaller datasets, use a simpler model
+                model = create_model('lr', verbose=False)  # Linear regression for small data
+                cat_models[cat] = finalize_model(model)
+                
+                # Get metrics
+                from pycaret.regression import pull
+                metrics_df = pull()
+                if not metrics_df.empty and len(metrics_df) > 0:
+                    cat_metrics[cat] = {
+                        'MAE': float(metrics_df['MAE'].iloc[0]) if 'MAE' in metrics_df.columns else 0.0,
+                        'R2': float(metrics_df['R2'].iloc[0]) if 'R2' in metrics_df.columns else 0.0,
+                        'n_samples': len(g)
+                    }
+            except Exception as e:
+                # Silently skip categories with issues
+                continue
+    
+    return overall_model, cat_models, overall_metrics, cat_metrics
+
+def _predict_with_pycaret(model, signal_only: float) -> float:
+    """Helper to make prediction with a PyCaret model."""
+    if model is None:
+        return np.nan
+    try:
+        test_data = pd.DataFrame({'SignalOnly': [signal_only]})
+        pred = predict_model(model, data=test_data, verbose=False)
+        if 'prediction_label' in pred.columns:
+            return float(pred['prediction_label'].iloc[0])
+        elif 'Label' in pred.columns:
+            return float(pred['Label'].iloc[0])
+        else:
+            # Try the first column that's not SignalOnly
+            pred_col = [c for c in pred.columns if c != 'SignalOnly'][0]
+            return float(pred[pred_col].iloc[0])
+    except Exception:
+        return np.nan
+
+def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
+    """
+    Fit regression models (PyCaret if available, otherwise simple linear).
+    Returns model objects or coefficients depending on availability.
+    """
+    if PYCARET_AVAILABLE and len(df_known_in) >= 3:
+        # Use PyCaret models
+        overall_model, cat_models, overall_metrics, cat_metrics = _fit_pycaret_models(df_known_in)
+        return ('pycaret', overall_model, cat_models, overall_metrics, cat_metrics)
+    else:
+        # Fallback to simple linear regression
+        overall = None
+        if len(df_known_in) >= 5:
+            x = df_known_in["SignalOnly"].values
+            y = df_known_in["TicketIndex_DeSeason"].values
+            a, b = np.polyfit(x, y, 1)
+            overall = (float(a), float(b))
+        cat_coefs = {}
+        for cat, g in df_known_in.groupby("Category"):
+            if len(g) >= 3:
+                xs = g["SignalOnly"].values
+                ys = g["TicketIndex_DeSeason"].values
+                a, b = np.polyfit(xs, ys, 1)
+                cat_coefs[cat] = (float(a), float(b))
+        return ('linear', overall, cat_coefs, {}, {})
+
 def compute_scores_and_store(
     titles,
     segment,
@@ -2180,38 +2321,59 @@ def compute_scores_and_store(
     df["TicketIndex_DeSeason"] = idx_list
     df["HistSeasonalityFactor"] = hist_factor_list
 
-    # 4) Fit simple linear models
+    # 4) Fit regression models (PyCaret or simple linear)
     df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
-    def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
-        overall = None
-        if len(df_known_in) >= 5:
-            x = df_known_in["SignalOnly"].values
-            y = df_known_in["TicketIndex_DeSeason"].values
-            a, b = np.polyfit(x, y, 1)
-            overall = (float(a), float(b))
-        cat_coefs = {}
-        for cat, g in df_known_in.groupby("Category"):
-            if len(g) >= 3:
-                xs = g["SignalOnly"].values
-                ys = g["TicketIndex_DeSeason"].values
-                a, b = np.polyfit(xs, ys, 1)
-                cat_coefs[cat] = (float(a), float(b))
-        return overall, cat_coefs
-
-    overall_coef, cat_coefs = _fit_overall_and_by_category(df_known)
-
-    # 5) Impute missing TicketIndex
-    def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
-        if category in cat_coefs:
-            a, b = cat_coefs[category]; src = "Category model"
-        elif overall_coef is not None:
-            a, b = overall_coef; src = "Overall model"
-        else:
+    model_result = _fit_overall_and_by_category(df_known)
+    model_type = model_result[0]
+    
+    if model_type == 'pycaret':
+        _, overall_model, cat_models, overall_metrics, cat_metrics = model_result
+        
+        # Display model performance metrics
+        if overall_metrics:
+            st.caption(
+                f"🤖 **PyCaret Model Performance** — "
+                f"R²: {overall_metrics.get('R2', 0):.3f} | "
+                f"MAE: {overall_metrics.get('MAE', 0):.1f} | "
+                f"RMSE: {overall_metrics.get('RMSE', 0):.1f}"
+            )
+        if cat_metrics:
+            cat_summary = ", ".join([f"{cat}: R²={m.get('R2', 0):.2f}" for cat, m in cat_metrics.items()])
+            st.caption(f"📊 **Category Models** — {cat_summary}")
+        
+        # 5) Impute missing TicketIndex with PyCaret models
+        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
+            # Try category model first
+            if category in cat_models:
+                pred = _predict_with_pycaret(cat_models[category], signal_only)
+                if not np.isnan(pred):
+                    pred = float(np.clip(pred, 20.0, 180.0))
+                    return pred, "PyCaret Category"
+            
+            # Try overall model
+            if overall_model is not None:
+                pred = _predict_with_pycaret(overall_model, signal_only)
+                if not np.isnan(pred):
+                    pred = float(np.clip(pred, 20.0, 180.0))
+                    return pred, "PyCaret Overall"
+            
             return np.nan, "Not enough data"
-        pred = a * signal_only + b
-        pred = float(np.clip(pred, 20.0, 180.0))
-        return pred, src
+    else:
+        # Linear regression fallback
+        _, overall_coef, cat_coefs, _, _ = model_result
+        
+        # 5) Impute missing TicketIndex with linear models
+        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
+            if category in cat_coefs:
+                a, b = cat_coefs[category]; src = "Category model"
+            elif overall_coef is not None:
+                a, b = overall_coef; src = "Overall model"
+            else:
+                return np.nan, "Not enough data"
+            pred = a * signal_only + b
+            pred = float(np.clip(pred, 20.0, 180.0))
+            return pred, src
 
     imputed_vals, imputed_srcs = [], []
     for _, r in df.iterrows():
