@@ -13,6 +13,13 @@ import matplotlib.pyplot as plt
 import requests
 from textwrap import dedent
 
+from validation_utils import (
+    load_pycaret_model,
+    get_pycaret_predictions,
+    compute_model_metrics,
+    build_comparison_frame,
+)
+
 from io import BytesIO
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1926,6 +1933,141 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
     elif delta_years <= 9: return 0.90
     else:                  return 1.00
 
+def validation_title_page():
+    st.title("Title Demand Model Validation")
+    st.write(
+        "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
+        "on historical data."
+    )
+
+    @st.cache_data
+    def load_history() -> pd.DataFrame:
+        df = pd.read_csv("history.csv")
+        # EXAMPLE: ensure you have these columns; rename if needed
+        # df["actual_demand"] = df["Total_Tickets_Sold"]
+        # df["your_pred"] = df["TitleScore_Prediction"]
+        return df
+
+    df = load_history()
+
+    # Optional filters
+    if "Season" in df.columns:
+        seasons = ["All"] + sorted(df["Season"].dropna().unique().tolist())
+        season_filter = st.selectbox("Season", seasons, index=0)
+        if season_filter != "All":
+            df = df[df["Season"] == season_filter]
+
+    if "City" in df.columns:
+        cities = ["All"] + sorted(df["City"].dropna().unique().tolist())
+        city_filter = st.selectbox("City", cities, index=0)
+        if city_filter != "All":
+            df = df[df["City"] == city_filter]
+
+    numeric_cols = df.select_dtypes(include="number").columns.tolist()
+
+    actual_col = st.selectbox(
+        "Actual outcome column (target)",
+        numeric_cols,
+        index=0,
+        help="Column with actual demand or tickets sold.",
+    )
+    your_pred_col = st.selectbox(
+        "Your model prediction column",
+        [c for c in numeric_cols if c != actual_col],
+        index=0,
+        help="Column with your existing title scoring prediction.",
+    )
+
+    st.subheader("PyCaret model")
+    model_name = st.text_input(
+        "PyCaret saved model name",
+        value="title_demand_model",
+        help="The name you used in save_model('title_demand_model').",
+    )
+
+    if not model_name:
+        st.warning("Please provide a PyCaret model name.")
+        return
+
+    try:
+        pycaret_model = load_pycaret_model(model_name)
+    except Exception as e:
+        st.error(f"Could not load PyCaret model '{model_name}': {e}")
+        return
+
+    feature_df = df.drop(columns=[actual_col], errors="ignore")
+    id_cols = [c for c in df.columns if c in ["Title", "City", "Season"]]
+    pycaret_pred_df = get_pycaret_predictions(pycaret_model, feature_df, id_cols=id_cols)
+
+    df = df.merge(
+        pycaret_pred_df,
+        on=[c for c in id_cols if c in df.columns],
+        how="left",
+    )
+
+    comp_df = build_comparison_frame(
+        base_df=df,
+        actual_col=actual_col,
+        your_pred_col=your_pred_col,
+        pycaret_pred_col="pycaret_pred",
+        id_cols=id_cols,
+    )
+
+    your_metrics = compute_model_metrics(comp_df, actual_col, your_pred_col)
+    pycaret_metrics = compute_model_metrics(comp_df, actual_col, "pycaret_pred")
+
+    st.subheader("Model performance overview")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Your Model**")
+        st.metric("MAE", f"{your_metrics['MAE']:.2f}")
+        st.metric("RMSE", f"{your_metrics['RMSE']:.2f}")
+        st.metric("R²", f"{your_metrics['R2']:.3f}")
+
+    with col2:
+        st.markdown("**PyCaret Model**")
+        st.metric("MAE", f"{pycaret_metrics['MAE']:.2f}")
+        st.metric("RMSE", f"{pycaret_metrics['RMSE']:.2f}")
+        st.metric("R²", f"{pycaret_metrics['R2']:.3f}")
+
+    st.subheader("Actual vs Predicted")
+
+    plot_df = comp_df.copy()
+    if "Title" not in plot_df.columns:
+        plot_df["Title"] = plot_df.index.astype(str)
+
+    st.write("Absolute error by title (lower is better).")
+    display_cols = id_cols + ["abs_err_your", "abs_err_pycaret", "better_model"]
+    display_cols = [c for c in display_cols if c in plot_df.columns]
+
+    st.dataframe(
+        plot_df[display_cols].sort_values("abs_err_pycaret").reset_index(drop=True)
+    )
+
+    st.subheader("Where the models disagree most")
+    plot_df["abs_err_delta"] = plot_df["abs_err_your"] - plot_df["abs_err_pycaret"]
+    st.write(
+        "Positive values = your model has higher error than PyCaret; "
+        "negative values = your model is better."
+    )
+    detail_cols = (
+        id_cols
+        + [actual_col, your_pred_col, "pycaret_pred", "abs_err_your", "abs_err_pycaret", "abs_err_delta"]
+    )
+    detail_cols = [c for c in detail_cols if c in plot_df.columns]
+
+    st.dataframe(
+        plot_df[detail_cols]
+        .sort_values("abs_err_delta", ascending=False)
+        .head(25)
+        .reset_index(drop=True)
+    )
+
+    st.caption(
+        "Use this to see patterns – e.g., certain repertoire types or cities where one model consistently outperforms the other."
+    )
+
 # -------------------------
 # UI — Config
 # -------------------------
@@ -3283,22 +3425,33 @@ def render_results():
         )
 
 # -------------------------
-# Button + render
+# Page selector
 # -------------------------
-run = st.button("Score Titles", type="primary")
-if run:
-    compute_scores_and_store(
-        titles=titles,
-        segment=segment,
-        region=region,
-        use_live=use_live,
-        yt_key=yt_key,
-        sp_id=sp_id,
-        sp_secret=sp_secret,
-        benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
-        proposed_run_date=proposed_run_date,
-        postcovid_factor=postcovid_factor, 
-    )
+page = st.sidebar.radio(
+    "View",
+    ["Title Scoring & Season Planning", "Model Validation"],
+    index=0,
+)
 
-if st.session_state.get("results") is not None:
-    render_results()
+if page == "Title Scoring & Season Planning":
+    # Existing “Button + render” logic
+    run = st.button("Score Titles", type="primary")
+    if run:
+        compute_scores_and_store(
+            titles=titles,
+            segment=segment,
+            region=region,
+            use_live=use_live,
+            yt_key=yt_key,
+            sp_id=sp_id,
+            sp_secret=sp_secret,
+            benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+            proposed_run_date=proposed_run_date,
+            postcovid_factor=postcovid_factor,
+        )
+
+    if st.session_state.get("results") is not None:
+        render_results()
+
+elif page == "Model Validation":
+    validation_title_page()
