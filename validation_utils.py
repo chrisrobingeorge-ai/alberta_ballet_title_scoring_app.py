@@ -7,7 +7,6 @@ from typing import Tuple, Optional
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from pycaret.regression import load_model, predict_model
 
 
 def load_pycaret_model(model_name: str):
@@ -16,7 +15,17 @@ def load_pycaret_model(model_name: str):
 
     Example:
         model = load_pycaret_model("title_demand_model")
+    
+    Note: This function requires pycaret to be installed.
+    Install it with: pip install pycaret
     """
+    try:
+        from pycaret.regression import load_model
+    except ImportError:
+        raise ImportError(
+            "PyCaret is required for this functionality. "
+            "Install it with: pip install pycaret"
+        )
     return load_model(model_name)
 
 
@@ -27,7 +36,17 @@ def get_pycaret_predictions(
     Run a PyCaret model on feature_df and return a dataframe with predictions.
 
     Assumes the target column was removed when you trained the model.
+    
+    Note: This function requires pycaret to be installed.
+    Install it with: pip install pycaret
     """
+    try:
+        from pycaret.regression import predict_model
+    except ImportError:
+        raise ImportError(
+            "PyCaret is required for this functionality. "
+            "Install it with: pip install pycaret"
+        )
     preds = predict_model(model, data=feature_df.copy())
     # PyCaret's predict_model usually returns 'Label' as the prediction column.
     result = preds.copy()
