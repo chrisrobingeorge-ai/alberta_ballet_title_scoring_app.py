@@ -55,6 +55,8 @@ The app uses several CSV files in the `data/` directory:
 
 ## Requirements
 
+### Core Dependencies
+
 - Python 3.12+
 - Streamlit 1.37+
 - pandas 2.2+
@@ -64,6 +66,13 @@ The app uses several CSV files in the `data/` directory:
 - matplotlib 3.8+
 
 See `requirements.txt` for complete dependency list.
+
+### Optional Dependencies
+
+- **PyCaret** (for Model Validation page only)
+  - Not required for core title scoring and season planning functionality
+  - Install separately if you want to use the Model Validation page: `pip install pycaret`
+  - The app will show a helpful error message if you try to use Model Validation without it
 
 ## Project Structure
 
