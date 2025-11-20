@@ -25,6 +25,17 @@ try:
 except ImportError:
     yaml = None
 
+# Advanced ML models for regression
+try:
+    from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+    from sklearn.linear_model import Ridge, LinearRegression
+    from sklearn.model_selection import cross_val_score, GridSearchCV
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+    import xgboost as xgb
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
     global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE, _DEFAULT_SUBS_SHARE
@@ -2064,6 +2075,145 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
 
     return {"wiki": wiki, "trends": tr, "youtube": yt, "spotify": sp, "gender": gender, "category": category}
 
+def _train_ml_models(df_known_in: pd.DataFrame):
+    """
+    Train regression models (XGBoost/GradientBoosting for overall, Ridge for categories) 
+    to predict TicketIndex_DeSeason from SignalOnly.
+    Returns models and their performance metrics.
+    """
+    if not ML_AVAILABLE:
+        return None, {}, {}, {}
+    
+    import warnings
+    warnings.filterwarnings('ignore')
+    
+    overall_model = None
+    overall_metrics = {}
+    cat_models = {}
+    cat_metrics = {}
+    
+    # Train overall model if enough data
+    if len(df_known_in) >= 5:
+        try:
+            # Prepare training data
+            X = df_known_in[['SignalOnly']].values
+            y = df_known_in['TicketIndex_DeSeason'].values
+            
+            # Try XGBoost with cross-validation for robust performance
+            if len(df_known_in) >= 8:
+                # Use XGBoost for larger datasets
+                model = xgb.XGBRegressor(
+                    n_estimators=100,
+                    max_depth=3,
+                    learning_rate=0.1,
+                    random_state=42,
+                    n_jobs=1
+                )
+            else:
+                # Use Gradient Boosting for smaller datasets
+                model = GradientBoostingRegressor(
+                    n_estimators=50,
+                    max_depth=2,
+                    learning_rate=0.1,
+                    random_state=42
+                )
+            
+            # Train the model
+            model.fit(X, y)
+            overall_model = model
+            
+            # Calculate cross-validated metrics
+            cv_scores = cross_val_score(model, X, y, cv=min(3, len(df_known_in)), 
+                                       scoring='neg_mean_absolute_error', n_jobs=1)
+            mae_cv = -cv_scores.mean()
+            
+            # Calculate metrics on full dataset
+            y_pred = model.predict(X)
+            mae = mean_absolute_error(y, y_pred)
+            rmse = np.sqrt(mean_squared_error(y, y_pred))
+            r2 = r2_score(y, y_pred)
+            
+            overall_metrics = {
+                'MAE': float(mae),
+                'MAE_CV': float(mae_cv),
+                'RMSE': float(rmse),
+                'R2': float(r2),
+                'n_samples': len(df_known_in)
+            }
+        except Exception as e:
+            # Silently fall back to None if training fails
+            overall_model = None
+    
+    # Train per-category models if enough data per category
+    for cat, g in df_known_in.groupby("Category"):
+        if len(g) >= 3:
+            try:
+                X_cat = g[['SignalOnly']].values
+                y_cat = g['TicketIndex_DeSeason'].values
+                
+                # Use Ridge regression for smaller per-category datasets
+                if len(g) >= 5:
+                    model = Ridge(alpha=1.0, random_state=42)
+                else:
+                    # Simple linear regression for very small datasets
+                    model = LinearRegression()
+                
+                model.fit(X_cat, y_cat)
+                cat_models[cat] = model
+                
+                # Calculate metrics
+                y_pred = model.predict(X_cat)
+                mae = mean_absolute_error(y_cat, y_pred)
+                r2 = r2_score(y_cat, y_pred)
+                
+                cat_metrics[cat] = {
+                    'MAE': float(mae),
+                    'R2': float(r2),
+                    'n_samples': len(g)
+                }
+            except Exception:
+                # Silently skip categories with issues
+                continue
+    
+    return overall_model, cat_models, overall_metrics, cat_metrics
+
+def _predict_with_ml_model(model, signal_only: float) -> float:
+    """Helper to make prediction with a scikit-learn or XGBoost model."""
+    if model is None:
+        return np.nan
+    try:
+        X = np.array([[signal_only]])
+        pred = model.predict(X)
+        return float(pred[0])
+    except Exception:
+        return np.nan
+
+def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
+    """
+    Fit regression models (XGBoost/GradientBoosting if ML available, otherwise simple linear).
+    Returns model objects or coefficients depending on availability.
+    """
+    if ML_AVAILABLE and len(df_known_in) >= 3:
+        # Use advanced ML models (XGBoost, GradientBoosting, Ridge)
+        overall_model, cat_models, overall_metrics, cat_metrics = _train_ml_models(df_known_in)
+        return ('ml', overall_model, cat_models, overall_metrics, cat_metrics)
+    else:
+        # Fallback to simple linear regression
+        overall = None
+        if len(df_known_in) >= 5:
+            x = df_known_in["SignalOnly"].values
+            y = df_known_in["TicketIndex_DeSeason"].values
+            a, b = np.polyfit(x, y, 1)
+            overall = (float(a), float(b))
+        cat_coefs = {}
+        for cat, g in df_known_in.groupby("Category"):
+            if len(g) >= 3:
+                xs = g["SignalOnly"].values
+                ys = g["TicketIndex_DeSeason"].values
+                a, b = np.polyfit(xs, ys, 1)
+                cat_coefs[cat] = (float(a), float(b))
+        return ('linear', overall, cat_coefs, {}, {})
+
 def compute_scores_and_store(
     titles,
     segment,
@@ -2180,38 +2330,65 @@ def compute_scores_and_store(
     df["TicketIndex_DeSeason"] = idx_list
     df["HistSeasonalityFactor"] = hist_factor_list
 
-    # 4) Fit simple linear models
+    # 4) Fit regression models (PyCaret or simple linear)
     df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
-    def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
-        overall = None
-        if len(df_known_in) >= 5:
-            x = df_known_in["SignalOnly"].values
-            y = df_known_in["TicketIndex_DeSeason"].values
-            a, b = np.polyfit(x, y, 1)
-            overall = (float(a), float(b))
-        cat_coefs = {}
-        for cat, g in df_known_in.groupby("Category"):
-            if len(g) >= 3:
-                xs = g["SignalOnly"].values
-                ys = g["TicketIndex_DeSeason"].values
-                a, b = np.polyfit(xs, ys, 1)
-                cat_coefs[cat] = (float(a), float(b))
-        return overall, cat_coefs
-
-    overall_coef, cat_coefs = _fit_overall_and_by_category(df_known)
-
-    # 5) Impute missing TicketIndex
-    def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
-        if category in cat_coefs:
-            a, b = cat_coefs[category]; src = "Category model"
-        elif overall_coef is not None:
-            a, b = overall_coef; src = "Overall model"
-        else:
+    model_result = _fit_overall_and_by_category(df_known)
+    model_type = model_result[0]
+    
+    if model_type == 'ml':
+        _, overall_model, cat_models, overall_metrics, cat_metrics = model_result
+        
+        # Display model performance metrics
+        if overall_metrics:
+            model_name = "XGBoost" if overall_metrics.get('n_samples', 0) >= 8 else "GradientBoosting"
+            st.caption(
+                f"🤖 **{model_name} Model Performance** — "
+                f"R²: {overall_metrics.get('R2', 0):.3f} | "
+                f"MAE: {overall_metrics.get('MAE', 0):.1f} | "
+                f"CV-MAE: {overall_metrics.get('MAE_CV', 0):.1f} | "
+                f"RMSE: {overall_metrics.get('RMSE', 0):.1f} | "
+                f"Samples: {overall_metrics.get('n_samples', 0)}"
+            )
+        if cat_metrics:
+            cat_summary = ", ".join([
+                f"{cat}: R²={m.get('R2', 0):.2f} (n={m.get('n_samples', 0)})" 
+                for cat, m in cat_metrics.items()
+            ])
+            st.caption(f"📊 **Category Models (Ridge/Linear)** — {cat_summary}")
+        
+        # 5) Impute missing TicketIndex with ML models
+        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
+            # Try category model first
+            if category in cat_models:
+                pred = _predict_with_ml_model(cat_models[category], signal_only)
+                if not np.isnan(pred):
+                    pred = float(np.clip(pred, 20.0, 180.0))
+                    return pred, "ML Category"
+            
+            # Try overall model
+            if overall_model is not None:
+                pred = _predict_with_ml_model(overall_model, signal_only)
+                if not np.isnan(pred):
+                    pred = float(np.clip(pred, 20.0, 180.0))
+                    return pred, "ML Overall"
+            
             return np.nan, "Not enough data"
-        pred = a * signal_only + b
-        pred = float(np.clip(pred, 20.0, 180.0))
-        return pred, src
+    else:
+        # Linear regression fallback
+        _, overall_coef, cat_coefs, _, _ = model_result
+        
+        # 5) Impute missing TicketIndex with linear models
+        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
+            if category in cat_coefs:
+                a, b = cat_coefs[category]; src = "Category model"
+            elif overall_coef is not None:
+                a, b = overall_coef; src = "Overall model"
+            else:
+                return np.nan, "Not enough data"
+            pred = a * signal_only + b
+            pred = float(np.clip(pred, 20.0, 180.0))
+            return pred, src
 
     imputed_vals, imputed_srcs = [], []
     for _, r in df.iterrows():
