@@ -25,13 +25,16 @@ try:
 except ImportError:
     yaml = None
 
-# PyCaret for regression modeling
+# Advanced ML models for regression
 try:
-    from pycaret.regression import setup as pycaret_setup, compare_models, create_model, tune_model, predict_model, finalize_model
-    PYCARET_AVAILABLE = True
+    from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+    from sklearn.linear_model import Ridge, LinearRegression
+    from sklearn.model_selection import cross_val_score, GridSearchCV
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+    import xgboost as xgb
+    ML_AVAILABLE = True
 except ImportError:
-    PYCARET_AVAILABLE = False
-    st.warning("PyCaret not available. Install with: pip install pycaret>=3.3.0")
+    ML_AVAILABLE = False
 
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
@@ -2072,13 +2075,14 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
 
     return {"wiki": wiki, "trends": tr, "youtube": yt, "spotify": sp, "gender": gender, "category": category}
 
-def _fit_pycaret_models(df_known_in: pd.DataFrame):
+def _train_ml_models(df_known_in: pd.DataFrame):
     """
-    Train PyCaret regression models (overall and per-category) to predict TicketIndex_DeSeason from SignalOnly.
+    Train regression models (XGBoost/GradientBoosting for overall, Ridge for categories) 
+    to predict TicketIndex_DeSeason from SignalOnly.
     Returns models and their performance metrics.
     """
-    if not PYCARET_AVAILABLE:
-        return None, {}, {}
+    if not ML_AVAILABLE:
+        return None, {}, {}, {}
     
     import warnings
     warnings.filterwarnings('ignore')
@@ -2091,103 +2095,108 @@ def _fit_pycaret_models(df_known_in: pd.DataFrame):
     # Train overall model if enough data
     if len(df_known_in) >= 5:
         try:
-            # Prepare data for PyCaret
-            train_data = df_known_in[['SignalOnly', 'TicketIndex_DeSeason']].copy()
-            train_data.columns = ['SignalOnly', 'target']
+            # Prepare training data
+            X = df_known_in[['SignalOnly']].values
+            y = df_known_in['TicketIndex_DeSeason'].values
             
-            # Setup PyCaret environment (silent mode)
-            exp = pycaret_setup(
-                data=train_data,
-                target='target',
-                session_id=42,
-                verbose=False,
-                html=False,
-                silent=True,
-                n_jobs=1
-            )
+            # Try XGBoost with cross-validation for robust performance
+            if len(df_known_in) >= 8:
+                # Use XGBoost for larger datasets
+                model = xgb.XGBRegressor(
+                    n_estimators=100,
+                    max_depth=3,
+                    learning_rate=0.1,
+                    random_state=42,
+                    n_jobs=1
+                )
+            else:
+                # Use Gradient Boosting for smaller datasets
+                model = GradientBoostingRegressor(
+                    n_estimators=50,
+                    max_depth=2,
+                    learning_rate=0.1,
+                    random_state=42
+                )
             
-            # Create and tune a light gradient boosting model (fast and accurate)
-            model = create_model('lightgbm', verbose=False)
-            tuned_model = tune_model(model, n_iter=5, verbose=False, optimize='MAE')
-            overall_model = finalize_model(tuned_model)
+            # Train the model
+            model.fit(X, y)
+            overall_model = model
             
-            # Get model metrics
-            from pycaret.regression import pull
-            metrics_df = pull()
-            if not metrics_df.empty and len(metrics_df) > 0:
-                overall_metrics = {
-                    'MAE': float(metrics_df['MAE'].iloc[0]) if 'MAE' in metrics_df.columns else 0.0,
-                    'RMSE': float(metrics_df['RMSE'].iloc[0]) if 'RMSE' in metrics_df.columns else 0.0,
-                    'R2': float(metrics_df['R2'].iloc[0]) if 'R2' in metrics_df.columns else 0.0,
-                }
+            # Calculate cross-validated metrics
+            cv_scores = cross_val_score(model, X, y, cv=min(3, len(df_known_in)), 
+                                       scoring='neg_mean_absolute_error', n_jobs=1)
+            mae_cv = -cv_scores.mean()
+            
+            # Calculate metrics on full dataset
+            y_pred = model.predict(X)
+            mae = mean_absolute_error(y, y_pred)
+            rmse = np.sqrt(mean_squared_error(y, y_pred))
+            r2 = r2_score(y, y_pred)
+            
+            overall_metrics = {
+                'MAE': float(mae),
+                'MAE_CV': float(mae_cv),
+                'RMSE': float(rmse),
+                'R2': float(r2),
+                'n_samples': len(df_known_in)
+            }
         except Exception as e:
-            st.warning(f"PyCaret overall model training failed: {str(e)[:100]}")
+            # Silently fall back to None if training fails
             overall_model = None
     
     # Train per-category models if enough data per category
     for cat, g in df_known_in.groupby("Category"):
         if len(g) >= 3:
             try:
-                train_data = g[['SignalOnly', 'TicketIndex_DeSeason']].copy()
-                train_data.columns = ['SignalOnly', 'target']
+                X_cat = g[['SignalOnly']].values
+                y_cat = g['TicketIndex_DeSeason'].values
                 
-                # Setup PyCaret
-                exp = pycaret_setup(
-                    data=train_data,
-                    target='target',
-                    session_id=42,
-                    verbose=False,
-                    html=False,
-                    silent=True,
-                    n_jobs=1
-                )
+                # Use Ridge regression for smaller per-category datasets
+                if len(g) >= 5:
+                    model = Ridge(alpha=1.0, random_state=42)
+                else:
+                    # Simple linear regression for very small datasets
+                    model = LinearRegression()
                 
-                # For smaller datasets, use a simpler model
-                model = create_model('lr', verbose=False)  # Linear regression for small data
-                cat_models[cat] = finalize_model(model)
+                model.fit(X_cat, y_cat)
+                cat_models[cat] = model
                 
-                # Get metrics
-                from pycaret.regression import pull
-                metrics_df = pull()
-                if not metrics_df.empty and len(metrics_df) > 0:
-                    cat_metrics[cat] = {
-                        'MAE': float(metrics_df['MAE'].iloc[0]) if 'MAE' in metrics_df.columns else 0.0,
-                        'R2': float(metrics_df['R2'].iloc[0]) if 'R2' in metrics_df.columns else 0.0,
-                        'n_samples': len(g)
-                    }
-            except Exception as e:
+                # Calculate metrics
+                y_pred = model.predict(X_cat)
+                mae = mean_absolute_error(y_cat, y_pred)
+                r2 = r2_score(y_cat, y_pred)
+                
+                cat_metrics[cat] = {
+                    'MAE': float(mae),
+                    'R2': float(r2),
+                    'n_samples': len(g)
+                }
+            except Exception:
                 # Silently skip categories with issues
                 continue
     
     return overall_model, cat_models, overall_metrics, cat_metrics
 
-def _predict_with_pycaret(model, signal_only: float) -> float:
-    """Helper to make prediction with a PyCaret model."""
+def _predict_with_ml_model(model, signal_only: float) -> float:
+    """Helper to make prediction with a scikit-learn or XGBoost model."""
     if model is None:
         return np.nan
     try:
-        test_data = pd.DataFrame({'SignalOnly': [signal_only]})
-        pred = predict_model(model, data=test_data, verbose=False)
-        if 'prediction_label' in pred.columns:
-            return float(pred['prediction_label'].iloc[0])
-        elif 'Label' in pred.columns:
-            return float(pred['Label'].iloc[0])
-        else:
-            # Try the first column that's not SignalOnly
-            pred_col = [c for c in pred.columns if c != 'SignalOnly'][0]
-            return float(pred[pred_col].iloc[0])
+        X = np.array([[signal_only]])
+        pred = model.predict(X)
+        return float(pred[0])
     except Exception:
         return np.nan
 
 def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
     """
-    Fit regression models (PyCaret if available, otherwise simple linear).
+    Fit regression models (XGBoost/GradientBoosting if ML available, otherwise simple linear).
     Returns model objects or coefficients depending on availability.
     """
-    if PYCARET_AVAILABLE and len(df_known_in) >= 3:
-        # Use PyCaret models
-        overall_model, cat_models, overall_metrics, cat_metrics = _fit_pycaret_models(df_known_in)
-        return ('pycaret', overall_model, cat_models, overall_metrics, cat_metrics)
+    if ML_AVAILABLE and len(df_known_in) >= 3:
+        # Use advanced ML models (XGBoost, GradientBoosting, Ridge)
+        overall_model, cat_models, overall_metrics, cat_metrics = _train_ml_models(df_known_in)
+        return ('ml', overall_model, cat_models, overall_metrics, cat_metrics)
     else:
         # Fallback to simple linear regression
         overall = None
@@ -2327,36 +2336,42 @@ def compute_scores_and_store(
     model_result = _fit_overall_and_by_category(df_known)
     model_type = model_result[0]
     
-    if model_type == 'pycaret':
+    if model_type == 'ml':
         _, overall_model, cat_models, overall_metrics, cat_metrics = model_result
         
         # Display model performance metrics
         if overall_metrics:
+            model_name = "XGBoost" if overall_metrics.get('n_samples', 0) >= 8 else "GradientBoosting"
             st.caption(
-                f"🤖 **PyCaret Model Performance** — "
+                f"🤖 **{model_name} Model Performance** — "
                 f"R²: {overall_metrics.get('R2', 0):.3f} | "
                 f"MAE: {overall_metrics.get('MAE', 0):.1f} | "
-                f"RMSE: {overall_metrics.get('RMSE', 0):.1f}"
+                f"CV-MAE: {overall_metrics.get('MAE_CV', 0):.1f} | "
+                f"RMSE: {overall_metrics.get('RMSE', 0):.1f} | "
+                f"Samples: {overall_metrics.get('n_samples', 0)}"
             )
         if cat_metrics:
-            cat_summary = ", ".join([f"{cat}: R²={m.get('R2', 0):.2f}" for cat, m in cat_metrics.items()])
-            st.caption(f"📊 **Category Models** — {cat_summary}")
+            cat_summary = ", ".join([
+                f"{cat}: R²={m.get('R2', 0):.2f} (n={m.get('n_samples', 0)})" 
+                for cat, m in cat_metrics.items()
+            ])
+            st.caption(f"📊 **Category Models (Ridge/Linear)** — {cat_summary}")
         
-        # 5) Impute missing TicketIndex with PyCaret models
+        # 5) Impute missing TicketIndex with ML models
         def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
             # Try category model first
             if category in cat_models:
-                pred = _predict_with_pycaret(cat_models[category], signal_only)
+                pred = _predict_with_ml_model(cat_models[category], signal_only)
                 if not np.isnan(pred):
                     pred = float(np.clip(pred, 20.0, 180.0))
-                    return pred, "PyCaret Category"
+                    return pred, "ML Category"
             
             # Try overall model
             if overall_model is not None:
-                pred = _predict_with_pycaret(overall_model, signal_only)
+                pred = _predict_with_ml_model(overall_model, signal_only)
                 if not np.isnan(pred):
                     pred = float(np.clip(pred, 20.0, 180.0))
-                    return pred, "PyCaret Overall"
+                    return pred, "ML Overall"
             
             return np.nan, "Not enough data"
     else:
