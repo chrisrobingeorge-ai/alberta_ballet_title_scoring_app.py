@@ -1824,6 +1824,7 @@ K_SHRINK = 3.0          # stronger pull toward 1.00 when samples are small
 MINF, MAXF = 0.90, 1.15 # tighter caps than 0.85/1.25
 N_MIN = 3               # require at least 3 runs in a (category, month) before trusting a month-specific signal
 WINTER_POOL = {12, 1, 2}
+TICKET_BLEND_WEIGHT = 0.50  # weight for blending signals vs ticket history in composite index
 
 load_config()
 
@@ -2573,7 +2574,6 @@ def compute_scores_and_store(
         df["SignalOnly"],
         df["EffectiveTicketIndex"]
     )
-    TICKET_BLEND_WEIGHT = 0.50
     df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
 
     # 8) Estimated tickets (future month uses de-seasonalized benchmark)
