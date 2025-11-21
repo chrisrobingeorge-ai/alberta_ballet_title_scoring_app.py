@@ -1270,10 +1270,15 @@ def city_split_for(title: str | None, category: str | None) -> dict[str, float]:
     return DEFAULT_BASE_CITY_SPLIT.copy()
 
 def subs_share_for(category: str | None, city: str) -> float:
-    city = "Calgary" if "calg" in city.lower() else ("Edmonton" if "edm" in city.lower() else city)
-    if city in SUBS_SHARE_BY_CATEGORY_CITY and category in SUBS_SHARE_BY_CATEGORY_CITY[city]:
-        return float(SUBS_SHARE_BY_CATEGORY_CITY[city][category])
-    return float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
+    """
+    SINGLE-TICKET MODE:
+    All tickets produced by the model are treated as single tickets.
+    Subscription sales are handled through a different campaign and are
+    not part of this forecasting tool.
+
+    Therefore, the subscription share is always 0.
+    """
+    return 0.0
 
 # --- Historicals (loads your wide CSV and learns) ---
 with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
@@ -3237,15 +3242,13 @@ def render_results():
         yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
         total_mkt = float(yyc_mkt) + float(yeg_mkt)  
 
-        # --- Revenue estimates (Singles vs Subs, by city) ---
-        yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
-        yyc_sub_rev    = yyc_subs * YYC_SUB_AVG
-        yeg_single_rev = yeg_singles * YEG_SINGLE_AVG
-        yeg_sub_rev    = yeg_subs * YEG_SUB_AVG
-
-        yyc_revenue = yyc_single_rev + yyc_sub_rev
-        yeg_revenue = yeg_single_rev + yeg_sub_rev
-        total_revenue = yyc_revenue + yeg_revenue
+	    # --- Revenue estimates (single tickets only, by city) ---
+	    yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
+	    yeg_single_rev = yeg_singles * YEG_SINGLE_AVG
+	
+	    yyc_revenue = yyc_single_rev
+	    yeg_revenue = yeg_single_rev
+	    total_revenue = yyc_revenue + yeg_revenue
 
         # Show type + production expense for budgeting
         show_type = infer_show_type(title_sel, cat)
@@ -3328,37 +3331,33 @@ def render_results():
     plan_df = pd.DataFrame(plan_rows)
 
     # A view with a preferred column order for some displays
-    desired_order = [
-        "Month",
-        "Title",
-        "Category",
-        "PrimarySegment",
-        "SecondarySegment",
-        "TicketIndex used",
-        "FutureSeasonalityFactor",
-        "ReturnDecayPct",
-        "EstimatedTickets_Final",
-        "YYC_Singles",
-        "YYC_Subs",
-        "YEG_Singles",
-        "YEG_Subs",
-        "CityShare_Calgary",
-        "CityShare_Edmonton",
-        "YYC_Single_Revenue",
-        "YYC_Subs_Revenue",
-        "YEG_Single_Revenue",
-        "YEG_Subs_Revenue",
-        "YYC_Revenue",
-        "YEG_Revenue",
-        "Total_Revenue",
-        "YYC_Mkt_SPT",
-        "YEG_Mkt_SPT",
-        "YYC_Mkt_Spend",
-        "YEG_Mkt_Spend",
-        "Total_Mkt_Spend",
-        "Prod_Expense",
-        "Net_Contribution",
-    ]
+	desired_order = [
+	    "Month",
+	    "Title",
+	    "Category",
+	    "PrimarySegment",
+	    "SecondarySegment",
+	    "TicketIndex used",
+	    "FutureSeasonalityFactor",
+	    "ReturnDecayPct",
+	    "EstimatedTickets_Final",
+	    "YYC_Singles",
+	    "YEG_Singles",
+	    "CityShare_Calgary",
+	    "CityShare_Edmonton",
+	    "YYC_Single_Revenue",
+	    "YEG_Single_Revenue",
+	    "YYC_Revenue",
+	    "YEG_Revenue",
+	    "Total_Revenue",
+	    "YYC_Mkt_SPT",
+	    "YEG_Mkt_SPT",
+	    "YYC_Mkt_Spend",
+	    "YEG_Mkt_Spend",
+	    "Total_Mkt_Spend",
+	    "Prod_Expense",
+	    "Net_Contribution",
+	]
     present_plan_cols = [c for c in desired_order if c in plan_df.columns]
     plan_view = plan_df[present_plan_cols].copy()
 
