@@ -21,7 +21,8 @@ def is_python_compatible_with_pycaret() -> bool:
     Returns:
         bool: True if Python version is within PyCaret's supported range (3.9-3.11).
     """
-    return sys.version_info[:2] <= PYCARET_MAX_PYTHON and sys.version_info[:2] >= PYCARET_MIN_PYTHON
+    current_version = sys.version_info[:2]
+    return PYCARET_MIN_PYTHON <= current_version <= PYCARET_MAX_PYTHON
 
 
 def get_pycaret_compatibility_message() -> str:
@@ -31,9 +32,18 @@ def get_pycaret_compatibility_message() -> str:
     Returns:
         str: Message explaining the Python version compatibility issue.
     """
+    # Generate list of supported versions dynamically
+    supported_versions = []
+    for minor in range(PYCARET_MIN_PYTHON[1], PYCARET_MAX_PYTHON[1] + 1):
+        supported_versions.append(f"3.{minor}")
+    
+    if len(supported_versions) > 1:
+        versions_str = ", ".join(supported_versions[:-1]) + f", and {supported_versions[-1]}"
+    else:
+        versions_str = supported_versions[0]
+    
     return (
-        f"PyCaret only supports Python {PYCARET_MIN_PYTHON[0]}.{PYCARET_MIN_PYTHON[1]}, "
-        f"3.10, and {PYCARET_MAX_PYTHON[0]}.{PYCARET_MAX_PYTHON[1]}. "
+        f"PyCaret only supports Python {versions_str}. "
         f"Your Python version is {sys.version_info.major}.{sys.version_info.minor}. "
         f"To use PyCaret's Model Validation feature, please use Python {PYCARET_MAX_PYTHON[0]}.{PYCARET_MAX_PYTHON[1]} or earlier."
     )

@@ -2,7 +2,11 @@
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
 
-import math, time, re, io, sys
+import io
+import math
+import re
+import sys
+import time
 from datetime import datetime, timedelta, date
 from typing import Dict, Optional, Tuple
 
