@@ -1942,7 +1942,13 @@ def validation_title_page():
 
     @st.cache_data
     def load_history() -> pd.DataFrame:
-        df = pd.read_csv("history.csv")
+        try:
+            df = pd.read_csv("data/history_city_sales.csv")
+        except Exception:
+            try:
+                df = pd.read_csv("data/history.csv")
+            except Exception:
+                df = pd.DataFrame()
         # EXAMPLE: ensure you have these columns; rename if needed
         # df["actual_demand"] = df["Total_Tickets_Sold"]
         # df["your_pred"] = df["TitleScore_Prediction"]
