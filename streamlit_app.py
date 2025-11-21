@@ -18,6 +18,8 @@ from validation_utils import (
     get_pycaret_predictions,
     compute_model_metrics,
     build_comparison_frame,
+    is_python_compatible_with_pycaret,
+    get_pycaret_compatibility_message,
 )
 
 from io import BytesIO
@@ -1941,13 +1943,10 @@ def validation_title_page():
     )
     
     # Show Python version compatibility warning
-    if sys.version_info >= (3, 12):
+    if not is_python_compatible_with_pycaret():
         st.warning(
             f"⚠️ **Python Version Compatibility Notice**: "
-            f"You are using Python {sys.version_info.major}.{sys.version_info.minor}, "
-            f"but PyCaret only supports Python 3.9, 3.10, and 3.11. "
-            f"The Model Validation feature will not work with your current Python version. "
-            f"Please use Python 3.11 or earlier to use this feature."
+            f"{get_pycaret_compatibility_message()}"
         )
 
     @st.cache_data

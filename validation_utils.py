@@ -9,22 +9,50 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+# PyCaret supported Python version range
+PYCARET_MIN_PYTHON = (3, 9)
+PYCARET_MAX_PYTHON = (3, 11)
+
+
+def is_python_compatible_with_pycaret() -> bool:
+    """
+    Check if the current Python version is compatible with PyCaret.
+    
+    Returns:
+        bool: True if Python version is within PyCaret's supported range (3.9-3.11).
+    """
+    return sys.version_info[:2] <= PYCARET_MAX_PYTHON and sys.version_info[:2] >= PYCARET_MIN_PYTHON
+
+
+def get_pycaret_compatibility_message() -> str:
+    """
+    Get a user-friendly message about PyCaret Python version compatibility.
+    
+    Returns:
+        str: Message explaining the Python version compatibility issue.
+    """
+    return (
+        f"PyCaret only supports Python {PYCARET_MIN_PYTHON[0]}.{PYCARET_MIN_PYTHON[1]}, "
+        f"3.10, and {PYCARET_MAX_PYTHON[0]}.{PYCARET_MAX_PYTHON[1]}. "
+        f"Your Python version is {sys.version_info.major}.{sys.version_info.minor}. "
+        f"To use PyCaret's Model Validation feature, please use Python {PYCARET_MAX_PYTHON[0]}.{PYCARET_MAX_PYTHON[1]} or earlier."
+    )
+
 
 def _check_pycaret_available():
     """
     Helper function to check if pycaret is available and raise a helpful error if not.
     
+    Checks Python version compatibility (PyCaret supports Python 3.9-3.11) before
+    attempting to import PyCaret.
+    
     Raises:
+        RuntimeError: If Python version is incompatible with PyCaret (not 3.9-3.11).
         ImportError: If pycaret is not installed with installation instructions.
-        RuntimeError: If Python version is incompatible with PyCaret.
     """
     # Check Python version first
-    if sys.version_info >= (3, 12):
-        raise RuntimeError(
-            "PyCaret only supports Python 3.9, 3.10, and 3.11. "
-            f"Your Python version is {sys.version_info.major}.{sys.version_info.minor}. "
-            "To use PyCaret's Model Validation feature, please use Python 3.11 or earlier."
-        )
+    if not is_python_compatible_with_pycaret():
+        raise RuntimeError(get_pycaret_compatibility_message())
     
     try:
         import pycaret
