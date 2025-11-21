@@ -7,25 +7,28 @@ import pandas as pd
 from pycaret.regression import setup, compare_models, save_model
 
 # 1. Load your historical data
-df = pd.read_csv("data/history_city_sales.csv")
+# "thousands=','" turns "7,296" into 7296, etc.
+df = pd.read_csv("data/history_city_sales.csv", thousands=",")
 
-# 2. Make sure we have a target column called Total_Tickets
-#    Adjust this logic if your column names are different.
-if "Total_Tickets" not in df.columns:
-    has_single = "Single_Tickets" in df.columns
-    has_subs = "Subscription_Tickets" in df.columns
+# 2. Define ticket columns based on your CSV
+ticket_cols = [
+    "Single Tickets - Calgary",
+    "Single Tickets - Edmonton",
+    "Subscription Tickets - Calgary",
+    "Subscription Tickets - Edmonton",
+]
 
-    if has_single and has_subs:
-        df["Total_Tickets"] = df["Single_Tickets"] + df["Subscription_Tickets"]
-        print("Created Total_Tickets = Single_Tickets + Subscription_Tickets")
-    else:
-        raise ValueError(
-            "Cannot find a Total_Tickets column, or Single_Tickets + "
-            "Subscription_Tickets to build it from. "
-            "Please update this script to use your actual target column name."
-        )
+# Make sure all ticket columns are numeric and treat blanks as 0
+for col in ticket_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-# 3. Set up PyCaret
+# 3. Build a Total_Tickets column as the target
+df["Total_Tickets"] = df[ticket_cols].sum(axis=1)
+
+print("Preview of training data:")
+print(df[["Show Title"] + ticket_cols + ["Total_Tickets"]].head())
+
+# 4. Set up PyCaret
 s = setup(
     data=df,
     target="Total_Tickets",
@@ -33,14 +36,15 @@ s = setup(
     normalize=True,
     feature_selection=True,
     remove_multicollinearity=True,
+    ignore_features=["Show Title"],  # don't use raw title text as a feature
     silent=True,
     verbose=False,
 )
 
-# 4. Let PyCaret try different models and pick the best by MAE
+# 5. Let PyCaret try different models and pick the best by MAE
 best_model = compare_models(n_select=1, sort="MAE")
 
-# 5. Save the best model
+# 6. Save the best model
 save_model(best_model, "title_demand_model")
 print("\n✓ Model saved as 'title_demand_model.pkl' in this folder.")
 print("   Add/commit this file next to streamlit_app.py so the app can load it.")
