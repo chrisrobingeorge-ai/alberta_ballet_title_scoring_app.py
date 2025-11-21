@@ -109,7 +109,6 @@ def load_pycaret_model(model_name: str):
             f"Original error: {e}"
         ) from e
 
-
 import pandas as pd  # make sure this is at the top of the file
 
 
@@ -148,7 +147,6 @@ def get_pycaret_predictions(model, feature_df: pd.DataFrame, id_cols=None) -> pd
         return out[keep]
 
     return out
-
 
 
 def compute_model_metrics(
