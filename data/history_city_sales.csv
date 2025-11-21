@@ -1,44 +1,43 @@
-Show Title,Single Tickets - Calgary,Single Tickets - Edmonton,Subscription Tickets - Calgary,Subscription Tickets - Edmonton
-Alice in Wonderland,4507,2029,3227,1453
-All of Us - Tragically Hip,"7,296","4,081","2,877","1,234"
-Away We Go - Mixed Bill,938,630,2159,922
-Ballet BC,874,465,"1,715",959
-Ballet Boyz,1314,725,3431,1930
-BJM - L Cohen,"2,488","1,720","2,516","1,095"
-Botero,"1,617",714,"2,191",938
-Cinderella,"7,017","4,101","3,185","1,377"
-Cinderella,"7,290","5,545","2,463","1,630"
-Complexions - Lenny Kravitz,"2,728","1,237","2,195",936
-Dance Theatre of Harlem,"2,912","1,603","1,880",817
-Dangerous Liaisons,"2,045","1,087","2,591","1,152"
-Der Wolf & Rite of Spring,"1,411",845,"1,794",743
-deViate - Mixed Bill,"1,174",606,"2,359","1,005"
-Diavolo,"4,296","2,646","2,594","1,137"
-Don Quixote,"1,916","1,033","1,883",801
-Dona Peron,"1,867",746,"1,820",788
-Dracula,"4,202","2,329","3,059","1,695"
-Fiddle and the Drum - Joni Mitchell,"1,465",994,"2,490","1,075"
-Frankenstein,"3,885","2,868","2,560","1,157"
-Giselle,"3,652","2,278","2,229",952
-Grimm,"2,300","1,405","1,809",803
-Handmaid's Tale,"2,250","1,441","2,197",954
-Hansel & Gretel,"2,743","1,905","1,851",767
-La Sylphide,"1,845",729,"1,820",788
-Midsummer Night's Dream,"1,637","1,366","2,510","1,074"
-Momix,"2,781","1,605","2,769","1,236"
-Nijinsky,973,619,"2,090",853
-Once Upon a Time,"1,802","1,396","2,079",913
-Our Canada - Gordon Lightfoot,"3,574","1,729","3,259","1,576"
-Phi - David Bowie,"5,114","2,742","3,194","1,286"
-Shadowland,"1,289",616,"3,046","1,457"
-Shaping Sound,"5,516","3,205",995,492
-Sleeping Beauty,"4,374","3,230","1,850",748
-Sleeping Beauty,"2,869","2,526","2,517","1,079"
-Swan Lake,"5,559","3,631","2,854","1,113"
-Taj Express,"4,090","2,525","2,541","1,158"
-Tango Fire,"1,994","1,264","2,759","1,234"
-Trockadero,3350,2126,,
-Unleashed - Mixed Bill,1294,706,2225,996
-Winter Gala,390,308,335,265
-Winter Gala,447,324,335,165
-Wizard of Oz,3338,2294,1912,846
+Show Title,Single Tickets - Calgary,Single Tickets - Edmonton,Total Single Tickets,YourModel_Single_Tickets_Calgary,YourModel_Single_Tickets_Edmonton,YourModel_Total_Single_Tickets
+Alice in Wonderland,4507,2029,6536,3815,1997,5812
+All of Us - Tragically Hip,"7,296","4,081",11377,4692,2738,7430
+Away We Go - Mixed Bill,938,630,1568,1390,784,2174
+Ballet BC,874,465,1339,1314,612,1926
+Ballet Boyz,1314,725,2039,2491,1179,3670
+BJM - L Cohen,"2,488","1,720",4208,2757,1643,4400
+Botero,"1,617",714,2331,1315,629,1944
+Cinderella,"7,017","4,101",11118,3964,2922,6886
+Cinderella,"7,290","5,545",12835,3964,2922,6886
+Complexions - Lenny Kravitz,"2,728","1,237",3965,2285,1127,3412
+Dance Theatre of Harlem,"2,912","1,603",4515,2001,855,2856
+Dangerous Liaisons,"2,045","1,087",3132,2430,993,3423
+Der Wolf & Rite of Spring,"1,411",845,2256,1107,604,1711
+deViate - Mixed Bill,"1,174",606,1780,1849,713,2562
+Diavolo,"4,296","2,646",6942,3497,1625,5122
+Don Quixote,"1,916","1,033",2949,1225,661,1886
+Dona Peron,"1,867",746,2613,1711,602,2313
+Dracula,"4,202","2,329",6531,3187,2088,5275
+Fiddle and the Drum - Joni Mitchell,"1,465",994,2459,2108,1257,3365
+Frankenstein,"3,885","2,868",6753,3379,1785,5164
+Giselle,"3,652","2,278",5930,2410,1565,3975
+Grimm,"2,300","1,405",3705,1833,1145,2978
+Handmaid's Tale,"2,250","1,441",3691,2270,1034,3304
+Hansel & Gretel,"2,743","1,905",4648,1915,1294,3209
+La Sylphide,"1,845",729,2574,1637,801,2438
+Midsummer Night's Dream,"1,637","1,366",3003,2365,1518,3883
+Momix,"2,781","1,605",4386,2913,1262,4175
+Nijinsky,973,619,1592,864,458,1322
+Once Upon a Time,"1,802","1,396",3198,2015,1394,3409
+Our Canada - Gordon Lightfoot,"3,574","1,729",5303,3151,1702,4853
+Phi - David Bowie,"5,114","2,742",7856,3604,2148,5752
+Shaping Sound,"5,516","3,205",8721,3305,1588,4893
+Sleeping Beauty,"4,374","3,230",7604,2640,1896,4536
+Sleeping Beauty,"2,869","2,526",5395,2640,1896,4536
+Swan Lake,"5,559","3,631",9190,3421,2280,5701
+Taj Express,"4,090","2,525",6615,3239,1522,4761
+Tango Fire,"1,994","1,264",3258,2321,1032,3353
+Trockadero,3350,2126,5476,1701,913,2614
+Unleashed - Mixed Bill,1294,706,2000,1639,925,2564
+Winter Gala,390,308,698,321,191,512
+Winter Gala,447,324,771,321,191,512
+Wizard of Oz,3338,2294,5632,2063,1435,3498
