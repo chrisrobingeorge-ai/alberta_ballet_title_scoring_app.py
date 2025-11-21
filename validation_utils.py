@@ -86,10 +86,28 @@ def load_pycaret_model(model_name: str):
     
     Raises:
         ImportError: If pycaret is not installed.
+        FileNotFoundError: If the model file doesn't exist with helpful instructions.
     """
     _check_pycaret_available()
     from pycaret.regression import load_model
-    return load_model(model_name)
+    
+    try:
+        return load_model(model_name)
+    except FileNotFoundError as e:
+        # Provide helpful instructions when model file is missing
+        raise FileNotFoundError(
+            f"Could not find PyCaret model file '{model_name}.pkl'.\n\n"
+            f"To use the Model Validation feature, you need to:\n"
+            f"1. Train a PyCaret regression model on your historical data\n"
+            f"2. Save it using: save_model(model, '{model_name}')\n"
+            f"3. Place the '{model_name}.pkl' file in the project root directory\n\n"
+            f"Example training code:\n"
+            f"  from pycaret.regression import setup, compare_models, save_model\n"
+            f"  s = setup(data=your_df, target='actual_tickets', session_id=123)\n"
+            f"  best_model = compare_models()\n"
+            f"  save_model(best_model, '{model_name}')\n\n"
+            f"Original error: {e}"
+        ) from e
 
 
 def get_pycaret_predictions(
