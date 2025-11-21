@@ -107,13 +107,15 @@ xgboost>=2.0.0       # For XGBoost regressor
 ### Why Not PyCaret?
 
 Initial plan was to use PyCaret for automatic ML, but:
-- PyCaret 3.3.x only supports Python 3.9-3.11
+- At the time of implementation, PyCaret only supported Python 3.9-3.11
 - This codebase uses Python 3.12
 - Direct use of scikit-learn/XGBoost provides:
   - Better version compatibility
   - More control over model selection
   - Smaller dependency footprint
   - Faster installation and startup
+
+**Note**: PyCaret now supports Python 3.12 when installed from GitHub (`pip install git+https://github.com/pycaret/pycaret.git@master`), and is available for the Model Validation page feature.
 
 ## Usage in the App
 
