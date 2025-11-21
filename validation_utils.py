@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Tuple, Optional
 
 import numpy as np
@@ -17,8 +18,6 @@ def _check_pycaret_available():
         ImportError: If pycaret is not installed with installation instructions.
         RuntimeError: If Python version is incompatible with PyCaret.
     """
-    import sys
-    
     # Check Python version first
     if sys.version_info >= (3, 12):
         raise RuntimeError(

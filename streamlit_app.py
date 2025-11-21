@@ -2,7 +2,7 @@
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
 
-import math, time, re, io
+import math, time, re, io, sys
 from datetime import datetime, timedelta, date
 from typing import Dict, Optional, Tuple
 
@@ -1934,8 +1934,6 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
     else:                  return 1.00
 
 def validation_title_page():
-    import sys
-    
     st.title("Title Demand Model Validation")
     st.write(
         "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
