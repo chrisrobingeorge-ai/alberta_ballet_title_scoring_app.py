@@ -1953,19 +1953,56 @@ def validation_title_page():
             f"{get_pycaret_compatibility_message()}"
         )
 
-    @st.cache_data
-    def load_history() -> pd.DataFrame:
+@st.cache_data
+def load_history() -> pd.DataFrame:
+    """
+    Load historical data for model validation and ensure numeric ticket columns.
+
+    - Handles thousands separators like "7,296"
+    - Creates Total_Tickets if missing
+    """
+    df = pd.DataFrame()
+
+    # Try the two possible files
+    for path in ["data/history_city_sales.csv", "data/history.csv"]:
         try:
-            df = pd.read_csv("data/history_city_sales.csv")
+            # Important: handle "7,296" etc.
+            df = pd.read_csv(path, thousands=",")
+            break
         except Exception:
-            try:
-                df = pd.read_csv("data/history.csv")
-            except Exception:
-                df = pd.DataFrame()
-        # EXAMPLE: ensure you have these columns; rename if needed
-        # df["actual_demand"] = df["Total_Tickets_Sold"]
-        # df["your_pred"] = df["TitleScore_Prediction"]
+            continue
+
+    if df.empty:
         return df
+
+    # Normalise typical column names
+    # (Your CSV has these headers:)
+    # Show Title, Single Tickets - Calgary, Single Tickets - Edmonton,
+    # Subscription Tickets - Calgary, Subscription Tickets - Edmonton
+
+    # Make sure ticket columns are numeric
+    ticket_cols = [
+        "Single Tickets - Calgary",
+        "Single Tickets - Edmonton",
+        "Subscription Tickets - Calgary",
+        "Subscription Tickets - Edmonton",
+    ]
+
+    for col in ticket_cols:
+        if col in df.columns:
+            # Coerce strings with commas / blanks to numbers
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Create Total_Tickets if it's not there yet
+    if "Total_Tickets" not in df.columns and all(c in df.columns for c in ticket_cols):
+        df["Total_Tickets"] = (
+            df["Single Tickets - Calgary"].fillna(0)
+            + df["Single Tickets - Edmonton"].fillna(0)
+            + df["Subscription Tickets - Calgary"].fillna(0)
+            + df["Subscription Tickets - Edmonton"].fillna(0)
+        )
+
+    return df
 
     df = load_history()
 
