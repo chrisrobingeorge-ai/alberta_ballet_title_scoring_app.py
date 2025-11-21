@@ -110,31 +110,45 @@ def load_pycaret_model(model_name: str):
         ) from e
 
 
-def get_pycaret_predictions(
-    model, feature_df: pd.DataFrame, id_cols: Optional[list[str]] = None
-) -> pd.DataFrame:
-    """
-    Run a PyCaret model on feature_df and return a dataframe with predictions.
+import pandas as pd  # make sure this is at the top of the file
 
-    Assumes the target column was removed when you trained the model.
-    
-    Note: This function requires pycaret to be installed.
-    Install it with: pip install git+https://github.com/pycaret/pycaret.git@master
-    
-    Raises:
-        ImportError: If pycaret is not installed.
+
+def get_pycaret_predictions(model, feature_df: pd.DataFrame, id_cols=None) -> pd.DataFrame:
     """
-    _check_pycaret_available()
+    Run the PyCaret model on feature_df and return a DataFrame with predictions.
+
+    - Keeps the original columns for display / IDs.
+    - Internally renames columns (spaces -> underscores) to match how the model was trained.
+    """
     from pycaret.regression import predict_model
-    
-    preds = predict_model(model, data=feature_df.copy())
-    # PyCaret's predict_model usually returns 'Label' as the prediction column.
-    result = preds.copy()
+
+    if model is None or feature_df is None or feature_df.empty:
+        return pd.DataFrame()
+
+    # Keep original for IDs / display
+    original_df = feature_df.copy()
+
+    # Prepare a version for PyCaret with the same naming as in train_pycaret_model.py
+    py_df = feature_df.copy()
+    py_df.columns = [c.replace(" ", "_") for c in py_df.columns]
+
+    # Run model
+    preds = predict_model(model, data=py_df)
+
+    # PyCaret regression normally uses "Label" for the prediction column
+    pred_col = "Label" if "Label" in preds.columns else preds.columns[-1]
+
+    # Start from original columns, add prediction
+    out = original_df.copy()
+    out["PyCaret_Prediction"] = preds[pred_col].values
+
+    # If caller only wants ID columns + prediction, trim to that
     if id_cols:
-        # keep IDs plus label
-        keep_cols = [c for c in id_cols if c in result.columns] + ["Label"]
-        result = result[keep_cols]
-    return result.rename(columns={"Label": "pycaret_pred"})
+        keep = [c for c in id_cols if c in out.columns] + ["PyCaret_Prediction"]
+        return out[keep]
+
+    return out
+
 
 
 def compute_model_metrics(
