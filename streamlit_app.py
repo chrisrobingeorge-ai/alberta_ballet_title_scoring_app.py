@@ -136,34 +136,104 @@ def _make_styles():
     return styles
 
 def _methodology_glossary_text() -> list:
+    """
+    Build the 'Methodology & Glossary' section for the PDF report.
+
+    Returns a list of ReportLab Flowables (Paragraphs, Spacers).
+    """
     styles = _make_styles()
-    P = Paragraph; SP = Spacer
+    P = Paragraph
+    SP = Spacer
     out = []
-    out += [P("How this forecast works (quick read)", styles["h1"])]
+
+    # ─────────────────────────────────────────────────────────
+    # 1. High-level description (two paragraphs)
+    # ─────────────────────────────────────────────────────────
+    out.append(P("How this forecast works", styles["h1"]))
+
+    out.append(P(
+        "This model is a structured, rule-based demand forecasting system that converts "
+        "online visibility signals into ticket expectations. It uses four measurable "
+        "sources of public interest—Wikipedia traffic, Google Trends, YouTube views, "
+        "and Spotify popularity—to generate “Familiarity” and “Motivation” scores for "
+        "each show. These scores are evaluated against a benchmark title and passed "
+        "through calibrated relationships derived from Alberta Ballet’s real history: "
+        "month-by-month seasonality, Calgary/Edmonton audience differences, "
+        "subscriber-versus-single patterns, and remount behaviour. The model then "
+        "translates these calibrated interest scores into expected ticket totals, "
+        "revenue, and recommended marketing spend for any title you evaluate, including "
+        "new works.",
+        styles["body"],
+    ))
+    out.append(SP(1, 6))
+
+    out.append(P("How the model uses history (retrodiction, not circularity)", styles["h2"]))
+    out.append(P(
+        "The model uses historical sales to learn general patterns, but it never uses "
+        "the past ticket total of a specific title to predict that same title’s future. "
+        "Instead, it performs what economists call <b>retrodiction</b>—re-estimating "
+        "past shows using the same formula it uses for new shows. Retrodiction is not "
+        "a scientific measure of forecast accuracy, but a calibration test: it shows "
+        "whether the shape of the interest-to-ticket mapping makes sense, whether the "
+        "model is too flat or too steep, and which titles the logic systematically "
+        "over- or under-estimates. This is the same technique Broadway economics teams "
+        "use when building benchmarked demand curves; the model checks its alignment "
+        "with reality without simply copying past results.",
+        styles["body"],
+    ))
+    out.append(SP(1, 10))
+
+    # ─────────────────────────────────────────────────────────
+    # 2. Quick-read bullets (kept from your original text)
+    # ─────────────────────────────────────────────────────────
+    out.append(P("How this forecast works (quick read)", styles["h2"]))
+
     bullets = [
-        "We combine online visibility (Wikipedia, YouTube, Google) into two simple ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> (people engage with it).",
-        "We anchor everything to a <b>benchmark title</b> so scores are on a shared 0–100+ scale.",
-        "We connect those scores to real ticket history to estimate a <b>Ticket Index</b> for each title.",
-        "We adjust for the <b>month</b> you plan to run it (some months sell better), and for <b>recency</b> if it’s a quick remount.",
-        "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned historical shares and then into <b>Singles/Subscribers</b>.",
-        "We convert tickets into <b>revenue</b> using typical realized prices by city & product, and into recommended <b>marketing spend</b> using learned per-single-ticket marketing $ by title/category and city.",    ]
-    for b in bullets: out += [P(f"• {b}", styles["body"])]
-    out += [SP(1, 10)]
-    out += [P("Plain-language glossary", styles["h2"])]
-    gl = [
+        "We combine online visibility (Wikipedia, YouTube, Google) into two simple "
+        "ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> "
+        "(people engage with it).",
+        "We anchor everything to a <b>benchmark title</b> so scores are on a shared "
+        "0–100+ scale.",
+        "We connect those scores to real ticket history to estimate a "
+        "<b>Ticket Index</b> for each title.",
+        "We adjust for the <b>month</b> you plan to run it (some months sell better), "
+        "and for <b>recency</b> if it’s a quick remount.",
+        "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned "
+        "historical shares and then into <b>Singles/Subscribers</b>.",
+        "We convert tickets into <b>revenue</b> using typical realized prices by "
+        "city & product, and into recommended <b>marketing spend</b> using learned "
+        "per-single-ticket marketing $ by title/category and city.",
+    ]
+    for b in bullets:
+        out.append(P(f"• {b}", styles["body"]))
+    out.append(SP(1, 10))
+
+    # ─────────────────────────────────────────────────────────
+    # 3. Plain-language glossary (unchanged)
+    # ─────────────────────────────────────────────────────────
+    out.append(P("Plain-language glossary", styles["h2"]))
+
+    glossary_items = [
         "<b>Familiarity</b>: how well-known the title is.",
         "<b>Motivation</b>: how keen people seem to be to watch it.",
-        "<b>Ticket Index</b>: how that interest typically translates into tickets (vs the benchmark).",
+        "<b>Ticket Index</b>: how that interest typically translates into tickets "
+        "(vs the benchmark).",
         "<b>Seasonality</b>: some months sell better than others for a given type of show.",
         "<b>Remount</b>: recent repeats often sell a bit less; we reduce estimates accordingly.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
-        "<b>Revenue estimate</b>: Singles/Subs tickets in each city multiplied by typical realized prices from the last season.",
-        "<b>Marketing spend per single</b>: historic median $ of paid media per sold single ticket, learned by title×city where possible, then category×city, then city-wide.",
-        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = marketing $/single × forecast singles in each city.",
+        "<b>Revenue estimate</b>: Singles/Subs tickets in each city multiplied by typical "
+        "realized prices from the last season.",
+        "<b>Marketing spend per single</b>: historic median $ of paid media per sold single "
+        "ticket, learned by title×city where possible, then category×city, then city-wide.",
+        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = "
+        "marketing $/single × forecast singles in each city.",
     ]
-    for g in gl: out += [P(f"• {g}", styles["body"])]
-    out += [SP(1, 14)]
+
+    for g in glossary_items:
+        out.append(P(g, styles["body"]))
+
     return out
+
 
 
 def _narrative_for_row(r: dict) -> str:
