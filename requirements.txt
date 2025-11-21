@@ -14,3 +14,6 @@ xgboost>=2.0.0       # Gradient boosting for better predictions
 # --- Optional: live data for NEW titles ---
 google-api-python-client>=2.130.0   # YouTube Data API v3
 spotipy>=2.23.0                     # Spotify Web API
+
+# --- NEW: for validation page ---
+pycaret>=3.0.0
