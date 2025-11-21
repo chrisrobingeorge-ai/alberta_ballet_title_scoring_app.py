@@ -2215,7 +2215,8 @@ def validation_title_page():
         - **R²:** is like asking, “How much of the story does the model understand?”  
           R² = 0 would mean “no better than guessing the average for every show.”  
           R² = 1.0 would mean “perfectly matches all ups and downs.”  
-          So an R² around 0.40–0.45 means the model understands about 42% of the story behind why different shows sell differently. 
+          The rest is driven by things the model can’t see yet (brand, casting, timing, buzz, media, luck).
+		  So an R² around 0.40–0.45 means the model understands about 42% of the story behind why different shows sell differently. 
         """
     )
 
