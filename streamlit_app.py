@@ -2204,6 +2204,16 @@ def validation_title_page():
     pycaret_metrics = compute_model_metrics(comp_df, actual_col, "PyCaret_Prediction")
 
     st.subheader("Model performance overview")
+    st.markdown(
+        """
+        **How to read these numbers:**
+
+        - **MAE (Mean Absolute Error):** on average, how many tickets the model is off by (typical size of the miss).
+        - **RMSE (Root Mean Squared Error):** like MAE, but it punishes big misses more strongly.
+        - **R²:** how much of the difference between stronger and weaker titles the model can explain  
+          (for example, R² = 0.42 ≈ 42% of the variation explained).
+        """
+    )
 
     col1, col2 = st.columns(2)
     with col1:
