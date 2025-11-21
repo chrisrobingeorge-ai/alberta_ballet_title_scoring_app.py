@@ -33,9 +33,10 @@ def get_pycaret_compatibility_message() -> str:
         str: Message explaining the Python version compatibility issue.
     """
     # Generate list of supported versions dynamically
-    supported_versions = []
-    for minor in range(PYCARET_MIN_PYTHON[1], PYCARET_MAX_PYTHON[1] + 1):
-        supported_versions.append(f"3.{minor}")
+    supported_versions = [
+        f"{PYCARET_MIN_PYTHON[0]}.{minor}"
+        for minor in range(PYCARET_MIN_PYTHON[1], PYCARET_MAX_PYTHON[1] + 1)
+    ]
     
     if len(supported_versions) > 1:
         versions_str = ", ".join(supported_versions[:-1]) + f", and {supported_versions[-1]}"

@@ -26,7 +26,6 @@ from validation_utils import (
     get_pycaret_compatibility_message,
 )
 
-from io import BytesIO
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -412,7 +411,7 @@ def build_full_pdf_report(methodology_paragraphs: list,
       4) Season Table (months as columns)
     """
     styles = _make_styles()
-    buf = BytesIO()
+    buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
         pagesize=landscape(LETTER),
