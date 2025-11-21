@@ -2212,13 +2212,10 @@ def validation_title_page():
           If MAE = 900, the model is typically about 900 tickets too high or too low.
         - **RMSE (Root Mean Squared Error):** similar to MAE, but big misses hurt more in this score,  
           so it highlights whether the model sometimes gets things *very* wrong.
-        - **R²:** how well the model explains the pattern of which titles are strong and which are weak.  
+        - **R²:** is like asking, “How much of the story does the model understand?”  
           R² = 0 would mean “no better than guessing the average for every show.”  
           R² = 1.0 would mean “perfectly matches all ups and downs.”  
-          So an R² around 0.40–0.45 means the model is capturing roughly 40–45% of the differences in ticket sales between titles.
-		  R²: is like asking, “How much of the story does the model understand?”
-          If R² = 0.42: the model understands about 42% of the story behind why different shows sell differently.
-          The rest is driven by things the model can’t see yet (brand, casting, timing, buzz, media, luck).
+          So an R² around 0.40–0.45 means the model understands about 42% of the story behind why different shows sell differently. The rest is driven by things the model can’t see yet (brand, casting, timing, buzz, media, luck).
         """
     )
 
