@@ -15,7 +15,18 @@ def _check_pycaret_available():
     
     Raises:
         ImportError: If pycaret is not installed with installation instructions.
+        RuntimeError: If Python version is incompatible with PyCaret.
     """
+    import sys
+    
+    # Check Python version first
+    if sys.version_info >= (3, 12):
+        raise RuntimeError(
+            "PyCaret only supports Python 3.9, 3.10, and 3.11. "
+            f"Your Python version is {sys.version_info.major}.{sys.version_info.minor}. "
+            "To use PyCaret's Model Validation feature, please use Python 3.11 or earlier."
+        )
+    
     try:
         import pycaret
     except ImportError:

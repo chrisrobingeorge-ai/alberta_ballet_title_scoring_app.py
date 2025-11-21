@@ -1934,11 +1934,23 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
     else:                  return 1.00
 
 def validation_title_page():
+    import sys
+    
     st.title("Title Demand Model Validation")
     st.write(
         "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
         "on historical data."
     )
+    
+    # Show Python version compatibility warning
+    if sys.version_info >= (3, 12):
+        st.warning(
+            f"⚠️ **Python Version Compatibility Notice**: "
+            f"You are using Python {sys.version_info.major}.{sys.version_info.minor}, "
+            f"but PyCaret only supports Python 3.9, 3.10, and 3.11. "
+            f"The Model Validation feature will not work with your current Python version. "
+            f"Please use Python 3.11 or earlier to use this feature."
+        )
 
     @st.cache_data
     def load_history() -> pd.DataFrame:
