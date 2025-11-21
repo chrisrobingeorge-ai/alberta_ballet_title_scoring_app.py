@@ -2,7 +2,11 @@
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
 
-import math, time, re, io
+import io
+import math
+import re
+import sys
+import time
 from datetime import datetime, timedelta, date
 from typing import Dict, Optional, Tuple
 
@@ -18,9 +22,10 @@ from validation_utils import (
     get_pycaret_predictions,
     compute_model_metrics,
     build_comparison_frame,
+    is_python_compatible_with_pycaret,
+    get_pycaret_compatibility_message,
 )
 
-from io import BytesIO
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -406,7 +411,7 @@ def build_full_pdf_report(methodology_paragraphs: list,
       4) Season Table (months as columns)
     """
     styles = _make_styles()
-    buf = BytesIO()
+    buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
         pagesize=landscape(LETTER),
@@ -1939,6 +1944,13 @@ def validation_title_page():
         "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
         "on historical data."
     )
+    
+    # Show Python version compatibility warning
+    if not is_python_compatible_with_pycaret():
+        st.warning(
+            f"⚠️ **Python Version Compatibility Notice**: "
+            f"{get_pycaret_compatibility_message()}"
+        )
 
     @st.cache_data
     def load_history() -> pd.DataFrame:

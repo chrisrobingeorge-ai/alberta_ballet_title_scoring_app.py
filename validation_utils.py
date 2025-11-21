@@ -2,20 +2,69 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Tuple, Optional
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+# PyCaret supported Python version range
+PYCARET_MIN_PYTHON = (3, 9)
+PYCARET_MAX_PYTHON = (3, 11)
+
+
+def is_python_compatible_with_pycaret() -> bool:
+    """
+    Check if the current Python version is compatible with PyCaret.
+    
+    Returns:
+        bool: True if Python version is within PyCaret's supported range (3.9-3.11).
+    """
+    current_version = sys.version_info[:2]
+    return PYCARET_MIN_PYTHON <= current_version <= PYCARET_MAX_PYTHON
+
+
+def get_pycaret_compatibility_message() -> str:
+    """
+    Get a user-friendly message about PyCaret Python version compatibility.
+    
+    Returns:
+        str: Message explaining the Python version compatibility issue.
+    """
+    # Generate list of supported versions dynamically
+    supported_versions = [
+        f"{PYCARET_MIN_PYTHON[0]}.{minor}"
+        for minor in range(PYCARET_MIN_PYTHON[1], PYCARET_MAX_PYTHON[1] + 1)
+    ]
+    
+    if len(supported_versions) > 1:
+        versions_str = ", ".join(supported_versions[:-1]) + f", and {supported_versions[-1]}"
+    else:
+        versions_str = supported_versions[0]
+    
+    return (
+        f"PyCaret only supports Python {versions_str}. "
+        f"Your Python version is {sys.version_info.major}.{sys.version_info.minor}. "
+        f"To use PyCaret's Model Validation feature, please use Python {PYCARET_MAX_PYTHON[0]}.{PYCARET_MAX_PYTHON[1]} or earlier."
+    )
+
 
 def _check_pycaret_available():
     """
     Helper function to check if pycaret is available and raise a helpful error if not.
     
+    Checks Python version compatibility (PyCaret supports Python 3.9-3.11) before
+    attempting to import PyCaret.
+    
     Raises:
+        RuntimeError: If Python version is incompatible with PyCaret (not 3.9-3.11).
         ImportError: If pycaret is not installed with installation instructions.
     """
+    # Check Python version first
+    if not is_python_compatible_with_pycaret():
+        raise RuntimeError(get_pycaret_compatibility_message())
+    
     try:
         import pycaret
     except ImportError:
