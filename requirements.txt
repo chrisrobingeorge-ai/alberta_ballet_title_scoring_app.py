@@ -1,14 +1,14 @@
 # --- Core ---
 streamlit>=1.37
-pandas>=2.2
-numpy>=1.26
-matplotlib>=3.8
+pandas>=2.0,<2.2  # PyCaret requires pandas<2.2
+numpy>=1.21,<1.27  # PyCaret requires numpy<1.27
+matplotlib>=3.0,<3.8  # PyCaret requires matplotlib<3.8
 requests>=2.31
 reportlab>=4.0.0
 pytrends>=4.9.2
 
 # --- Machine Learning ---
-scikit-learn>=1.5.0  # For advanced regression modeling
+scikit-learn>=1.4,<1.5  # PyCaret requires scikit-learn<1.5
 xgboost>=2.0.0       # Gradient boosting for better predictions
 
 # --- Optional: live data for NEW titles ---

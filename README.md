@@ -59,21 +59,20 @@ The app uses several CSV files in the `data/` directory:
 
 - Python 3.12+
 - Streamlit 1.37+
-- pandas 2.2+
-- numpy 1.26+
-- scikit-learn 1.5+
+- pandas 2.0-2.2 (compatible with PyCaret)
+- numpy 1.21-1.27 (compatible with PyCaret)
+- scikit-learn 1.4-1.5 (compatible with PyCaret)
 - xgboost 2.0+
-- matplotlib 3.8+
+- matplotlib 3.0-3.8 (compatible with PyCaret)
 
 See `requirements.txt` for complete dependency list.
 
-### Optional Dependencies
+### PyCaret Integration
 
-- **PyCaret** (for Model Validation page only)
-  - Not required for core title scoring and season planning functionality
-  - **Python 3.12 Support**: PyCaret now supports Python 3.12 when installed from GitHub
-  - Install with: `pip install git+https://github.com/pycaret/pycaret.git@master`
-  - The standard `pip install pycaret` may not support Python 3.12, use the GitHub installation instead
+- **PyCaret** is included for the Model Validation page
+  - Installed from GitHub to support Python 3.12
+  - Requires specific version constraints for pandas, numpy, matplotlib, and scikit-learn
+  - If you encounter dependency conflicts, check that your versions match those in `requirements.txt`
 
 ## Project Structure
 
