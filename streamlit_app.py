@@ -147,7 +147,7 @@ def _methodology_glossary_text() -> list:
     out = []
 
     # ─────────────────────────────────────────────────────────
-    # 1. High-level description (two paragraphs)
+    # 1. High-level description
     # ─────────────────────────────────────────────────────────
     out.append(P("How this forecast works", styles["h1"]))
 
@@ -173,9 +173,9 @@ def _methodology_glossary_text() -> list:
         "the past ticket total of a specific title to predict that same title’s future. "
         "Instead, it performs what economists call <b>retrodiction</b>—re-estimating "
         "past shows using the same formula it uses for new shows. Retrodiction is not "
-        "a scientific measure of forecast accuracy, but a calibration test: it shows "
-        "whether the shape of the interest-to-ticket mapping makes sense, whether the "
-        "model is too flat or too steep, and which titles the logic systematically "
+        "a scientific measure of true forecast accuracy, but a calibration test: it "
+        "shows whether the shape of the interest-to-ticket mapping makes sense, whether "
+        "the model is too flat or too steep, and which titles the logic systematically "
         "over- or under-estimates. This is the same technique Broadway economics teams "
         "use when building benchmarked demand curves; the model checks its alignment "
         "with reality without simply copying past results.",
@@ -184,7 +184,26 @@ def _methodology_glossary_text() -> list:
     out.append(SP(1, 10))
 
     # ─────────────────────────────────────────────────────────
-    # 2. Quick-read bullets (kept from your original text)
+    # 2. How to read the accuracy numbers
+    # ─────────────────────────────────────────────────────────
+    out.append(P("How to read the accuracy numbers", styles["h2"]))
+    out.append(P(
+        "When we test the model on past seasons, the dashboard shows three standard "
+        "metrics: Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and R². "
+        "MAE and RMSE are expressed in tickets and indicate, on average, how far the "
+        "model’s estimates are from actual results (RMSE penalises large misses more "
+        "heavily). R² is a 0–1 style measure of how much of the variation between "
+        "stronger and weaker titles the model can explain. For example, an R² around "
+        "0.40–0.45 means the model explains roughly 40–45% of the differences in "
+        "historical ticket sales between titles. These figures describe how well the "
+        "model back-fits history; they are best interpreted as a calibration check, "
+        "not a guarantee that future seasons will match the same percentages exactly.",
+        styles["body"],
+    ))
+    out.append(SP(1, 10))
+
+    # ─────────────────────────────────────────────────────────
+    # 3. Quick-read bullets (original content, kept)
     # ─────────────────────────────────────────────────────────
     out.append(P("How this forecast works (quick read)", styles["h2"]))
 
@@ -209,7 +228,7 @@ def _methodology_glossary_text() -> list:
     out.append(SP(1, 10))
 
     # ─────────────────────────────────────────────────────────
-    # 3. Plain-language glossary (unchanged)
+    # 4. Plain-language glossary (original content, kept)
     # ─────────────────────────────────────────────────────────
     out.append(P("Plain-language glossary", styles["h2"]))
 
@@ -228,13 +247,10 @@ def _methodology_glossary_text() -> list:
         "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = "
         "marketing $/single × forecast singles in each city.",
     ]
-
     for g in glossary_items:
         out.append(P(g, styles["body"]))
 
     return out
-
-
 
 def _narrative_for_row(r: dict) -> str:
     title = r.get("Title",""); month = r.get("Month",""); cat = r.get("Category","")
