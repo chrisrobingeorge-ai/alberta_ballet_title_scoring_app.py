@@ -1939,20 +1939,6 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
     elif delta_years <= 9: return 0.90
     else:                  return 1.00
 
-def validation_title_page():
-    st.title("Title Demand Model Validation")
-    st.write(
-        "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
-        "on historical data."
-    )
-    
-    # Show Python version compatibility warning
-    if not is_python_compatible_with_pycaret():
-        st.warning(
-            f"⚠️ **Python Version Compatibility Notice**: "
-            f"{get_pycaret_compatibility_message()}"
-        )
-
 @st.cache_data
 def load_history() -> pd.DataFrame:
     """
@@ -1975,11 +1961,6 @@ def load_history() -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Normalise typical column names
-    # (Your CSV has these headers:)
-    # Show Title, Single Tickets - Calgary, Single Tickets - Edmonton,
-    # Subscription Tickets - Calgary, Subscription Tickets - Edmonton
-
     # Make sure ticket columns are numeric
     ticket_cols = [
         "Single Tickets - Calgary",
@@ -1990,7 +1971,6 @@ def load_history() -> pd.DataFrame:
 
     for col in ticket_cols:
         if col in df.columns:
-            # Coerce strings with commas / blanks to numbers
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Create Total_Tickets if it's not there yet
@@ -2004,7 +1984,27 @@ def load_history() -> pd.DataFrame:
 
     return df
 
+
+def validation_title_page():
+    st.title("Title Demand Model Validation")
+    st.write(
+        "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
+        "on historical data."
+    )
+
+    # Show Python version compatibility warning
+    if not is_python_compatible_with_pycaret():
+        st.warning(
+            f"⚠️ **Python Version Compatibility Notice**: "
+            f"{get_pycaret_compatibility_message()}"
+        )
+
+    # ─── Load and filter history ──────────────────────────────────────
     df = load_history()
+
+    if df.empty:
+        st.warning("No historical data found in data/history_city_sales.csv or data/history.csv.")
+        return
 
     # Optional filters
     if "Season" in df.columns:
@@ -2020,6 +2020,9 @@ def load_history() -> pd.DataFrame:
             df = df[df["City"] == city_filter]
 
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
+    if not numeric_cols:
+        st.error("No numeric columns found in the historical data.")
+        return
 
     actual_col = st.selectbox(
         "Actual outcome column (target)",
@@ -2034,39 +2037,25 @@ def load_history() -> pd.DataFrame:
         help="Column with your existing title scoring prediction.",
     )
 
+    # ID cols only used for display (not for merging)
+    id_cols = [c for c in ["Show Title", "Title", "City", "Season"] if c in df.columns]
+
+    # ─── PyCaret model config ─────────────────────────────────────────
     st.subheader("PyCaret model")
-    
-    # Show info box about PyCaret model requirement
+
     with st.expander("ℹ️ About PyCaret Model Validation", expanded=False):
         st.markdown("""
         This feature compares your title scoring predictions against a PyCaret-trained model.
         
         **To use this feature:**
-        1. Train a PyCaret regression model on your historical data
-        2. Save it using: `save_model(model, 'your_model_name')`
-        3. Place the `.pkl` file in the project root directory
+        1. Train a PyCaret regression model on your historical data  
+        2. Save it using: `save_model(model, 'your_model_name')`  
+        3. Place the `.pkl` file in the project root directory  
         4. Enter the model name below (without `.pkl` extension)
         
-        **Example training code:**
-        ```python
-        from pycaret.regression import setup, compare_models, save_model
-        
-        # Load your historical data (replace with your actual data file)
-        df = pd.read_csv('data/history_city_sales.csv')
-        
-        # Setup PyCaret (adjust target column to match your data)
-        s = setup(data=df, target='Total_Tickets', session_id=123)
-        
-        # Find best model
-        best_model = compare_models()
-        
-        # Save for use in this app
-        save_model(best_model, 'title_demand_model')
-        ```
-        
-        See [MODEL_VALIDATION_GUIDE.md](https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app.py/blob/main/MODEL_VALIDATION_GUIDE.md) for detailed instructions.
+        See `MODEL_VALIDATION_GUIDE.md` for detailed instructions.
         """)
-    
+
     model_name = st.text_input(
         "PyCaret saved model name",
         value="title_demand_model",
@@ -2077,6 +2066,7 @@ def load_history() -> pd.DataFrame:
         st.warning("Please provide a PyCaret model name.")
         return
 
+    # ─── Load PyCaret model ───────────────────────────────────────────
     try:
         pycaret_model = load_pycaret_model(model_name)
     except FileNotFoundError as e:
@@ -2096,26 +2086,31 @@ def load_history() -> pd.DataFrame:
         st.exception(e)
         return
 
+    # ─── Run PyCaret predictions ──────────────────────────────────────
+    # Features = everything except the chosen target
     feature_df = df.drop(columns=[actual_col], errors="ignore")
-    id_cols = [c for c in df.columns if c in ["Title", "City", "Season"]]
-    pycaret_pred_df = get_pycaret_predictions(pycaret_model, feature_df, id_cols=id_cols)
 
-    df = df.merge(
-        pycaret_pred_df,
-        on=[c for c in id_cols if c in df.columns],
-        how="left",
-    )
+    pycaret_pred_df = get_pycaret_predictions(pycaret_model, feature_df, id_cols=None)
 
+    if pycaret_pred_df.empty or "PyCaret_Prediction" not in pycaret_pred_df.columns:
+        st.info("PyCaret comparison is currently unavailable; showing only your model’s metrics.")
+        # You could still compute your model metrics here if you like
+        return
+
+    # Align predictions with df by row order
+    df["PyCaret_Prediction"] = pycaret_pred_df["PyCaret_Prediction"].values
+
+    # ─── Build comparison frame ───────────────────────────────────────
     comp_df = build_comparison_frame(
         base_df=df,
         actual_col=actual_col,
         your_pred_col=your_pred_col,
-        pycaret_pred_col="pycaret_pred",
+        # pycaret_pred_col defaults to "PyCaret_Prediction"
         id_cols=id_cols,
     )
 
     your_metrics = compute_model_metrics(comp_df, actual_col, your_pred_col)
-    pycaret_metrics = compute_model_metrics(comp_df, actual_col, "pycaret_pred")
+    pycaret_metrics = compute_model_metrics(comp_df, actual_col, "PyCaret_Prediction")
 
     st.subheader("Model performance overview")
 
@@ -2132,10 +2127,11 @@ def load_history() -> pd.DataFrame:
         st.metric("RMSE", f"{pycaret_metrics['RMSE']:.2f}")
         st.metric("R²", f"{pycaret_metrics['R2']:.3f}")
 
+    # ─── Tables: where models differ ──────────────────────────────────
     st.subheader("Actual vs Predicted")
 
     plot_df = comp_df.copy()
-    if "Title" not in plot_df.columns:
+    if "Title" not in plot_df.columns and "Show Title" not in plot_df.columns:
         plot_df["Title"] = plot_df.index.astype(str)
 
     st.write("Absolute error by title (lower is better).")
@@ -2154,7 +2150,8 @@ def load_history() -> pd.DataFrame:
     )
     detail_cols = (
         id_cols
-        + [actual_col, your_pred_col, "pycaret_pred", "abs_err_your", "abs_err_pycaret", "abs_err_delta"]
+        + [actual_col, your_pred_col, "PyCaret_Prediction", "abs_err_your",
+           "abs_err_pycaret", "abs_err_delta"]
     )
     detail_cols = [c for c in detail_cols if c in plot_df.columns]
 
@@ -2166,7 +2163,8 @@ def load_history() -> pd.DataFrame:
     )
 
     st.caption(
-        "Use this to see patterns – e.g., certain repertoire types or cities where one model consistently outperforms the other."
+        "Use this to see patterns – e.g., certain repertoire types or cities "
+        "where one model consistently outperforms the other."
     )
 
 # -------------------------
