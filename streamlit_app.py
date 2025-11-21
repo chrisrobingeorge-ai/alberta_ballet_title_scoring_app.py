@@ -2014,10 +2014,10 @@ def validation_title_page():
         ```python
         from pycaret.regression import setup, compare_models, save_model
         
-        # Load your historical data
+        # Load your historical data (replace with your actual data file)
         df = pd.read_csv('data/history_city_sales.csv')
         
-        # Setup PyCaret
+        # Setup PyCaret (adjust target column to match your data)
         s = setup(data=df, target='Total_Tickets', session_id=123)
         
         # Find best model
@@ -2026,6 +2026,8 @@ def validation_title_page():
         # Save for use in this app
         save_model(best_model, 'title_demand_model')
         ```
+        
+        See [MODEL_VALIDATION_GUIDE.md](https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app.py/blob/main/MODEL_VALIDATION_GUIDE.md) for detailed instructions.
         """)
     
     model_name = st.text_input(
