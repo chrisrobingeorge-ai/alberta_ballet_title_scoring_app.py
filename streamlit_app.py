@@ -1998,6 +1998,38 @@ def validation_title_page():
     )
 
     st.subheader("PyCaret model")
+    
+    # Show info box about PyCaret model requirement
+    with st.expander("ℹ️ About PyCaret Model Validation", expanded=False):
+        st.markdown("""
+        This feature compares your title scoring predictions against a PyCaret-trained model.
+        
+        **To use this feature:**
+        1. Train a PyCaret regression model on your historical data
+        2. Save it using: `save_model(model, 'your_model_name')`
+        3. Place the `.pkl` file in the project root directory
+        4. Enter the model name below (without `.pkl` extension)
+        
+        **Example training code:**
+        ```python
+        from pycaret.regression import setup, compare_models, save_model
+        
+        # Load your historical data (replace with your actual data file)
+        df = pd.read_csv('data/history_city_sales.csv')
+        
+        # Setup PyCaret (adjust target column to match your data)
+        s = setup(data=df, target='Total_Tickets', session_id=123)
+        
+        # Find best model
+        best_model = compare_models()
+        
+        # Save for use in this app
+        save_model(best_model, 'title_demand_model')
+        ```
+        
+        See [MODEL_VALIDATION_GUIDE.md](https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app.py/blob/main/MODEL_VALIDATION_GUIDE.md) for detailed instructions.
+        """)
+    
     model_name = st.text_input(
         "PyCaret saved model name",
         value="title_demand_model",
@@ -2010,8 +2042,21 @@ def validation_title_page():
 
     try:
         pycaret_model = load_pycaret_model(model_name)
+    except FileNotFoundError as e:
+        st.error("📁 **Model file not found**")
+        st.info(str(e))
+        return
+    except ImportError as e:
+        st.error("📦 **PyCaret not installed**")
+        st.info(str(e))
+        return
+    except RuntimeError as e:
+        st.error("⚠️ **Python version incompatibility**")
+        st.info(str(e))
+        return
     except Exception as e:
-        st.error(f"Could not load PyCaret model '{model_name}': {e}")
+        st.error(f"❌ **Unexpected error loading model '{model_name}'**")
+        st.exception(e)
         return
 
     feature_df = df.drop(columns=[actual_col], errors="ignore")
