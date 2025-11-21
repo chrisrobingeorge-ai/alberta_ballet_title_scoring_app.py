@@ -71,10 +71,9 @@ See `requirements.txt` for complete dependency list.
 
 - **PyCaret** (for Model Validation page only)
   - Not required for core title scoring and season planning functionality
-  - **⚠️ Python Version Requirement**: PyCaret only supports Python 3.9, 3.10, and 3.11
-  - **This project uses Python 3.12+**, so PyCaret's Model Validation feature is not compatible
-  - If you need to use the Model Validation page, use Python 3.11 or earlier
-  - The app will show a helpful error message if you try to use Model Validation with Python 3.12+
+  - **Python 3.12 Support**: PyCaret now supports Python 3.12 when installed from GitHub
+  - Install with: `pip install git+https://github.com/pycaret/pycaret.git@master`
+  - The standard `pip install pycaret` may not support Python 3.12, use the GitHub installation instead
 
 ## Project Structure
 

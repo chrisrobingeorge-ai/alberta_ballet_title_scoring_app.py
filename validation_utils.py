@@ -11,7 +11,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # PyCaret supported Python version range
 PYCARET_MIN_PYTHON = (3, 9)
-PYCARET_MAX_PYTHON = (3, 11)
+PYCARET_MAX_PYTHON = (3, 12)
 
 
 def is_python_compatible_with_pycaret() -> bool:
@@ -19,7 +19,7 @@ def is_python_compatible_with_pycaret() -> bool:
     Check if the current Python version is compatible with PyCaret.
     
     Returns:
-        bool: True if Python version is within PyCaret's supported range (3.9-3.11).
+        bool: True if Python version is within PyCaret's supported range (3.9-3.12).
     """
     current_version = sys.version_info[:2]
     return PYCARET_MIN_PYTHON <= current_version <= PYCARET_MAX_PYTHON
@@ -54,11 +54,11 @@ def _check_pycaret_available():
     """
     Helper function to check if pycaret is available and raise a helpful error if not.
     
-    Checks Python version compatibility (PyCaret supports Python 3.9-3.11) before
+    Checks Python version compatibility (PyCaret supports Python 3.9-3.12) before
     attempting to import PyCaret.
     
     Raises:
-        RuntimeError: If Python version is incompatible with PyCaret (not 3.9-3.11).
+        RuntimeError: If Python version is incompatible with PyCaret (not 3.9-3.12).
         ImportError: If pycaret is not installed with installation instructions.
     """
     # Check Python version first
@@ -70,7 +70,7 @@ def _check_pycaret_available():
     except ImportError:
         raise ImportError(
             "PyCaret is required for this functionality. "
-            "Install it with: pip install pycaret"
+            "Install it with: pip install git+https://github.com/pycaret/pycaret.git@master"
         )
 
 
@@ -82,7 +82,7 @@ def load_pycaret_model(model_name: str):
         model = load_pycaret_model("title_demand_model")
     
     Note: This function requires pycaret to be installed.
-    Install it with: pip install pycaret
+    Install it with: pip install git+https://github.com/pycaret/pycaret.git@master
     
     Raises:
         ImportError: If pycaret is not installed.
@@ -101,7 +101,7 @@ def get_pycaret_predictions(
     Assumes the target column was removed when you trained the model.
     
     Note: This function requires pycaret to be installed.
-    Install it with: pip install pycaret
+    Install it with: pip install git+https://github.com/pycaret/pycaret.git@master
     
     Raises:
         ImportError: If pycaret is not installed.
