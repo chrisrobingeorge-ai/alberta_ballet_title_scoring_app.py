@@ -3257,12 +3257,14 @@ def render_results():
         yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
         total_mkt = float(yyc_mkt) + float(yeg_mkt)  
 
-        # --- Revenue estimates (single tickets only, by city) ---
+        # --- Revenue estimates by city and ticket type ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
         yeg_single_rev = yeg_singles * YEG_SINGLE_AVG
+        yyc_sub_rev = yyc_subs * YYC_SUB_AVG
+        yeg_sub_rev = yeg_subs * YEG_SUB_AVG
 
-        yyc_revenue = yyc_single_rev
-        yeg_revenue = yeg_single_rev
+        yyc_revenue = yyc_single_rev + yyc_sub_rev
+        yeg_revenue = yeg_single_rev + yeg_sub_rev
         total_revenue = yyc_revenue + yeg_revenue
 
         # Show type + production expense for budgeting
