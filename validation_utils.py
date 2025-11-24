@@ -64,7 +64,7 @@ def _check_pycaret_available():
         raise ImportError(
             "PyCaret is required for the Model Validation feature. "
             "Install it with:\n"
-            "  pip install git+https://github.com/pycaret/pycaret.git@master"
+            "  pip install pycaret>=3.3.0"
         )
 
 

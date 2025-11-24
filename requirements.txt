@@ -16,5 +16,5 @@ google-api-python-client>=2.130.0   # YouTube Data API v3
 spotipy>=2.23.0                     # Spotify Web API
 
 # --- NEW: for validation page ---
-# PyCaret supports Python 3.12 when installed from GitHub
-pycaret @ git+https://github.com/pycaret/pycaret.git@master
+# PyCaret 3.3.0+ supports Python 3.12
+pycaret>=3.3.0
