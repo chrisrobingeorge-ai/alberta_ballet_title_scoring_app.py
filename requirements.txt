@@ -1,20 +1,23 @@
 # --- Core ---
 streamlit>=1.37
-pandas>=2.0,<2.2  # PyCaret requires pandas<2.2
-numpy>=1.21,<1.27  # PyCaret requires numpy<1.27
-matplotlib>=3.0,<3.8  # PyCaret requires matplotlib<3.8
+pandas>=2.0
+numpy>=1.21
+matplotlib>=3.0
 requests>=2.31
 reportlab>=4.0.0
 pytrends>=4.9.2
 
 # --- Machine Learning ---
-scikit-learn>=1.4,<1.5  # PyCaret requires scikit-learn<1.5
+scikit-learn>=1.4
 xgboost>=2.0.0       # Gradient boosting for better predictions
 
 # --- Optional: live data for NEW titles ---
 google-api-python-client>=2.130.0   # YouTube Data API v3
 spotipy>=2.23.0                     # Spotify Web API
 
-# --- NEW: for validation page ---
-# PyCaret 3.3.0+ supports Python 3.12
-pycaret>=3.3.0
+# --- Optional: PyCaret for model validation page ---
+# PyCaret is NOT installed by default because:
+# 1. It only supports Python 3.9-3.12 (Streamlit Cloud uses 3.13)
+# 2. Its dependency pmdarima has build issues on newer Python versions
+# 3. The validation feature works fine without it - shows a warning instead
+# To enable locally: pip install pycaret>=3.3.0 (requires Python <=3.12)
