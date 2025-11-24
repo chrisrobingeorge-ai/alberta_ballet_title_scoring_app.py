@@ -11,7 +11,7 @@ The Model Validation page allows you to compare your title scoring model's predi
 PyCaret is only required if you want to use the Model Validation feature. It supports Python 3.9-3.12.
 
 ```bash
-pip install git+https://github.com/pycaret/pycaret.git@master
+pip install pycaret>=3.3.0
 ```
 
 ### 2. Prepare Historical Data
@@ -122,7 +122,7 @@ The page will display:
 
 **Solution**:
 ```bash
-pip install git+https://github.com/pycaret/pycaret.git@master
+pip install pycaret>=3.3.0
 ```
 
 ### Error: "Python Version Compatibility Notice"

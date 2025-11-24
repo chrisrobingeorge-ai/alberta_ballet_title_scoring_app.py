@@ -70,7 +70,7 @@ See `requirements.txt` for complete dependency list.
 ### PyCaret Integration (Optional)
 
 - **PyCaret** is optional and only needed for the Model Validation page
-  - Installed from GitHub to support Python 3.12: `pip install git+https://github.com/pycaret/pycaret.git@master`
+  - Install with: `pip install pycaret>=3.3.0` (supports Python 3.12)
   - Requires specific version constraints for pandas, numpy, matplotlib, and scikit-learn
   - The main title scoring features work without PyCaret
   - See [MODEL_VALIDATION_GUIDE.md](MODEL_VALIDATION_GUIDE.md) for detailed setup instructions
