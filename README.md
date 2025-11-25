@@ -13,6 +13,8 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 - **Revenue Forecasting**: Estimates revenue by singles vs subscriptions
 - **Marketing Budget Planning**: Recommends spend based on historical performance
 - **Season Builder**: Interactive tool to plan full seasons with financial summaries
+- **ML Feature Registry**: Config-driven feature inventory with leakage guardrails
+- **Data Quality Dashboard**: Registry vs dataset validation
 
 ## How to Run
 
@@ -26,6 +28,25 @@ pip install -r requirements.txt
 
 ```bash
 streamlit run streamlit_app.py
+```
+
+## ML Feature Registry
+
+The app uses a **config-driven approach** with CSV files as the single source of truth for ML feature metadata. This allows:
+
+- **Feature Inventory**: Centralized documentation of all features (`config/ml_feature_inventory_alberta_ballet.csv`)
+- **Leakage Prevention**: Audit trail of which features are allowed at forecast time (`config/ml_leakage_audit_alberta_ballet.csv`)
+- **Data Source Mapping**: Links features to their source systems (`config/ml_data_sources_alberta_ballet.csv`)
+- **Join Key Documentation**: Standardized keys for data integration (`config/ml_join_keys_alberta_ballet.csv`)
+
+### Training a Model
+
+From the **Model Training** page in the UI, or programmatically:
+
+```python
+from ml.training import train_baseline_model
+result = train_baseline_model()
+print(result)
 ```
 
 ## Machine Learning Models
@@ -83,7 +104,28 @@ See `requirements.txt` for complete dependency list.
 ├── title_scoring_helper.py    # Helper app for generating baselines
 ├── requirements.txt            # Python dependencies
 ├── config.yaml                 # Configuration parameters
+├── config/                     # ML registry CSVs
+│   ├── registry.py            # Registry loader functions
+│   ├── ml_feature_inventory_alberta_ballet.csv
+│   ├── ml_leakage_audit_alberta_ballet.csv
+│   ├── ml_join_keys_alberta_ballet.csv
+│   └── ml_data_sources_alberta_ballet.csv
 ├── data/                       # Data files
+│   ├── loader.py              # Data loading utilities
+│   ├── features.py            # Feature engineering
+│   └── leakage.py             # Leakage prevention
+├── ml/                         # ML pipeline modules
+│   ├── dataset.py             # Dataset builder
+│   ├── training.py            # Model training
+│   └── scoring.py             # Model scoring
+├── models/                     # Saved models directory
+├── pages/                      # Streamlit multi-page app
+│   ├── 1_Feature_Registry.py
+│   ├── 2_Leakage_Guard.py
+│   ├── 3_Data_Quality.py
+│   ├── 4_Model_Training.py
+│   └── 5_Title_Scoring.py
+├── tests/                      # Unit tests
 ├── tools/                      # Utility scripts
 ├── utils/                      # Helper modules
 └── ML_MODEL_DOCUMENTATION.md   # Technical ML documentation
