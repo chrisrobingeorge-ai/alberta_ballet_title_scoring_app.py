@@ -1,0 +1,15 @@
+Data Source Name,Description,Owner,Access Method,Update Frequency,Sample File / Table
+Historical Show-Level Sales CSV,Aggregated show-level single and subscription tickets by city for Alberta Ballet productions.,Finance / Analytics,"CSV on shared drive / data lake (e.g., history_city_sales.csv).",Ad hoc / after each season load.,history_city_sales.csv
+Ticketing Transaction Database,"Performance- and ticket-level data: ticket type, price, channel, timestamps, promo codes, comps.",Ticketing / IT,Direct DB connection or API; secured credentials.,Daily / near-real-time.,"fact_tickets, dim_price_type, dim_performance."
+Ticketing Event & Production Metadata,"Setup tables for productions, seasons, venues, and capacities.",Ticketing / Artistic Admin,DB/API or scheduled CSV exports.,Updated as shows are created/edited.,"dim_production, dim_season, dim_venue."
+CRM / Customer Database,"Patron profiles, purchase history, segmentation, email permissions.",Marketing / Development,CRM UI + API or scheduled exports.,Daily/Weekly.,"customers, households, interactions."
+Email Marketing Platform,"Email campaigns, sends, opens, clicks, unsubscribes.",Marketing,"Platform APIs (e.g., Mailchimp/WordFly) or CSV exports.",Per campaign / weekly.,"email_campaigns, email_stats."
+Digital Ads Platforms,"Paid media performance: spend, impressions, clicks, conversions per campaign.",Marketing / Digital Agency,Meta/Google Ads APIs or agency reports.,Daily/Weekly.,ad_campaign_performance.
+Marketing Budget Spreadsheets,Planned and actual spend by production and city.,Marketing / Finance,Excel/Google Sheets in shared drive.,Monthly / seasonal planning.,Marketing_Budget_YYYY-YY.xlsx.
+Production Planning Sheets/DB,"Artistic information: premiere vs revival, run_type, guest stars, collaborators.",Artistic Director / Artistic Admin,Spreadsheets or internal database.,Seasonal.,SeasonYYYY_Productions.xlsx.
+Venue Capacity Reference,Seat maps and capacity by price zone and configuration.,Production / Ticketing,Static CSV or database table; occasionally updated.,Rarely.,venue_capacity.csv.
+External Economic Data,"Alberta unemployment, CPI, GDP and related macro indicators.",Analytics,Download from Statistics Canada / Alberta Govt portals.,Monthly/Quarterly.,alberta_macro.csv.
+External Weather Data,"Daily temperature, precipitation, extreme weather flags for Calgary and Edmonton.",Analytics,Environment Canada API or CSV downloads.,Daily / historical backfill.,weather_daily_city.csv.
+External Events & Sports Calendars,"Major events (Stampede, concerts, NHL games) that may compete with performances.",Marketing / Analytics,Manual spreadsheets or scraped event listings.,Seasonal.,city_events_calendar.csv.
+Tourism & Population Data,Population estimates and visitor volumes for Calgary and Edmonton.,Analytics,StatsCan and Travel Alberta downloads.,Annual/Seasonal.,city_population_tourism.csv.
+Google Trends Export,Search interest indices for production titles and ballet-related terms.,Analytics,Google Trends UI/API wrapper; CSV exports.,Per campaign / ad hoc.,google_trends_titles.csv.
