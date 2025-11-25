@@ -32,5 +32,5 @@ def get_feature_list(theme_filters=None, status=None) -> list[str]:
     if theme_filters:
         df = df[df["Theme"].isin(theme_filters)]
     if status:
-        df = df[df["Status"].str.contains(status, case=False)]
+        df = df[df["Status"].str.contains(status, case=False, na=False)]
     return df["Feature Name"].dropna().unique().tolist()
