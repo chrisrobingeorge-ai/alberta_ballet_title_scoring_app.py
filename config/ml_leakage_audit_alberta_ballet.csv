@@ -1,0 +1,21 @@
+Feature Name,Leakage Risk (Y/N),Allowed at Forecast Time (Y/N),Mitigation Notes
+show_title_id,N,Y,Known at planning time; safe as a structural ID.
+run_type,N,Y,Defined in artistic planning; does not depend on realised sales.
+city,N,Y,Known in advance; safe.
+venue_capacity,N,Y,Capacity known once venue is booked; safe.
+performance_count_city,N,Y,Schedule defined pre-forecast; safe.
+single_tickets_calgary (historical),N,Y,Use only for past seasons as lagged features; never from the forecast season.
+prior_season_title_sales,N,Y,Construct using only seasons prior to the forecast season.
+weeks_to_80pct_sold,Y,N,Requires future sales trajectory; exclude from initial forecasting models.
+late_sales_share,Y,N,Outcome-like feature; only use for ex-post analysis or in-run models.
+comp_ticket_share (current run),Y,N,Based on post hoc allocations; avoid for pre-run forecasts.
+refund_cancellation_rate (current run),Y,N,Depends on realised behaviour; leakage if used in training as a feature.
+marketing_budget_city (planned),N,Y,"If budget is fixed pre-forecast, use planned amount as scenario input."
+digital_ad_spend (actual),Y,Only if using planned estimates,Do not feed actual spend that is decided after forecast time into training features.
+email_open_rate (current run),Y,N,Only known post-campaign; safe only for back-testing analyses.
+email_open_rate (historical averages),N,Y,Historical aggregate stats can be used as input features.
+pre_on_sale_demand_proxy,Y,N for initial model,Can be used for in-run forecasting but not for pre-on-sale forecasts.
+external_economic_indicators,N,Y,Use values available at or before forecast date; avoid future macro revisions.
+weather_severity_index_city (current run),Y,N,Future weather unknown; use only in scenario testing or back-tests.
+covid_restriction_level,Depends,Y if restrictions announced,Use only restrictions known or announced at the time of forecasting.
+google_trends_title_interest (near-term),Depends,Y if measured pre-forecast,"If forecasting very early, exclude; if forecasting close to on-sale, may include recent trends."
