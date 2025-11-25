@@ -1,0 +1,12 @@
+Join Key,Role / Purpose,Connected Data Sources,Format & Constraints,Notes
+show_title_id,Primary key for unique production title across seasons.,"Ticketing (productions), history_city_sales, production metadata, marketing campaigns.",string/ID; must be unique and stable.,Create mapping from ticketing 'production' table and backfill for historical CSV.
+show_title,Human-readable label for production; secondary join key.,"history_city_sales, marketing assets, website copy.","string; may vary slightly by year (e.g., 'The Nutcracker 2024').",Use mainly for display; map to show_title_id before modelling.
+season,"Season identifier grouping productions by year (e.g., 2024–25).","Production plan, ticketing, financial reporting, marketing budgets.",string 'YYYY–YY'.,Standardise via dim_season table; attach to each production.
+city,City for performance and sales (Calgary/Edmonton).,"history_city_sales (implicitly), ticketing performances, marketing spend by city.","enum {Calgary, Edmonton}.",Normalise city labels; avoid free text.
+venue_id,Unique venue identifier for Jubilee and any other locations.,"Ticketing venue table, capacity reference, performance schedule.",string/ID.,"Link to dim_venue with capacity, city, and configuration."
+performance_id,Unique identifier per performance instance.,"Ticketing transactions, performance schedule, seat inventory.",string/ID.,Needed if moving from show-level to performance-level modelling.
+performance_date,Calendar date of each performance.,"Performance schedule, weather data, city events calendars.",date YYYY-MM-DD.,Key for joining to daily weather and external events.
+on_sale_date,Date tickets first go on sale for the run.,"Ticketing system, marketing calendar.",date.,Used to calculate days_on_sale and align marketing start.
+marketing_campaign_id,Key linking production to marketing campaigns and metrics.,"Email platform, ad platforms, CRM.",string.,Maintain campaign metadata table mapping to show_title_id/season/city.
+fiscal_period,Accounting period key for financial and macro joins.,"Finance actuals, budgets, macroeconomic data.","string (e.g., '2025-04').",Derive from performance_date or season; align with internal fiscal calendar.
+external_geo_key,Geo key for external data (province/city).,"Economic data, population, tourism, weather.","string (e.g., 'Alberta', 'Calgary').",Standardise labels to match StatsCan and other official sources.
