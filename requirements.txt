@@ -10,6 +10,7 @@ pytrends>=4.9.2
 # --- Machine Learning ---
 scikit-learn>=1.4
 xgboost>=2.0.0       # Gradient boosting for better predictions
+joblib>=1.3.0        # Model serialization
 
 # --- Optional: live data for NEW titles ---
 google-api-python-client>=2.130.0   # YouTube Data API v3

@@ -1,5 +1,9 @@
 .streamlit/secrets.toml
 
+# Trained models (can be regenerated)
+models/*.pkl
+!models/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
