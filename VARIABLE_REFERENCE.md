@@ -123,7 +123,7 @@ print(f"YourModel MAE: {mae_yourmodel:.0f} tickets")
 
 ### Current Model Performance
 
-Based on the ML documentation, the app's XGBoost model shows:
+Based on [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md), the app's XGBoost model shows:
 - R² Score: ~0.90 (on training data with cross-validation)
 - MAE: ~4-9 index points
 - Note: These are on the **TicketIndex** scale, not raw ticket counts
@@ -238,4 +238,4 @@ Please:
 
 ---
 
-*Last updated: 2024*
+*Last updated: November 2024*

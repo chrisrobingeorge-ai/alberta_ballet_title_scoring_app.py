@@ -84,7 +84,7 @@ def load_history_sales(csv_name: str = "history_city_sales.csv") -> pd.DataFrame
 # | total_tickets_all             | Derived actual   | This IS actual, not a forecast |
 #
 # * Note: EstimatedTickets_Final predicts total attendance, but if your history
-#   only has singles data (subs = 0), it effectively predicts singles.
+#   only has singles data (subscriptions = 0), it effectively predicts singles.
 #
 # To run a quick accuracy check, use the Model Validation page in the app or:
 #   - MAE = mean absolute error (lower is better)
