@@ -5,6 +5,7 @@ from data.features import derive_basic_features, apply_registry_renames
 from ml.scoring import load_model, score_dataframe
 from pathlib import Path
 import joblib
+from sklearn.metrics import mean_absolute_error, r2_score
 
 st.set_page_config(page_title="Title Scoring", layout="wide")
 st.title("Title Scoring – Forecast")
@@ -95,7 +96,6 @@ else:
                 actual = df["total_single_tickets"].dropna()
                 predicted = preds.loc[actual.index]
                 if len(actual) > 0:
-                    from sklearn.metrics import mean_absolute_error, r2_score
                     mae = mean_absolute_error(actual, predicted)
                     r2 = r2_score(actual, predicted)
                     st.caption(
