@@ -34,14 +34,14 @@ with st.expander("📊 Understanding the Accuracy Metrics (R² and MAE)"):
        the same formula used for new shows. It checks whether the model's logic aligns with 
        historical patterns, but does NOT guarantee similar accuracy on truly new, unseen titles.
     
-    3. **Small dataset size**: With only ~40 historical records, even a moderately good model
+    3. **Small dataset size**: With a limited number of historical records, even a moderately good model
        can appear to fit very well.
     
     #### How to interpret the metrics:
     
     | Metric | What It Means | Interpretation |
     |--------|--------------|----------------|
-    | **R²** | How much variance in ticket sales the model explains | High R² (>0.9) on historical data suggests the model captures past patterns well, but may overfit |
+    | **R²** | How much variance in ticket sales the model explains | High R² (>0.9) on historical data suggests the model captures past patterns well, but may be overfitting |
     | **MAE** | Average prediction error in tickets | More interpretable — e.g., MAE of 500 means predictions are off by ~500 tickets on average |
     
     #### For true predictive accuracy:
