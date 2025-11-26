@@ -99,3 +99,27 @@ marketing_defaults:
   default_marketing_spt_city:
     Calgary: 10.0
     Edmonton: 8.0
+
+# ============================================================================
+# ML Model & Prediction Settings (New Robust Forecasting Features)
+# ============================================================================
+
+# Calibration settings for adjusting model predictions
+calibration:
+  enabled: false           # Set to true to apply calibration to predictions
+  mode: "global"           # Options: "global", "per_category", "by_remount_bin"
+  params: {}               # Auto-populated from models/calibration.json
+
+# k-NN similarity fallback for cold-start titles
+knn:
+  enabled: true            # Enable KNN fallback for titles without history
+  k: 5                     # Number of nearest neighbors to use
+  metric: "cosine"         # Distance metric: "cosine", "euclidean", "manhattan"
+  recency_weight: 0.5      # Weight for preferring recent shows (0-1)
+  recency_decay: 0.1       # Decay rate per year for older runs
+
+# Trained ML model settings
+model:
+  path: "models/model_xgb_remount_postcovid.joblib"
+  use_for_cold_start: true  # Use ML model for titles without ticket history
+  confidence_threshold: 0.6 # R² threshold below which to prefer KNN fallback

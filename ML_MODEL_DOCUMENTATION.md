@@ -179,18 +179,87 @@ All dependencies checked with GitHub Advisory Database:
 - ✅ No known vulnerabilities in xgboost 3.1.2
 - ✅ CodeQL analysis passed with 0 alerts
 
+## Robust Forecasting Pipeline (New)
+
+### Non-Leaky Training Process
+
+The new training pipeline (`scripts/train_safe_model.py`) ensures no data leakage:
+
+1. **Dataset Building** (`scripts/build_modelling_dataset.py`):
+   - Uses only forecast-time-available features
+   - Computes lagged historical features from PRIOR seasons only
+   - Explicit assertions to block current-run ticket columns
+
+2. **Forbidden Features** (will cause assertion error if detected):
+   - Single Tickets - Calgary/Edmonton
+   - Subscription Tickets - Calgary/Edmonton
+   - Total Tickets columns
+   - Any column matching current-run sales patterns
+
+3. **Allowed Features**:
+   - Baseline signals: wiki, trends, youtube, spotify
+   - Categorical: category, gender
+   - Prior-season lags: prior_total_tickets, ticket_median_prior
+   - Remount features: years_since_last_run, is_remount_recent
+   - Seasonality: month_of_opening, holiday_flag
+
+### Remount & Post-COVID Features
+
+The model learns:
+- **years_since_last_run**: Numeric, derived from past_runs.csv
+- **is_remount_recent**: Binary, ≤2 years since last run
+- **is_remount_medium**: Binary, 2-4 years since last run
+- **run_count_prior**: Number of previous runs
+
+Post-COVID adjustment is applied as a configurable factor in config.yaml.
+
+### k-NN Cold-Start Fallback
+
+For titles without historical ticket data, the k-NN fallback (`ml/knn_fallback.py`):
+- Uses baseline signal vectors (wiki, trends, youtube, spotify)
+- Finds k nearest neighbors among titles with known outcomes
+- Weights predictions by similarity AND recency of neighbor runs
+- Configurable via config.yaml knn settings
+
+### Time-Aware Backtesting
+
+The backtest script (`scripts/backtest_timeaware.py`) evaluates:
+1. **Heuristic/Composite**: Rule-based scoring from streamlit_app.py
+2. **k-NN Fallback**: Similarity-based predictions
+3. **Baseline-Only Model**: Trained on signals only
+4. **Full Model**: Trained on all features
+
+Outputs include MAE/RMSE/R² per method and visualizations.
+
+### Calibration
+
+Linear calibration (`scripts/calibrate_predictions.py`) supports:
+- **Global**: Single alpha/beta for all predictions
+- **Per-Category**: Separate parameters per show category
+- **By-Remount-Bin**: Parameters for recent/medium/old remounts
+
+### Checklist: Avoiding Leakage
+
+When modifying training code:
+- [ ] Check that no columns matching "ticket" patterns are features (except allowed priors)
+- [ ] Verify lagged features use only prior-season data
+- [ ] Run `pytest tests/test_no_leakage_in_dataset.py` before committing
+- [ ] Use `scripts/build_modelling_dataset.py` output, not raw history
+
 ## Future Enhancements
 
 Potential improvements:
-1. **Model Persistence**: Save trained models to disk for faster app startup
-2. **Hyperparameter Tuning**: Add GridSearchCV for optimal hyperparameters
-3. **Feature Engineering**: Incorporate additional features (genre, gender, category)
+1. ~~**Model Persistence**: Save trained models to disk for faster app startup~~ ✓ Implemented
+2. ~~**Hyperparameter Tuning**: Add GridSearchCV for optimal hyperparameters~~ ✓ Via --tune flag
+3. ~~**Feature Engineering**: Incorporate additional features (genre, gender, category)~~ ✓ Implemented
 4. **Ensemble Methods**: Combine predictions from multiple models
 5. **Uncertainty Quantification**: Add prediction intervals/confidence bounds
 6. **Online Learning**: Update models incrementally as new data arrives
+7. ~~**SHAP Explanations**: Feature importance visualization~~ ✓ Via --save-shap flag
 
 ## References
 
 - scikit-learn documentation: https://scikit-learn.org/
 - XGBoost documentation: https://xgboost.readthedocs.io/
+- SHAP documentation: https://shap.readthedocs.io/
 - Test results: See ML_MODEL_TESTING.log (if available)

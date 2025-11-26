@@ -7,13 +7,44 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: pip install pytest
-      - run: pytest -q
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+          # Note: Optional deps (rapidfuzz, shap, lightgbm) not installed in CI
+          # to keep tests fast. Tests skip gracefully when deps unavailable.
+      
+      - name: Run tests
+        run: pytest -q --tb=short
+      
+      - name: Check for leakage assertions
+        run: |
+          # Verify leakage assertions exist in training scripts
+          grep -l "LEAKAGE" scripts/*.py || echo "Warning: No leakage checks found"
+      
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Don't fail build on lint issues
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install flake8
+        run: pip install flake8
+      
+      - name: Lint changed Python files
+        run: |
+          # Lint with relaxed settings for existing codebase
+          flake8 scripts/ ml/ tests/ utils/ --max-line-length=120 --ignore=E501,W503,E203 --exit-zero

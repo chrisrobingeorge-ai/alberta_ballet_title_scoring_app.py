@@ -15,6 +15,9 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 - **Season Builder**: Interactive tool to plan full seasons with financial summaries
 - **ML Feature Registry**: Config-driven feature inventory with leakage guardrails
 - **Data Quality Dashboard**: Registry vs dataset validation
+- **Robust Training Pipeline**: Leak-free training with backtesting and SHAP explanations
+- **k-NN Cold-Start Fallback**: Similarity-based predictions for new titles
+- **Prediction Calibration**: Adjustable calibration for model predictions
 
 ## How to Run
 
@@ -28,6 +31,77 @@ pip install -r requirements.txt
 
 ```bash
 streamlit run streamlit_app.py
+```
+
+## Robust ML Training Pipeline (New)
+
+The app includes a complete, leak-free training workflow:
+
+### Step 1: Build Modelling Dataset
+
+Creates a safe feature set with only forecast-time predictors:
+
+```bash
+python scripts/build_modelling_dataset.py
+```
+
+This produces:
+- `data/modelling_dataset.csv` - Leak-free training data
+- `diagnostics/modelling_dataset_report.json` - Data quality report
+
+### Step 2: Train Model
+
+Trains XGBoost with time-aware cross-validation:
+
+```bash
+python scripts/train_safe_model.py --tune --save-shap
+```
+
+Outputs:
+- `models/model_xgb_remount_postcovid.joblib` - Trained pipeline
+- `models/model_xgb_remount_postcovid.json` - Metadata (CV metrics, features)
+- `results/feature_importances.csv` - Feature importance scores
+- `results/shap/` - SHAP analysis outputs (if --save-shap)
+
+### Step 3: Run Backtesting
+
+Evaluate different prediction methods:
+
+```bash
+python scripts/backtest_timeaware.py
+```
+
+Outputs:
+- `results/backtest_summary.json` - Method comparison (MAE, RMSE, R²)
+- `results/backtest_comparison.csv` - Row-level predictions
+- `results/plots/mae_by_method.png` - Visual comparison
+
+### Step 4: Calibrate Predictions (Optional)
+
+Fit linear calibration to adjust predictions:
+
+```bash
+python scripts/calibrate_predictions.py fit --mode per_category
+```
+
+### Configuration
+
+Enable new features via `config.yaml`:
+
+```yaml
+# Calibration settings
+calibration:
+  enabled: false
+  mode: "global"  # Options: global, per_category, by_remount_bin
+
+# k-NN fallback for cold-start titles
+knn:
+  enabled: true
+  k: 5
+
+# Trained model path
+model:
+  path: "models/model_xgb_remount_postcovid.joblib"
 ```
 
 ## ML Feature Registry
@@ -56,6 +130,7 @@ The app uses advanced regression models to improve prediction accuracy:
 - **XGBoost** for overall predictions (≥8 historical samples)
 - **Gradient Boosting** for medium datasets (5-7 samples)
 - **Ridge Regression** for category-specific models
+- **k-NN Fallback** for cold-start titles without history
 - Automatic fallback to simple linear regression for small datasets
 
 Performance metrics are displayed in the UI including R², MAE, and cross-validated scores.
@@ -73,28 +148,39 @@ The app uses several CSV files in the `data/` directory:
 - `showtype_expense.csv` - Production expense by show type
 - `segment_priors.csv` - Audience segment preferences
 - `ticket_priors_raw.csv` - Historical ticket medians
+- `title_id_map.csv` - Title canonicalization mapping
+- `modelling_dataset.csv` - Generated leak-free dataset (created by scripts)
 
 ## Requirements
 
 ### Core Dependencies
 
-- Python 3.12+
+- Python 3.11+
 - Streamlit 1.37+
-- pandas 2.0-2.2 (compatible with PyCaret)
-- numpy 1.21-1.27 (compatible with PyCaret)
-- scikit-learn 1.4-1.5 (compatible with PyCaret)
+- pandas 2.0+
+- numpy 1.21+
+- scikit-learn 1.4+
 - xgboost 2.0+
-- matplotlib 3.0-3.8 (compatible with PyCaret)
+- matplotlib 3.0+
+- joblib 1.3+
 
 See `requirements.txt` for complete dependency list.
 
-### PyCaret Integration (Optional)
+### Optional Dependencies
 
-- **PyCaret** is optional and only needed for the Model Validation page
-  - Install with: `pip install pycaret>=3.3.0` (supports Python 3.12)
-  - Requires specific version constraints for pandas, numpy, matplotlib, and scikit-learn
-  - The main title scoring features work without PyCaret
-  - See [MODEL_VALIDATION_GUIDE.md](MODEL_VALIDATION_GUIDE.md) for detailed setup instructions
+```bash
+# For fuzzy title matching
+pip install rapidfuzz
+
+# For SHAP explanations (training scripts)
+pip install shap
+
+# For LightGBM alternative to XGBoost
+pip install lightgbm
+
+# For PyCaret model validation
+pip install pycaret>=3.3.0  # requires Python ≤3.12
+```
 
 ## Project Structure
 
@@ -102,33 +188,36 @@ See `requirements.txt` for complete dependency list.
 .
 ├── streamlit_app.py           # Main application
 ├── title_scoring_helper.py    # Helper app for generating baselines
-├── requirements.txt            # Python dependencies
-├── config.yaml                 # Configuration parameters
-├── config/                     # ML registry CSVs
+├── requirements.txt           # Python dependencies
+├── config.yaml                # Configuration parameters
+├── config/                    # ML registry CSVs
 │   ├── registry.py            # Registry loader functions
-│   ├── ml_feature_inventory_alberta_ballet.csv
-│   ├── ml_leakage_audit_alberta_ballet.csv
-│   ├── ml_join_keys_alberta_ballet.csv
-│   └── ml_data_sources_alberta_ballet.csv
-├── data/                       # Data files
+│   └── ml_*.csv               # Feature/leakage/source metadata
+├── data/                      # Data files
 │   ├── loader.py              # Data loading utilities
 │   ├── features.py            # Feature engineering
-│   └── leakage.py             # Leakage prevention
-├── ml/                         # ML pipeline modules
+│   ├── leakage.py             # Leakage prevention
+│   └── title_id_map.csv       # Title canonicalization
+├── ml/                        # ML pipeline modules
 │   ├── dataset.py             # Dataset builder
 │   ├── training.py            # Model training
-│   └── scoring.py             # Model scoring
-├── models/                     # Saved models directory
-├── pages/                      # Streamlit multi-page app
-│   ├── 1_Feature_Registry.py
-│   ├── 2_Leakage_Guard.py
-│   ├── 3_Data_Quality.py
-│   ├── 4_Model_Training.py
-│   └── 5_Title_Scoring.py
-├── tests/                      # Unit tests
-├── tools/                      # Utility scripts
-├── utils/                      # Helper modules
-└── ML_MODEL_DOCUMENTATION.md   # Technical ML documentation
+│   ├── scoring.py             # Model scoring
+│   ├── knn_fallback.py        # k-NN cold-start predictions
+│   └── predict_utils.py       # Streamlit prediction helpers
+├── scripts/                   # Training & evaluation scripts
+│   ├── build_modelling_dataset.py
+│   ├── train_safe_model.py
+│   ├── backtest_timeaware.py
+│   └── calibrate_predictions.py
+├── models/                    # Saved models & metadata
+├── results/                   # Backtest results & plots
+├── diagnostics/               # Dataset diagnostics
+├── pages/                     # Streamlit multi-page app
+├── tests/                     # Unit tests
+├── utils/                     # Helper modules
+│   ├── priors.py
+│   └── canonicalize_titles.py # Title normalization
+└── ML_MODEL_DOCUMENTATION.md  # Technical ML documentation
 ```
 
 ## Contributing
@@ -140,3 +229,26 @@ When making changes:
 3. Test with actual historical data in `data/` directory
 4. Update ML_MODEL_DOCUMENTATION.md if changing models
 5. Run security checks with CodeQL before committing
+6. **Never use current-run ticket columns as predictors** - see [Leakage Prevention](#leakage-prevention)
+
+### Leakage Prevention
+
+The training pipeline includes safety checks to prevent data leakage:
+
+```python
+# These columns are FORBIDDEN as predictors:
+# - Single Tickets - Calgary/Edmonton
+# - Subscription Tickets - Calgary/Edmonton
+# - Total Tickets / Total Single Tickets
+# - YourModel_* columns
+
+# These are ALLOWED (prior-season aggregates):
+# - prior_total_tickets
+# - ticket_median_prior
+# - years_since_last_run
+```
+
+Run tests to verify no leakage:
+```bash
+pytest tests/test_no_leakage_in_dataset.py -v
+```
