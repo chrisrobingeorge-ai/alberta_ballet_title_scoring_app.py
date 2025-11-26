@@ -143,6 +143,7 @@ The app uses several CSV files in the `data/` directory:
 
 - `history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions)
 - `baselines.csv` - Familiarity and motivation scores for known titles
+- `reference_baselines.csv` - External reference titles for similarity matching (no ticket history required)
 - `marketing_spend_per_ticket.csv` - Historical marketing spend data
 - `past_runs.csv` - Performance dates for seasonality analysis
 - `showtype_expense.csv` - Production expense by show type
@@ -152,6 +153,8 @@ The app uses several CSV files in the `data/` directory:
 - `modelling_dataset.csv` - Generated leak-free dataset (created by scripts)
 
 **📖 See [VARIABLE_REFERENCE.md](VARIABLE_REFERENCE.md) for detailed explanations of all ticket-related columns and how to add external factors.**
+
+**📖 See [ADDING_BASELINE_TITLES.md](ADDING_BASELINE_TITLES.md) for how to add reference baseline titles to improve model accuracy.**
 
 ## Requirements
 
