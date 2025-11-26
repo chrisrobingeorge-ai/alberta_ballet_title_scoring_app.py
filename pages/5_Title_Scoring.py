@@ -15,6 +15,53 @@ st.caption(
     "the trained ML model. Train a model first using the **Model Training** page."
 )
 
+# --- Accuracy Interpretation Guide ---
+with st.expander("📊 Understanding the Accuracy Metrics (R² and MAE)"):
+    st.markdown("""
+    ### What do the accuracy metrics mean?
+    
+    When you score historical titles, the page displays accuracy metrics comparing the model's
+    predictions (`forecast_single_tickets`) to actual sales (`total_single_tickets`).
+    
+    **⚠️ Important: These metrics are "retrodiction" accuracy, NOT predictive accuracy.**
+    
+    #### Why the R² might appear very high (e.g., 0.985):
+    
+    1. **In-sample evaluation**: The model is being evaluated on the same data (or a subset) 
+       it was trained on. This typically produces optimistically high accuracy metrics.
+    
+    2. **Retrodiction vs. Prediction**: This is "retrodiction" — re-estimating past shows using 
+       the same formula used for new shows. It checks whether the model's logic aligns with 
+       historical patterns, but does NOT guarantee similar accuracy on truly new, unseen titles.
+    
+    3. **Small dataset size**: With a limited number of historical records, even a moderately good model
+       can appear to fit very well.
+    
+    #### How to interpret the metrics:
+    
+    | Metric | What It Means | Interpretation |
+    |--------|--------------|----------------|
+    | **R²** | How much variance in ticket sales the model explains | High R² (>0.9) on historical data suggests the model captures past patterns well, but may be overfitting |
+    | **MAE** | Average prediction error in tickets | More interpretable — e.g., MAE of 500 means predictions are off by ~500 tickets on average |
+    
+    #### For true predictive accuracy:
+    
+    - Use the **Model Training** page which reports metrics on a held-out test set (20% of data)
+    - Use **time-aware cross-validation** via `scripts/backtest_timeaware.py`
+    - Compare model predictions to actual sales for genuinely NEW titles not in training data
+    
+    #### What does the training-time R² represent?
+    
+    During model training (on the Model Training page), the R² is calculated on a 20% held-out 
+    test set. This is a more realistic estimate of how the model performs on unseen data, though
+    still from the same historical period. The R² shown here when scoring may be higher because 
+    it includes all data.
+    """)
+    st.info(
+        "**Bottom line**: High R² on this page is a good calibration check, but should not be "
+        "interpreted as a guarantee of future prediction accuracy. Use MAE for practical planning."
+    )
+
 # --- Column Definitions (for reference) ---
 # The data includes several ticket-related columns:
 #
@@ -98,9 +145,38 @@ else:
                 if len(actual) > 0:
                     mae = mean_absolute_error(actual, predicted)
                     r2 = r2_score(actual, predicted)
+                    
+                    # Display metrics with clear context about what they mean
+                    st.subheader("Accuracy Metrics (Retrodiction)")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric(
+                            label="Mean Absolute Error (MAE)", 
+                            value=f"{mae:,.0f} tickets",
+                            help="Average prediction error in tickets. Lower is better."
+                        )
+                    with col2:
+                        st.metric(
+                            label="R² Score (In-Sample)", 
+                            value=f"{r2:.3f}",
+                            help="Variance explained. This is in-sample (retrodiction) — see expander above for interpretation."
+                        )
+                    
+                    # Add context about the R² calculation
                     st.caption(
-                        f"**ML Model (forecast_single_tickets):** MAE = {mae:,.0f} tickets, R² = {r2:.3f}"
+                        f"📊 **ML Model (forecast_single_tickets):** Scored on {len(actual)} historical titles. "
+                        f"These metrics compare predictions to actual sales for titles the model may have seen during training."
                     )
+                    
+                    # Add warning if R² is very high
+                    if r2 > 0.9:
+                        st.warning(
+                            "⚠️ **High R² Note**: An R² above 0.9 on historical data often indicates the model "
+                            "is evaluating on data it was trained on (in-sample). This is useful as a calibration "
+                            "check, but true predictive accuracy on new titles may be lower. "
+                            "See the 'Understanding the Accuracy Metrics' expander above for details."
+                        )
                     
                     # Compare with yourmodel if available
                     if "yourmodel_total_single_tickets" in df.columns:
