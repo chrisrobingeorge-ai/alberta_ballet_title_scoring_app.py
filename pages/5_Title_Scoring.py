@@ -7,18 +7,28 @@ from pathlib import Path
 import joblib
 
 st.set_page_config(page_title="Title Scoring", layout="wide")
-st.title("Title Scoring – Forecast (Demo)")
+st.title("Title Scoring – Forecast")
+
+st.caption(
+    "This page displays all historical titles and allows you to score them using "
+    "the trained ML model. Train a model first using the **Model Training** page."
+)
 
 df = apply_registry_renames(load_history_sales())
 df = derive_basic_features(df)
-st.dataframe(df.head(20), use_container_width=True)
+
+# Show count of all titles
+st.info(f"📊 Showing **{len(df)}** titles from historical data")
+
+# Display ALL rows, not just head(20)
+st.dataframe(df, use_container_width=True, height=600)
 
 # Check if model exists
 model_path = Path(__file__).parent.parent / "models" / "title_demand_rf.pkl"
 if not model_path.exists():
     st.warning("No trained model found. Please train a model first using the Model Training page.")
 else:
-    if st.button("Score displayed rows"):
+    if st.button("Score ALL Titles"):
         try:
             model = load_model()
             # Get the feature names from the trained model's preprocessor
