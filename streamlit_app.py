@@ -54,6 +54,8 @@ def load_config(path: str = "config.yaml"):
     global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
     global K_SHRINK, MINF, MAXF, N_MIN
     global DEFAULT_MARKETING_SPT_CITY
+    # New robust forecasting settings
+    global ML_CONFIG, KNN_CONFIG, CALIBRATION_CONFIG
 
     if yaml is None:
         # PyYAML not installed – just use hard-coded defaults
@@ -95,6 +97,16 @@ def load_config(path: str = "config.yaml"):
     # 6) Marketing defaults
     mkt_cfg = cfg.get("marketing_defaults", {})
     DEFAULT_MARKETING_SPT_CITY = mkt_cfg.get("default_marketing_spt_city", DEFAULT_MARKETING_SPT_CITY)
+
+    # 7) New robust forecasting settings (opt-in)
+    ML_CONFIG = cfg.get("model", {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True})
+    KNN_CONFIG = cfg.get("knn", {"enabled": True, "k": 5})
+    CALIBRATION_CONFIG = cfg.get("calibration", {"enabled": False, "mode": "global"})
+
+# Default values for new config settings (used if config.yaml doesn't have them)
+ML_CONFIG = {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True}
+KNN_CONFIG = {"enabled": True, "k": 5}
+CALIBRATION_CONFIG = {"enabled": False, "mode": "global"}
 
 def _pct(v, places=0):
     try:
@@ -3632,6 +3644,44 @@ page = st.sidebar.radio(
     ["Title Scoring & Season Planning", "Model Validation"],
     index=0,
 )
+
+# -------------------------
+# Advanced ML Settings (opt-in toggles from config.yaml)
+# -------------------------
+# These features are loaded from config.yaml and can be toggled here
+# Default behavior remains unchanged unless user enables these options
+with st.sidebar.expander("⚙️ Advanced ML Settings", expanded=False):
+    st.caption("Experimental features from robust forecasting pipeline")
+    
+    # KNN fallback toggle
+    knn_enabled_ui = st.checkbox(
+        "Enable k-NN fallback for cold-start",
+        value=KNN_CONFIG.get("enabled", True),
+        help="Use similarity matching for titles without ticket history"
+    )
+    
+    # Calibration toggle
+    calibration_enabled_ui = st.checkbox(
+        "Apply prediction calibration",
+        value=CALIBRATION_CONFIG.get("enabled", False),
+        help="Adjust predictions using calibration parameters (if available)"
+    )
+    
+    # Show model status
+    try:
+        from ml.predict_utils import is_ml_model_available, is_calibration_available
+        if is_ml_model_available():
+            st.success("✓ Trained ML model available", icon="🤖")
+        else:
+            st.info("Train a model with: `python scripts/train_safe_model.py`")
+        if calibration_enabled_ui and is_calibration_available():
+            st.success("✓ Calibration parameters loaded", icon="📊")
+        elif calibration_enabled_ui:
+            st.warning("Run: `python scripts/calibrate_predictions.py fit`")
+    except ImportError:
+        st.caption("ML utilities not loaded")
+    
+    st.caption(f"Config: knn.k={KNN_CONFIG.get('k', 5)}, calibration.mode={CALIBRATION_CONFIG.get('mode', 'global')}")
 
 if page == "Title Scoring & Season Planning":
     # Existing “Button + render” logic

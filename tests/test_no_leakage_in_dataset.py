@@ -34,7 +34,7 @@ ALLOWED_COLUMNS = {
     "ticket_mean_prior",
     "ticket_std_prior",
     "ticket_index_deseason",
-    "target_ticket_median",  # Target is OK
+    "target_ticket_median",  # Target column is allowed
     "years_since_last_ticket",
 }
 

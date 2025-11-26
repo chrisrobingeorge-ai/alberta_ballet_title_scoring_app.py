@@ -337,10 +337,10 @@ def build_title_map_from_hist(
     if not dry_run:
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "w", encoding="utf-8", newline="") as f:
+            # Write comment before CSV data
+            f.write("# Auto-generated title mapping. Review and edit as needed.\n")
             writer = csv.writer(f)
             writer.writerow(["show_title", "show_title_id"])
-            # Write comment row explaining the file
-            f.write("# Auto-generated title mapping. Review and edit as needed.\n")
             for title, title_id in sorted(mapping.items()):
                 writer.writerow([title, title_id])
         print(f"\n✓ Wrote mapping to {output_path}")

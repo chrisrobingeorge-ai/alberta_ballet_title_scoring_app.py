@@ -464,18 +464,17 @@ def build_modelling_dataset(
             print(f"  - Matched {matched_priors}/{len(df)} titles with ticket history")
     
     # 7. Join with remount features
-    if not remount_features.empty:
+    if not remount_features.empty and "canonical_title" in remount_features.columns:
         df = df.merge(
-            remount_features.drop(columns=["canonical_title"], errors="ignore"),
-            left_on="canonical_title",
-            right_on=remount_features["canonical_title"].values if "canonical_title" in remount_features.columns else df["canonical_title"],
-            how="left"
+            remount_features,
+            on="canonical_title",
+            how="left",
+            suffixes=("", "_remount")
         )
-        # Handle duplicate merge
-        if "canonical_title_y" in df.columns:
-            df = df.drop(columns=["canonical_title_y"])
-        if "canonical_title_x" in df.columns:
-            df = df.rename(columns={"canonical_title_x": "canonical_title"})
+        # Handle duplicate columns from merge
+        dup_cols = [c for c in df.columns if c.endswith("_remount")]
+        if dup_cols:
+            df = df.drop(columns=dup_cols)
     
     # 8. Add seasonality features
     if verbose:

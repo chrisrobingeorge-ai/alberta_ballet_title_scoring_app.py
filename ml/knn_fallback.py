@@ -135,11 +135,11 @@ class KNNFallback:
             X = self._scaler.fit_transform(X)
         
         # Build NearestNeighbors index
-        # Note: cosine in sklearn is actually angular distance, not cosine similarity
-        # We use it anyway since the ranking is preserved
+        # Note: cosine in sklearn computes cosine distance (1 - cosine_similarity)
+        # The ranking is preserved for finding nearest neighbors
         self._nn_model = NearestNeighbors(
             n_neighbors=min(self.k, len(df)),
-            metric=self.metric if self.metric != "cosine" else "cosine",
+            metric=self.metric,
             algorithm="auto"
         )
         self._nn_model.fit(X)

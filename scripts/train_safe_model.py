@@ -207,6 +207,7 @@ def build_preprocessing_pipeline(
     if categorical_cols:
         cat_pipeline = Pipeline([
             ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+            # Use sparse_output (sklearn 1.2+) with fallback to sparse for older versions
             ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
         ])
         transformers.append(("cat", cat_pipeline, categorical_cols))
