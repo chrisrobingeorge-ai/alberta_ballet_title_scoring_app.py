@@ -369,6 +369,142 @@ def predict_knn(
         knn_index.k = old_k
 
 
+def find_similar_titles(
+    query_baseline: Dict[str, float],
+    reference_df: pd.DataFrame,
+    k: int = 10,
+    metric: str = "cosine"
+) -> pd.DataFrame:
+    """
+    Find similar titles from a reference baseline dataset.
+    
+    This function doesn't require outcome data - it's purely for finding
+    similar titles based on external signals. Useful for:
+    1. Understanding which well-known titles a new show resembles
+    2. Suggesting programming ideas based on signal similarity
+    3. Providing context for cold-start predictions
+    
+    Args:
+        query_baseline: Dict with keys wiki, trends, youtube, spotify
+        reference_df: DataFrame with baseline signal columns
+        k: Number of similar titles to return
+        metric: Distance metric ('cosine', 'euclidean', 'manhattan')
+        
+    Returns:
+        DataFrame of k most similar titles with their signals and distance
+        
+    Example:
+        >>> from data.loader import load_all_baselines
+        >>> all_baselines = load_all_baselines(include_reference=True)
+        >>> similar = find_similar_titles(
+        ...     {"wiki": 75, "trends": 30, "youtube": 85, "spotify": 70},
+        ...     all_baselines,
+        ...     k=5
+        ... )
+        >>> print(similar[["title", "category", "distance"]])
+    """
+    if not SKLEARN_AVAILABLE:
+        raise ImportError("scikit-learn is required for similarity matching")
+    
+    if reference_df.empty:
+        return pd.DataFrame()
+    
+    # Validate features
+    missing = set(BASELINE_FEATURES) - set(reference_df.columns)
+    if missing:
+        raise ValueError(f"Reference DataFrame missing required columns: {missing}")
+    
+    # Prepare feature matrix
+    df = reference_df.copy()
+    X = df[BASELINE_FEATURES].values.astype(float)
+    X = np.nan_to_num(X, nan=0.0)
+    
+    # Normalize
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    # Prepare query
+    query = np.array([
+        float(query_baseline.get(f, 0.0) or 0.0) 
+        for f in BASELINE_FEATURES
+    ])
+    query = np.nan_to_num(query, nan=0.0)
+    query_scaled = scaler.transform(query.reshape(1, -1))[0]
+    
+    # Build NN model
+    n_neighbors = min(k, len(df))
+    nn_model = NearestNeighbors(
+        n_neighbors=n_neighbors,
+        metric=metric,
+        algorithm="auto"
+    )
+    nn_model.fit(X_scaled)
+    
+    # Find neighbors
+    distances, indices = nn_model.kneighbors(
+        query_scaled.reshape(1, -1),
+        n_neighbors=n_neighbors
+    )
+    
+    # Build result DataFrame
+    result = df.iloc[indices[0]].copy()
+    result["distance"] = distances[0]
+    
+    # Compute similarity
+    if metric == "cosine":
+        result["similarity"] = 1.0 - result["distance"]
+    else:
+        result["similarity"] = np.exp(-result["distance"])
+    
+    return result.reset_index(drop=True)
+
+
+def estimate_category_benchmark(
+    category: str,
+    reference_df: pd.DataFrame,
+    signal_cols: Optional[List[str]] = None
+) -> Dict[str, float]:
+    """
+    Compute average signal values for a category from reference baselines.
+    
+    This helps calibrate expectations for a category by looking at typical
+    signal values from well-known titles in that category.
+    
+    Args:
+        category: Category name (e.g., "family_classic", "pop_ip")
+        reference_df: DataFrame with baseline signals and category column
+        signal_cols: List of signal columns to average (default: BASELINE_FEATURES)
+        
+    Returns:
+        Dict with average signal values for the category
+        
+    Example:
+        >>> benchmarks = estimate_category_benchmark("pop_ip", all_baselines)
+        >>> print(benchmarks)  # {'wiki': 72, 'trends': 38, 'youtube': 85, 'spotify': 72}
+    """
+    signal_cols = signal_cols or BASELINE_FEATURES
+    
+    if reference_df.empty or "category" not in reference_df.columns:
+        return {col: 50.0 for col in signal_cols}  # Default midpoint
+    
+    # Filter to category
+    cat_df = reference_df[reference_df["category"] == category]
+    
+    if cat_df.empty:
+        # Fall back to overall average
+        cat_df = reference_df
+    
+    # Compute averages
+    result = {}
+    for col in signal_cols:
+        if col in cat_df.columns:
+            result[col] = float(cat_df[col].mean())
+        else:
+            result[col] = 50.0
+    
+    return result
+
+
 # CLI/main for testing
 if __name__ == "__main__":
     # Simple test
@@ -406,3 +542,23 @@ if __name__ == "__main__":
     print(f"Predicted ticket median: {pred:,.0f}")
     print("\nNearest neighbors:")
     print(neighbors[["title", "ticket_median", "distance", "similarity", "weight"]])
+    
+    # Test find_similar_titles
+    print("\n" + "=" * 50)
+    print("Testing find_similar_titles")
+    print("=" * 50)
+    
+    reference_data = pd.DataFrame({
+        "title": ["Nutcracker", "Cinderella", "Sleeping Beauty", "Romeo and Juliet", "Giselle"],
+        "wiki": [95, 80, 77, 86, 74],
+        "trends": [45, 20, 30, 32, 14],
+        "youtube": [88, 100, 70, 80, 62],
+        "spotify": [75, 72, 70, 80, 62],
+        "category": ["family_classic", "family_classic", "classic_romance", "romantic_tragedy", "romantic_tragedy"]
+    })
+    
+    query = {"wiki": 85, "trends": 35, "youtube": 95, "spotify": 70}
+    similar = find_similar_titles(query, reference_data, k=3)
+    print(f"\nQuery: {query}")
+    print("\nMost similar titles:")
+    print(similar[["title", "category", "similarity"]])
