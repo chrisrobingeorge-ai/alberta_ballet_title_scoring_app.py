@@ -1,0 +1,13 @@
+{
+  "created_at": "2025-11-26T17:26:32.206546",
+  "mode": "global",
+  "prediction_column": "full_model",
+  "parameters": {
+    "global": {
+      "alpha": 0.9865604322880821,
+      "beta": 141.3573797450637,
+      "r2": 0.878269167907114,
+      "n_samples": 35
+    }
+  }
+}

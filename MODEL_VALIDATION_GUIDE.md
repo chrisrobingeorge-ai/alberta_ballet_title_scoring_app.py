@@ -207,11 +207,53 @@ print("\n✓ Model saved as 'title_demand_model.pkl'")
 print("Place this file in the project root to use in the app.")
 ```
 
+## Robust Training Pipeline (Recommended)
+
+For production use, we recommend the new leak-free training pipeline instead of raw PyCaret:
+
+### Quick Start
+
+```bash
+# Step 1: Build safe dataset (no current-run ticket columns as features)
+python scripts/build_modelling_dataset.py
+
+# Step 2: Train with XGBoost and cross-validation
+python scripts/train_safe_model.py --tune
+
+# Step 3: Run backtesting to validate
+python scripts/backtest_timeaware.py
+
+# Step 4 (Optional): Fit calibration
+python scripts/calibrate_predictions.py fit --mode per_category
+```
+
+### Why Use the New Pipeline?
+
+| Feature | PyCaret Script | New Pipeline |
+|---------|---------------|--------------|
+| Leakage Prevention | Manual | Automatic assertions |
+| Cross-Validation | Basic | Time-aware / GroupKFold |
+| Remount Features | None | years_since_last_run, is_remount |
+| SHAP Explanations | No | Yes (--save-shap) |
+| k-NN Fallback | No | Yes (for cold-start) |
+| Calibration | No | Yes (global/per-category) |
+| Reproducibility | Session seed | Full metadata saved |
+
+### Leakage Prevention Checklist
+
+Before training any model:
+
+- [ ] Verify features are from `data/modelling_dataset.csv` (not raw history)
+- [ ] Confirm no "Single Tickets", "Subscription Tickets", or "Total Tickets" columns
+- [ ] Run `pytest tests/test_no_leakage_in_dataset.py` 
+- [ ] Check that only prior-season aggregates are used (e.g., `prior_total_tickets`)
+
 ## Additional Resources
 
 - [PyCaret Documentation](https://pycaret.gitbook.io/docs/)
 - [PyCaret Regression Tutorial](https://pycaret.gitbook.io/docs/get-started/tutorials/regression)
 - [Main App ML Documentation](ML_MODEL_DOCUMENTATION.md)
+- [README - Robust Training Pipeline](README.md#robust-ml-training-pipeline-new)
 
 ## Support
 
