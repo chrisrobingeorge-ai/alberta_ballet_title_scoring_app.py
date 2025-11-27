@@ -1795,9 +1795,9 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     return fam, mot
 
 # --- Ticket priors (from CSV) ---
-# CSV: data/ticket_priors_raw.csv
+# CSV: data/history_city_sales.csv
 # Expected columns (case-insensitive):
-#   title, tickets
+#   show_title (or title), total single tickets (or tickets)
 # One row per run: multiple rows per title are allowed; we keep a list per title.
 
 TICKET_PRIORS_RAW: dict[str, list[float]] = {}
@@ -1809,22 +1809,24 @@ def _median(xs):
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
-def load_ticket_priors(path: str = "data/ticket_priors_raw.csv") -> None:
+def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
     global TICKET_PRIORS_RAW
     try:
-        df = pd.read_csv(path)
+        df = pd.read_csv(path, thousands=",")
     except Exception as e:
         st.error(f"Could not load ticket priors CSV at '{path}': {e}")
         TICKET_PRIORS_RAW = {}
         return
 
     # normalize columns
-    colmap = {c.lower().strip(): c for c in df.columns}
-    title_col = colmap.get("title")
-    tix_col = colmap.get("tickets") or colmap.get("ticket_median")
+    colmap = {c.lower().strip().replace(" ", "_").replace("-", "_"): c for c in df.columns}
+    # Support both 'show_title' (history_city_sales.csv) and 'title' (legacy)
+    title_col = colmap.get("show_title") or colmap.get("title")
+    # Support 'total_single_tickets' (history_city_sales.csv) and 'tickets' (legacy)
+    tix_col = colmap.get("total_single_tickets") or colmap.get("tickets") or colmap.get("ticket_median")
 
     if not title_col or not tix_col:
-        st.error("ticket_priors_raw.csv must have columns: 'title' and 'tickets'")
+        st.error("history_city_sales.csv must have columns: 'show_title' and 'Total Single Tickets'")
         TICKET_PRIORS_RAW = {}
         return
 
