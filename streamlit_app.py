@@ -551,6 +551,31 @@ def build_full_pdf_report(methodology_paragraphs: list,
 # App setup
 # -------------------------
 st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation Scorer", layout="wide")
+
+# -------------------------
+# Configuration Validation at Startup
+# -------------------------
+try:
+    from config.validation import validate_config, validate_data_files
+    
+    config_ok, config_errors = validate_config()
+    data_ok, data_errors = validate_data_files()
+    
+    if not config_ok or not data_ok:
+        all_errors = config_errors + data_errors
+        st.error("⚠️ **Configuration Validation Failed**")
+        for err in all_errors:
+            st.warning(f"• {err}")
+        st.info(
+            "Please fix the configuration issues above before using the app. "
+            "See README.md for required file formats."
+        )
+except ImportError:
+    # config.validation module not available - continue without validation
+    pass
+except Exception as e:
+    st.warning(f"Configuration validation skipped: {e}")
+
 if "results" not in st.session_state:
     st.session_state["results"] = None
 

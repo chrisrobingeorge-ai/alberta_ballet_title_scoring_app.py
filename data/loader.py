@@ -1,6 +1,8 @@
 from pathlib import Path
+from functools import lru_cache
 from typing import Optional
 import logging
+import os
 import warnings
 
 import pandas as pd
@@ -16,11 +18,59 @@ class DataLoadError(Exception):
     pass
 
 
+def _get_file_mtime(path: Path) -> float:
+    """Get file modification time for cache invalidation."""
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
+
+
+@lru_cache(maxsize=16)
+def _load_history_sales_cached(path: str, mtime: float) -> pd.DataFrame:
+    """
+    Load history sales CSV with caching.
+    
+    Args:
+        path: Path to CSV file
+        mtime: File modification time (used for cache key)
+        
+    Returns:
+        DataFrame with normalized column names
+    """
+    df = pd.read_csv(path, thousands=",")
+    # Normalize column names
+    df.columns = [
+        c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
+        for c in df.columns
+    ]
+    return df
+
+
+@lru_cache(maxsize=16)
+def _load_baselines_cached(path: str, mtime: float) -> pd.DataFrame:
+    """
+    Load baselines CSV with caching.
+    
+    Args:
+        path: Path to CSV file
+        mtime: File modification time (used for cache key)
+        
+    Returns:
+        DataFrame with normalized column names
+    """
+    df = pd.read_csv(path)
+    df.columns = [c.strip().lower() for c in df.columns]
+    return df
+
+
 def load_history_sales(
     csv_name: str = "history_city_sales.csv",
     fallback_empty: bool = False
 ) -> pd.DataFrame:
     """Load historical show-level sales (Calgary/Edmonton).
+    
+    This function is cached based on file modification time.
     
     Args:
         csv_name: Name of the CSV file to load
@@ -41,17 +91,9 @@ def load_history_sales(
                 return pd.DataFrame()
             raise DataLoadError(f"History sales file not found: {path}")
         
-        df = pd.read_csv(path, thousands=",")
-        
-        # Normalize column names: replace " - " with "_", then remaining spaces/dashes with "_"
-        # This ensures "Single Tickets - Calgary" becomes "single_tickets_calgary" not "single_tickets___calgary"
-        df.columns = [
-            c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
-            for c in df.columns
-        ]
-        # Expected columns: show_title, single_tickets_calgary, single_tickets_edmonton,
-        # subscription_tickets_calgary, subscription_tickets_edmonton, total_single_tickets
-        return df
+        # Use cached loader with file mtime for cache invalidation
+        mtime = _get_file_mtime(path)
+        return _load_history_sales_cached(str(path), mtime).copy()
         
     except DataLoadError:
         raise
@@ -67,6 +109,8 @@ def load_baselines(
     fallback_empty: bool = True
 ) -> pd.DataFrame:
     """Load baseline signals (wiki, trends, youtube, spotify) for all titles.
+    
+    This function is cached based on file modification time.
     
     The baselines file contains both:
     - Historical titles (source='historical'): Alberta Ballet performances with ticket data
@@ -89,9 +133,9 @@ def load_baselines(
                 return pd.DataFrame()
             raise DataLoadError(f"Baselines file not found: {path}")
         
-        df = pd.read_csv(path)
-        df.columns = [c.strip().lower() for c in df.columns]
-        return df
+        # Use cached loader with file mtime for cache invalidation
+        mtime = _get_file_mtime(path)
+        return _load_baselines_cached(str(path), mtime).copy()
         
     except DataLoadError:
         raise
