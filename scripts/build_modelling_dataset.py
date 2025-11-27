@@ -390,19 +390,19 @@ def build_modelling_dataset(
         print("\n2. Checking for optional external data...")
     
     weather_df = load_optional_csv(
-        os.path.join(external_data_dir, "weather_daily_city.csv"),
+        os.path.join(external_data_dir, "economics", "weather_daily_city.csv"),
         "weather_daily_city"
     )
     events_df = load_optional_csv(
-        os.path.join(external_data_dir, "city_events_calendar.csv"),
+        os.path.join(external_data_dir, "audiences", "city_events_calendar.csv"),
         "city_events_calendar"
     )
     marketing_df = load_optional_csv(
-        os.path.join(external_data_dir, "marketing_spend_per_ticket.csv"),
+        os.path.join(external_data_dir, "productions", "marketing_spend_per_ticket.csv"),
         "marketing_spend_per_ticket"
     )
     macro_df = load_optional_csv(
-        os.path.join(external_data_dir, "alberta_macro.csv"),
+        os.path.join(external_data_dir, "economics", "alberta_macro.csv"),
         "alberta_macro"
     )
     

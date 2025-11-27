@@ -197,8 +197,8 @@ def validate_data_files() -> Tuple[bool, List[str]]:
     Validate essential data files exist.
     
     This checks for the core data files needed for the app to function:
-    - history_city_sales.csv
-    - baselines.csv
+    - productions/history_city_sales.csv
+    - productions/baselines.csv
     
     Returns:
         Tuple of (success: bool, errors: List[str])
@@ -206,8 +206,8 @@ def validate_data_files() -> Tuple[bool, List[str]]:
     errors = []
     
     required_data_files = [
-        ("history_city_sales.csv", ["show_title"]),
-        ("baselines.csv", ["title", "wiki", "trends", "youtube", "spotify"]),
+        ("productions/history_city_sales.csv", ["show_title"]),
+        ("productions/baselines.csv", ["title", "wiki", "trends", "youtube", "spotify"]),
     ]
     
     for file_name, required_cols in required_data_files:
