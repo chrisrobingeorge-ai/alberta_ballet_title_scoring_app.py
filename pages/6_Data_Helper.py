@@ -413,6 +413,10 @@ One row per show (aggregated from patron-level data).
 # AUTO-DETECTION FUNCTIONS
 # =============================================================================
 
+# Threshold for detecting reference files based on underscore-separated variable names
+REFERENCE_FILE_UNDERSCORE_THRESHOLD = 0.5  # 50% of values must have underscores
+
+
 def is_reference_documentation_file(df: pd.DataFrame) -> bool:
     """
     Detect if a file is a reference/documentation file rather than actual data.
@@ -441,17 +445,12 @@ def is_reference_documentation_file(df: pd.DataFrame) -> bool:
         {"field", "description", "source"},
     ]
     
-    # Check if columns match any reference signature
-    columns_set = set(columns_lower)
+    # Check if columns match any reference signature using any() for cleaner code
     for signature in reference_signatures:
-        # Check if all signature terms are present in columns (partial match)
-        matches = 0
-        for sig_term in signature:
-            for col in columns_lower:
-                if sig_term in col:
-                    matches += 1
-                    break
-        if matches >= len(signature):
+        if all(
+            any(sig_term in col for col in columns_lower)
+            for sig_term in signature
+        ):
             return True
     
     # Additional check: if first column is "Feature" or similar and contains
@@ -459,10 +458,11 @@ def is_reference_documentation_file(df: pd.DataFrame) -> bool:
     if len(df) > 0 and len(df.columns) > 0:
         first_col = df.columns[0].lower().strip()
         if first_col in ["feature", "field", "variable", "column", "attribute"]:
-            # Check if first column values look like variable names
-            first_values = df.iloc[:, 0].astype(str).tolist()
-            underscore_count = sum(1 for v in first_values if "_" in v)
-            if underscore_count > len(first_values) * 0.5:  # More than 50% have underscores
+            # Use vectorized string operation on a sample for efficiency
+            sample_size = min(len(df), 100)  # Sample up to 100 rows for detection
+            first_values = df.iloc[:sample_size, 0].astype(str)
+            underscore_count = first_values.str.contains("_", regex=False).sum()
+            if underscore_count > sample_size * REFERENCE_FILE_UNDERSCORE_THRESHOLD:
                 return True
     
     return False
