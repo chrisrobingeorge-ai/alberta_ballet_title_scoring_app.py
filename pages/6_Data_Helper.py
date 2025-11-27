@@ -450,7 +450,7 @@ def detect_file_category(df: pd.DataFrame) -> tuple[Optional[str], float, list[s
         matched_cols = []
         score = 0.0
         
-        # Check signature columns (highest weight - 0.3 each)
+        # Check signature columns (highest weight - 0.4 total)
         sig_matches = 0
         for sig_col in cat_info.get("signature_columns", []):
             for actual_col in columns_lower:
@@ -462,7 +462,7 @@ def detect_file_category(df: pd.DataFrame) -> tuple[Optional[str], float, list[s
         if cat_info.get("signature_columns"):
             score += (sig_matches / len(cat_info["signature_columns"])) * 0.4
         
-        # Check required columns (medium weight - 0.25 each)
+        # Check required columns (medium weight - 0.3 total)
         req_matches = 0
         for req_col in cat_info.get("required_columns", []):
             req_lower = req_col.lower().replace("_", " ")
