@@ -15,10 +15,10 @@ that could be used in the demand forecasting model. It serves as:
 
 ### About External Factors
 Features marked `to be collected` or `in development` are **optional enhancements**. 
-The current model works with available features from `history_city_sales.csv` and `baselines.csv`.
+The current model works with available features from `data/productions/history_city_sales.csv` and `data/productions/baselines.csv`.
 
 To add External Factors data:
-1. Create a CSV file (e.g., `data/external_factors.csv`) with columns matching the Feature Names
+1. Create a CSV file (e.g., `data/economics/external_factors.csv`) with columns matching the Feature Names
 2. Include a date/season column to join with historical sales
 3. Update `data/loader.py` to merge this data with the main dataset
 """)

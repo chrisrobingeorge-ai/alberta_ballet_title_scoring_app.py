@@ -581,7 +581,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
     Estimates ticket demand from title familiarity & motivation, links to sales history, then applies seasonality, remount decay, and learned city/subscriber splits.
 
     ### Full User Guide (5 steps)
-    1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/history_city_sales.csv`.
+    1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/productions/history_city_sales.csv`.
     2. **Choose titles:** Add/modify the list in **Titles to score**. Unknown titles are estimated (or fetched live if you turn that on).
     3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
     4. **Pick a benchmark:** Select the **Benchmark Title** to normalize indices (benchmark = 100).
@@ -650,7 +650,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     **History & context**  
     - **Ticket priors**: per-title median tickets (from your `TICKET_PRIORS_RAW`).  
     - **Past runs**: title → `(start, end)` dates to derive a mid-run month for seasonality learning and remount timing.  
-    - **Marketing spend history (optional)**: `data/marketing_spend_per_ticket.csv` with per single-ticket $ spend by city for past shows.
+    - **Marketing spend history (optional)**: `data/productions/marketing_spend_per_ticket.csv` with per single-ticket $ spend by city for past shows.
 	
     > Unknown titles can be scored **two ways**:
     > - **Live** (optional keys): Wikipedia + YouTube + Spotify lookups, then category winsorizing.  
@@ -722,7 +722,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
       - and then sums to get **YYC_Revenue**, **YEG_Revenue**, and **Total_Revenue**.
 
     **Marketing spend per single ticket (SPT)**
-    - From `data/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold single ticket**:
+    - From `data/productions/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold single ticket**:
       - **Title×City median** $/single where data exist (e.g., ** in YYC).
       - **Category×City median** $/single as a fallback (e.g., `classic_romance` in YEG).
       - **City-wide median** $/single as a final default.
@@ -933,7 +933,7 @@ def infer_show_type(title: str, category: str) -> str:
 PROD_EXPENSE_TITLE: dict[str, float] = {}
 PROD_EXPENSE_SHOWTYPE: dict[str, float] = {}
 
-def learn_production_expenses(path: str = "data/showtype_expense.csv") -> None:
+def learn_production_expenses(path: str = "data/productions/showtype_expense.csv") -> None:
     """
     Expects a CSV with columns:
       fiscal_year, title, prod_expense
@@ -1280,14 +1280,11 @@ if ("hist_df" not in st.session_state) or relearn:
     if uploaded_hist is not None:
         st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
     else:
-        # try your preferred filename first, then the old one; else empty
+        # Load from default location, or use empty DataFrame if not found
         try:
-            st.session_state["hist_df"] = pd.read_csv("data/history_city_sales.csv")
+            st.session_state["hist_df"] = pd.read_csv("data/productions/history_city_sales.csv")
         except Exception:
-            try:
-                st.session_state["hist_df"] = pd.read_csv("data/history.csv")
-            except Exception:
-                st.session_state["hist_df"] = pd.DataFrame()
+            st.session_state["hist_df"] = pd.DataFrame()
 
 # (Re)learn priors every time we (re)load history
 st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
@@ -1300,7 +1297,7 @@ st.caption(
 )
 # --- Marketing spend (fixed CSV from disk) ---
 try:
-    mkt_df = pd.read_csv("data/marketing_spend_per_ticket.csv")
+    mkt_df = pd.read_csv("data/productions/marketing_spend_per_ticket.csv")
 except Exception:
     mkt_df = pd.DataFrame()
 
@@ -1310,7 +1307,7 @@ st.caption(
     f"category×city: {mkt_summary.get('cat_city',0)}"
 )
 # --- Production expenses (per title / show type) ---
-learn_production_expenses("data/showtype_expense.csv")
+learn_production_expenses("data/productions/showtype_expense.csv")
 # --- In-app production expense budgeting (optional overrides) ---
 with st.expander("💰 Production expense budgeting (optional overrides)"):
     st.markdown(
@@ -1390,7 +1387,7 @@ except Exception:
 
 BASELINES: dict[str, dict] = {}
 
-def load_baselines(path: str = "data/baselines.csv") -> None:
+def load_baselines(path: str = "data/productions/baselines.csv") -> None:
     """
     Load baseline familiarity/motivation inputs from CSV.
 
@@ -1512,7 +1509,7 @@ SEGMENT_KEYS_IN_ORDER = [
 ]
 
 # --- Segment priors by region × category × segment from CSV ---
-# CSV: data/segment_priors.csv
+# CSV: data/productions/segment_priors.csv
 # Expected columns (case-insensitive):
 #   region, category, segment, weight
 #
@@ -1526,7 +1523,7 @@ SEGMENT_PRIORS: dict[str, dict[str, dict[str, float]]] = {}
 
 SEGMENT_PRIOR_STRENGTH = 1.0  # keep this; used in _prior_weights_for()
 
-def load_segment_priors(path: str = "data/segment_priors.csv") -> None:
+def load_segment_priors(path: str = "data/productions/segment_priors.csv") -> None:
     """
     Populates SEGMENT_PRIORS as:
       SEGMENT_PRIORS[region][category][segment] = weight
@@ -1748,7 +1745,7 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     return fam, mot
 
 # --- Ticket priors (from CSV) ---
-# CSV: data/history_city_sales.csv
+# CSV: data/productions/history_city_sales.csv
 # Expected columns (case-insensitive):
 #   show_title (or title), total single tickets (or tickets)
 # One row per run: multiple rows per title are allowed; we keep a list per title.
@@ -1762,7 +1759,7 @@ def _median(xs):
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
-def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
+def load_ticket_priors(path: str = "data/productions/history_city_sales.csv") -> None:
     global TICKET_PRIORS_RAW
     try:
         df = pd.read_csv(path, thousands=",")
@@ -1801,7 +1798,7 @@ def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
 load_ticket_priors()
 
 # --- Past runs (for seasonality) from CSV ---
-# CSV: data/past_runs.csv
+# CSV: data/productions/past_runs.csv
 # Expected columns (case-insensitive):
 #   title, start_date, end_date
 # Dates in ISO format: YYYY-MM-DD
@@ -1815,7 +1812,7 @@ def _to_date(s: str) -> date:
 def _mid_date(a: date, b: date) -> date:
     return a + (b - a) // 2
 
-def load_past_runs(path: str = "data/past_runs.csv") -> None:
+def load_past_runs(path: str = "data/productions/past_runs.csv") -> None:
     """
     Build RUNS_DF with columns:
       Title, Category, Start, End, MidDate, Month, Year, TicketMedian

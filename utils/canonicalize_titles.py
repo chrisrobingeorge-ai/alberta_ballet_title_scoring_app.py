@@ -208,8 +208,8 @@ def fuzzy_match_title(
 
 
 def build_title_map_from_hist(
-    history_path: str = "data/history_city_sales.csv",
-    baseline_path: str = "data/baselines.csv",
+    history_path: str = "data/productions/history_city_sales.csv",
+    baseline_path: str = "data/productions/baselines.csv",
     output_path: str = DEFAULT_TITLE_MAP_PATH,
     threshold: int = 85,
     dry_run: bool = False
@@ -357,12 +357,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--history", 
-        default="data/history_city_sales.csv",
+        default="data/productions/history_city_sales.csv",
         help="Path to history_city_sales.csv"
     )
     parser.add_argument(
         "--baselines", 
-        default="data/baselines.csv",
+        default="data/productions/baselines.csv",
         help="Path to baselines.csv"
     )
     parser.add_argument(

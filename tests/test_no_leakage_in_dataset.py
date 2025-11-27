@@ -109,7 +109,7 @@ def test_history_file_has_expected_columns():
     Verify that history_city_sales.csv has the expected structure.
     This helps catch schema changes early.
     """
-    history_path = "data/history_city_sales.csv"
+    history_path = "data/productions/history_city_sales.csv"
     
     if not os.path.exists(history_path):
         pytest.skip(f"History file not found at {history_path}")

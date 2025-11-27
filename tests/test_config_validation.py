@@ -159,12 +159,12 @@ class TestDataFilesExist:
     
     def test_history_city_sales_exists(self):
         """Test history_city_sales.csv exists."""
-        path = DATA_DIR / "history_city_sales.csv"
+        path = DATA_DIR / "productions" / "history_city_sales.csv"
         assert path.exists(), f"Missing file: {path}"
     
     def test_baselines_exists(self):
         """Test baselines.csv exists."""
-        path = DATA_DIR / "baselines.csv"
+        path = DATA_DIR / "productions" / "baselines.csv"
         assert path.exists(), f"Missing file: {path}"
 
 
