@@ -1,0 +1,7 @@
+# Streamlit configuration for Alberta Ballet Title Scoring App
+# See: https://docs.streamlit.io/develop/api-reference/configuration/config.toml
+
+[server]
+# Maximum upload size per file in megabytes
+# Increased to support larger data files in the Data Helper page
+maxUploadSize = 200
