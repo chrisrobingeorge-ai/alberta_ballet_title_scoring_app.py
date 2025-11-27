@@ -353,14 +353,10 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         "Estimated Tickets",
         "YYC Singles",
         "YEG Singles",
-        "YYC Total",
-        "YEG Total",
         "",
         "REVENUE",
         "YYC Singles Revenue",
         "YEG Singles Revenue",
-        "YYC Single Revenue",
-        "YEG Single Revenue",
         "Total Revenue",
         "",
         "EXPENSES",
@@ -385,14 +381,10 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
 
         out.at["YYC Singles", col_name] = int(r.get("YYC_Singles", 0) or 0)
         out.at["YEG Singles", col_name] = int(r.get("YEG_Singles", 0) or 0)
-        # YYC Total no longer needed (single tickets only)
-        # YEG Total no longer needed (single tickets only)
 
         # Revenue (numeric for now; we format later)
         out.at["YYC Singles Revenue", col_name]       = float(r.get("YYC_Single_Revenue", 0) or 0)
         out.at["YEG Singles Revenue", col_name]       = float(r.get("YEG_Single_Revenue", 0) or 0)
-        # YYC_Subs_Revenue no longer needed (single tickets only)
-        # YEG_Subs_Revenue no longer needed (single tickets only)
         out.at["Total Revenue", col_name]             = float(r.get("Total_Revenue", 0) or 0)
 
         # Expenses (numeric for now)
@@ -420,8 +412,6 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
     currency_rows = [
         "YYC Singles Revenue",
         "YEG Singles Revenue",
-        "YYC Single Revenue",
-        "YEG Single Revenue",
         "Total Revenue",
         "Average YYC Marketing Spend",
         "Average YEG Marketing Spend",
