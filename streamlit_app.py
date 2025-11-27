@@ -2116,7 +2116,11 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
                     if not wcs.empty:
                         latest_oil = wcs.sort_values('date', ascending=False).head(1)
                         if not latest_oil.empty:
-                            st.caption(f"Latest WCS oil price: ${latest_oil.iloc[0].get('wcs_oil_price', 'N/A'):.2f} USD")
+                            oil_price = latest_oil.iloc[0].get('wcs_oil_price')
+                            if oil_price is not None and pd.notna(oil_price):
+                                st.caption(f"Latest WCS oil price: ${float(oil_price):.2f} USD")
+                            else:
+                                st.caption("Latest WCS oil price: N/A")
             with col2:
                 if not unemp_df.empty:
                     unemp_df['date'] = pd.to_datetime(unemp_df['date'], errors='coerce')
@@ -2124,7 +2128,11 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
                     if not ab_unemp.empty:
                         latest_unemp = ab_unemp.sort_values('date', ascending=False).head(1)
                         if not latest_unemp.empty:
-                            st.caption(f"Latest Alberta unemployment: {latest_unemp.iloc[0].get('unemployment_rate', 'N/A'):.1f}%")
+                            unemp_rate = latest_unemp.iloc[0].get('unemployment_rate')
+                            if unemp_rate is not None and pd.notna(unemp_rate):
+                                st.caption(f"Latest Alberta unemployment: {float(unemp_rate):.1f}%")
+                            else:
+                                st.caption("Latest Alberta unemployment: N/A")
         except Exception:
             pass
             

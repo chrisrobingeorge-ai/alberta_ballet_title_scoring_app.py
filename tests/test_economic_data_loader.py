@@ -107,7 +107,8 @@ class TestEconomicSentimentFactor:
     
     def test_with_specific_date(self):
         """Should work with a specific date."""
-        test_date = pd.Timestamp("2023-06-15")
+        # Use a date 6 months ago to ensure data availability
+        test_date = pd.Timestamp.now() - pd.DateOffset(months=6)
         result = get_economic_sentiment_factor(run_date=test_date)
         assert isinstance(result, float)
         assert 0.5 <= result <= 1.5  # Reasonable range

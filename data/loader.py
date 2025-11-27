@@ -741,7 +741,7 @@ def load_past_runs(
 # =============================================================================
 
 def get_economic_sentiment_factor(
-    run_date: Optional["pd.Timestamp"] = None,
+    run_date: Optional[pd.Timestamp] = None,
     city: Optional[str] = None,
     baseline_oil_price: float = 60.0,
     baseline_unemployment: float = 6.0,
@@ -795,12 +795,20 @@ def get_economic_sentiment_factor(
         # Find most recent price before run date
         recent = wcs_df[wcs_df['date'] <= run_date].sort_values('date', ascending=False)
         if not recent.empty:
-            price_col = 'wcs_oil_price' if 'wcs_oil_price' in recent.columns else recent.columns[1]
-            current_price = recent.iloc[0][price_col]
-            if pd.notna(current_price) and current_price > 0:
-                # Oil factor: higher prices = more positive sentiment
-                # Range roughly 0.8 to 1.2 based on typical oil price ranges
-                oil_factor = 0.8 + 0.4 * min(1.5, max(0.5, current_price / baseline_oil_price))
+            # Get price column safely
+            if 'wcs_oil_price' in recent.columns:
+                price_col = 'wcs_oil_price'
+            else:
+                # Fallback: find a numeric column that's not 'date'
+                numeric_cols = recent.select_dtypes(include=['float64', 'int64']).columns
+                price_col = numeric_cols[0] if len(numeric_cols) > 0 else None
+            
+            if price_col is not None:
+                current_price = recent.iloc[0][price_col]
+                if pd.notna(current_price) and current_price > 0:
+                    # Oil factor: higher prices = more positive sentiment
+                    # Range roughly 0.8 to 1.2 based on typical oil price ranges
+                    oil_factor = 0.8 + 0.4 * min(1.5, max(0.5, current_price / baseline_oil_price))
     
     # Get unemployment data
     unemp_df = load_unemployment_rates()
