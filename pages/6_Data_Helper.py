@@ -17,6 +17,18 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from typing import Optional
+import logging
+import traceback
+import gc
+
+# Configure logging for debugging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Maximum file size in MB
+MAX_FILE_SIZE_MB = 50
+MAX_ROWS_PER_FILE = 100000  # Maximum rows to prevent memory issues
+ERROR_MESSAGE_MAX_LENGTH = 200  # Maximum length for error messages in UI
 
 st.set_page_config(
     page_title="External Data Helper for Title Scorer",
@@ -596,6 +608,139 @@ def try_infer_year_column(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def safe_read_csv(uploaded_file) -> tuple[Optional[pd.DataFrame], Optional[str]]:
+    """
+    Safely read a CSV file with error handling and memory protection.
+    
+    Returns:
+        tuple of (DataFrame or None, error_message or None)
+    """
+    try:
+        # Check file size
+        file_size_mb = uploaded_file.size / (1024 * 1024)
+        if file_size_mb > MAX_FILE_SIZE_MB:
+            return None, f"File too large ({file_size_mb:.1f} MB). Maximum size is {MAX_FILE_SIZE_MB} MB."
+        
+        # Reset file pointer to beginning for row count check
+        uploaded_file.seek(0)
+        
+        # First, do a quick row count check using chunked reading to avoid loading
+        # the entire file into memory for very large files
+        row_count = 0
+        try:
+            for chunk in pd.read_csv(uploaded_file, chunksize=10000, usecols=[0]):
+                row_count += len(chunk)
+                if row_count > MAX_ROWS_PER_FILE:
+                    return None, f"File has too many rows (>{MAX_ROWS_PER_FILE:,}). Maximum is {MAX_ROWS_PER_FILE:,} rows."
+        except (pd.errors.EmptyDataError, ValueError):
+            # File might be empty or have no columns - will be caught below
+            pass
+        
+        # Now read the full file since we know it's within limits
+        uploaded_file.seek(0)
+        df = pd.read_csv(uploaded_file, low_memory=False)
+        
+        # Check if file has any data
+        if len(df) == 0:
+            return None, "File is empty (no data rows)."
+        
+        # Check if file has any columns
+        if len(df.columns) == 0:
+            return None, "File has no columns."
+        
+        # Log successful read
+        logger.info(f"Successfully read {uploaded_file.name}: {len(df)} rows, {len(df.columns)} columns")
+        
+        return df, None
+        
+    except pd.errors.EmptyDataError:
+        return None, "File appears to be empty or contains only headers."
+    except pd.errors.ParserError as e:
+        error_msg = str(e)[:ERROR_MESSAGE_MAX_LENGTH]
+        logger.error(f"Parser error reading {uploaded_file.name}: {error_msg}")
+        return None, f"Could not parse CSV: {error_msg}"
+    except UnicodeDecodeError:
+        return None, "Encoding error. Try saving the file as UTF-8 CSV."
+    except MemoryError:
+        gc.collect()  # Try to free memory
+        return None, "File is too large and caused a memory error. Try splitting into smaller files."
+    except Exception as e:
+        error_msg = str(e)[:ERROR_MESSAGE_MAX_LENGTH]
+        logger.error(f"Unexpected error reading {uploaded_file.name}: {error_msg}\n{traceback.format_exc()}")
+        return None, f"Unexpected error: {error_msg}"
+
+
+def process_uploaded_file(uploaded_file, file_key: str) -> dict:
+    """
+    Process a single uploaded file and return its metadata.
+    
+    Returns:
+        dict with file info or error details
+    """
+    try:
+        # Read the file safely
+        df, error = safe_read_csv(uploaded_file)
+        
+        if error:
+            return {
+                "df": None,
+                "detected_category": None,
+                "confidence": 0.0,
+                "matched_columns": [],
+                "confirmed_category": None,
+                "is_reference_file": False,
+                "error": error
+            }
+        
+        # Normalize column names
+        df = normalize_column_names(df)
+        
+        # Check if this is a reference/documentation file
+        is_reference = is_reference_documentation_file(df)
+        
+        if is_reference:
+            return {
+                "df": df,
+                "detected_category": None,
+                "confidence": 0.0,
+                "matched_columns": [],
+                "confirmed_category": None,
+                "is_reference_file": True,
+                "error": None
+            }
+        
+        # Try to infer year column
+        df = try_infer_year_column(df)
+        
+        # Detect category
+        detected_cat, confidence, matched_cols = detect_file_category(df)
+        
+        logger.info(f"Processed {file_key}: category={detected_cat}, confidence={confidence:.2f}")
+        
+        return {
+            "df": df,
+            "detected_category": detected_cat,
+            "confidence": confidence,
+            "matched_columns": matched_cols,
+            "confirmed_category": None,
+            "is_reference_file": False,
+            "error": None
+        }
+        
+    except Exception as e:
+        error_msg = str(e)[:ERROR_MESSAGE_MAX_LENGTH]
+        logger.error(f"Error processing {file_key}: {error_msg}\n{traceback.format_exc()}")
+        return {
+            "df": None,
+            "detected_category": None,
+            "confidence": 0.0,
+            "matched_columns": [],
+            "confirmed_category": None,
+            "is_reference_file": False,
+            "error": f"Processing error: {error_msg}"
+        }
+
+
 # =============================================================================
 # STREAMLIT APP
 # =============================================================================
@@ -657,10 +802,23 @@ st.markdown("---")
 
 st.header("📁 Step 1 – Upload Your Data Files")
 
-st.info("""
+# Add clear button for resetting state
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.info("""
 **Drop any CSV files here!** The system will automatically detect what type of data 
 each file contains and help you merge them together.
-""")
+
+**Limits:** Max {max_size} MB per file, {max_rows:,} rows maximum.
+""".format(max_size=MAX_FILE_SIZE_MB, max_rows=MAX_ROWS_PER_FILE))
+with col2:
+    if st.button("🗑️ Clear All Files", help="Clear all uploaded files and start fresh"):
+        st.session_state.uploaded_data = {}
+        st.session_state.base_df = None
+        if "external_factors_df" in st.session_state:
+            del st.session_state.external_factors_df
+        gc.collect()  # Free memory
+        st.rerun()
 
 uploaded_files = st.file_uploader(
     "Upload one or more CSV files (data will be auto-detected)",
@@ -678,52 +836,45 @@ if "base_df" not in st.session_state:
 if uploaded_files:
     st.subheader("📊 Detected Data Categories")
     
-    for uploaded_file in uploaded_files:
-        file_key = uploaded_file.name
+    # Track current file names to detect removed files
+    current_file_names = {f.name for f in uploaded_files}
+    
+    # Remove files that are no longer in the upload list
+    files_to_remove = [k for k in st.session_state.uploaded_data.keys() 
+                       if k not in current_file_names]
+    for file_key in files_to_remove:
+        del st.session_state.uploaded_data[file_key]
+        logger.info(f"Removed {file_key} from session state (no longer in upload list)")
+    
+    # Process new files with progress indicator
+    new_files = [f for f in uploaded_files if f.name not in st.session_state.uploaded_data]
+    
+    if new_files:
+        progress_text = st.empty()
+        progress_bar = st.progress(0)
         
-        # Skip if already processed (to avoid re-processing on rerun)
-        if file_key in st.session_state.uploaded_data:
-            continue
-        
-        try:
-            df = pd.read_csv(uploaded_file)
-            df = normalize_column_names(df)
+        for i, uploaded_file in enumerate(new_files):
+            file_key = uploaded_file.name
+            progress_text.text(f"Processing {file_key}... ({i+1}/{len(new_files)})")
+            progress_bar.progress((i + 1) / len(new_files))
             
-            # Check if this is a reference/documentation file
-            is_reference = is_reference_documentation_file(df)
+            # Process file with safe error handling
+            file_info = process_uploaded_file(uploaded_file, file_key)
             
-            if is_reference:
-                # Store as reference file - don't try to detect category
-                st.session_state.uploaded_data[file_key] = {
-                    "df": df,
-                    "detected_category": None,
-                    "confidence": 0.0,
-                    "matched_columns": [],
-                    "confirmed_category": None,
-                    "is_reference_file": True
-                }
+            # Check for errors
+            if file_info.get("error"):
+                st.error(f"❌ **{file_key}**: {file_info['error']}")
+                logger.error(f"Error processing {file_key}: {file_info['error']}")
             else:
-                df = try_infer_year_column(df)
-                
-                # Detect category
-                detected_cat, confidence, matched_cols = detect_file_category(df)
-                
-                st.session_state.uploaded_data[file_key] = {
-                    "df": df,
-                    "detected_category": detected_cat,
-                    "confidence": confidence,
-                    "matched_columns": matched_cols,
-                    "confirmed_category": None,
-                    "is_reference_file": False
-                }
-        except pd.errors.EmptyDataError:
-            st.error(f"❌ **{file_key}**: File appears to be empty")
-        except pd.errors.ParserError as e:
-            st.error(f"❌ **{file_key}**: Could not parse CSV - {str(e)[:100]}")
-        except UnicodeDecodeError:
-            st.error(f"❌ **{file_key}**: Encoding error. Try saving as UTF-8 CSV.")
-        except Exception as e:
-            st.error(f"❌ **{file_key}**: Unexpected error - {str(e)[:100]}")
+                st.session_state.uploaded_data[file_key] = file_info
+                logger.info(f"Successfully processed {file_key}")
+        
+        # Clear progress indicators
+        progress_text.empty()
+        progress_bar.empty()
+        
+        # Force garbage collection after processing multiple files
+        gc.collect()
 
 # Display detected files
 if st.session_state.uploaded_data:
@@ -733,6 +884,11 @@ if st.session_state.uploaded_data:
         confidence = file_info["confidence"]
         matched_cols = file_info["matched_columns"]
         is_reference = file_info.get("is_reference_file", False)
+        has_error = file_info.get("error") is not None
+        
+        # Skip entries with errors (they were already shown during processing)
+        if has_error or df is None:
+            continue
         
         with st.expander(f"📄 **{file_key}**", expanded=True):
             # Check if this is a reference/documentation file
@@ -1149,6 +1305,14 @@ with st.expander("❓ Troubleshooting & FAQ"):
     st.markdown("""
 ### Common Issues
 
+**Q: The app crashes or freezes when I upload multiple files**  
+A: This can happen with very large files. Try these solutions:
+   - Use the "🗑️ Clear All Files" button to reset and start fresh
+   - Upload fewer files at a time (5-10 at once is usually safe)
+   - Check that individual files are under {max_size} MB
+   - Ensure files have fewer than {max_rows:,} rows
+   - Save files as UTF-8 CSV format
+
 **Q: Do I need to upload base titles first?**  
 A: No! You can upload external factor files (economic, demographic, etc.) first and 
    merge them together. The system will create a combined external factors file that 
@@ -1192,4 +1356,4 @@ A: After downloading the merged external factors CSV:
 | Tourism | [Travel Alberta](https://industry.travelalberta.com/research) |
 | Google Trends | [Google Trends](https://trends.google.com) |
 | Oil Prices | [EIA](https://www.eia.gov/), [Bank of Canada](https://www.bankofcanada.ca) |
-    """)
+    """.format(max_size=MAX_FILE_SIZE_MB, max_rows=MAX_ROWS_PER_FILE))
