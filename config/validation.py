@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -32,7 +32,7 @@ class ConfigValidationError(Exception):
 # Required CSV Files and Their Expected Columns
 # ============================================================================
 
-REQUIRED_CONFIG_FILES: Dict[str, Dict[str, any]] = {
+REQUIRED_CONFIG_FILES: Dict[str, Dict[str, Any]] = {
     "ml_feature_inventory_alberta_ballet.csv": {
         "path": CONFIG_DIR / "ml_feature_inventory_alberta_ballet.csv",
         "required_columns": ["Theme", "Feature Name", "Description", "Data Type", "Status"],
@@ -149,7 +149,7 @@ def validate_config_strict() -> None:
         raise ConfigValidationError(errors)
 
 
-def get_config_status() -> Dict[str, Dict[str, any]]:
+def get_config_status() -> Dict[str, Dict[str, Any]]:
     """
     Get the status of all configuration files.
     
