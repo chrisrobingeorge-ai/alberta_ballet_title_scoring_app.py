@@ -413,6 +413,61 @@ One row per show (aggregated from patron-level data).
 # AUTO-DETECTION FUNCTIONS
 # =============================================================================
 
+def is_reference_documentation_file(df: pd.DataFrame) -> bool:
+    """
+    Detect if a file is a reference/documentation file rather than actual data.
+    
+    Reference files typically have columns like:
+    - 'Feature', 'Primary Source(s)', 'Source Type', 'External Link(s)'
+    - 'DATA ATTRIBUTE', 'Source', 'Link', etc.
+    
+    These files contain metadata about where to find data, not actual data values.
+    
+    Returns:
+        True if the file appears to be a reference/documentation file
+    """
+    columns_lower = [c.lower().strip() for c in df.columns]
+    
+    # Reference file signature patterns
+    reference_signatures = [
+        # Pattern 1: Feature documentation files (External_Factors.csv, etc.)
+        {"feature", "source"},
+        {"feature", "primary source(s)"},
+        {"feature", "source type"},
+        # Pattern 2: Data attribute documentation
+        {"data attribute", "source"},
+        # Pattern 3: Generic documentation patterns
+        {"column", "description", "source"},
+        {"field", "description", "source"},
+    ]
+    
+    # Check if columns match any reference signature
+    columns_set = set(columns_lower)
+    for signature in reference_signatures:
+        # Check if all signature terms are present in columns (partial match)
+        matches = 0
+        for sig_term in signature:
+            for col in columns_lower:
+                if sig_term in col:
+                    matches += 1
+                    break
+        if matches >= len(signature):
+            return True
+    
+    # Additional check: if first column is "Feature" or similar and contains
+    # underscore-separated names (like variable names)
+    if len(df) > 0 and len(df.columns) > 0:
+        first_col = df.columns[0].lower().strip()
+        if first_col in ["feature", "field", "variable", "column", "attribute"]:
+            # Check if first column values look like variable names
+            first_values = df.iloc[:, 0].astype(str).tolist()
+            underscore_count = sum(1 for v in first_values if "_" in v)
+            if underscore_count > len(first_values) * 0.5:  # More than 50% have underscores
+                return True
+    
+    return False
+
+
 def detect_file_category(df: pd.DataFrame) -> tuple[Optional[str], float, list[str]]:
     """
     Analyze a DataFrame's columns to determine which data category it belongs to.
@@ -633,18 +688,34 @@ if uploaded_files:
         try:
             df = pd.read_csv(uploaded_file)
             df = normalize_column_names(df)
-            df = try_infer_year_column(df)
             
-            # Detect category
-            detected_cat, confidence, matched_cols = detect_file_category(df)
+            # Check if this is a reference/documentation file
+            is_reference = is_reference_documentation_file(df)
             
-            st.session_state.uploaded_data[file_key] = {
-                "df": df,
-                "detected_category": detected_cat,
-                "confidence": confidence,
-                "matched_columns": matched_cols,
-                "confirmed_category": None
-            }
+            if is_reference:
+                # Store as reference file - don't try to detect category
+                st.session_state.uploaded_data[file_key] = {
+                    "df": df,
+                    "detected_category": None,
+                    "confidence": 0.0,
+                    "matched_columns": [],
+                    "confirmed_category": None,
+                    "is_reference_file": True
+                }
+            else:
+                df = try_infer_year_column(df)
+                
+                # Detect category
+                detected_cat, confidence, matched_cols = detect_file_category(df)
+                
+                st.session_state.uploaded_data[file_key] = {
+                    "df": df,
+                    "detected_category": detected_cat,
+                    "confidence": confidence,
+                    "matched_columns": matched_cols,
+                    "confirmed_category": None,
+                    "is_reference_file": False
+                }
         except pd.errors.EmptyDataError:
             st.error(f"❌ **{file_key}**: File appears to be empty")
         except pd.errors.ParserError as e:
@@ -661,49 +732,73 @@ if st.session_state.uploaded_data:
         detected_cat = file_info["detected_category"]
         confidence = file_info["confidence"]
         matched_cols = file_info["matched_columns"]
+        is_reference = file_info.get("is_reference_file", False)
         
         with st.expander(f"📄 **{file_key}**", expanded=True):
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                if detected_cat:
-                    cat_name = DATA_CATEGORIES[detected_cat]["name"]
-                    if confidence > 0.3:
-                        st.success(f"✅ Detected as: **{cat_name}** "
-                                   f"(confidence: {confidence:.0%})")
+            # Check if this is a reference/documentation file
+            if is_reference:
+                st.error("""
+📚 **This appears to be a documentation/reference file, not actual data.**
+
+This file contains metadata about data sources (column names, descriptions, links) 
+rather than actual numerical data that can be merged.
+
+**What to do:**
+1. Use this file as a **reference** to understand what data you need
+2. Create a new CSV with actual data values (years, cities, numerical metrics)
+3. Upload the new data file instead
+
+**Example:** Instead of a file with "Feature, Source, Link" columns, 
+create a file with "year, alberta_unemployment_rate, alberta_cpi_index" columns 
+containing actual values like "2023, 5.8, 157.2".
+                """)
+                
+                # Show preview anyway
+                st.caption("Preview of reference file (first 5 rows):")
+                st.dataframe(df.head(), use_container_width=True)
+                st.caption(f"Columns: {', '.join(df.columns.tolist())}")
+            else:
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    if detected_cat:
+                        cat_name = DATA_CATEGORIES[detected_cat]["name"]
+                        if confidence > 0.3:
+                            st.success(f"✅ Detected as: **{cat_name}** "
+                                       f"(confidence: {confidence:.0%})")
+                        else:
+                            st.warning(f"🤔 Best guess: **{cat_name}** "
+                                       f"(low confidence: {confidence:.0%})")
                     else:
-                        st.warning(f"🤔 Best guess: **{cat_name}** "
-                                   f"(low confidence: {confidence:.0%})")
-                else:
-                    st.warning("⚠️ Could not auto-detect category")
+                        st.warning("⚠️ Could not auto-detect category")
+                    
+                    st.caption(f"Matched columns: {', '.join(matched_cols) if matched_cols else 'None'}")
                 
-                st.caption(f"Matched columns: {', '.join(matched_cols) if matched_cols else 'None'}")
-            
-            with col2:
-                # Allow manual override
-                category_options = ["(auto-detect)"] + [
-                    DATA_CATEGORIES[k]["name"] for k in DATA_CATEGORIES.keys()
-                ]
-                selected = st.selectbox(
-                    "Override category:",
-                    category_options,
-                    key=f"cat_select_{file_key}",
-                    index=0
-                )
+                with col2:
+                    # Allow manual override
+                    category_options = ["(auto-detect)"] + [
+                        DATA_CATEGORIES[k]["name"] for k in DATA_CATEGORIES.keys()
+                    ]
+                    selected = st.selectbox(
+                        "Override category:",
+                        category_options,
+                        key=f"cat_select_{file_key}",
+                        index=0
+                    )
+                    
+                    if selected != "(auto-detect)":
+                        # Find the key for the selected name
+                        for k, v in DATA_CATEGORIES.items():
+                            if v["name"] == selected:
+                                file_info["confirmed_category"] = k
+                                break
+                    else:
+                        file_info["confirmed_category"] = detected_cat
                 
-                if selected != "(auto-detect)":
-                    # Find the key for the selected name
-                    for k, v in DATA_CATEGORIES.items():
-                        if v["name"] == selected:
-                            file_info["confirmed_category"] = k
-                            break
-                else:
-                    file_info["confirmed_category"] = detected_cat
-            
-            # Preview data
-            st.caption("Preview (first 5 rows):")
-            st.dataframe(df.head(), width='stretch')
-            st.caption(f"Columns: {', '.join(df.columns.tolist())}")
+                # Preview data
+                st.caption("Preview (first 5 rows):")
+                st.dataframe(df.head(), use_container_width=True)
+                st.caption(f"Columns: {', '.join(df.columns.tolist())}")
 
 st.markdown("---")
 
@@ -729,7 +824,7 @@ for tab, (cat_key, cat_info) in zip(tabs, DATA_CATEGORIES.items()):
         st.subheader("📋 Sample Data Template")
         sample_df = cat_info.get("sample_data")
         if sample_df is not None:
-            st.dataframe(sample_df, width='stretch')
+            st.dataframe(sample_df, use_container_width=True)
             
             # Download template button
             csv_buffer = StringIO()
@@ -760,8 +855,14 @@ else:
     year_based_files = []  # Files that merge on year (economic, arts sector)
     year_city_files = []   # Files that merge on year + city (demographics, tourism)
     title_based_files = [] # Files that merge on show_title
+    reference_files = []   # Documentation/reference files (not actual data)
     
     for file_key, file_info in st.session_state.uploaded_data.items():
+        # Skip reference/documentation files
+        if file_info.get("is_reference_file", False):
+            reference_files.append(file_key)
+            continue
+            
         category = file_info.get("confirmed_category") or file_info.get("detected_category")
         if category == "base_titles":
             base_file = file_key
@@ -777,8 +878,13 @@ else:
                             "timing_schedule", "audience_donor"]:
                 title_based_files.append((file_key, file_info, category))
     
-    # Count external files
+    # Count external files (excluding reference files)
     external_count = len(external_files)
+    
+    # Show info about reference files if any were skipped
+    if reference_files:
+        st.info(f"ℹ️ Skipping {len(reference_files)} reference/documentation file(s): {', '.join(reference_files)}. "
+                "These contain metadata, not actual data values.")
     
     # WORKFLOW DECISION
     if base_df is None and external_count == 0:
@@ -875,7 +981,7 @@ else:
             
             # Preview merged data
             st.subheader("📊 Preview Merged External Factors")
-            st.dataframe(merged_df.head(20), width='stretch')
+            st.dataframe(merged_df.head(20), use_container_width=True)
             st.caption(f"Total: {len(merged_df)} rows × {len(merged_df.columns)} columns")
             
             # Download buttons
@@ -1016,7 +1122,7 @@ After downloading the merged external factors file:
         
         # Preview merged data
         st.subheader("📊 Preview Merged Data")
-        st.dataframe(base_df.head(20), width='stretch')
+        st.dataframe(base_df.head(20), use_container_width=True)
         st.caption(f"Total: {len(base_df)} rows × {len(base_df.columns)} columns")
         
         # Download button
