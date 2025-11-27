@@ -32,4 +32,4 @@ if theme != "All":
 status_counts = df["Status"].value_counts()
 st.caption(f"**Status Summary**: {dict(status_counts)}")
 
-st.dataframe(df, use_container_width=True, height=600)
+st.dataframe(df, width='stretch', height=600)
