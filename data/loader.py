@@ -1,41 +1,105 @@
 from pathlib import Path
+from typing import Optional
+import logging
+import warnings
+
 import pandas as pd
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
-def load_history_sales(csv_name: str = "history_city_sales.csv") -> pd.DataFrame:
-    """Load historical show-level sales (Calgary/Edmonton)."""
+
+class DataLoadError(Exception):
+    """Raised when data loading fails."""
+    pass
+
+
+def load_history_sales(
+    csv_name: str = "history_city_sales.csv",
+    fallback_empty: bool = False
+) -> pd.DataFrame:
+    """Load historical show-level sales (Calgary/Edmonton).
+    
+    Args:
+        csv_name: Name of the CSV file to load
+        fallback_empty: If True, return empty DataFrame on error instead of raising
+        
+    Returns:
+        DataFrame with normalized column names
+        
+    Raises:
+        DataLoadError: If file cannot be loaded and fallback_empty is False
+    """
     path = DATA_DIR / csv_name
-    df = pd.read_csv(path, thousands=",")
-    # Normalize column names: replace " - " with "_", then remaining spaces/dashes with "_"
-    # This ensures "Single Tickets - Calgary" becomes "single_tickets_calgary" not "single_tickets___calgary"
-    df.columns = [
-        c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
-        for c in df.columns
-    ]
-    # Expected columns: show_title, single_tickets_calgary, single_tickets_edmonton,
-    # subscription_tickets_calgary, subscription_tickets_edmonton, total_single_tickets
-    return df
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                warnings.warn(f"History sales file not found: {path}. Using empty DataFrame.")
+                return pd.DataFrame()
+            raise DataLoadError(f"History sales file not found: {path}")
+        
+        df = pd.read_csv(path, thousands=",")
+        
+        # Normalize column names: replace " - " with "_", then remaining spaces/dashes with "_"
+        # This ensures "Single Tickets - Calgary" becomes "single_tickets_calgary" not "single_tickets___calgary"
+        df.columns = [
+            c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
+            for c in df.columns
+        ]
+        # Expected columns: show_title, single_tickets_calgary, single_tickets_edmonton,
+        # subscription_tickets_calgary, subscription_tickets_edmonton, total_single_tickets
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading history sales: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading history sales from {path}: {e}")
 
 
-def load_baselines(csv_name: str = "baselines.csv") -> pd.DataFrame:
+def load_baselines(
+    csv_name: str = "baselines.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
     """Load baseline signals (wiki, trends, youtube, spotify) for all titles.
     
     The baselines file contains both:
     - Historical titles (source='historical'): Alberta Ballet performances with ticket data
     - Reference titles (source='external_reference'): Well-known titles without AB history
     
+    Args:
+        csv_name: Name of the CSV file to load
+        fallback_empty: If True, return empty DataFrame on error (default True for backwards compat)
+        
     Returns:
         DataFrame with columns: title, wiki, trends, youtube, spotify, category, 
                                 gender, source, notes
     """
     path = DATA_DIR / csv_name
-    if not path.exists():
-        return pd.DataFrame()
-    df = pd.read_csv(path)
-    df.columns = [c.strip().lower() for c in df.columns]
-    return df
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                warnings.warn(f"Baselines file not found: {path}. Using empty DataFrame.")
+                return pd.DataFrame()
+            raise DataLoadError(f"Baselines file not found: {path}")
+        
+        df = pd.read_csv(path)
+        df.columns = [c.strip().lower() for c in df.columns]
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading baselines: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading baselines from {path}: {e}")
 
 
 def load_reference_baselines(csv_name: str = "baselines.csv") -> pd.DataFrame:

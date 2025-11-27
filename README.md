@@ -210,6 +210,7 @@ pip install pycaret>=3.3.0  # requires Python ≤3.12
 ├── config.yaml                # Configuration parameters
 ├── config/                    # ML registry CSVs
 │   ├── registry.py            # Registry loader functions
+│   ├── validation.py          # Configuration validation
 │   └── ml_*.csv               # Feature/leakage/source metadata
 ├── data/                      # Data files
 │   ├── loader.py              # Data loading utilities
@@ -235,6 +236,9 @@ pip install pycaret>=3.3.0  # requires Python ≤3.12
 ├── utils/                     # Helper modules
 │   ├── priors.py
 │   └── canonicalize_titles.py # Title normalization
+├── legacy/                    # ⚠️ DEPRECATED scripts (do not use for production)
+│   ├── train_pycaret_model.py # Legacy PyCaret training (has leakage issues)
+│   └── build_city_priors.py   # Legacy city prior generator
 └── ML_MODEL_DOCUMENTATION.md  # Technical ML documentation
 ```
 
@@ -270,3 +274,208 @@ Run tests to verify no leakage:
 ```bash
 pytest tests/test_no_leakage_in_dataset.py -v
 ```
+
+---
+
+## Bootstrapping the System (First Forecast)
+
+This section explains how to set up the system from scratch and run your first forecast.
+
+### Minimal Required Files
+
+To get started, you need these data files in the `data/` directory:
+
+| File | Purpose | Minimum Columns |
+|------|---------|-----------------|
+| `history_city_sales.csv` | Historical ticket sales | `Show Title`, `Single Tickets - Calgary`, `Single Tickets - Edmonton`, `Subscription Tickets - Calgary`, `Subscription Tickets - Edmonton` |
+| `baselines.csv` | Title signal scores | `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source` |
+
+Additionally, these config files should exist in `config/`:
+- `ml_feature_inventory_alberta_ballet.csv`
+- `ml_leakage_audit_alberta_ballet.csv`
+- `ml_join_keys_alberta_ballet.csv`
+- `ml_pipelines_alberta_ballet.csv`
+- `ml_modelling_tasks_alberta_ballet.csv`
+- `ml_data_sources_alberta_ballet.csv`
+
+### Step-by-Step Bootstrap
+
+1. **Prepare your data files** (see [Data Files](#data-files) section above)
+
+2. **Build the modelling dataset** (creates leak-free features):
+   ```bash
+   python scripts/build_modelling_dataset.py
+   ```
+
+3. **Train the safe model** with cross-validation:
+   ```bash
+   python scripts/train_safe_model.py --tune
+   ```
+
+4. **Run backtests** to evaluate prediction methods:
+   ```bash
+   python scripts/backtest_timeaware.py
+   ```
+
+5. **Calibrate predictions** (optional, for fine-tuning):
+   ```bash
+   python scripts/calibrate_predictions.py fit --mode global
+   ```
+
+6. **Launch the app**:
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+
+### Obtaining Initial Datasets
+
+- **history_city_sales.csv**: Export from your ticketing system (Tessitura, Spektrix, etc.)
+- **baselines.csv**: Use `title_scoring_helper.py` to generate signal scores for your titles
+- **Config CSVs**: Template files are included in the repository
+
+---
+
+## Config YAML Reference
+
+The `config.yaml` file controls app behavior. Here's a reference for each section:
+
+### Segment Multipliers (`segment_mult`)
+
+Adjusts familiarity/motivation scores by audience segment and category.
+
+```yaml
+segment_mult:
+  General Population:
+    gender: { female: 1.0, male: 1.0, co: 1.0, na: 1.0 }
+    category: { family_classic: 1.0, classic_romance: 1.0, ... }
+```
+
+### Region Multipliers (`region_mult`)
+
+Adjusts scores by geographic region.
+
+```yaml
+region_mult:
+  Province: 1.00
+  Calgary: 1.05
+  Edmonton: 0.95
+```
+
+### City Splits (`city_splits`)
+
+Controls Calgary/Edmonton allocation and subscriber shares.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `default_base_city_split` | Default Calgary/Edmonton ratio | 60/40 |
+| `city_clip_range` | Min/max bounds for city share | [0.15, 0.85] |
+| `default_subs_share` | Default subscriber percentage by city | YYC: 35%, YEG: 45% |
+
+### Demand Settings (`demand`)
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `postcovid_factor` | Post-COVID demand adjustment (0.85 = 15% haircut) | 0.85 |
+| `ticket_blend_weight` | Balance between signals and historical tickets | 0.50 |
+
+### Seasonality Settings (`seasonality`)
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `k_shrink` | Shrinkage factor for low-sample months | 3.0 |
+| `min_factor` | Minimum seasonality multiplier | 0.90 |
+| `max_factor` | Maximum seasonality multiplier | 1.15 |
+| `n_min` | Minimum samples to trust a month factor | 3 |
+
+### Marketing Defaults (`marketing_defaults`)
+
+Default marketing spend per single ticket by city when no historical data exists.
+
+```yaml
+marketing_defaults:
+  default_marketing_spt_city:
+    Calgary: 10.0
+    Edmonton: 8.0
+```
+
+### Calibration Settings (`calibration`)
+
+| Key | Description | Options |
+|-----|-------------|---------|
+| `enabled` | Apply calibration to predictions | true/false |
+| `mode` | Calibration strategy | "global", "per_category", "by_remount_bin" |
+
+### KNN Settings (`knn`)
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `enabled` | Enable k-NN fallback for cold-start titles | true |
+| `k` | Number of nearest neighbors | 5 |
+| `metric` | Distance metric | "cosine" |
+
+### Model Settings (`model`)
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `path` | Path to trained model file | "models/model_xgb_remount_postcovid.joblib" |
+| `use_for_cold_start` | Use ML model for new titles | true |
+| `confidence_threshold` | R² threshold for fallback to KNN | 0.6 |
+
+### Security Settings (`security`)
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `hide_row_level_data` | Suppress raw sales rows in UI (show only aggregates) | false |
+| `mask_sensitive_exports` | Mask specific values in reports | false |
+
+---
+
+## Security & Deployment
+
+### API Key Handling
+
+The app uses optional external APIs for fetching title signals:
+
+| API | Environment Variable | Purpose |
+|-----|---------------------|---------|
+| YouTube Data API | `YOUTUBE_API_KEY` or `st.secrets["youtube_api_key"]` | Fetch video view counts |
+| Spotify API | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Track popularity scores |
+| Google Trends | (No key required, uses pytrends) | Search interest data |
+
+**Best Practices:**
+- Store API keys in Streamlit secrets (`~/.streamlit/secrets.toml`) or environment variables
+- Never commit API keys to source control
+- Keys are optional - the app falls back to offline heuristics if unavailable
+
+### Deployment Guidelines
+
+⚠️ **This app contains sensitive business data and should not be deployed publicly.**
+
+**Recommended Deployment:**
+- Deploy behind a VPN or corporate network
+- Use SSO/SAML authentication proxy (e.g., Okta, Azure AD)
+- Enable Streamlit's built-in authentication if using Streamlit Cloud (Teams/Enterprise)
+
+**Security Checklist:**
+- [ ] API keys stored in secrets, not code
+- [ ] App behind VPN or authentication proxy
+- [ ] `hide_row_level_data: true` in production if needed
+- [ ] HTTPS enabled for all connections
+- [ ] Regular dependency updates (check for vulnerabilities)
+
+**Not Recommended:**
+- ❌ Public Streamlit Cloud deployment without auth
+- ❌ Direct internet exposure without authentication
+- ❌ Sharing URLs publicly
+
+### Data Privacy
+
+The app processes potentially sensitive data:
+- Historical ticket sales by title and city
+- Revenue figures
+- Marketing spend data
+
+When `hide_row_level_data: true` is set in `config.yaml`:
+- Raw row-level sales data is hidden in the UI
+- Only aggregate statistics are displayed
+- Export files may still contain detailed data (controlled by `mask_sensitive_exports`)

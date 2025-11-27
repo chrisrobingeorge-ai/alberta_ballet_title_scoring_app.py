@@ -93,23 +93,54 @@ with st.sidebar:
     )
 
     st.header("API keys / credentials")
+    st.caption(
+        "Keys can be loaded from environment variables or Streamlit secrets. "
+        "Set `YOUTUBE_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` "
+        "in your environment or `~/.streamlit/secrets.toml`."
+    )
+    
+    # Try to load from environment/secrets first, allow override via input
+    import os
+    
+    def get_secret(key: str, env_key: str) -> str:
+        """Get secret from st.secrets, environment, or empty string."""
+        # Try st.secrets first
+        try:
+            if key in st.secrets:
+                return st.secrets[key]
+        except Exception:
+            pass
+        # Try environment variable
+        return os.environ.get(env_key, "")
+    
+    default_yt = get_secret("youtube_api_key", "YOUTUBE_API_KEY")
+    default_sp_id = get_secret("spotify_client_id", "SPOTIFY_CLIENT_ID")
+    default_sp_secret = get_secret("spotify_client_secret", "SPOTIFY_CLIENT_SECRET")
+    
     yt_api_key = st.text_input(
         "YouTube Data API key",
+        value=default_yt,
         type="password",
-        help="From Google Cloud; used to fetch view counts.",
+        help="From Google Cloud; used to fetch view counts. "
+             "Can be set via YOUTUBE_API_KEY env var or st.secrets['youtube_api_key'].",
     )
     sp_client_id = st.text_input(
         "Spotify client ID",
+        value=default_sp_id,
         type="password",
-        help="From Spotify developer dashboard.",
+        help="From Spotify developer dashboard. "
+             "Can be set via SPOTIFY_CLIENT_ID env var or st.secrets['spotify_client_id'].",
     )
     sp_client_secret = st.text_input(
         "Spotify client secret",
+        value=default_sp_secret,
         type="password",
+        help="Can be set via SPOTIFY_CLIENT_SECRET env var or st.secrets['spotify_client_secret'].",
     )
 
     st.markdown(
-        "_Keys are only used in this helper app and not stored anywhere._"
+        "_Keys are used only for API calls and are not stored. "
+        "See README.md for secure credential handling._"
     )
 
     run_button = st.button("Run scoring")

@@ -123,3 +123,15 @@ model:
   path: "models/model_xgb_remount_postcovid.joblib"
   use_for_cold_start: true  # Use ML model for titles without ticket history
   confidence_threshold: 0.6 # R² threshold below which to prefer KNN fallback
+
+# ============================================================================
+# Security & Privacy Settings
+# ============================================================================
+
+security:
+  # When true, suppress display of raw row-level historical sales data in the UI
+  # Display only aggregates to protect sensitive sales information
+  hide_row_level_data: false
+  
+  # When true, mask specific revenue/ticket numbers in exported reports
+  mask_sensitive_exports: false

@@ -13,6 +13,8 @@ or model files are not available.
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -47,37 +49,58 @@ class ModelNotFoundError(Exception):
     pass
 
 
+class ModelLoadError(Exception):
+    """Raised when model file exists but cannot be loaded (corrupted or incompatible)."""
+    pass
+
+
 class PredictionError(Exception):
     """Raised when prediction fails."""
     pass
 
 
-def load_model_pipeline(path: str = DEFAULT_MODEL_PATH):
+def load_model_pipeline(path: str = DEFAULT_MODEL_PATH, raise_on_error: bool = True):
     """
     Load a trained sklearn/xgboost pipeline from disk.
     
     Args:
         path: Path to the .joblib model file
+        raise_on_error: If True, raise exceptions. If False, return None on error.
         
     Returns:
-        The loaded pipeline object
+        The loaded pipeline object, or None if raise_on_error is False and loading fails
         
     Raises:
         ModelNotFoundError: If the model file doesn't exist
+        ModelLoadError: If the model file is corrupted or incompatible
         ImportError: If joblib is not available
     """
     if not JOBLIB_AVAILABLE:
-        raise ImportError(
-            "joblib is required to load models. Install with: pip install joblib"
-        )
+        if raise_on_error:
+            raise ImportError(
+                "joblib is required to load models. Install with: pip install joblib"
+            )
+        return None
     
     if not os.path.exists(path):
-        raise ModelNotFoundError(
-            f"Model file not found: {path}\n"
-            f"Run scripts/train_safe_model.py to train a model first."
-        )
+        if raise_on_error:
+            raise ModelNotFoundError(
+                f"Model file not found: {path}\n"
+                f"Run scripts/train_safe_model.py to train a model first."
+            )
+        return None
     
-    return joblib.load(path)
+    try:
+        return joblib.load(path)
+    except Exception as e:
+        if raise_on_error:
+            raise ModelLoadError(
+                f"Failed to load model from {path}. "
+                f"The file may be corrupted or incompatible with current dependencies.\n"
+                f"Error: {e}\n"
+                f"Try retraining with: python scripts/train_safe_model.py"
+            )
+        return None
 
 
 def load_model_metadata(
@@ -244,6 +267,17 @@ def predict_with_pipeline(
     return predictions, metadata
 
 
+# Cache for KNN index
+_knn_index_cache: Dict[str, Any] = {}
+
+
+def _hash_dataframe(df: pd.DataFrame) -> str:
+    """Create a hash of a DataFrame for cache invalidation."""
+    # Use a simple hash based on shape and sample of data
+    content = f"{df.shape}_{df.columns.tolist()}_{df.head(5).to_json()}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+
 def build_knn_index_from_baselines(
     baselines_df: pd.DataFrame,
     ticket_priors: Optional[pd.DataFrame] = None,
@@ -251,6 +285,9 @@ def build_knn_index_from_baselines(
 ) -> Optional["KNNFallback"]:
     """
     Build a KNN index for cold-start fallback predictions.
+    
+    This function is memoized based on the input DataFrame hash.
+    The cache is invalidated when the input data changes.
     
     Args:
         baselines_df: DataFrame with baseline signal columns
@@ -260,8 +297,19 @@ def build_knn_index_from_baselines(
     Returns:
         Fitted KNNFallback instance or None if not possible
     """
+    global _knn_index_cache
+    
     if not KNN_AVAILABLE:
         return None
+    
+    # Create cache key
+    baselines_hash = _hash_dataframe(baselines_df)
+    priors_hash = _hash_dataframe(ticket_priors) if ticket_priors is not None else "none"
+    cache_key = f"{baselines_hash}_{priors_hash}_{outcome_col}"
+    
+    # Check cache
+    if cache_key in _knn_index_cache:
+        return _knn_index_cache[cache_key]
     
     df = baselines_df.copy()
     
@@ -278,20 +326,24 @@ def build_knn_index_from_baselines(
     
     # Check we have outcome column
     if outcome_col not in df.columns:
+        _knn_index_cache[cache_key] = None
         return None
     
     # Filter to rows with valid outcomes
     df = df[df[outcome_col].notna() & (df[outcome_col] > 0)]
     
     if len(df) < 3:
+        _knn_index_cache[cache_key] = None
         return None
     
     # Build index
     try:
         knn = KNNFallback(k=5, metric="cosine", normalize=True)
         knn.build_index(df, outcome_col=outcome_col)
+        _knn_index_cache[cache_key] = knn
         return knn
     except Exception:
+        _knn_index_cache[cache_key] = None
         return None
 
 

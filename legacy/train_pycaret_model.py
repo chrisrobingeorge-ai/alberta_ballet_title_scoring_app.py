@@ -1,4 +1,16 @@
-# train_pycaret_model.py
+# legacy/train_pycaret_model.py
+#
+# ============================================================================
+# ⚠️  DEPRECATED - DO NOT USE FOR PRODUCTION TRAINING  ⚠️
+# ============================================================================
+#
+# This script has been moved to the legacy/ directory and is DEPRECATED.
+# It is kept only for historical reference and should NOT be used for
+# production model training.
+#
+# Use the safe training pipeline instead:
+#   1. python scripts/build_modelling_dataset.py  # Creates safe feature set
+#   2. python scripts/train_safe_model.py          # Trains with proper CV
 #
 # ============================================================================
 # ⚠️  LEAKAGE WARNING - READ BEFORE USING  ⚠️
