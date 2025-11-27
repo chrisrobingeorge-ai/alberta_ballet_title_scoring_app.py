@@ -31,10 +31,3 @@ spotipy>=2.23.0                     # Spotify Web API
 
 # lightgbm>=4.0.0       # OPTIONAL: Alternative to XGBoost for gradient boosting
                         # Can be selected via CLI flag in train_safe_model.py
-
-# --- Optional: PyCaret for model validation page ---
-# PyCaret is NOT installed by default because:
-# 1. It only supports Python 3.9-3.12 (Streamlit Cloud uses 3.13)
-# 2. Its dependency pmdarima has build issues on newer Python versions
-# 3. The validation feature works fine without it - shows a warning instead
-# To enable locally: pip install pycaret>=3.3.0 (requires Python <=3.12)

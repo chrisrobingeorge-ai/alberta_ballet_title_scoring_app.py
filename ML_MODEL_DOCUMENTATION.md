@@ -104,18 +104,13 @@ scikit-learn>=1.5.0  # For Ridge, GradientBoosting, metrics
 xgboost>=2.0.0       # For XGBoost regressor
 ```
 
-### Why Not PyCaret?
+### Design Decision: scikit-learn/XGBoost over AutoML
 
-Initial plan was to use PyCaret for automatic ML, but:
-- At the time of implementation, PyCaret only supported Python 3.9-3.11
-- This codebase uses Python 3.12
-- Direct use of scikit-learn/XGBoost provides:
-  - Better version compatibility
-  - More control over model selection
-  - Smaller dependency footprint
-  - Faster installation and startup
-
-**Note**: PyCaret now supports Python 3.12 when installed from GitHub (`pip install git+https://github.com/pycaret/pycaret.git@master`), and is available for the Model Validation page feature.
+We chose direct use of scikit-learn/XGBoost rather than AutoML frameworks because:
+- Better version compatibility across Python versions
+- More control over model selection and hyperparameters
+- Smaller dependency footprint
+- Faster installation and startup
 
 ## Usage in the App
 

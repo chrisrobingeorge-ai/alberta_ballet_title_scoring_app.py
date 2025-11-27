@@ -18,15 +18,6 @@ import matplotlib.pyplot as plt
 import requests
 from textwrap import dedent
 
-from validation_utils import (
-    load_pycaret_model,
-    get_pycaret_predictions,
-    compute_model_metrics,
-    build_comparison_frame,
-    is_python_compatible_with_pycaret,
-    get_pycaret_compatibility_message,
-)
-
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -2021,245 +2012,6 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
     elif delta_years <= 9: return 0.90
     else:                  return 1.00
 
-@st.cache_data
-def load_history() -> pd.DataFrame:
-    """
-    Load historical data for model validation and ensure numeric ticket columns.
-
-    - Handles thousands separators like "7,296"
-    - Creates Total_Tickets if missing
-    """
-    df = pd.DataFrame()
-
-    # Try the two possible files
-    for path in ["data/history_city_sales.csv", "data/history.csv"]:
-        try:
-            # Important: handle "7,296" etc.
-            df = pd.read_csv(path, thousands=",")
-            break
-        except Exception:
-            continue
-
-    if df.empty:
-        return df
-
-    # Make sure ticket columns are numeric
-    ticket_cols = [
-        "Single Tickets - Calgary",
-        "Single Tickets - Edmonton",
-    ]
-
-    for col in ticket_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Create Total_Tickets if it's not there yet
-    if "Total_Tickets" not in df.columns and all(c in df.columns for c in ticket_cols):
-        df["Total_Tickets"] = (
-            df["Single Tickets - Calgary"].fillna(0)
-            + df["Single Tickets - Edmonton"].fillna(0)
-        )
-
-    return df
-
-
-def validation_title_page():
-    st.title("Title Demand Model Validation")
-    st.write(
-        "Side-by-side comparison of **Your Title Scoring Model** vs **PyCaret model** "
-        "on historical data."
-    )
-
-    # Show Python version compatibility warning
-    if not is_python_compatible_with_pycaret():
-        st.warning(
-            f"⚠️ **Python Version Compatibility Notice**: "
-            f"{get_pycaret_compatibility_message()}"
-        )
-
-    # ─── Load and filter history ──────────────────────────────────────
-    df = load_history()
-
-    if df.empty:
-        st.warning("No historical data found in data/history_city_sales.csv or data/history.csv.")
-        return
-
-    # Optional filters
-    if "Season" in df.columns:
-        seasons = ["All"] + sorted(df["Season"].dropna().unique().tolist())
-        season_filter = st.selectbox("Season", seasons, index=0)
-        if season_filter != "All":
-            df = df[df["Season"] == season_filter]
-
-    if "City" in df.columns:
-        cities = ["All"] + sorted(df["City"].dropna().unique().tolist())
-        city_filter = st.selectbox("City", cities, index=0)
-        if city_filter != "All":
-            df = df[df["City"] == city_filter]
-
-    numeric_cols = df.select_dtypes(include="number").columns.tolist()
-    if not numeric_cols:
-        st.error("No numeric columns found in the historical data.")
-        return
-
-    actual_col = st.selectbox(
-        "Actual outcome column (target)",
-        numeric_cols,
-        index=0,
-        help="Column with actual demand or tickets sold.",
-    )
-    your_pred_col = st.selectbox(
-        "Your model prediction column",
-        [c for c in numeric_cols if c != actual_col],
-        index=0,
-        help="Column with your existing title scoring prediction.",
-    )
-
-    # ID cols only used for display (not for merging)
-    id_cols = [c for c in ["Show Title", "Title", "City", "Season"] if c in df.columns]
-
-    # ─── PyCaret model config ─────────────────────────────────────────
-    st.subheader("PyCaret model")
-
-    with st.expander("ℹ️ About PyCaret Model Validation", expanded=False):
-        st.markdown("""
-        This feature compares your title scoring predictions against a PyCaret-trained model.
-        
-        **To use this feature:**
-        1. Train a PyCaret regression model on your historical data  
-        2. Save it using: `save_model(model, 'your_model_name')`  
-        3. Place the `.pkl` file in the project root directory  
-        4. Enter the model name below (without `.pkl` extension)
-        
-        See `MODEL_VALIDATION_GUIDE.md` for detailed instructions.
-        """)
-
-    model_name = st.text_input(
-        "PyCaret saved model name",
-        value="title_demand_model",
-        help="The name you used in save_model('title_demand_model').",
-    )
-
-    if not model_name:
-        st.warning("Please provide a PyCaret model name.")
-        return
-
-    # ─── Load PyCaret model ───────────────────────────────────────────
-    try:
-        pycaret_model = load_pycaret_model(model_name)
-    except FileNotFoundError as e:
-        st.error("📁 **Model file not found**")
-        st.info(str(e))
-        return
-    except ImportError as e:
-        st.error("📦 **PyCaret not installed**")
-        st.info(str(e))
-        return
-    except RuntimeError as e:
-        st.error("⚠️ **Python version incompatibility**")
-        st.info(str(e))
-        return
-    except Exception as e:
-        st.error(f"❌ **Unexpected error loading model '{model_name}'**")
-        st.exception(e)
-        return
-
-    # ─── Run PyCaret predictions ──────────────────────────────────────
-    # Features = everything except the chosen target
-    feature_df = df.drop(columns=[actual_col], errors="ignore")
-
-    pycaret_pred_df = get_pycaret_predictions(pycaret_model, feature_df, id_cols=None)
-
-    if pycaret_pred_df.empty or "PyCaret_Prediction" not in pycaret_pred_df.columns:
-        st.info("PyCaret comparison is currently unavailable; showing only your model’s metrics.")
-        # You could still compute your model metrics here if you like
-        return
-
-    # Align predictions with df by row order
-    df["PyCaret_Prediction"] = pycaret_pred_df["PyCaret_Prediction"].values
-
-    # ─── Build comparison frame ───────────────────────────────────────
-    comp_df = build_comparison_frame(
-        base_df=df,
-        actual_col=actual_col,
-        your_pred_col=your_pred_col,
-        # pycaret_pred_col defaults to "PyCaret_Prediction"
-        id_cols=id_cols,
-    )
-
-    your_metrics = compute_model_metrics(comp_df, actual_col, your_pred_col)
-    pycaret_metrics = compute_model_metrics(comp_df, actual_col, "PyCaret_Prediction")
-
-    st.subheader("Model performance overview")
-    st.markdown(
-        """
-        **How to read these numbers:**
-
-        - **MAE (Mean Absolute Error):** on average, how many tickets the model is off by.  
-          If MAE = 900, the model is typically about 900 tickets too high or too low.
-        - **RMSE (Root Mean Squared Error):** similar to MAE, but big misses hurt more in this score,  
-          so it highlights whether the model sometimes gets things *very* wrong.
-        - **R²:** is like asking, “How much of the story does the model understand?”  
-          R² = 0 would mean “no better than guessing the average for every show.”  
-          R² = 1.0 would mean “perfectly matches all ups and downs.”  
-          The rest is driven by things the model can’t see yet (brand, casting, timing, buzz, media, luck).
-		  So an R² around 0.40–0.45 means the model understands about 42% of the story behind why different shows sell differently. 
-        """
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Your Model**")
-        st.metric("MAE", f"{your_metrics['MAE']:.2f}")
-        st.metric("RMSE", f"{your_metrics['RMSE']:.2f}")
-        st.metric("R²", f"{your_metrics['R2']:.3f}")
-
-    with col2:
-        st.markdown("**PyCaret Model**")
-        st.metric("MAE", f"{pycaret_metrics['MAE']:.2f}")
-        st.metric("RMSE", f"{pycaret_metrics['RMSE']:.2f}")
-        st.metric("R²", f"{pycaret_metrics['R2']:.3f}")
-
-    # ─── Tables: where models differ ──────────────────────────────────
-    st.subheader("Actual vs Predicted")
-
-    plot_df = comp_df.copy()
-    if "Title" not in plot_df.columns and "Show Title" not in plot_df.columns:
-        plot_df["Title"] = plot_df.index.astype(str)
-
-    st.write("Absolute error by title (lower is better).")
-    display_cols = id_cols + ["abs_err_your", "abs_err_pycaret", "better_model"]
-    display_cols = [c for c in display_cols if c in plot_df.columns]
-
-    st.dataframe(
-        plot_df[display_cols].sort_values("abs_err_pycaret").reset_index(drop=True)
-    )
-
-    st.subheader("Where the models disagree most")
-    plot_df["abs_err_delta"] = plot_df["abs_err_your"] - plot_df["abs_err_pycaret"]
-    st.write(
-        "Positive values = your model has higher error than PyCaret; "
-        "negative values = your model is better."
-    )
-    detail_cols = (
-        id_cols
-        + [actual_col, your_pred_col, "PyCaret_Prediction", "abs_err_your",
-           "abs_err_pycaret", "abs_err_delta"]
-    )
-    detail_cols = [c for c in detail_cols if c in plot_df.columns]
-
-    st.dataframe(
-        plot_df[detail_cols]
-        .sort_values("abs_err_delta", ascending=False)
-        .head(25)
-        .reset_index(drop=True)
-    )
-
-    st.caption(
-        "Use this to see patterns – e.g., certain repertoire types or cities "
-        "where one model consistently outperforms the other."
-    )
-
 # -------------------------
 # UI — Config
 # -------------------------
@@ -2664,7 +2416,7 @@ def compute_scores_and_store(
     df["TicketIndex_DeSeason"] = idx_list
     df["HistSeasonalityFactor"] = hist_factor_list
 
-    # 4) Fit regression models (PyCaret or simple linear)
+    # 4) Fit regression models (XGBoost/GradientBoosting or simple linear)
     df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
     model_result = _fit_overall_and_by_category(df_known)
@@ -3574,15 +3326,6 @@ def render_results():
         )
 
 # -------------------------
-# Page selector
-# -------------------------
-page = st.sidebar.radio(
-    "View",
-    ["Title Scoring & Season Planning", "Model Validation"],
-    index=0,
-)
-
-# -------------------------
 # Advanced ML Settings (opt-in toggles from config.yaml)
 # -------------------------
 # These features are loaded from config.yaml and can be toggled here
@@ -3620,25 +3363,21 @@ with st.sidebar.expander("⚙️ Advanced ML Settings", expanded=False):
     
     st.caption(f"Config: knn.k={KNN_CONFIG.get('k', 5)}, calibration.mode={CALIBRATION_CONFIG.get('mode', 'global')}")
 
-if page == "Title Scoring & Season Planning":
-    # Existing “Button + render” logic
-    run = st.button("Score Titles", type="primary")
-    if run:
-        compute_scores_and_store(
-            titles=titles,
-            segment=segment,
-            region=region,
-            use_live=use_live,
-            yt_key=yt_key,
-            sp_id=sp_id,
-            sp_secret=sp_secret,
-            benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
-            proposed_run_date=proposed_run_date,
-            postcovid_factor=postcovid_factor,
-        )
+# Main app logic
+run = st.button("Score Titles", type="primary")
+if run:
+    compute_scores_and_store(
+        titles=titles,
+        segment=segment,
+        region=region,
+        use_live=use_live,
+        yt_key=yt_key,
+        sp_id=sp_id,
+        sp_secret=sp_secret,
+        benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
+        proposed_run_date=proposed_run_date,
+        postcovid_factor=postcovid_factor,
+    )
 
-    if st.session_state.get("results") is not None:
-        render_results()
-
-elif page == "Model Validation":
-    validation_title_page()
+if st.session_state.get("results") is not None:
+    render_results()
