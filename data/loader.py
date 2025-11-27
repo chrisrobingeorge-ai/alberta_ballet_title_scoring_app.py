@@ -20,30 +20,11 @@ def load_history_sales(csv_name: str = "history_city_sales.csv") -> pd.DataFrame
 
 
 def load_baselines(csv_name: str = "baselines.csv") -> pd.DataFrame:
-    """Load baseline signals (wiki, trends, youtube, spotify) for known titles.
+    """Load baseline signals (wiki, trends, youtube, spotify) for all titles.
     
-    Returns:
-        DataFrame with columns: title, wiki, trends, youtube, spotify, category, gender
-    """
-    path = DATA_DIR / csv_name
-    if not path.exists():
-        return pd.DataFrame()
-    df = pd.read_csv(path)
-    df.columns = [c.strip().lower() for c in df.columns]
-    return df
-
-
-def load_reference_baselines(csv_name: str = "reference_baselines.csv") -> pd.DataFrame:
-    """Load reference baseline signals for titles without historical ticket data.
-    
-    Reference baselines are titles that have external signal data (wiki, trends,
-    youtube, spotify) but no Alberta Ballet historical ticket sales. They are used to:
-    
-    1. Improve k-NN similarity matching for cold-start predictions
-    2. Provide broader context for signal calibration
-    3. Enable comparison with well-known titles from other companies
-    
-    The 'source' column identifies these as external references vs. actual AB history.
+    The baselines file contains both:
+    - Historical titles (source='historical'): Alberta Ballet performances with ticket data
+    - Reference titles (source='external_reference'): Well-known titles without AB history
     
     Returns:
         DataFrame with columns: title, wiki, trends, youtube, spotify, category, 
@@ -57,70 +38,62 @@ def load_reference_baselines(csv_name: str = "reference_baselines.csv") -> pd.Da
     return df
 
 
+def load_reference_baselines(csv_name: str = "baselines.csv") -> pd.DataFrame:
+    """Load reference baseline signals for titles without historical ticket data.
+    
+    DEPRECATED: All baselines are now in a single baselines.csv file with a 'source' 
+    column. Use load_baselines() and filter by source='external_reference' instead.
+    
+    This function is kept for backward compatibility but now loads from baselines.csv
+    and filters to only external reference titles.
+    
+    Returns:
+        DataFrame with columns: title, wiki, trends, youtube, spotify, category, 
+                                gender, source, notes
+    """
+    df = load_baselines(csv_name)
+    if df.empty:
+        return df
+    # Filter to only external reference titles
+    if "source" in df.columns:
+        df = df[df["source"] == "external_reference"]
+    return df
+
+
 def load_all_baselines(
     include_reference: bool = True,
     baselines_path: str = "baselines.csv",
-    reference_path: str = "reference_baselines.csv"
+    reference_path: str = "baselines.csv"
 ) -> pd.DataFrame:
     """Load all baseline signals, optionally including reference titles.
     
-    This function combines:
-    1. baselines.csv - Titles with Alberta Ballet history
-    2. reference_baselines.csv - External reference titles (if include_reference=True)
+    All baselines are now stored in a single baselines.csv file with a 'source' column
+    that distinguishes between:
+    - 'historical': Alberta Ballet performances with ticket data
+    - 'external_reference': Well-known titles without AB history
     
     Use this for k-NN similarity matching when you want the broadest signal comparison.
     
     Args:
         include_reference: Whether to include reference titles without AB history
-        baselines_path: Path to main baselines CSV
-        reference_path: Path to reference baselines CSV
+        baselines_path: Path to baselines CSV (contains all titles)
+        reference_path: Ignored, kept for backward compatibility
         
     Returns:
-        Combined DataFrame with columns: title, wiki, trends, youtube, spotify,
-                                          category, gender, source
+        DataFrame with columns: title, wiki, trends, youtube, spotify,
+                                category, gender, source
     """
     baselines = load_baselines(baselines_path)
     
-    if not include_reference:
-        if not baselines.empty and "source" not in baselines.columns:
-            baselines["source"] = "historical"
-        return baselines
-    
-    # Load reference baselines
-    reference = load_reference_baselines(reference_path)
-    
-    if baselines.empty and reference.empty:
+    if baselines.empty:
         return pd.DataFrame()
     
-    # Add source column to distinguish data sources
-    if not baselines.empty and "source" not in baselines.columns:
-        baselines["source"] = "historical"
+    # Filter to historical only if include_reference is False
+    if not include_reference:
+        if "source" in baselines.columns:
+            baselines = baselines[baselines["source"] == "historical"]
     
-    if reference.empty:
-        return baselines
-    
-    if baselines.empty:
-        return reference
-    
-    # Combine both sources, keeping only common columns
-    common_cols = ["title", "wiki", "trends", "youtube", "spotify", "category", "gender", "source"]
-    
-    # Ensure columns exist
-    for col in common_cols:
-        if col not in baselines.columns:
-            baselines[col] = None
-        if col not in reference.columns:
-            reference[col] = None
-    
-    combined = pd.concat([
-        baselines[common_cols],
-        reference[common_cols]
-    ], ignore_index=True)
-    
-    # Remove duplicates (prefer historical over reference)
-    combined = combined.drop_duplicates(subset=["title"], keep="first")
-    
-    return combined
+    return baselines
 
 
 # =============================================================================

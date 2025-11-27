@@ -1,68 +1,116 @@
-title,wiki,trends,youtube,spotify,category,gender
-Addams Family,83,26,95,76,pop_ip,male
-Alice in Wonderland,83,38,96,68,family_classic,female
-All of Us - Tragically Hip,70,52,71,75,pop_ip,co
-Away We Go – Mixed Bill,85,46,98,56,contemporary_mixed_bill,female
-Balanchine,47,82,53,0,contemporary_mixed_bill,co
-Ballet BC,35,18,54,45,touring_contemporary_company,co
-Ballet Boyz,33,22,84,34,touring_contemporary_company,male
-Beauty and the Beast,75,40,100,83,family_classic,female
-Beethoven,88,18,100,55,contemporary,co
-BJM - Leonard Cohen,40,38,100,68,pop_ip,co
-Botero,70,12,87,49,contemporary,male
-Caravaggio,81,20,85,45,adult_literary_drama,male
-Carmina Burana,68,28,100,55,adult_literary_drama,female
-Charlie Chaplin,93,30,100,41,family_classic,male
-Cinderella,80,20,100,72,family_classic,female
-Complexions - Lenny Kravitz,37,54,60,79,pop_ip,co
-Contemporary Classical,65,44,90,58,contemporary_mixed_bill,co
-Coppelia,68,16,85,50,classic_comedy,female
-Dance Theatre of Harlem,48,46,70,84,touring_contemporary_company,co
-Dangerous Liaisons,75,36,79,36,adult_literary_drama,co
-Der Wolf,19,16,81,45,contemporary,female
-deViate - Mixed Bill,77,40,70,64,contemporary_mixed_bill,co
-Diavolo,46,14,89,50,touring_contemporary_company,co
-Die Fledermaus,69,28,86,47,family_classic,female
-Don Quixote,85,22,84,61,classic_comedy,co
-Dona Peron,83,20,53,11,adult_literary_drama,female
-Dracula,83,14,99,86,romantic_tragedy,male
-Emma Bovary,75,22,82,25,adult_literary_drama,female
-Fiddle & the Drum – Joni Mitchell,44,66,68,25,pop_ip,co
-Frankenstein,85,24,92,69,adult_literary_drama,male
-Giselle,74,14,89,62,romantic_tragedy,female
-Great Gatsby,87,24,100,69,adult_literary_drama,male
-Grimm,50,10,89,54,family_classic,female
-Handmaid's Tale,82,30,86,37,adult_literary_drama,female
-Hansel & Gretel,79,30,94,58,family_classic,co
-Jungle Book,76,22,100,59,family_classic,male
-La Bayadere,62,22,75,37,romantic_tragedy,female
-La Fille mal gardée,59,38,82,47,classic_comedy,female
-La Sylphide,61,22,67,30,romantic_tragedy,co
-Lady Chatterley's Lover,78,46,87,79,adult_literary_drama,female
-Lady Macbeth,72,24,77,35,adult_literary_drama,female
-Love in the Time of Cholera,73,54,84,100,adult_literary_drama,male
-Midsummer Night’s Dream,82,46,79,47,classic_romance,male
-Momix,48,10,70,3,touring_contemporary_company,co
-Nijinsky,70,16,69,2,contemporary,male
-Once Upon a Time,59,32,0,87,family_classic,co
-Opera - the Ballet,44,36,0,32,contemporary_mixed_bill,female
-Othello,81,14,0,44,adult_literary_drama,male
-Our Canada - Gordon Lightfoot,81,58,92,72,pop_ip,co
-Peter Pan,81,18,0,70,family_classic,male
-Phi – David Bowie,71,34,0,78,pop_ip,male
-Pinocchio,80,18,0,46,family_classic,male
-Pulcinella,68,20,0,36,classic_comedy,male
-Rite of Spring,74,28,0,43,contemporary,co
-Romeo and Juliet,86,32,0,80,romantic_tragedy,co
-Shaping Sound,49,26,0,40,touring_contemporary_company,male
-Sleeping Beauty,77,30,0,70,classic_romance,female
-Swan Lake,80,18,0,71,romantic_tragedy,female
-Taj Express,44,22,0,42,touring_contemporary_company,male
-Tango Fire,72,20,0,52,touring_contemporary_company,co
-The Merry Widow,65,30,0,36,classic_comedy,female
-The Stone Angel,57,30,0,78,adult_literary_drama,female
-Trockadero,56,20,0,59,touring_contemporary_company,male
-Unleashed – Mixed Bill,54,44,0,64,contemporary_mixed_bill,co
-Winter Gala,74,22,0,41,contemporary_mixed_bill,co
-Wizard of Oz,60,30,0,64,family_classic,female
-Slava's Snow Show,54,34,78,84,family_classic,male
+title,wiki,trends,youtube,spotify,category,gender,source,notes
+A Streetcar Named Desire,70,28,80,55,adult_literary_drama,female,external_reference,Tennessee Williams drama
+Addams Family,83,26,95,76,pop_ip,male,historical,
+After the Rain,54,18,68,48,contemporary,co,external_reference,Wheeldon romantic duet
+Aladdin,80,42,98,78,family_classic,male,external_reference,High pop culture recognition
+Alice in Wonderland,83,38,96,68,family_classic,female,historical,
+All of Us - Tragically Hip,70,52,71,75,pop_ip,co,historical,
+Apollo,58,20,70,42,contemporary,male,external_reference,Greek mythology theme
+Appalachian Spring,60,16,74,52,contemporary,female,external_reference,Martha Graham classic
+Artifact,50,14,60,35,contemporary_mixed_bill,co,external_reference,Forsythe abstract
+Away We Go – Mixed Bill,85,46,98,56,contemporary_mixed_bill,female,historical,
+BJM - Leonard Cohen,40,38,100,68,pop_ip,co,historical,
+Balanchine,47,82,53,0,contemporary_mixed_bill,co,historical,
+Ballet BC,35,18,54,45,touring_contemporary_company,co,historical,
+Ballet Boyz,33,22,84,34,touring_contemporary_company,male,historical,
+Beauty and the Beast,75,40,100,83,family_classic,female,historical,
+Beethoven,88,18,100,55,contemporary,co,historical,
+Billy the Kid,52,18,65,45,contemporary,male,external_reference,American Western theme
+Botero,70,12,87,49,contemporary,male,historical,
+Caravaggio,81,20,85,45,adult_literary_drama,male,historical,
+Carmen,82,38,92,75,romantic_tragedy,female,external_reference,Highly recognizable dramatic story
+Carmina Burana,68,28,100,55,adult_literary_drama,female,historical,
+Charlie Chaplin,93,30,100,41,family_classic,male,historical,
+Chroma,48,14,60,38,contemporary_mixed_bill,co,external_reference,McGregor/White Stripes
+Cinderella,80,20,100,72,family_classic,female,historical,
+Complexions - Lenny Kravitz,37,54,60,79,pop_ip,co,historical,
+Contact,58,22,70,55,contemporary,co,external_reference,Susan Stroman theatrical
+Contemporary Classical,65,44,90,58,contemporary_mixed_bill,co,historical,
+Coppelia,68,16,85,50,classic_comedy,female,historical,
+Coppélia,68,16,85,50,classic_comedy,female,external_reference,Light comedy classic
+Dance Theatre of Harlem,48,46,70,84,touring_contemporary_company,co,historical,
+Dangerous Liaisons,75,36,79,36,adult_literary_drama,co,historical,
+Der Wolf,19,16,81,45,contemporary,female,historical,
+Diavolo,46,14,89,50,touring_contemporary_company,co,historical,
+Die Fledermaus,69,28,86,47,family_classic,female,historical,
+Don Quixote,85,22,84,61,classic_comedy,co,historical,
+Dona Peron,83,20,53,11,adult_literary_drama,female,historical,
+Dracula,83,14,99,86,romantic_tragedy,male,historical,
+Emma Bovary,75,22,82,25,adult_literary_drama,female,historical,
+Fiddle & the Drum – Joni Mitchell,44,66,68,25,pop_ip,co,historical,
+Frankenstein,85,24,92,69,adult_literary_drama,male,historical,
+Giselle,74,14,89,62,romantic_tragedy,female,historical,
+Great Gatsby,87,24,100,69,adult_literary_drama,male,historical,
+Grimm,50,10,89,54,family_classic,female,historical,
+Handmaid's Tale,82,30,86,37,adult_literary_drama,female,historical,
+Hansel & Gretel,79,30,94,58,family_classic,co,historical,
+In the Middle Somewhat Elevated,55,18,70,45,contemporary,co,external_reference,Forsythe signature work
+In the Upper Room,56,16,68,45,contemporary,co,external_reference,Twyla Tharp dynamic work
+Infra,50,16,62,40,contemporary,co,external_reference,McGregor London-inspired
+Jewels,62,18,72,45,contemporary_mixed_bill,co,external_reference,Balanchine three-act masterpiece
+Jungle Book,76,22,100,59,family_classic,male,historical,
+La Bayadere,62,22,75,37,romantic_tragedy,female,historical,
+La Fille mal gardée,59,38,82,47,classic_comedy,female,historical,
+La Sylphide,61,22,67,30,romantic_tragedy,co,historical,
+La Traviata,76,24,88,62,adult_literary_drama,female,external_reference,Opera-adapted dramatic work
+Lady Chatterley's Lover,78,46,87,79,adult_literary_drama,female,historical,
+Lady Macbeth,72,24,77,35,adult_literary_drama,female,historical,
+Le Corsaire,68,18,75,42,romantic_tragedy,male,external_reference,Classical repertoire piece
+Les Sylphides,58,14,70,40,romantic_tragedy,female,external_reference,Romantic era classic
+Love in the Time of Cholera,73,54,84,100,adult_literary_drama,male,historical,
+Manon,70,22,78,55,romantic_tragedy,female,external_reference,Dramatic story ballet
+Mayerling,62,18,70,48,adult_literary_drama,male,external_reference,Dark dramatic work
+Midsummer Night’s Dream,82,46,79,47,classic_romance,male,historical,
+Momix,48,10,70,3,touring_contemporary_company,co,historical,
+Movin' Out,72,35,85,78,pop_ip,male,external_reference,Billy Joel - strong crossover
+Nijinsky,70,16,69,2,contemporary,male,historical,
+Once Upon a Time,59,32,0,87,family_classic,co,historical,
+Onegin,72,26,82,58,romantic_tragedy,male,external_reference,Pushkin literary classic
+Opera - the Ballet,44,36,0,32,contemporary_mixed_bill,female,historical,
+Othello,81,14,0,44,adult_literary_drama,male,historical,
+Our Canada - Gordon Lightfoot,81,58,92,72,pop_ip,co,historical,
+Paquita,52,10,62,32,classic_romance,female,external_reference,Spanish-themed classical
+Peter Pan,81,18,0,70,family_classic,male,historical,
+Phi – David Bowie,71,34,0,78,pop_ip,male,historical,
+Pinocchio,80,18,0,46,family_classic,male,historical,
+Polyphonia,48,12,58,38,contemporary_mixed_bill,co,external_reference,Wheeldon Ligeti music
+Pulcinella,68,20,0,36,classic_comedy,male,historical,
+Push Comes to Shove,52,14,62,42,contemporary,male,external_reference,Tharp crossover piece
+Raymonda,55,12,65,35,classic_romance,female,external_reference,Grand classical ballet
+Rite of Spring,74,28,0,43,contemporary,co,historical,
+Rodeo,54,20,68,48,pop_ip,co,external_reference,American classic with Copland
+Romeo and Juliet,86,32,0,80,romantic_tragedy,co,historical,
+Serenade,54,16,68,38,contemporary,co,external_reference,Neoclassical Balanchine
+Shaping Sound,49,26,0,40,touring_contemporary_company,male,historical,
+Sinatra Suite,65,28,78,72,pop_ip,male,external_reference,Popular music crossover
+Slava's Snow Show,54,34,78,84,family_classic,male,historical,
+Sleeping Beauty,77,30,0,70,classic_romance,female,historical,
+Swan Lake,80,18,0,71,romantic_tragedy,female,historical,
+Taj Express,44,22,0,42,touring_contemporary_company,male,historical,
+Tango Fire,72,20,0,52,touring_contemporary_company,co,historical,
+The Catherine Wheel,48,12,58,38,contemporary,female,external_reference,Tharp theatrical work
+The Firebird,74,22,85,48,romantic_tragedy,female,external_reference,Stravinsky ballet - strong visual appeal
+The Four Temperaments,48,12,55,30,contemporary,co,external_reference,Abstract neoclassical
+The Great Gatsby (2024),85,32,92,68,adult_literary_drama,male,external_reference,Modern literary adaptation
+The Lady of the Camellias,65,20,75,52,adult_literary_drama,female,external_reference,French literary drama
+The Leaves Are Fading,48,10,55,35,contemporary_mixed_bill,co,external_reference,Tudor romantic work
+The Little Mermaid,78,35,95,72,family_classic,female,external_reference,Disney-style family appeal
+The Merry Widow,65,30,0,36,classic_comedy,female,historical,
+The Nutcracker,95,52,100,82,family_classic,co,external_reference,Classic Christmas ballet - highest demand title
+The Snow Queen,70,28,82,58,family_classic,female,external_reference,Fairy tale classic
+The Stone Angel,57,30,0,78,adult_literary_drama,female,historical,
+The Taming of the Shrew,68,24,75,45,classic_comedy,male,external_reference,Shakespeare comedy
+The Times They Are A-Changin',60,25,72,68,pop_ip,co,external_reference,Bob Dylan music
+The Two Pigeons,52,12,60,35,classic_romance,co,external_reference,Romantic story ballet
+The Vertiginous Thrill of Exactitude,46,12,55,32,contemporary_mixed_bill,co,external_reference,Forsythe neoclassical
+Theme and Variations,50,14,58,34,contemporary_mixed_bill,co,external_reference,Balanchine bravura
+Trockadero,56,20,0,59,touring_contemporary_company,male,historical,
+Unleashed – Mixed Bill,54,44,0,64,contemporary_mixed_bill,co,historical,
+West Side Story Suite,78,42,92,82,pop_ip,co,external_reference,Bernstein classic - high recognition
+Who Cares?,56,22,72,55,pop_ip,co,external_reference,Gershwin music - crossover appeal
+Winter Dreams,55,14,65,42,contemporary,female,external_reference,Chekhov-inspired
+Winter Gala,74,22,0,41,contemporary_mixed_bill,co,historical,
+Within the Golden Hour,52,15,65,45,contemporary_mixed_bill,co,external_reference,Wheeldon abstract
+Wizard of Oz,60,30,0,64,family_classic,female,historical,
+Woolf Works,52,16,65,42,contemporary,female,external_reference,McGregor Virginia Woolf
+deViate - Mixed Bill,77,40,70,64,contemporary_mixed_bill,co,historical,

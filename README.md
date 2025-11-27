@@ -142,8 +142,7 @@ See [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md) for detailed technica
 The app uses several CSV files in the `data/` directory:
 
 - `history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions)
-- `baselines.csv` - Familiarity and motivation scores for known titles
-- `reference_baselines.csv` - External reference titles for similarity matching (no ticket history required)
+- `baselines.csv` - Familiarity and motivation scores for all titles (includes both historical and reference titles)
 - `marketing_spend_per_ticket.csv` - Historical marketing spend data
 - `past_runs.csv` - Performance dates for seasonality analysis
 - `showtype_expense.csv` - Production expense by show type
@@ -154,21 +153,21 @@ The app uses several CSV files in the `data/` directory:
 
 ### Where Do the Titles Come From?
 
-The application uses **115 unique ballet/performance titles** from two sources:
+The application uses **115 unique ballet/performance titles** in `baselines.csv`, distinguished by the `source` column:
 
-| File | Titles | Description |
-|------|--------|-------------|
-| `baselines.csv` | 67 | **Historical titles** - Alberta Ballet performances with actual ticket sales data. These are used for training ML models. |
-| `reference_baselines.csv` | 48 | **Reference titles** - Well-known ballets from other companies (Royal Ballet, ABT, etc.) without AB ticket history. Used for k-NN similarity matching and cold-start predictions. |
+| Source | Titles | Description |
+|--------|--------|-------------|
+| `historical` | 67 | **Historical titles** - Alberta Ballet performances with actual ticket sales data. These are used for training ML models. |
+| `external_reference` | 48 | **Reference titles** - Well-known ballets from other companies (Royal Ballet, ABT, etc.) without AB ticket history. Used for k-NN similarity matching and cold-start predictions. |
 
 **How titles are loaded:**
-- The main Streamlit app (`streamlit_app.py`) loads only `baselines.csv` (67 titles) for scoring
-- The `load_all_baselines()` function in `data/loader.py` can combine both files (115 titles) for k-NN similarity matching
+- The main Streamlit app (`streamlit_app.py`) loads all titles from `baselines.csv` (115 titles) for scoring
+- Use `load_all_baselines(include_reference=False)` to get only historical titles for ML training
 - Historical sales data in `history_city_sales.csv` contains 42 title records with actual ticket sales
 
 **📖 See [VARIABLE_REFERENCE.md](VARIABLE_REFERENCE.md) for detailed explanations of all ticket-related columns and how to add external factors.**
 
-**📖 See [ADDING_BASELINE_TITLES.md](ADDING_BASELINE_TITLES.md) for how to add reference baseline titles to improve model accuracy.**
+**📖 See [ADDING_BASELINE_TITLES.md](ADDING_BASELINE_TITLES.md) for how to add baseline titles to improve model accuracy.**
 
 ## Requirements
 

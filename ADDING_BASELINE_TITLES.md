@@ -4,20 +4,20 @@ This guide explains how to add more baseline titles to improve the model's predi
 
 ## Overview
 
-The Alberta Ballet Title Scoring App uses two types of baseline data:
+The Alberta Ballet Title Scoring App stores all baseline data in a single file (`data/baselines.csv`) with a `source` column that distinguishes between two types of titles:
 
-### 1. Historical Baselines (`data/baselines.csv`)
+### 1. Historical Baselines (`source = "historical"`)
 - **Contains**: Titles that Alberta Ballet has performed with known ticket outcomes
 - **Used for**: Training the ML model and making ticket predictions
-- **Columns**: `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`
+- **Columns**: `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source`, `notes`
 
-### 2. Reference Baselines (`data/reference_baselines.csv`) 
+### 2. Reference Baselines (`source = "external_reference"`)
 - **Contains**: Well-known ballet/performance titles WITHOUT Alberta Ballet history
 - **Used for**: 
   - k-NN similarity matching for cold-start predictions
   - Category signal calibration
   - Broader context for programming decisions
-- **Columns**: `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source`, `notes`
+- **Columns**: Same as historical baselines
 
 ## Why Add Reference Baselines?
 
@@ -28,7 +28,7 @@ Adding reference baselines helps the model in several ways:
 3. **Broader Signal Context**: More data points for understanding signal-to-demand relationships
 4. **Programming Insights**: Find which well-known titles are most similar to proposals
 
-## How to Add Reference Baseline Titles
+## How to Add Baseline Titles
 
 ### Step 1: Choose Titles to Add
 
@@ -57,9 +57,9 @@ streamlit run title_scoring_helper.py
 
 Enter your titles, optionally add API keys for YouTube/Spotify, and click "Run Scoring" to fetch normalized 0-100 scores.
 
-### Step 3: Add to reference_baselines.csv
+### Step 3: Add to baselines.csv
 
-Add rows to `data/reference_baselines.csv` with this format:
+Add rows to `data/baselines.csv` with this format:
 
 ```csv
 title,wiki,trends,youtube,spotify,category,gender,source,notes
@@ -81,6 +81,10 @@ My New Title,75,30,85,60,family_classic,female,external_reference,"Brief descrip
 - `female` - Female protagonist/focus
 - `male` - Male protagonist/focus
 - `co` - Ensemble or co-lead
+
+**Source values:**
+- `historical` - Has Alberta Ballet ticket sales data (use for titles you have actual outcomes for)
+- `external_reference` - External reference title (use for well-known titles without AB ticket history)
 
 ### Step 4: Validate Your Additions
 
@@ -165,12 +169,12 @@ Aim for at least 5-10 reference titles per category for good k-NN matching.
 ### Q: How do I know if a title is "reference" vs "historical"?
 
 **A**: The `source` column distinguishes them:
-- `historical` = Has Alberta Ballet ticket data (from baselines.csv)
-- `external_reference` = External reference title (from reference_baselines.csv)
+- `historical` = Has Alberta Ballet ticket data
+- `external_reference` = External reference title (no AB ticket history)
 
 ### Q: Can I add titles that Alberta Ballet has performed but I don't have ticket data for?
 
-**A**: Yes! Add them to `reference_baselines.csv` with `source="external_reference"`. Once you get ticket data, you can move them to `baselines.csv`.
+**A**: Yes! Add them to `baselines.csv` with `source="external_reference"`. Once you get ticket data, change the source to `"historical"`.
 
 ### Q: How many reference baselines should I add?
 

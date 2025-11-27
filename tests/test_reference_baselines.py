@@ -1,4 +1,10 @@
-"""Tests for reference baseline loading and k-NN similarity functions."""
+"""Tests for baseline loading and k-NN similarity functions.
+
+Baselines are stored in a single file (baselines.csv) with a 'source' column that
+distinguishes between:
+- 'historical': Alberta Ballet performances with ticket data
+- 'external_reference': Well-known titles without AB history (used for k-NN similarity)
+"""
 
 import pandas as pd
 import pytest
@@ -12,22 +18,22 @@ from ml.knn_fallback import find_similar_titles, estimate_category_benchmark
 
 
 def test_load_baselines():
-    """Test that baselines.csv loads correctly."""
+    """Test that baselines.csv loads correctly with all titles."""
     df = load_baselines()
     assert not df.empty
-    # Check expected columns
-    for col in ["title", "wiki", "trends", "youtube", "spotify", "category", "gender"]:
+    # Check expected columns (now includes source and notes)
+    for col in ["title", "wiki", "trends", "youtube", "spotify", "category", "gender", "source"]:
         assert col in df.columns, f"Missing column: {col}"
 
 
 def test_load_reference_baselines():
-    """Test that reference_baselines.csv loads correctly."""
+    """Test that load_reference_baselines filters to external_reference titles only."""
     df = load_reference_baselines()
     assert not df.empty
     # Check expected columns
     for col in ["title", "wiki", "trends", "youtube", "spotify", "category", "gender", "source"]:
         assert col in df.columns, f"Missing column: {col}"
-    # Check source column has expected value
+    # Check source column has expected value (filtered to external_reference only)
     assert (df["source"] == "external_reference").all()
 
 
