@@ -621,17 +621,20 @@ def safe_read_csv(uploaded_file) -> tuple[Optional[pd.DataFrame], Optional[str]]
         if file_size_mb > MAX_FILE_SIZE_MB:
             return None, f"File too large ({file_size_mb:.1f} MB). Maximum size is {MAX_FILE_SIZE_MB} MB."
         
-        # Reset file pointer to beginning
+        # Reset file pointer to beginning for row count check
         uploaded_file.seek(0)
         
         # First, do a quick row count check using chunked reading to avoid loading
         # the entire file into memory for very large files
-        uploaded_file.seek(0)
         row_count = 0
-        for chunk in pd.read_csv(uploaded_file, chunksize=10000, usecols=[0]):
-            row_count += len(chunk)
-            if row_count > MAX_ROWS_PER_FILE:
-                return None, f"File has too many rows (>{MAX_ROWS_PER_FILE:,}). Maximum is {MAX_ROWS_PER_FILE:,} rows."
+        try:
+            for chunk in pd.read_csv(uploaded_file, chunksize=10000, usecols=[0]):
+                row_count += len(chunk)
+                if row_count > MAX_ROWS_PER_FILE:
+                    return None, f"File has too many rows (>{MAX_ROWS_PER_FILE:,}). Maximum is {MAX_ROWS_PER_FILE:,} rows."
+        except (pd.errors.EmptyDataError, ValueError):
+            # File might be empty or have no columns - will be caught below
+            pass
         
         # Now read the full file since we know it's within limits
         uploaded_file.seek(0)
@@ -640,6 +643,10 @@ def safe_read_csv(uploaded_file) -> tuple[Optional[pd.DataFrame], Optional[str]]
         # Check if file has any data
         if len(df) == 0:
             return None, "File is empty (no data rows)."
+        
+        # Check if file has any columns
+        if len(df.columns) == 0:
+            return None, "File has no columns."
         
         # Log successful read
         logger.info(f"Successfully read {uploaded_file.name}: {len(df)} rows, {len(df.columns)} columns")
