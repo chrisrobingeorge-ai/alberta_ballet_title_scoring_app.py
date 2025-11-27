@@ -1,8 +1,21 @@
+# ============================================================================
+# ⚠️  DEPRECATED - DO NOT USE FOR PRODUCTION  ⚠️
+# ============================================================================
+#
+# This script has been moved to the legacy/ directory and is DEPRECATED.
+# It is kept only for historical reference and to understand how city priors
+# were originally computed.
+#
+# The current application learns city priors dynamically from history_city_sales.csv
+# at runtime. See the learn_priors_from_history() function in streamlit_app.py.
+#
+# ============================================================================
+
 import pandas as pd
 import numpy as np
 import sys, re
 
-# Usage: python tools/build_city_priors.py path/to/history.csv
+# Usage: python legacy/build_city_priors.py path/to/history.csv
 
 def infer_category(title: str) -> str:
     # Keep aligned with app's infer_gender_and_category() / BASELINES categories
