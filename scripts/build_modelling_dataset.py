@@ -117,7 +117,7 @@ def assert_no_leakage(df: pd.DataFrame, feature_cols: List[str], context: str = 
         )
 
 
-def load_history(path: str = "data/history_city_sales.csv") -> pd.DataFrame:
+def load_history(path: str = "data/productions/history_city_sales.csv") -> pd.DataFrame:
     """Load and preprocess historical sales data."""
     try:
         df = pd.read_csv(path, thousands=",")
@@ -145,7 +145,7 @@ def load_history(path: str = "data/history_city_sales.csv") -> pd.DataFrame:
     return df
 
 
-def load_baselines(path: str = "data/baselines.csv") -> pd.DataFrame:
+def load_baselines(path: str = "data/productions/baselines.csv") -> pd.DataFrame:
     """Load and preprocess baseline signals data."""
     try:
         df = pd.read_csv(path)
@@ -167,7 +167,7 @@ def load_baselines(path: str = "data/baselines.csv") -> pd.DataFrame:
     return df
 
 
-def load_past_runs(path: str = "data/past_runs.csv") -> pd.DataFrame:
+def load_past_runs(path: str = "data/productions/past_runs.csv") -> pd.DataFrame:
     """Load and preprocess past runs data for remount/seasonality features."""
     try:
         df = pd.read_csv(path)
@@ -322,9 +322,9 @@ def compute_remount_features(
 
 
 def build_modelling_dataset(
-    history_path: str = "data/history_city_sales.csv",
-    baselines_path: str = "data/baselines.csv",
-    past_runs_path: str = "data/past_runs.csv",
+    history_path: str = "data/productions/history_city_sales.csv",
+    baselines_path: str = "data/productions/baselines.csv",
+    past_runs_path: str = "data/productions/past_runs.csv",
     output_path: str = "data/modelling_dataset.csv",
     diagnostics_path: str = "diagnostics/modelling_dataset_report.json",
     external_data_dir: str = "data",
@@ -627,17 +627,17 @@ def main():
     )
     parser.add_argument(
         "--history", 
-        default="data/history_city_sales.csv",
+        default="data/productions/history_city_sales.csv",
         help="Path to historical sales CSV"
     )
     parser.add_argument(
         "--baselines", 
-        default="data/baselines.csv",
+        default="data/productions/baselines.csv",
         help="Path to baselines CSV"
     )
     parser.add_argument(
         "--past-runs", 
-        default="data/past_runs.csv",
+        default="data/productions/past_runs.csv",
         help="Path to past runs CSV"
     )
     parser.add_argument(

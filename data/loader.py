@@ -65,7 +65,7 @@ def _load_baselines_cached(path: str, mtime: float) -> pd.DataFrame:
 
 
 def load_history_sales(
-    csv_name: str = "history_city_sales.csv",
+    csv_name: str = "productions/history_city_sales.csv",
     fallback_empty: bool = False
 ) -> pd.DataFrame:
     """Load historical show-level sales (Calgary/Edmonton).
@@ -105,7 +105,7 @@ def load_history_sales(
 
 
 def load_baselines(
-    csv_name: str = "baselines.csv",
+    csv_name: str = "productions/baselines.csv",
     fallback_empty: bool = True
 ) -> pd.DataFrame:
     """Load baseline signals (wiki, trends, youtube, spotify) for all titles.
@@ -146,7 +146,7 @@ def load_baselines(
         raise DataLoadError(f"Error loading baselines from {path}: {e}")
 
 
-def load_reference_baselines(csv_name: str = "baselines.csv") -> pd.DataFrame:
+def load_reference_baselines(csv_name: str = "productions/baselines.csv") -> pd.DataFrame:
     """Load reference baseline signals for titles without historical ticket data.
     
     DEPRECATED: All baselines are now in a single baselines.csv file with a 'source' 
@@ -170,8 +170,8 @@ def load_reference_baselines(csv_name: str = "baselines.csv") -> pd.DataFrame:
 
 def load_all_baselines(
     include_reference: bool = True,
-    baselines_path: str = "baselines.csv",
-    reference_path: str = "baselines.csv"
+    baselines_path: str = "productions/baselines.csv",
+    reference_path: str = "productions/baselines.csv"
 ) -> pd.DataFrame:
     """Load all baseline signals, optionally including reference titles.
     
@@ -358,7 +358,7 @@ def _load_external_factors_cached(path: str, mtime: float) -> pd.DataFrame:
 
 
 def load_external_factors(
-    csv_name: str = "external_factors.csv",
+    csv_name: str = "economics/external_factors.csv",
     fallback_empty: bool = True
 ) -> pd.DataFrame:
     """Load merged external factors data (economic, demographic, tourism, etc.).
@@ -407,8 +407,8 @@ def load_external_factors(
 
 
 def load_history_with_external_factors(
-    history_csv: str = "history_city_sales.csv",
-    external_csv: str = "external_factors.csv",
+    history_csv: str = "productions/history_city_sales.csv",
+    external_csv: str = "economics/external_factors.csv",
     join_on: Optional[list] = None
 ) -> pd.DataFrame:
     """Load history sales data merged with external factors.

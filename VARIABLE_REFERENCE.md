@@ -93,7 +93,7 @@ To evaluate which forecast is better, compare predictions to actual results:
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, r2_score
 
-df = pd.read_csv("data/history_city_sales.csv")
+df = pd.read_csv("data/productions/history_city_sales.csv")
 
 # Compare YourModel to Actual
 mae_yourmodel = mean_absolute_error(df["total_single_tickets"], df["yourmodel_total_single_tickets"])

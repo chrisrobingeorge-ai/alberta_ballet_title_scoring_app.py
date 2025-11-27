@@ -766,7 +766,7 @@ ticket forecasting accuracy. You can:
 1. Upload your external data files (unemployment, CPI, GDP, tourism, etc.)
 2. The system will merge them by common keys (year, city)
 3. Download the merged external factors CSV
-4. Place it in the `data/` folder to enhance model predictions
+4. Place it in the `data/economics/` folder to enhance model predictions
 
 **Workflow B: Full Feature Merge (With Base Titles)**
 1. Upload your base titles/sales data first
@@ -1049,7 +1049,7 @@ else:
     elif base_df is None and external_count > 0:
         # Workflow A: External Factors Only
         st.success(f"📊 **External Factors Mode** — {external_count} external data file(s) uploaded")
-        st.caption("Merging external factors together. These can be saved and placed in the `data/` folder to enhance model predictions.")
+        st.caption("Merging external factors together. These can be saved and placed in the `data/economics/` folder to enhance model predictions.")
         
         # Merge year-based files first
         merged_df = None
@@ -1154,7 +1154,7 @@ else:
                 )
             
             with col2:
-                st.caption("💡 **Next Step**: Place this file in the `data/` folder as `external_factors.csv` to enhance ML predictions.")
+                st.caption("💡 **Next Step**: Place this file in the `data/economics/` folder as `external_factors.csv` to enhance ML predictions.")
             
             # Usage instructions
             with st.expander("📋 How to Use This File with the ML Model"):
@@ -1163,11 +1163,11 @@ else:
 
 After downloading the merged external factors file:
 
-1. **Place in data folder**: Save as `data/external_factors.csv`
+1. **Place in data folder**: Save as `data/economics/external_factors.csv`
 
 2. **Update data loader**: The file can be loaded in `data/loader.py`:
    ```python
-   def load_external_factors(csv_name="external_factors.csv"):
+   def load_external_factors(csv_name="economics/external_factors.csv"):
        path = DATA_DIR / csv_name
        if not path.exists():
            return pd.DataFrame()
@@ -1343,7 +1343,7 @@ A: Upload your updated files and re-run the merge. The download will include
 
 **Q: How do I integrate the merged file with the main app?**  
 A: After downloading the merged external factors CSV:
-   1. Place it in the `data/` folder
+   1. Place it in the `data/economics/` folder
    2. The ML model can then use these additional features for better predictions
    3. See the integration instructions in Step 3 for detailed code examples
 

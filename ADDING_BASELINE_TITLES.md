@@ -4,7 +4,7 @@ This guide explains how to add more baseline titles to improve the model's predi
 
 ## Overview
 
-The Alberta Ballet Title Scoring App stores all baseline data in a single file (`data/baselines.csv`) with a `source` column that distinguishes between two types of titles:
+The Alberta Ballet Title Scoring App stores all baseline data in a single file (`data/productions/baselines.csv`) with a `source` column that distinguishes between two types of titles:
 
 ### 1. Historical Baselines (`source = "historical"`)
 - **Contains**: Titles that Alberta Ballet has performed with known ticket outcomes
@@ -59,7 +59,7 @@ Enter your titles, optionally add API keys for YouTube/Spotify, and click "Run S
 
 ### Step 3: Add to baselines.csv
 
-Add rows to `data/baselines.csv` with this format:
+Add rows to `data/productions/baselines.csv` with this format:
 
 ```csv
 title,wiki,trends,youtube,spotify,category,gender,source,notes
