@@ -651,6 +651,8 @@ if uploaded_files:
             st.error(f"❌ **{file_key}**: Could not parse CSV - {str(e)[:100]}")
         except UnicodeDecodeError:
             st.error(f"❌ **{file_key}**: Encoding error. Try saving as UTF-8 CSV.")
+        except Exception as e:
+            st.error(f"❌ **{file_key}**: Unexpected error - {str(e)[:100]}")
 
 # Display detected files
 if st.session_state.uploaded_data:
@@ -793,62 +795,70 @@ else:
         
         # Start with year-based data (economic, arts sector)
         for file_key, file_info, category in year_based_files:
-            ext_df = file_info["df"]
-            cat_info = DATA_CATEGORIES.get(category)
-            
-            if merged_df is None:
-                merged_df = ext_df.copy()
-                merge_log.append(f"✅ Started with **{file_key}** ({cat_info['name']}): {len(ext_df.columns)} columns")
-            else:
-                # Merge on year
-                if "year" in merged_df.columns and "year" in ext_df.columns:
-                    before_cols = set(merged_df.columns)
-                    merged_df = merged_df.merge(
-                        ext_df,
-                        on="year",
-                        how="outer",
-                        suffixes=("", "_dup")
-                    )
-                    # Remove duplicate columns
-                    merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
-                    after_cols = set(merged_df.columns)
-                    new_cols = list(after_cols - before_cols)
-                    merge_log.append(f"✅ Merged **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (on year)")
+            try:
+                ext_df = file_info["df"]
+                cat_info = DATA_CATEGORIES.get(category)
+                cat_name = cat_info["name"] if cat_info else (category or "Unknown")
+                
+                if merged_df is None:
+                    merged_df = ext_df.copy()
+                    merge_log.append(f"✅ Started with **{file_key}** ({cat_name}): {len(ext_df.columns)} columns")
                 else:
-                    merge_log.append(f"⚠️ Skipped **{file_key}**: Missing 'year' column for merge")
+                    # Merge on year
+                    if "year" in merged_df.columns and "year" in ext_df.columns:
+                        before_cols = set(merged_df.columns)
+                        merged_df = merged_df.merge(
+                            ext_df,
+                            on="year",
+                            how="outer",
+                            suffixes=("", "_dup")
+                        )
+                        # Remove duplicate columns
+                        merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
+                        after_cols = set(merged_df.columns)
+                        new_cols = list(after_cols - before_cols)
+                        merge_log.append(f"✅ Merged **{file_key}** ({cat_name}): +{len(new_cols)} columns (on year)")
+                    else:
+                        merge_log.append(f"⚠️ Skipped **{file_key}**: Missing 'year' column for merge")
+            except Exception as e:
+                merge_log.append(f"❌ Error processing **{file_key}**: {str(e)[:100]}")
         
         # Add year+city based data (demographics, tourism)
         for file_key, file_info, category in year_city_files:
-            ext_df = file_info["df"]
-            cat_info = DATA_CATEGORIES.get(category)
-            
-            if merged_df is None:
-                merged_df = ext_df.copy()
-                merge_log.append(f"✅ Started with **{file_key}** ({cat_info['name']}): {len(ext_df.columns)} columns")
-            else:
-                # Determine join keys
-                join_on = []
-                if "year" in merged_df.columns and "year" in ext_df.columns:
-                    join_on.append("year")
-                if "city" in merged_df.columns and "city" in ext_df.columns:
-                    join_on.append("city")
+            try:
+                ext_df = file_info["df"]
+                cat_info = DATA_CATEGORIES.get(category)
+                cat_name = cat_info["name"] if cat_info else (category or "Unknown")
                 
-                if join_on:
-                    before_cols = set(merged_df.columns)
-                    merged_df = merged_df.merge(
-                        ext_df,
-                        on=join_on,
-                        how="outer",
-                        suffixes=("", "_dup")
-                    )
-                    merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
-                    after_cols = set(merged_df.columns)
-                    new_cols = list(after_cols - before_cols)
-                    merge_log.append(f"✅ Merged **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (on {', '.join(join_on)})")
+                if merged_df is None:
+                    merged_df = ext_df.copy()
+                    merge_log.append(f"✅ Started with **{file_key}** ({cat_name}): {len(ext_df.columns)} columns")
                 else:
-                    # If no common join key, skip this file with a warning
-                    # (Can't meaningfully merge without a common key)
-                    merge_log.append(f"⚠️ Skipped **{file_key}** ({cat_info['name']}): No common join key (year or city) found")
+                    # Determine join keys
+                    join_on = []
+                    if "year" in merged_df.columns and "year" in ext_df.columns:
+                        join_on.append("year")
+                    if "city" in merged_df.columns and "city" in ext_df.columns:
+                        join_on.append("city")
+                    
+                    if join_on:
+                        before_cols = set(merged_df.columns)
+                        merged_df = merged_df.merge(
+                            ext_df,
+                            on=join_on,
+                            how="outer",
+                            suffixes=("", "_dup")
+                        )
+                        merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
+                        after_cols = set(merged_df.columns)
+                        new_cols = list(after_cols - before_cols)
+                        merge_log.append(f"✅ Merged **{file_key}** ({cat_name}): +{len(new_cols)} columns (on {', '.join(join_on)})")
+                    else:
+                        # If no common join key, skip this file with a warning
+                        # (Can't meaningfully merge without a common key)
+                        merge_log.append(f"⚠️ Skipped **{file_key}** ({cat_name}): No common join key (year or city) found")
+            except Exception as e:
+                merge_log.append(f"❌ Error processing **{file_key}**: {str(e)[:100]}")
         
         # Handle title-based files (informational only in external mode)
         if title_based_files:
