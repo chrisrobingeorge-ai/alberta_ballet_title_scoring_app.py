@@ -153,15 +153,15 @@ The app uses several CSV files in the `data/` directory:
 
 ### Where Do the Titles Come From?
 
-The application uses **115 unique ballet/performance titles** in `baselines.csv`, distinguished by the `source` column:
+The application uses **114 unique ballet/performance titles** in `baselines.csv`, distinguished by the `source` column:
 
 | Source | Titles | Description |
 |--------|--------|-------------|
 | `historical` | 67 | **Historical titles** - Alberta Ballet performances with actual ticket sales data. These are used for training ML models. |
-| `external_reference` | 48 | **Reference titles** - Well-known ballets from other companies (Royal Ballet, ABT, etc.) without AB ticket history. Used for k-NN similarity matching and cold-start predictions. |
+| `external_reference` | 47 | **Reference titles** - Well-known ballets from other companies (Royal Ballet, ABT, etc.) without AB ticket history. Used for k-NN similarity matching and cold-start predictions. |
 
 **How titles are loaded:**
-- The main Streamlit app (`streamlit_app.py`) loads all titles from `baselines.csv` (115 titles) for scoring
+- The main Streamlit app (`streamlit_app.py`) loads all titles from `baselines.csv` (114 titles) for scoring
 - Use `load_all_baselines(include_reference=False)` to get only historical titles for ML training
 - Historical sales data in `history_city_sales.csv` contains 42 title records with actual ticket sales
 
