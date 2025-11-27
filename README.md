@@ -194,9 +194,6 @@ pip install shap
 
 # For LightGBM alternative to XGBoost
 pip install lightgbm
-
-# For PyCaret model validation
-pip install pycaret>=3.3.0  # requires Python ≤3.12
 ```
 
 ## Project Structure
@@ -236,7 +233,6 @@ pip install pycaret>=3.3.0  # requires Python ≤3.12
 │   ├── priors.py
 │   └── canonicalize_titles.py # Title normalization
 ├── legacy/                    # ⚠️ DEPRECATED scripts (do not use for production)
-│   ├── train_pycaret_model.py # Legacy PyCaret training (has leakage issues)
 │   └── build_city_priors.py   # Legacy city prior generator
 └── ML_MODEL_DOCUMENTATION.md  # Technical ML documentation
 ```

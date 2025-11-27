@@ -152,21 +152,19 @@ The implementation maintains full backward compatibility:
 3. **Same Outputs**: Predictions still clipped to [20, 180] range
 4. **Same UI Structure**: Additional metrics, no breaking changes
 
-## Why Not PyCaret?
+## Design Decision: scikit-learn/XGBoost
 
-Original plan was to use PyCaret for AutoML capabilities, but:
+We chose direct use of scikit-learn/XGBoost rather than AutoML frameworks:
 
-| Consideration | PyCaret | scikit-learn + XGBoost |
-|---------------|---------|------------------------|
-| Python 3.12 Support | ⚠️ (Requires GitHub install) | ✅ |
+| Consideration | AutoML Frameworks | scikit-learn + XGBoost |
+|---------------|-------------------|------------------------|
+| Python Version Support | Variable | ✅ All versions |
 | Control over models | Limited | Full control |
 | Dependency size | Large (~500MB) | Moderate (~200MB) |
 | Training speed | Slower (tries many models) | Faster (targeted selection) |
 | Production maturity | Good | Excellent |
 
 Decision: Use scikit-learn + XGBoost directly for better compatibility and control.
-
-**Update**: PyCaret now supports Python 3.12 when installed from GitHub (`pip install git+https://github.com/pycaret/pycaret.git@master`). It is available as an optional dependency for the Model Validation page feature.
 
 ## Impact on Users
 
