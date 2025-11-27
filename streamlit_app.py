@@ -1280,14 +1280,11 @@ if ("hist_df" not in st.session_state) or relearn:
     if uploaded_hist is not None:
         st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
     else:
-        # try your preferred filename first, then the old one; else empty
+        # Load from default location, or use empty DataFrame if not found
         try:
             st.session_state["hist_df"] = pd.read_csv("data/productions/history_city_sales.csv")
         except Exception:
-            try:
-                st.session_state["hist_df"] = pd.read_csv("data/productions/history.csv")
-            except Exception:
-                st.session_state["hist_df"] = pd.DataFrame()
+            st.session_state["hist_df"] = pd.DataFrame()
 
 # (Re)learn priors every time we (re)load history
 st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
