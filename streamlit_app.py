@@ -1,4 +1,5 @@
-# - Learns YYC/YEG & Singles/Subs from history.csv (or uploaded CSV)
+# - Learns YYC/YEG splits from history.csv (or uploaded CSV)
+# - Single ticket estimation only
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
 
@@ -50,7 +51,7 @@ except ImportError:
 
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
-    global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE, _DEFAULT_SUBS_SHARE
+    global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE
     global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
     global K_SHRINK, MINF, MAXF, N_MIN
     global DEFAULT_MARKETING_SPT_CITY
@@ -76,11 +77,10 @@ def load_config(path: str = "config.yaml"):
     if "region_mult" in cfg:
         REGION_MULT = cfg["region_mult"]
 
-    # 3) City splits & subs shares
+    # 3) City splits
     city_cfg = cfg.get("city_splits", {})
     DEFAULT_BASE_CITY_SPLIT = city_cfg.get("default_base_city_split", DEFAULT_BASE_CITY_SPLIT)
     _CITY_CLIP_RANGE = tuple(city_cfg.get("city_clip_range", _CITY_CLIP_RANGE))
-    _DEFAULT_SUBS_SHARE = city_cfg.get("default_subs_share", _DEFAULT_SUBS_SHARE)
 
     # 4) Demand knobs
     demand_cfg = cfg.get("demand", {})
@@ -171,7 +171,7 @@ def _methodology_glossary_text() -> list:
         "each show. These scores are evaluated against a benchmark title and passed "
         "through calibrated relationships derived from Alberta Ballet’s real history: "
         "month-by-month seasonality, Calgary/Edmonton audience differences, "
-        "subscriber-versus-single patterns, and remount behaviour. The model then "
+        "and remount behaviour. The model then "
         "translates these calibrated interest scores into expected ticket totals, "
         "revenue, and recommended marketing spend for any title you evaluate, including "
         "new works.",
@@ -230,7 +230,7 @@ def _methodology_glossary_text() -> list:
         "We adjust for the <b>month</b> you plan to run it (some months sell better), "
         "and for <b>recency</b> if it’s a quick remount.",
         "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned "
-        "historical shares and then into <b>Singles/Subscribers</b>.",
+        "historical shares and then into <b>Singles</b>.",
         "We convert tickets into <b>revenue</b> using typical realized prices by "
         "city & product, and into recommended <b>marketing spend</b> using learned "
         "per-single-ticket marketing $ by title/category and city.",
@@ -252,7 +252,7 @@ def _methodology_glossary_text() -> list:
         "<b>Seasonality</b>: some months sell better than others for a given type of show.",
         "<b>Remount</b>: recent repeats often sell a bit less; we reduce estimates accordingly.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
-        "<b>Revenue estimate</b>: Singles/Subs tickets in each city multiplied by typical "
+        "<b>Revenue estimate</b>: Singles tickets in each city multiplied by typical "
         "realized prices from the last season.",
         "<b>Marketing spend per single</b>: historic median $ of paid media per sold single "
         "ticket, learned by title×city where possible, then category×city, then city-wide.",
@@ -270,8 +270,8 @@ def _narrative_for_row(r: dict) -> str:
     f_season = r.get("FutureSeasonalityFactor", None)
     decay_pct = r.get("ReturnDecayPct", 0.0)
 
-    yyc = (r.get("YYC_Singles",0) or 0) + (r.get("YYC_Subs",0) or 0)
-    yeg = (r.get("YEG_Singles",0) or 0) + (r.get("YEG_Subs",0) or 0)
+    yyc = (r.get("YYC_Singles",0) or 0)
+    yeg = (r.get("YEG_Singles",0) or 0)
     c_share = r.get("CityShare_Calgary", None); e_share = r.get("CityShare_Edmonton", None)
 
     pri = r.get("PrimarySegment",""); sec = r.get("SecondarySegment","")
@@ -353,14 +353,10 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         "Estimated Tickets",
         "YYC Singles",
         "YEG Singles",
-        "YYC Subscriptions",
-        "YEG Subscriptions",
         "",
         "REVENUE",
         "YYC Singles Revenue",
         "YEG Singles Revenue",
-        "YYC Subscription Revenue",
-        "YEG Subscription Revenue",
         "Total Revenue",
         "",
         "EXPENSES",
@@ -385,14 +381,10 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
 
         out.at["YYC Singles", col_name] = int(r.get("YYC_Singles", 0) or 0)
         out.at["YEG Singles", col_name] = int(r.get("YEG_Singles", 0) or 0)
-        out.at["YYC Subscriptions", col_name] = int(r.get("YYC_Subs", 0) or 0)
-        out.at["YEG Subscriptions", col_name] = int(r.get("YEG_Subs", 0) or 0)
 
         # Revenue (numeric for now; we format later)
         out.at["YYC Singles Revenue", col_name]       = float(r.get("YYC_Single_Revenue", 0) or 0)
         out.at["YEG Singles Revenue", col_name]       = float(r.get("YEG_Single_Revenue", 0) or 0)
-        out.at["YYC Subscription Revenue", col_name]  = float(r.get("YYC_Subs_Revenue", 0) or 0)
-        out.at["YEG Subscription Revenue", col_name]  = float(r.get("YEG_Subs_Revenue", 0) or 0)
         out.at["Total Revenue", col_name]             = float(r.get("Total_Revenue", 0) or 0)
 
         # Expenses (numeric for now)
@@ -420,8 +412,6 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
     currency_rows = [
         "YYC Singles Revenue",
         "YEG Singles Revenue",
-        "YYC Subscription Revenue",
-        "YEG Subscription Revenue",
         "Total Revenue",
         "Average YYC Marketing Spend",
         "Average YEG Marketing Spend",
@@ -591,7 +581,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
     1. **Scroll down to _📅 Build a Season_**.
     2. **Select a title** from the drop-down for each month you want to schedule.
     3. **Review the Season table**:
-       - Scroll to the bottom rows to see **EstimatedTickets_Final**, **Calgary vs Edmonton** totals, Singles/Subs, and other key metrics.
+       - Scroll to the bottom rows to see **EstimatedTickets_Final**, **Calgary vs Edmonton** totals, Singles, and other key metrics.
     4. **Export**:
        - Use **Download Season (wide) CSV** for spreadsheet analysis, or
        - **Download Full PDF Report** for a narrative + methodology + condensed season table.
@@ -631,7 +621,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
 
     ### Common issues
     - **Empty results:** Ensure you have at least one title in the text area and click **Score Titles**.
-    - **History columns don’t match:** The learner tries multiple header variants (e.g., “Single Tickets - Calgary”). If needed, rename your headers or include the words *Single*, *Subscription*, and *Calgary/Edmonton* in them.
+    - **History columns don’t match:** The learner tries multiple header variants (e.g., “Single Tickets - Calgary”). If needed, rename your headers or include the words *Single* and *Calgary/Edmonton* in them.
     - **PDF table too wide:** The PDF intentionally uses a condensed metric set. For full detail, export CSV.
 
     ### Data privacy
@@ -644,15 +634,15 @@ with st.expander("👋 How to use this app (step-by-step)"):
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown(dedent("""
     ## Simple Terms
-    This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Spotify) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton, and between single tickets and subscriptions.
+    This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Spotify) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton.
 
-    On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. From there, it uses typical average ticket prices to turn ticket counts into rough revenue numbers for each city and for singles vs subs. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per single ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.
+    On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. From there, it uses typical average ticket prices to turn ticket counts into rough revenue numbers for each city and for single tickets. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per single ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.
 
     Finally, if you give it marketing history, it learns roughly how many dollars of paid media you’ve usually spent per single ticket in Calgary and Edmonton for different kinds of shows. When you build a season, it uses those “dollars per single” figures to suggest marketing budgets city by city, and shows you the total season spend and spend per single. The end result: one view that ties together demand, timing, cities, audience segments, revenue, and a ballpark paid-media ask for each title and for the season as a whole.   
     ---
     
 	### Purpose
-    This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles/Subs mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder with **revenue** and **marketing spend** recommendations.
+    This tool estimates how recognizable a title is (**Familiarity**) and how strongly audiences are inclined to attend (**Motivation**) and then converts those indices into **ticket forecasts**. It blends online visibility signals with learned priors from your historical sales (including YYC/YEG split and Singles mix), applies **seasonality** and **remount decay**, and outputs Alberta-wide projections plus a season builder with **revenue** and **marketing spend** recommendations.
 
     ---
     ## Methods (end-to-end)
@@ -715,15 +705,15 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     Based on years since the last run’s mid-date (using either the **proposed month** or current year if not set), remounts are reduced stepwise so that very fresh repeats get the largest haircut and older titles are only nudged. A typical pattern is up to ~25% reduction for a repeat within a year, easing down to ~5% once the title hasn’t appeared for several seasons.  
     Result is **EstimatedTickets_Final**.
 
-    ### 6) YYC/YEG split and Singles/Subs allocation
+    ### 6) YYC/YEG split and Singles allocation
     **Learning from history (wide schemas tolerated):**  
     - **Title-level city share** (Calgary vs Edmonton) from Singles+Subs totals, **clipped** to [0.15, 0.85].  
     - **Category-level city share** as weighted fallback.  
     - **Subscriber share** learned per **Category×City**, **clipped** to [0.05, 0.95].  
     **Fallbacks when thin/missing:**  
     - City split default = **60% Calgary / 40% Edmonton**.  
-    - Subs share defaults = **35% YYC / 45% YEG** (category-agnostic).  
-    Final outputs: YYC/YEG totals and Singles/Subs by city.
+    -  defaults = **35% YYC / 45% YEG** (category-agnostic).  
+    Final outputs: YYC/YEG totals and Singles by city.
 
     ### 7) Segment mix & per-segment tickets
     For each title, we compute **segment-specific signals** (re-scored vs the benchmark), then combine them with **segment priors** (`SEGMENT_PRIORS[region][category]`) and a softmax-like normalization to derive **shares** across:  
@@ -733,8 +723,8 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     ### 8) Revenue & marketing spend recommendations
     **Revenue estimates**  
     - The app uses fixed **average realized ticket prices** from the last season:  
-      - YYC Singles / Subs: `YYC_SINGLE_AVG`, `YYC_SUB_AVG`  
-      - YEG Singles / Subs: `YEG_SINGLE_AVG`, `YEG_SUB_AVG`  
+      - YYC Singles: `YYC_SINGLE_AVG`  
+      - YEG Singles: `YEG_SINGLE_AVG`  
     - For each season plan (in **📅 Build a Season**), it multiplies:
       - YYC Singles / Subs counts by their YYC averages  
       - YEG Singles / Subs counts by their YEG averages  
@@ -780,7 +770,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Familiarity vs Motivation**: plot quadrants reveal whether a title is known but “sleepy” (high Familiarity, low Motivation) vs buzzy but less known (reverse).  
     - **Composite**: best single index for ranking if you plan to blend signal and sales history.  
     - **EstimatedTickets_Final**: planning number after **future seasonality** and **remount decay**.  
-    - **Revenue columns**: YYC/YEG/Singles/Subs revenue built from ticket counts × typical realized prices — useful for season-level financial framing.  
+    - **Revenue columns**: YYC/YEG/Singles revenue built from ticket counts × typical realized prices — useful for season-level financial framing.  
     - **Marketing columns**: `YYC_Mkt_SPT`, `YEG_Mkt_SPT`, city-level and total marketing spend — a guide to how much paid media is typically required to support the forecast.  
     - **Segment & city breakouts**: use for campaign design, pricing tests, and inventory planning.
 
@@ -800,7 +790,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **K_SHRINK** = `5.0`; **MINF/MAXF** = `0.90/1.15` (seasonality)  
     - **N_MIN** (per Category×Month before trusting a specific month) = `3`  
     - **DEFAULT_BASE_CITY_SPLIT** = `Calgary 0.60 / Edmonton 0.40`, **_CITY_CLIP_RANGE** = `[0.15, 0.85]`  
-    - **_DEFAULT_SUBS_SHARE** = `YYC 0.35 / YEG 0.45`, clipped to `[0.05, 0.95]`  
+    Note: This app focuses on single ticket estimation only.  
     - **Prediction clip** for ticket index: `[20, 180]`  
     - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)  
     - **DEFAULT_MARKETING_SPT_CITY**: initial city-wide per single-ticket $ before learning from marketing history (`Calgary 10 / Edmonton 8`).
@@ -826,9 +816,9 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Remount Decay / Factor**: staged-recency reduction and its (1−decay) multiplier.  
     - **Primary/Secondary Segment**: segments with the highest modeled shares.  
     - **YYC/YEG Split**: learned Calgary/Edmonton allocation for the title or its category.  
-    - **Singles/Subs Mix**: learned subscriber share by **Category×City** (fallbacks if thin).  
+    - **Singles Mix**: learned subscriber share by **Category×City** (fallbacks if thin).  
     - **EstimatedTickets / Final**: projected tickets before/after remount decay.  
-    - **YYC_/YEG_ Revenue**: revenue by city = Singles/Subs tickets × typical realized prices.  
+    - **YYC_/YEG_ Revenue**: revenue by city = Singles tickets × typical realized prices.  
     - **Marketing SPT (YYC_Mkt_SPT / YEG_Mkt_SPT)**: typical $ of paid media per sold single ticket in each city.
     - **Marketing Spend (YYC_Mkt_Spend / YEG_Mkt_Spend / Total_Mkt_Spend)**: recommended campaign budget derived from SPT × forecast singles.
 
@@ -837,22 +827,19 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     """))
 
 # -------------------------
-# PRIORS learning (YYC/YEG + Singles/Subs) — self-contained
+# PRIORS learning (YYC/YEG) — self-contained
+# Note: This app focuses on single ticket estimation only.
 # -------------------------
 # Globals populated from history
 TITLE_CITY_PRIORS: dict[str, dict[str, float]] = {}
 CATEGORY_CITY_PRIORS: dict[str, dict[str, float]] = {}
-SUBS_SHARE_BY_CATEGORY_CITY: dict[str, dict[str, float | None]] = {"Calgary": {}, "Edmonton": {}}
 
 # Sensible fallbacks if history is missing/thin
 DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}  # Calgary majority unless learned otherwise
-_DEFAULT_SUBS_SHARE = {"Calgary": 0.35, "Edmonton": 0.45}
 _CITY_CLIP_RANGE = (0.15, 0.85)
 # --- Average realized ticket prices (last season) ---
 YYC_SINGLE_AVG = 85.47
 YEG_SINGLE_AVG = 92.12
-YYC_SUB_AVG    = 99.97
-YEG_SUB_AVG    = 96.99
 
 
 def _pick_col(df: pd.DataFrame, names: list[str]) -> str | None:
@@ -1155,19 +1142,18 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
     Wide schema support for:
       - Show Title
       - Single Tickets - Calgary / Edmonton
-      - Subscription Tickets - Calgary / Edmonton
     Handles commas in numbers, blanks, and duplicate titles.
     Populates:
       - TITLE_CITY_PRIORS[title] = {'Calgary': p, 'Edmonton': 1-p}
       - CATEGORY_CITY_PRIORS[category] = {...}  (category inferred from title)
-      - SUBS_SHARE_BY_CATEGORY_CITY[city][category] = subs/(subs+singles)
+    
+    Note: This app focuses on single ticket estimation only.
     """
-    global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS, SUBS_SHARE_BY_CATEGORY_CITY
+    global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS
     TITLE_CITY_PRIORS.clear(); CATEGORY_CITY_PRIORS.clear()
-    SUBS_SHARE_BY_CATEGORY_CITY = {"Calgary": {}, "Edmonton": {}}
 
     if hist_df is None or hist_df.empty:
-        return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "empty history"}
+        return {"titles_learned": 0, "categories_learned": 0, "note": "empty history"}
 
     df = hist_df.copy()
 
@@ -1188,18 +1174,14 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
 
     s_cgy = _find_col(["Single Tickets - Calgary"]) or _find_col(["Single", "Calgary"])
     s_edm = _find_col(["Single Tickets - Edmonton"]) or _find_col(["Single", "Edmonton"])
-    u_cgy = _find_col(["Subscription Tickets - Calgary"]) or _find_col(["Subscription", "Calgary"])
-    u_edm = _find_col(["Subscription Tickets - Edmonton"]) or _find_col(["Subscription", "Edmonton"])
 
     # if any are missing, create as zeros so it still learns with partial data
-    for name, fallback in [(s_cgy, "__s_cgy__"), (s_edm, "__s_edm__"), (u_cgy, "__u_cgy__"), (u_edm, "__u_edm__")]:
+    for name, fallback in [(s_cgy, "__s_cgy__"), (s_edm, "__s_edm__")]:
         if name is None:
             df[fallback] = 0.0
 
     s_cgy = s_cgy or "__s_cgy__"
     s_edm = s_edm or "__s_edm__"
-    u_cgy = u_cgy or "__u_cgy__"
-    u_edm = u_edm or "__u_edm__"
 
     # clean numerics: handle "7,734" → 7734
     def _num(x) -> float:
@@ -1209,18 +1191,18 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         except Exception:
             return 0.0
 
-    for c in [s_cgy, s_edm, u_cgy, u_edm]:
+    for c in [s_cgy, s_edm]:
         df[c] = df[c].map(_num)
 
     # clean titles
     if title_col is None:
         # bail if we truly can't find a title column
-        return {"titles_learned": 0, "categories_learned": 0, "subs_shares_learned": 0, "note": "missing Show Title"}
+        return {"titles_learned": 0, "categories_learned": 0, "note": "missing Show Title"}
     df[title_col] = df[title_col].astype(str).str.strip()
 
     # aggregate duplicates by title
     agg = (
-        df.groupby(title_col)[[s_cgy, s_edm, u_cgy, u_edm]]
+        df.groupby(title_col)[[s_cgy, s_edm]]
           .sum(min_count=1)
           .reset_index()
           .rename(columns={title_col: "Title"})
@@ -1246,9 +1228,9 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
 
     agg["Category"] = agg["Title"].apply(_infer_cat)
 
-    # totals by city
-    agg["YYC_total"] = agg[s_cgy].fillna(0) + agg[u_cgy].fillna(0)
-    agg["YEG_total"] = agg[s_edm].fillna(0) + agg[u_edm].fillna(0)
+    # totals by city (single tickets only)
+    agg["YYC_total"] = agg[s_cgy].fillna(0)
+    agg["YEG_total"] = agg[s_edm].fillna(0)
 
     # ---- title-level priors ----
     titles_learned = 0
@@ -1273,29 +1255,9 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         CATEGORY_CITY_PRIORS[str(r["Category"])] = {"Calgary": cal, "Edmonton": 1.0 - cal}
         categories_learned += 1
 
-    # ---- subs share by category × city ----
-    agg["YYC_subs"] = agg[u_cgy].fillna(0); agg["YYC_singles"] = agg[s_cgy].fillna(0)
-    agg["YEG_subs"] = agg[u_edm].fillna(0); agg["YEG_singles"] = agg[s_edm].fillna(0)
-
-    subs_learned = 0
-    for city, sub_col, sing_col in [
-        ("Calgary","YYC_subs","YYC_singles"),
-        ("Edmonton","YEG_subs","YEG_singles"),
-    ]:
-        g = agg.groupby("Category")[[sub_col, sing_col]].sum(min_count=1).reset_index()
-        for _, r in g.iterrows():
-            tot = float(r[sub_col] + r[sing_col])
-            if tot <= 0:
-                continue
-            share = float(r[sub_col] / tot)
-            SUBS_SHARE_BY_CATEGORY_CITY.setdefault(city, {})
-            SUBS_SHARE_BY_CATEGORY_CITY[city][str(r["Category"])] = float(min(0.95, max(0.05, share)))
-            subs_learned += 1
-
     return {
         "titles_learned": titles_learned,
         "categories_learned": categories_learned,
-        "subs_shares_learned": subs_learned,
     }
 
 def city_split_for(title: str | None, category: str | None) -> dict[str, float]:
@@ -1343,7 +1305,7 @@ s = st.session_state.get("priors_summary", {}) or {}
 st.caption(
     f"Learned priors → titles: {s.get('titles_learned',0)}, "
     f"categories: {s.get('categories_learned',0)}, "
-    f"subs-shares: {s.get('subs_shares_learned',0)}"
+    f"Note: Single tickets only"
 )
 # --- Marketing spend (fixed CSV from disk) ---
 try:
@@ -2085,8 +2047,6 @@ def load_history() -> pd.DataFrame:
     ticket_cols = [
         "Single Tickets - Calgary",
         "Single Tickets - Edmonton",
-        "Subscription Tickets - Calgary",
-        "Subscription Tickets - Edmonton",
     ]
 
     for col in ticket_cols:
@@ -2098,8 +2058,6 @@ def load_history() -> pd.DataFrame:
         df["Total_Tickets"] = (
             df["Single Tickets - Calgary"].fillna(0)
             + df["Single Tickets - Edmonton"].fillna(0)
-            + df["Subscription Tickets - Calgary"].fillna(0)
-            + df["Subscription Tickets - Edmonton"].fillna(0)
         )
 
     return df
@@ -2904,7 +2862,7 @@ def compute_scores_and_store(
     # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
     cal_total, edm_total = [], []
-    cal_singles, cal_subs, edm_singles, edm_subs = [], [], [], []
+    cal_singles, edm_singles = [], []
     for _, r in df.iterrows():
         title = str(r["Title"])
         cat   = str(r["Category"])
@@ -2915,26 +2873,19 @@ def compute_scores_and_store(
         cal_share.append(c_sh); edm_share.append(e_sh)
         cal_t = total * c_sh; edm_t = total * e_sh
         cal_total.append(round(cal_t)); edm_total.append(round(edm_t))
-        cal_sub_ratio = subs_share_for(cat, "Calgary")
-        edm_sub_ratio = subs_share_for(cat, "Edmonton")
-        cal_subs.append(int(round(cal_t * cal_sub_ratio)))
-        cal_singles.append(int(round(cal_t * (1.0 - cal_sub_ratio))))
-        edm_subs.append(int(round(edm_t * edm_sub_ratio)))
-        edm_singles.append(int(round(edm_t * (1.0 - edm_sub_ratio))))
+        # All tickets are single tickets (no subscription split)
+        cal_singles.append(int(round(cal_t)))
+        edm_singles.append(int(round(edm_t)))
     df["CityShare_Calgary"] = cal_share
     df["CityShare_Edmonton"] = edm_share
     df["YYC_Total"] = cal_total
     df["YEG_Total"] = edm_total
     df["YYC_Singles"] = cal_singles
-    df["YYC_Subs"] = cal_subs
     df["YEG_Singles"] = edm_singles
-    df["YEG_Subs"] = edm_subs
 
     # 13) Revenue & marketing (title-level, for table view)
     yyc_single_rev = []
-    yyc_sub_rev = []
     yeg_single_rev = []
-    yeg_sub_rev = []
     yyc_rev = []
     yeg_rev = []
     total_rev = []
@@ -2949,23 +2900,17 @@ def compute_scores_and_store(
         cat   = str(r.get("Category", ""))
 
         yyc_sing = float(r.get("YYC_Singles", 0.0) or 0.0)
-        yyc_subs = float(r.get("YYC_Subs", 0.0) or 0.0)
         yeg_sing = float(r.get("YEG_Singles", 0.0) or 0.0)
-        yeg_subs = float(r.get("YEG_Subs", 0.0) or 0.0)
 
-        # Revenue by city × type
+        # Revenue by city (single tickets only)
         ysr   = yyc_sing * YYC_SINGLE_AVG
-        ysubr = yyc_subs * YYC_SUB_AVG
         esr   = yeg_sing * YEG_SINGLE_AVG
-        esubr = yeg_subs * YEG_SUB_AVG
 
         yyc_single_rev.append(ysr)
-        yyc_sub_rev.append(ysubr)
         yeg_single_rev.append(esr)
-        yeg_sub_rev.append(esubr)
 
-        yyc_tot_r = ysr + ysubr
-        yeg_tot_r = esr + esubr
+        yyc_tot_r = ysr
+        yeg_tot_r = esr
         tot_r     = yyc_tot_r + yeg_tot_r
 
         yyc_rev.append(yyc_tot_r)
@@ -2986,9 +2931,7 @@ def compute_scores_and_store(
         total_mkt.append(yyc_m + yeg_m)
 
     df["YYC_Single_Revenue"] = yyc_single_rev
-    df["YYC_Subs_Revenue"]   = yyc_sub_rev
     df["YEG_Single_Revenue"] = yeg_single_rev
-    df["YEG_Subs_Revenue"]   = yeg_sub_rev
     df["YYC_Revenue"]        = yyc_rev
     df["YEG_Revenue"]        = yeg_rev
     df["Total_Revenue"]      = total_rev
@@ -3117,10 +3060,10 @@ def render_results():
         "Composite","Score",
         "EstimatedTickets",
         "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "YYC_Singles","YEG_Singles",
         "CityShare_Calgary","CityShare_Edmonton",
-        "YYC_Single_Revenue","YYC_Subs_Revenue",
-        "YEG_Single_Revenue","YEG_Subs_Revenue",
+        "YYC_Single_Revenue",
+        "YEG_Single_Revenue",
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
         "YYC_Mkt_SPT","YEG_Mkt_SPT",
         "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
@@ -3157,15 +3100,11 @@ def render_results():
             "ReturnDecayPct": "{:.0%}",
             "ReturnDecayFactor": "{:.2f}",
             "YYC_Singles": "{:,.0f}",
-            "YYC_Subs": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
-            "YEG_Subs": "{:,.0f}",
             "CityShare_Calgary": "{:.0%}",
             "CityShare_Edmonton": "{:.0%}",
             "YYC_Single_Revenue": "${:,.0f}",
-            "YYC_Subs_Revenue": "${:,.0f}",
             "YEG_Single_Revenue": "${:,.0f}",
-            "YEG_Subs_Revenue": "${:,.0f}",
             "YYC_Revenue": "${:,.0f}",
             "YEG_Revenue": "${:,.0f}",
             "Total_Revenue": "${:,.0f}",
@@ -3268,32 +3207,24 @@ def render_results():
         yyc_total = est_tix_final * c_sh
         yeg_total = est_tix_final * e_sh
 
-        # Subs shares by category × city
-        yyc_sub_ratio = float(subs_share_for(cat, "Calgary"))
-        yeg_sub_ratio = float(subs_share_for(cat, "Edmonton"))
-
-        yyc_subs = int(round(yyc_total * yyc_sub_ratio))
-        yyc_singles = int(round(yyc_total * (1.0 - yyc_sub_ratio)))
-        yeg_subs = int(round(yeg_total * yeg_sub_ratio))
-        yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
+        # All tickets are single tickets (no subscription split)
+        yyc_singles = int(round(yyc_total))
+        yeg_singles = int(round(yeg_total))
 
         # --- Recommended marketing spend (per city, based on $/ticket) ---
         spt_yyc = marketing_spt_for(title_sel, cat, "Calgary")
         spt_yeg = marketing_spt_for(title_sel, cat, "Edmonton")
-        yyc_mkt = yyc_total * spt_yyc
         # Marketing spend is benchmarked on singles only
         yyc_mkt = float(yyc_singles or 0) * float(spt_yyc or 0)
         yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
         total_mkt = float(yyc_mkt) + float(yeg_mkt)  
 
-        # --- Revenue estimates by city and ticket type ---
+        # --- Revenue estimates by city (single tickets only) ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
         yeg_single_rev = yeg_singles * YEG_SINGLE_AVG
-        yyc_sub_rev = yyc_subs * YYC_SUB_AVG
-        yeg_sub_rev = yeg_subs * YEG_SUB_AVG
 
-        yyc_revenue = yyc_single_rev + yyc_sub_rev
-        yeg_revenue = yeg_single_rev + yeg_sub_rev
+        yyc_revenue = yyc_single_rev
+        yeg_revenue = yeg_single_rev
         total_revenue = yyc_revenue + yeg_revenue
 
         # Show type + production expense for budgeting
@@ -3341,17 +3272,13 @@ def render_results():
             "ReturnDecayPct": float(1.0 - decay_factor),
             "EstimatedTickets_Final": int(est_tix_final),
             "YYC_Singles": int(yyc_singles),
-            "YYC_Subs": int(yyc_subs),
             "YEG_Singles": int(yeg_singles),
-            "YEG_Subs": int(yeg_subs),
             "CityShare_Calgary": float(c_sh),
             "CityShare_Edmonton": float(e_sh),
 
-            # Revenue by city × type
+            # Revenue by city (single tickets only)
             "YYC_Single_Revenue": float(yyc_single_rev),
-            "YYC_Subs_Revenue":   float(yyc_sub_rev),
             "YEG_Single_Revenue": float(yeg_single_rev),
-            "YEG_Subs_Revenue":   float(yeg_sub_rev),
 
             # Totals
             "YYC_Revenue": float(yyc_revenue),
@@ -3412,10 +3339,9 @@ def render_results():
         st.markdown("### 📊 Season at a glance")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
 
-        yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
-        yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
+        yyc_tot = int(plan_df["YYC_Singles"].sum())
+        yeg_tot = int(plan_df["YEG_Singles"].sum())
         singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
-        subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
         grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
 
         total_rev  = float(plan_df["Total_Revenue"].sum())
@@ -3488,10 +3414,10 @@ def render_results():
             "FutureSeasonalityFactor","HistSeasonalityFactor",
             "Composite","Score",
             "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+            "YYC_Singles","YEG_Singles",
             "CityShare_Calgary","CityShare_Edmonton",
-            "YYC_Single_Revenue","YYC_Subs_Revenue",
-            "YEG_Single_Revenue","YEG_Subs_Revenue",
+            "YYC_Single_Revenue",
+            "YEG_Single_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
@@ -3509,9 +3435,9 @@ def render_results():
         # Integer counts / $ (tickets & money)
         int_like_rows = [
             "TicketHistory","EstimatedTickets","EstimatedTickets_Final",
-            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-            "YYC_Single_Revenue","YYC_Subs_Revenue",
-            "YEG_Single_Revenue","YEG_Subs_Revenue",
+            "YYC_Singles","YEG_Singles",
+            "YYC_Single_Revenue",
+            "YEG_Single_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
             "Prod_Expense","Net_Contribution",
@@ -3565,22 +3491,16 @@ def render_results():
     with tab_city:
         try:
             plot_df = (
-                plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
+                plan_df[["Month","YYC_Singles","YEG_Singles"]]
                 .copy()
                 .groupby("Month", as_index=False).sum()
             )
             fig, ax = plt.subplots()
             ax.bar(plot_df["Month"], plot_df["YYC_Singles"], label="YYC Singles")
-            ax.bar(plot_df["Month"], plot_df["YYC_Subs"], bottom=plot_df["YYC_Singles"], label="YYC Subs")
             ax.bar(
                 plot_df["Month"], plot_df["YEG_Singles"],
-                bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"]),
+                bottom=plot_df["YYC_Singles"],
                 label="YEG Singles"
-            )
-            ax.bar(
-                plot_df["Month"], plot_df["YEG_Subs"],
-                bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"] + plot_df["YEG_Singles"]),
-                label="YEG Subs"
             )
             ax.set_title("City split by month (stacked)")
             ax.set_xlabel("Month")

@@ -180,7 +180,8 @@ from pycaret.regression import setup, compare_models, save_model, pull
 df = pd.read_csv('data/history_city_sales.csv')
 
 # 2. Prepare target and features
-df['Total_Tickets'] = df['Single_Tickets'] + df['Subscription_Tickets']
+# Note: This app focuses on single tickets only
+df['Total_Tickets'] = df['Single Tickets - Calgary'] + df['Single Tickets - Edmonton']
 
 # 3. Setup PyCaret
 s = setup(
@@ -244,7 +245,7 @@ python scripts/calibrate_predictions.py fit --mode per_category
 Before training any model:
 
 - [ ] Verify features are from `data/modelling_dataset.csv` (not raw history)
-- [ ] Confirm no "Single Tickets", "Subscription Tickets", or "Total Tickets" columns
+- [ ] Confirm no "Single Tickets" or "Total Tickets" columns
 - [ ] Run `pytest tests/test_no_leakage_in_dataset.py` 
 - [ ] Check that only prior-season aggregates are used (e.g., `prior_total_tickets`)
 

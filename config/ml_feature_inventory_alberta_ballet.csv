@@ -17,17 +17,13 @@ Production Attributes,run_length_days,Number of days between first and last perf
 Production Attributes,pricing_tier_structure,"Representation of price zones and spread (e.g., number of tiers, premium differential).",categorical / numeric vector,to be collected,From ticketing price tables.
 Production Attributes,average_base_ticket_price,Average list price for standard adult single tickets (before fees/discounts).,numeric (float),to be collected,From ticketing price tables; summarise per city and title.
 Production Attributes,discounting_intensity_index,Share of tickets sold on promo/discount vs full price.,numeric (0–1),in development,Requires promo flag at ticket level; aggregate per title/city.
-Production Attributes,subscription_eligibility_flag,Whether production is included in subscription packages.,boolean,to be collected,From season/subscription design tables.
 Production Attributes,guest_star_flag,"Whether production features a named guest star (dancer, choreographer, band).",boolean,in development,From artistic contracts and marketing materials.
 Production Attributes,world_premiere_flag,Whether this is a world premiere / new creation.,boolean,in development,From artistic archives.
 Production Attributes,co_production_flag,Whether production is a co-production with another company.,boolean,in development,From contracts / artistic notes.
 Historical Sales Trends,single_tickets_calgary,Total single tickets sold for a title in Calgary for a given run.,numeric (int),available,history_city_sales.csv [Single Tickets - Calgary].
 Historical Sales Trends,single_tickets_edmonton,Total single tickets sold for a title in Edmonton for a given run.,numeric (int),available,history_city_sales.csv [Single Tickets - Edmonton].
-Historical Sales Trends,subscription_tickets_calgary,Total subscription tickets allocated to the title in Calgary.,numeric (int),available,history_city_sales.csv [Subscription Tickets - Calgary].
-Historical Sales Trends,subscription_tickets_edmonton,Total subscription tickets allocated to the title in Edmonton.,numeric (int),available,history_city_sales.csv [Subscription Tickets - Edmonton].
 Historical Sales Trends,total_single_tickets,Total single tickets sold across both cities.,numeric (int),available/derived,history_city_sales.csv [Total Single Tickets] or compute from city columns.
-Historical Sales Trends,total_subscription_tickets,Total subscription tickets across both cities.,numeric (int),derived,Compute from Calgary/Edmonton subscription columns.
-Historical Sales Trends,total_tickets_all,Total tickets (singles + subscriptions) across both cities.,numeric (int),derived,Key demand target candidate; combine single and subscription totals.
+Historical Sales Trends,total_tickets_all,Total tickets (singles + single tickets) across both cities.,numeric (int),derived,Key demand target candidate; combine single and single ticket totals.
 Historical Sales Trends,avg_tickets_per_performance,Average tickets sold per performance in a city.,numeric (float),in development,Requires performance_count_city; tickets / performance_count_city.
 Historical Sales Trends,load_factor,Percentage of capacity sold (tickets / theoretical capacity).,numeric (0–1),in development,Needs capacity and performance counts; useful for normalisation.
 Historical Sales Trends,prior_season_title_sales,Lagged total tickets for the same title in prior seasons.,numeric (int),in development,Join by show_title_id and season; used for recurring titles like Nutcracker.
@@ -40,7 +36,6 @@ Historical Sales Trends,channel_mix_distribution,"Distribution of sales by chann
 Historical Sales Trends,group_sales_share,Share of tickets sold via group bookings.,numeric (0–1),to be collected,From group booking flag in ticketing.
 Historical Sales Trends,comp_ticket_share,Share of complimentary tickets vs paid.,numeric (0–1),to be collected,From comp flag; important for interpreting raw ticket counts.
 Historical Sales Trends,refund_cancellation_rate,Percentage of tickets refunded or cancelled for the run.,numeric (float),to be collected,From refund transactions; may correlate with weather or health events.
-Historical Sales Trends,subscription_mix_ratio,Subscription tickets / total tickets.,numeric (0–1),derived,Compute from subscription and total tickets.
 Marketing & Promotions,marketing_campaign_id,Unique ID for the main marketing campaign associated with the production.,categorical,to be collected,From CRM / email or marketing automation tools.
 Marketing & Promotions,marketing_budget_city,Paid marketing spend allocated to the production per city.,numeric (float),to be collected,From marketing budget spreadsheets / finance.
 Marketing & Promotions,digital_ad_spend,"Total paid digital ad spend (Meta, Google, programmatic) for the run.",numeric (float),to be collected,From ad platform exports or agency reports.

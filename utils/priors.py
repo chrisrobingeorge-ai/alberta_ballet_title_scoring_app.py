@@ -7,11 +7,9 @@ from datetime import datetime
 # === learned priors (filled by learn_priors_from_history) ===
 TITLE_CITY_PRIORS: dict[str, dict[str, float]] = {}
 CATEGORY_CITY_PRIORS: dict[str, dict[str, float]] = {}
-SUBS_SHARE_BY_CATEGORY_CITY: dict[str, dict[str, float | None]] = {"Calgary": {}, "Edmonton": {}}
 
 # ---- sensible fallbacks if history is missing or too thin ----
 DEFAULT_BASE_CITY_SPLIT = {"Calgary": 0.60, "Edmonton": 0.40}  # only used as last-ditch
-_DEFAULT_SUBS_SHARE     = {"Calgary": 0.35, "Edmonton": 0.45}
 
 _CITY_BLEND_TO_PRIOR = 0.40         # how much to trust learned priors vs base
 _CITY_CLIP_RANGE     = (0.15, 0.85) # guardrails
@@ -30,7 +28,6 @@ def _find_category(df):   return _pick_col(df, ["category", "program", "genre", 
 def _find_date(df):       return _pick_col(df, ["date", "performance_date", "start_date", "order_date", "season_start"])
 def _find_total(df):      return _pick_col(df, ["total_tickets", "tickets", "qty", "units", "total"])
 def _find_singles(df):    return _pick_col(df, ["singles", "single_tickets", "single_qty", "single_units"])
-def _find_subs(df):       return _pick_col(df, ["subs", "subscriptions", "subscriber_tickets", "sub_qty", "sub_units"])
 
 def _to_datetime_safe(s: pd.Series) -> pd.Series:
     try:
@@ -71,13 +68,14 @@ def learn_priors_from_history(
     min_rows_category: int = 5,
 ) -> dict:
     """
-    Populate TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS, SUBS_SHARE_BY_CATEGORY_CITY
+    Populate TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS
     using an arbitrary history DataFrame (column names auto-detected).
+    
+    Note: This function focuses on single ticket data only.
     """
-    global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS, SUBS_SHARE_BY_CATEGORY_CITY
+    global TITLE_CITY_PRIORS, CATEGORY_CITY_PRIORS
     TITLE_CITY_PRIORS = {}
     CATEGORY_CITY_PRIORS = {}
-    SUBS_SHARE_BY_CATEGORY_CITY = {"Calgary": {}, "Edmonton": {}}
 
     if df is None or df.empty:
         return {"ok": False, "reason": "history_is_empty"}
@@ -88,7 +86,6 @@ def learn_priors_from_history(
     date_col     = _find_date(df)
     total_col    = _find_total(df)
     singles_col  = _find_singles(df)
-    subs_col     = _find_subs(df)
 
     if not city_col:
         return {"ok": False, "reason": "missing_city_column"}
@@ -115,12 +112,7 @@ def learn_priors_from_history(
         work["__tot"] = pd.to_numeric(work[total_col], errors="coerce").fillna(0.0)
     else:
         s = pd.to_numeric(work[singles_col], errors="coerce").fillna(0.0) if singles_col else 0.0
-        u = pd.to_numeric(work[subs_col],    errors="coerce").fillna(0.0) if subs_col    else 0.0
-        work["__tot"] = s + u
-
-    # singles/subs (for subscriber share priors)
-    work["__singles"] = pd.to_numeric(work[singles_col], errors="coerce").fillna(np.nan) if singles_col else np.nan
-    work["__subs"]    = pd.to_numeric(work[subs_col],    errors="coerce").fillna(np.nan) if subs_col    else np.nan
+        work["__tot"] = s
 
     # recency weights
     if date_col and recency_half_life_days:
@@ -164,32 +156,10 @@ def learn_priors_from_history(
                 C, E = _normalize_pair(c, e)
                 CATEGORY_CITY_PRIORS[str(cat)] = {"Calgary": C, "Edmonton": E}
 
-    # subscriber share by (category, city)
-    if category_col and (singles_col or subs_col):
-        sub_df = work.copy()
-        sub_df = sub_df[sub_df["__singles"].notna() | sub_df["__subs"].notna()].copy()
-        if not sub_df.empty:
-            sub_df["__singles_f"] = sub_df["__singles"].fillna(0.0)
-            sub_df["__subs_f"]    = sub_df["__subs"].fillna(0.0)
-            sub_df["__den"]       = sub_df["__singles_f"] + sub_df["__subs_f"]
-            sub_df = sub_df[sub_df["__den"] > 0].copy()
-
-            g = sub_df.groupby([sub_df[category_col], "__city"], dropna=False)
-            sums = g.apply(lambda x: (_agg_weighted_sum(x, "__subs_f"), _agg_weighted_sum(x, "__den")))
-            sums = sums.apply(pd.Series).rename(columns={0: "w_subs", 1: "w_den"}).reset_index()
-
-            for _, row in sums.iterrows():
-                cat = str(row[category_col]); city = str(row["__city"])
-                if row["w_den"] > 0:
-                    share = float(row["w_subs"] / row["w_den"])
-                    if 0.0 < share < 1.0:
-                        SUBS_SHARE_BY_CATEGORY_CITY.setdefault(city, {})[cat] = share
-
     return {
         "ok": True,
         "titles_learned": len(TITLE_CITY_PRIORS),
         "categories_learned": len(CATEGORY_CITY_PRIORS),
-        "subs_shares_learned": sum(len(v) for v in SUBS_SHARE_BY_CATEGORY_CITY.values()),
     }
 
 # ----------------- public API used by your app -----------------
@@ -210,10 +180,3 @@ def city_split_for(title: str, category: str) -> tuple[float, float]:
 
     c = _clip01(c); e = _clip01(e)
     return _normalize_pair(c, e)
-
-def subs_share_for(category: str, city: str) -> float:
-    raw = SUBS_SHARE_BY_CATEGORY_CITY.get(city, {}).get(category, None)
-    base = float(_DEFAULT_SUBS_SHARE.get(city, 0.40))
-    if raw is None or not np.isfinite(raw) or not (0.0 < float(raw) < 1.0):
-        return base
-    return float(0.30 * base + 0.70 * float(raw))

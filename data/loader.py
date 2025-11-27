@@ -207,8 +207,8 @@ def load_all_baselines(
 # =============================================================================
 # TICKET COLUMN DEFINITIONS & ACCURACY GUIDE
 # =============================================================================
-# The history_city_sales.csv file contains several ticket-related columns that
-# are often confused. Here's what each one means:
+# The history_city_sales.csv file contains single ticket data.
+# This app focuses on single ticket estimation only.
 #
 # ACTUAL DATA (from Box Office / Tessitura):
 # ------------------------------------------
@@ -217,38 +217,28 @@ def load_all_baselines(
 #    - What it is: The real number of single tickets sold in each city
 #    - Use case: Ground truth for training & validation
 #
-# 2. subscription_tickets_calgary / subscription_tickets_edmonton
-#    - Source: Actual box office sales data
-#    - What it is: Tickets sold to subscribers in each city
-#    - Use case: Ground truth for subscription analysis
-#
-# 3. total_single_tickets
+# 2. total_single_tickets
 #    - Source: Sum of single_tickets_calgary + single_tickets_edmonton
 #    - What it is: Total single tickets across both cities (ACTUAL)
 #    - Use case: Ground truth target variable for ML models
 #
-# 4. total_tickets_all (derived in data/features.py)
-#    - Source: total_single_tickets + total_subscription_tickets
-#    - What it is: ALL tickets (singles + subs) across both cities
-#    - Use case: When you need complete attendance, not just singles
-#
 # MODEL PREDICTIONS (from external model - your prior forecasting system):
 # ------------------------------------------------------------------------
-# 5. yourmodel_single_tickets_calgary / yourmodel_single_tickets_edmonton
+# 3. yourmodel_single_tickets_calgary / yourmodel_single_tickets_edmonton
 #    - Source: External forecasting model (the "YourModel" system)
 #    - What it is: PREDICTED single tickets by city from a prior model
 #    - Note: This appears to be a pre-existing forecast, not this app
 #
-# 6. yourmodel_total_single_tickets
+# 4. yourmodel_total_single_tickets
 #    - Source: Sum of YourModel predictions across cities
 #    - What it is: PREDICTED total singles from the external model
 #    - Use case: Benchmark comparison to evaluate new model accuracy
 #
 # APP-GENERATED FORECASTS (from streamlit_app.py):
 # ------------------------------------------------
-# 7. EstimatedTickets / EstimatedTickets_Final
+# 5. EstimatedTickets / EstimatedTickets_Final
 #    - Source: This Streamlit app's scoring algorithm
-#    - What it is: Predicted tickets using familiarity/motivation signals
+#    - What it is: Predicted single tickets using familiarity/motivation signals
 #    - How calculated:
 #      a) Compute Familiarity & Motivation indices (Wikipedia, Trends, etc.)
 #      b) Convert to TicketIndex using regression on historical data
@@ -265,11 +255,7 @@ def load_all_baselines(
 # | Column                        | What it Predicts | How to Assess Accuracy         |
 # |-------------------------------|------------------|--------------------------------|
 # | yourmodel_total_single_tickets| Singles (prior)  | Compare MAE vs total_single_tickets |
-# | EstimatedTickets_Final        | All tickets*     | Compare MAE vs total_single_tickets |
-# | total_tickets_all             | Derived actual   | This IS actual, not a forecast |
-#
-# * Note: EstimatedTickets_Final predicts total attendance, but if your history
-#   only has singles data (subscriptions = 0), it effectively predicts singles.
+# | EstimatedTickets_Final        | Singles          | Compare MAE vs total_single_tickets |
 #
 # To run a quick accuracy check, use the Model Validation page in the app or:
 #   - MAE = mean absolute error (lower is better)

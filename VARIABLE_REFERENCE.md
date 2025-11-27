@@ -24,8 +24,6 @@ The history file contains three categories of data:
 |--------|--------|-------------|
 | `single_tickets_calgary` | Box Office / Tessitura | Real single tickets sold in Calgary |
 | `single_tickets_edmonton` | Box Office / Tessitura | Real single tickets sold in Edmonton |
-| `subscription_tickets_calgary` | Box Office / Tessitura | Real subscription tickets in Calgary |
-| `subscription_tickets_edmonton` | Box Office / Tessitura | Real subscription tickets in Edmonton |
 | `total_single_tickets` | Calculated | Sum of single tickets across both cities (**ACTUAL**) |
 
 #### 2. **External Model Predictions** (YourModel)
@@ -37,12 +35,6 @@ The history file contains three categories of data:
 | `yourmodel_total_single_tickets` | Prior forecasting system | **PREDICTED** total singles |
 
 > **Note**: The "YourModel" columns appear to be predictions from an external/prior forecasting system—not from this Streamlit app. These can be used as a benchmark to compare against.
-
-#### 3. **Derived Columns** (Created by the App)
-
-| Column | Source | Description |
-|--------|--------|-------------|
-| `total_tickets_all` | Derived in `data/features.py` | total_single_tickets + total_subscription_tickets |
 
 ### App-Generated Forecasts
 
@@ -57,7 +49,6 @@ When you click "Score Titles" on the main page:
 | `EstimatedTickets` | Predicted tickets **before** remount decay |
 | `EstimatedTickets_Final` | Predicted tickets **after** remount decay & post-COVID adjustment |
 | `YYC_Singles` / `YEG_Singles` | City-level single ticket predictions |
-| `YYC_Subs` / `YEG_Subs` | City-level subscription predictions |
 
 #### B. Title Scoring Page (`pages/5_Title_Scoring.py`)
 
@@ -89,7 +80,6 @@ The app's forecast is built in these steps:
 | If you want... | Use this column | Notes |
 |----------------|-----------------|-------|
 | Actual past sales (singles) | `total_single_tickets` | Ground truth |
-| Actual past sales (all) | `total_tickets_all` | Includes subscriptions |
 | Prior system's forecast | `yourmodel_total_single_tickets` | Benchmark comparison |
 | ML pipeline forecast | `forecast_single_tickets` | From trained model (Title Scoring page) |
 | Rule-based forecast | `EstimatedTickets_Final` | From main scorer (after all adjustments) |

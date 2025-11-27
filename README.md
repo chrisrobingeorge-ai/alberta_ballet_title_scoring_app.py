@@ -10,7 +10,7 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 - **Multi-Factor Scoring**: Combines Wikipedia, Google Trends, YouTube, and Spotify metrics
 - **Seasonality Adjustment**: Accounts for performance timing and repeat effects
 - **City-Specific Analysis**: Separate projections for Calgary and Edmonton
-- **Revenue Forecasting**: Estimates revenue by singles vs subscriptions
+- **Revenue Forecasting**: Estimates single ticket revenue by city
 - **Marketing Budget Planning**: Recommends spend based on historical performance
 - **Season Builder**: Interactive tool to plan full seasons with financial summaries
 - **ML Feature Registry**: Config-driven feature inventory with leakage guardrails
@@ -259,7 +259,6 @@ The training pipeline includes safety checks to prevent data leakage:
 ```python
 # These columns are FORBIDDEN as predictors:
 # - Single Tickets - Calgary/Edmonton
-# - Subscription Tickets - Calgary/Edmonton
 # - Total Tickets / Total Single Tickets
 # - YourModel_* columns
 
@@ -286,7 +285,7 @@ To get started, you need these data files in the `data/` directory:
 
 | File | Purpose | Minimum Columns |
 |------|---------|-----------------|
-| `history_city_sales.csv` | Historical ticket sales | `Show Title`, `Single Tickets - Calgary`, `Single Tickets - Edmonton`, `Subscription Tickets - Calgary`, `Subscription Tickets - Edmonton` |
+| `history_city_sales.csv` | Historical ticket sales | `Show Title`, `Single Tickets - Calgary`, `Single Tickets - Edmonton` |
 | `baselines.csv` | Title signal scores | `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source` |
 
 Additionally, these config files should exist in `config/`:
