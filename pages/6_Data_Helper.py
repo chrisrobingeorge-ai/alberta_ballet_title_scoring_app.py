@@ -41,7 +41,9 @@ if base_file is not None:
     # Try to infer or create a season_year column if missing
     if "season_year" not in base_df.columns:
         if "opening_date" in base_df.columns:
-            base_df["opening_date"] = pd.to_datetime(base_df["opening_date"])
+            base_df["opening_date"] = pd.to_datetime(
+                base_df["opening_date"], errors="coerce"
+            )
             base_df["season_year"] = base_df["opening_date"].dt.year
             st.info("`season_year` column created from `opening_date`.")
         else:
@@ -104,8 +106,8 @@ def upload_and_merge_external(
         right_on=join_keys_ext,
         how="left"
     )
-    st.success(f"{label}: Merge complete. New columns added: "
-               f"{[c for c in merged.columns if c not in df_base.columns]}")
+    new_columns = list(set(merged.columns) - set(df_base.columns))
+    st.success(f"{label}: Merge complete. New columns added: {new_columns}")
     return merged
 
 
