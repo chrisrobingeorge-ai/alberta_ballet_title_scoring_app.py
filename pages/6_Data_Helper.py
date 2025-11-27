@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Maximum file size in MB
 MAX_FILE_SIZE_MB = 50
 MAX_ROWS_PER_FILE = 100000  # Maximum rows to prevent memory issues
+ERROR_MESSAGE_MAX_LENGTH = 200  # Maximum length for error messages in UI
 
 st.set_page_config(
     page_title="External Data Helper for Title Scorer",
@@ -623,12 +624,18 @@ def safe_read_csv(uploaded_file) -> tuple[Optional[pd.DataFrame], Optional[str]]
         # Reset file pointer to beginning
         uploaded_file.seek(0)
         
-        # Read CSV with low_memory=False to prevent dtype issues
-        df = pd.read_csv(uploaded_file, low_memory=False, nrows=MAX_ROWS_PER_FILE + 1)
+        # First, do a quick row count check using chunked reading to avoid loading
+        # the entire file into memory for very large files
+        uploaded_file.seek(0)
+        row_count = 0
+        for chunk in pd.read_csv(uploaded_file, chunksize=10000, usecols=[0]):
+            row_count += len(chunk)
+            if row_count > MAX_ROWS_PER_FILE:
+                return None, f"File has too many rows (>{MAX_ROWS_PER_FILE:,}). Maximum is {MAX_ROWS_PER_FILE:,} rows."
         
-        # Check if file has too many rows
-        if len(df) > MAX_ROWS_PER_FILE:
-            return None, f"File has too many rows ({len(df):,}). Maximum is {MAX_ROWS_PER_FILE:,} rows."
+        # Now read the full file since we know it's within limits
+        uploaded_file.seek(0)
+        df = pd.read_csv(uploaded_file, low_memory=False)
         
         # Check if file has any data
         if len(df) == 0:
@@ -642,7 +649,7 @@ def safe_read_csv(uploaded_file) -> tuple[Optional[pd.DataFrame], Optional[str]]
     except pd.errors.EmptyDataError:
         return None, "File appears to be empty or contains only headers."
     except pd.errors.ParserError as e:
-        error_msg = str(e)[:200]
+        error_msg = str(e)[:ERROR_MESSAGE_MAX_LENGTH]
         logger.error(f"Parser error reading {uploaded_file.name}: {error_msg}")
         return None, f"Could not parse CSV: {error_msg}"
     except UnicodeDecodeError:
@@ -651,7 +658,7 @@ def safe_read_csv(uploaded_file) -> tuple[Optional[pd.DataFrame], Optional[str]]
         gc.collect()  # Try to free memory
         return None, "File is too large and caused a memory error. Try splitting into smaller files."
     except Exception as e:
-        error_msg = str(e)[:200]
+        error_msg = str(e)[:ERROR_MESSAGE_MAX_LENGTH]
         logger.error(f"Unexpected error reading {uploaded_file.name}: {error_msg}\n{traceback.format_exc()}")
         return None, f"Unexpected error: {error_msg}"
 
@@ -714,7 +721,7 @@ def process_uploaded_file(uploaded_file, file_key: str) -> dict:
         }
         
     except Exception as e:
-        error_msg = str(e)[:200]
+        error_msg = str(e)[:ERROR_MESSAGE_MAX_LENGTH]
         logger.error(f"Error processing {file_key}: {error_msg}\n{traceback.format_exc()}")
         return {
             "df": None,
