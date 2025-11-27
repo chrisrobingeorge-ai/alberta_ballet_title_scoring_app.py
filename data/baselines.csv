@@ -22,7 +22,7 @@ Carmen,82,38,92,75,romantic_tragedy,female,external_reference,Highly recognizabl
 Carmina Burana,68,28,100,55,adult_literary_drama,female,historical,
 Charlie Chaplin,93,30,100,41,family_classic,male,historical,
 Chroma,48,14,60,38,contemporary_mixed_bill,co,external_reference,McGregor/White Stripes
-Cinderella,80,20,100,72,family_classic,female,historical,
+Cinderella,80,20,100,72,family_classic,female,historical - highest demand title
 Complexions - Lenny Kravitz,37,54,60,79,pop_ip,co,historical,
 Contact,58,22,70,55,contemporary,co,external_reference,Susan Stroman theatrical
 Contemporary Classical,65,44,90,58,contemporary_mixed_bill,co,historical,
@@ -95,7 +95,6 @@ The Lady of the Camellias,65,20,75,52,adult_literary_drama,female,external_refer
 The Leaves Are Fading,48,10,55,35,contemporary_mixed_bill,co,external_reference,Tudor romantic work
 The Little Mermaid,78,35,95,72,family_classic,female,external_reference,Disney-style family appeal
 The Merry Widow,65,30,75,36,classic_comedy,female,historical,
-The Nutcracker,95,52,100,82,family_classic,co,external_reference,Classic Christmas ballet - highest demand title
 The Snow Queen,70,28,82,58,family_classic,female,external_reference,Fairy tale classic
 The Stone Angel,57,30,60,78,adult_literary_drama,female,historical,
 The Taming of the Shrew,68,24,75,45,classic_comedy,male,external_reference,Shakespeare comedy
@@ -286,3 +285,4 @@ Whereabouts Unknown,32,38,45,63,contemporary,co,external_reference,Contemporary 
 Whipped Cream,66,44,62,66,family_classic,co,external_reference,Ratmansky confection
 Wings of Wax,35,24,52,53,contemporary,co,external_reference,Ekman Icarus theme
 Winter's Tale,70,26,70,38,romantic_tragedy,co,external_reference,Wheeldon Shakespeare
+
