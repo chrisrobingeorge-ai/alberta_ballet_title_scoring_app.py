@@ -2,6 +2,7 @@
 # - Single ticket estimation only
 # - Removes arbitrary 60/40 split; uses title→category→default fallback
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
+# - Economic sentiment factor integration for market-aware ticket estimation
 
 import io
 import math
@@ -17,6 +18,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 from textwrap import dedent
+
+# Import economic data loader functions
+try:
+    from data.loader import (
+        get_economic_sentiment_factor,
+        load_oil_prices,
+        load_unemployment_rates,
+    )
+    ECONOMIC_DATA_AVAILABLE = True
+except ImportError:
+    ECONOMIC_DATA_AVAILABLE = False
+    def get_economic_sentiment_factor(*args, **kwargs):
+        return 1.0
 
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1615,6 +1629,39 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
 # --- Post-COVID adjustment (hard-coded from audience research) ---
 POSTCOVID_FACTOR = 0.85  # 15% haircut vs pre-COVID baseline
 
+# --- Economic sentiment factor (computed from external data) ---
+# Default to 1.0 (neutral) if economic data is not available
+ECONOMIC_SENTIMENT_FACTOR = 1.0
+USE_ECONOMIC_SENTIMENT = True  # Can be toggled in UI
+
+def compute_economic_sentiment(run_date: Optional[date] = None) -> float:
+    """Compute economic sentiment factor based on oil prices and unemployment.
+    
+    Returns a factor between 0.85 and 1.10 that adjusts ticket estimates
+    based on Alberta's economic conditions.
+    """
+    if not ECONOMIC_DATA_AVAILABLE:
+        return 1.0
+    
+    try:
+        if run_date:
+            ts = pd.Timestamp(run_date)
+        else:
+            ts = pd.Timestamp.now()
+        
+        return get_economic_sentiment_factor(
+            run_date=ts,
+            city=None,  # Use Alberta-wide average
+            baseline_oil_price=60.0,
+            baseline_unemployment=6.0,
+            oil_weight=0.4,
+            unemployment_weight=0.6,
+            min_factor=0.90,
+            max_factor=1.08
+        )
+    except Exception:
+        return 1.0
+
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
@@ -2034,6 +2081,69 @@ st.caption(
     "(e.g. 0.85 = 15% haircut vs pre-COVID baseline, based on audience research)."
 )
 
+# Economic Sentiment Factor (from external economic data)
+with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
+    use_econ_sentiment = st.checkbox(
+        "Apply economic sentiment factor",
+        value=True,
+        help="Adjusts ticket estimates based on Alberta's economic indicators (oil prices, unemployment)"
+    )
+    
+    if use_econ_sentiment and ECONOMIC_DATA_AVAILABLE:
+        # Compute current economic sentiment
+        current_econ_factor = compute_economic_sentiment(None)
+        st.metric(
+            "Current Economic Sentiment",
+            f"×{current_econ_factor:.3f}",
+            delta=f"{(current_econ_factor - 1.0) * 100:+.1f}%" if current_econ_factor != 1.0 else "Neutral"
+        )
+        
+        st.caption(
+            "Economic sentiment is calculated from Alberta's oil prices and unemployment rates. "
+            "Higher oil prices and lower unemployment typically correlate with stronger discretionary spending."
+        )
+        
+        # Show underlying data if available
+        try:
+            oil_df = load_oil_prices()
+            unemp_df = load_unemployment_rates()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if not oil_df.empty:
+                    oil_df['date'] = pd.to_datetime(oil_df['date'], errors='coerce')
+                    wcs = oil_df[oil_df.get('oil_series', '') == 'WCS'].copy()
+                    if not wcs.empty:
+                        latest_oil = wcs.sort_values('date', ascending=False).head(1)
+                        if not latest_oil.empty:
+                            oil_price = latest_oil.iloc[0].get('wcs_oil_price')
+                            if oil_price is not None and pd.notna(oil_price):
+                                st.caption(f"Latest WCS oil price: ${float(oil_price):.2f} USD")
+                            else:
+                                st.caption("Latest WCS oil price: N/A")
+            with col2:
+                if not unemp_df.empty:
+                    unemp_df['date'] = pd.to_datetime(unemp_df['date'], errors='coerce')
+                    ab_unemp = unemp_df[unemp_df.get('region', '') == 'Alberta'].copy()
+                    if not ab_unemp.empty:
+                        latest_unemp = ab_unemp.sort_values('date', ascending=False).head(1)
+                        if not latest_unemp.empty:
+                            unemp_rate = latest_unemp.iloc[0].get('unemployment_rate')
+                            if unemp_rate is not None and pd.notna(unemp_rate):
+                                st.caption(f"Latest Alberta unemployment: {float(unemp_rate):.1f}%")
+                            else:
+                                st.caption("Latest Alberta unemployment: N/A")
+        except Exception:
+            pass
+            
+        economic_sentiment_factor = current_econ_factor
+    elif use_econ_sentiment:
+        st.warning("Economic data not available. Factor set to 1.0 (neutral).")
+        economic_sentiment_factor = 1.0
+    else:
+        economic_sentiment_factor = 1.0
+        st.info("Economic sentiment adjustment disabled.")
+
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
 proposed_run_date = None
 if apply_seasonality:
@@ -2308,6 +2418,7 @@ def compute_scores_and_store(
     benchmark_title,
     proposed_run_date=None,
     postcovid_factor: float = 1.0,
+    economic_sentiment_factor: float = 1.0,
 ):
     rows = []
     unknown_used_live, unknown_used_est = [], []
@@ -2573,7 +2684,10 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # 11) Remount decay + post-COVID haircut
+    # 11) Remount decay + post-COVID haircut + economic sentiment
+    # Combined adjustment = POSTCOVID_FACTOR × economic_sentiment_factor
+    combined_adjustment = float(postcovid_factor) * float(economic_sentiment_factor)
+    
     decay_pcts, decay_factors, est_after_decay = [], [], []
     today_year = datetime.utcnow().year
     for _, r in df.iterrows():
@@ -2598,7 +2712,7 @@ def compute_scores_and_store(
 
         factor = 1.0 - decay_pct
         est_after_remount = est_base * factor
-        est_final = round(est_after_remount * POSTCOVID_FACTOR)
+        est_final = round(est_after_remount * combined_adjustment)
 
         decay_pcts.append(decay_pct)
         decay_factors.append(factor)
@@ -2607,6 +2721,7 @@ def compute_scores_and_store(
     df["ReturnDecayPct"] = decay_pcts
     df["ReturnDecayFactor"] = decay_factors
     df["EstimatedTickets_Final"] = est_after_decay
+    df["EconomicSentimentFactor"] = economic_sentiment_factor  # Track the factor used
 
     # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
@@ -2705,7 +2820,8 @@ def compute_scores_and_store(
         "region": region,
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
-        "postcovid_factor": POSTCOVID_FACTOR,
+        "postcovid_factor": postcovid_factor,
+        "economic_sentiment_factor": economic_sentiment_factor,
     }
 
 # -------------------------
@@ -2718,6 +2834,7 @@ def render_results():
 
     df = R["df"]
     postcovid_factor = float(R.get("postcovid_factor", 1.0))
+    economic_sentiment_factor = float(R.get("economic_sentiment_factor", 1.0))
 
     import calendar
 
@@ -2734,6 +2851,15 @@ def render_results():
         st.info("Estimated (offline) for new titles: " + ", ".join(R["unknown_est"]))
     if R.get("unknown_live"):
         st.success("Used LIVE data for new titles: " + ", ".join(R["unknown_live"]))
+
+    # Economic and post-COVID adjustments
+    combined_factor = postcovid_factor * economic_sentiment_factor
+    if economic_sentiment_factor != 1.0:
+        st.caption(
+            f"Adjustments applied — Post-COVID: ×{postcovid_factor:.2f} · "
+            f"Economic Sentiment: ×{economic_sentiment_factor:.3f} · "
+            f"**Combined: ×{combined_factor:.3f}**"
+        )
 
     # Ticket index source mix
     if "TicketIndexSource" in df.columns:
@@ -2940,10 +3066,14 @@ def render_results():
         else:
             est_tix = np.nan
 
-        # remount decay + post-COVID haircut
+        # remount decay + post-COVID haircut + economic sentiment
+        # Compute economic sentiment for the specific run date
+        econ_factor = compute_economic_sentiment(run_date) if ECONOMIC_DATA_AVAILABLE else 1.0
+        combined_adj = POSTCOVID_FACTOR * econ_factor
+        
         decay_factor = remount_novelty_factor(title_sel, run_date)
         est_tix_raw = (est_tix if np.isfinite(est_tix) else 0) * decay_factor
-        est_tix_final = int(round(est_tix_raw * POSTCOVID_FACTOR))
+        est_tix_final = int(round(est_tix_raw * combined_adj))
 
         # --- City split (recompute for season-picked month) ---
         split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
@@ -3042,6 +3172,7 @@ def render_results():
             "YEG_Mkt_Spend": float(yeg_mkt),
             "Total_Mkt_Spend": float(total_mkt),
             "Net_Contribution": float(net_contribution),
+            "EconomicSentiment": float(econ_factor),
         })
 
     # Guard + render
@@ -3374,6 +3505,7 @@ if run:
         benchmark_title=st.session_state.get("benchmark_title", list(BASELINES.keys())[0]),
         proposed_run_date=proposed_run_date,
         postcovid_factor=postcovid_factor,
+        economic_sentiment_factor=economic_sentiment_factor,
     )
 
 if st.session_state.get("results") is not None:
