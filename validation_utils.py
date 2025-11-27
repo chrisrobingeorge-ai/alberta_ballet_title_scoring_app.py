@@ -108,18 +108,16 @@ def get_pycaret_predictions(
     Run the PyCaret model on feature_df and return a DataFrame with predictions.
 
     IMPORTANT:
-    We trained the PyCaret model on four numeric feature columns (after renaming
+    We trained the PyCaret model on two numeric feature columns (after renaming
     spaces to underscores in train_pycaret_model.py):
 
         - Single_Tickets_-_Calgary
         - Single_Tickets_-_Edmonton
-        - Subscription_Tickets_-_Calgary
-        - Subscription_Tickets_-_Edmonton
 
     This function:
     - Starts from whatever feature_df the validation page provides.
     - Renames columns (spaces -> underscores) to match training.
-    - Constructs a PyCaret input dataframe with exactly those four columns,
+    - Constructs a PyCaret input dataframe with exactly those two columns,
       creating missing ones as zeros if necessary.
     - Runs predict_model on that clean dataframe.
     - Returns the original rows plus a PyCaret_Prediction column.
@@ -140,12 +138,10 @@ def get_pycaret_predictions(
     rename_map = {c: c.replace(" ", "_") for c in py_df.columns}
     py_df = py_df.rename(columns=rename_map)
 
-    # Expected feature columns based on train_pycaret_model.py
+    # Expected feature columns based on train_pycaret_model.py (single tickets only)
     feature_cols = [
         "Single_Tickets_-_Calgary",
         "Single_Tickets_-_Edmonton",
-        "Subscription_Tickets_-_Calgary",
-        "Subscription_Tickets_-_Edmonton",
     ]
 
     # Ensure all expected feature columns exist; create missing ones as 0.0

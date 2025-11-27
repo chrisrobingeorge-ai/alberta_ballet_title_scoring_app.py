@@ -79,8 +79,6 @@ except ImportError:
 FORBIDDEN_FEATURE_PATTERNS = [
     "single_tickets",
     "single tickets",
-    "subscription_tickets",
-    "subscription tickets",
     "total_tickets",
     "total tickets",
     "total_single_tickets",

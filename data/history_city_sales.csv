@@ -1,43 +1,43 @@
-show_title,Single Tickets - Calgary,Single Tickets - Edmonton,Subscription Tickets - Calgary,Subscription Tickets - Edmonton,Total Single Tickets,YourModel_Single_Tickets_Calgary,YourModel_Single_Tickets_Edmonton,YourModel_Total_Single_Tickets
-Alice in Wonderland,4507,2029,0,0,6536,3815,1997,5812
-All of Us - Tragically Hip,"7,296","4,081",0,0,11377,4692,2738,7430
-Away We Go - Mixed Bill,938,630,0,0,1568,1390,784,2174
-Ballet BC,874,465,0,0,1339,1314,612,1926
-Ballet Boyz,1314,725,0,0,2039,2491,1179,3670
-BJM - L Cohen,"2,488","1,720",0,0,4208,2757,1643,4400
-Botero,"1,617",714,0,0,2331,1315,629,1944
-Cinderella,"7,017","4,101",0,0,11118,3964,2922,6886
-Cinderella,"7,290","5,545",0,0,12835,3964,2922,6886
-Complexions - Lenny Kravitz,"2,728","1,237",0,0,3965,2285,1127,3412
-Dance Theatre of Harlem,"2,912","1,603",0,0,4515,2001,855,2856
-Dangerous Liaisons,"2,045","1,087",0,0,3132,2430,993,3423
-Der Wolf & Rite of Spring,"1,411",845,0,0,2256,1107,604,1711
-deViate - Mixed Bill,"1,174",606,0,0,1780,1849,713,2562
-Diavolo,"4,296","2,646",0,0,6942,3497,1625,5122
-Don Quixote,"1,916","1,033",0,0,2949,1225,661,1886
-Dona Peron,"1,867",746,0,0,2613,1711,602,2313
-Dracula,"4,202","2,329",0,0,6531,3187,2088,5275
-Fiddle and the Drum - Joni Mitchell,"1,465",994,0,0,2459,2108,1257,3365
-Frankenstein,"3,885","2,868",0,0,6753,3379,1785,5164
-Giselle,"3,652","2,278",0,0,5930,2410,1565,3975
-Grimm,"2,300","1,405",0,0,3705,1833,1145,2978
-Handmaid's Tale,"2,250","1,441",0,0,3691,2270,1034,3304
-Hansel & Gretel,"2,743","1,905",0,0,4648,1915,1294,3209
-La Sylphide,"1,845",729,0,0,2574,1637,801,2438
-Midsummer Night's Dream,"1,637","1,366",0,0,3003,2365,1518,3883
-Momix,"2,781","1,605",0,0,4386,2913,1262,4175
-Nijinsky,973,619,0,0,1592,864,458,1322
-Once Upon a Time,"1,802","1,396",0,0,3198,2015,1394,3409
-Our Canada - Gordon Lightfoot,"3,574","1,729",0,0,5303,3151,1702,4853
-Phi - David Bowie,"5,114","2,742",0,0,7856,3604,2148,5752
-Shaping Sound,"5,516","3,205",0,0,8721,3305,1588,4893
-Sleeping Beauty,"4,374","3,230",0,0,7604,2640,1896,4536
-Sleeping Beauty,"2,869","2,526",0,0,5395,2640,1896,4536
-Swan Lake,"5,559","3,631",0,0,9190,3421,2280,5701
-Taj Express,"4,090","2,525",0,0,6615,3239,1522,4761
-Tango Fire,"1,994","1,264",0,0,3258,2321,1032,3353
-Trockadero,3350,2126,0,0,5476,1701,913,2614
-Unleashed - Mixed Bill,1294,706,0,0,2000,1639,925,2564
-Winter Gala,390,308,0,0,698,321,191,512
-Winter Gala,447,324,0,0,771,321,191,512
-Wizard of Oz,3338,2294,0,0,5632,2063,1435,3498
+show_title,Single Tickets - Calgary,Single Tickets - Edmonton,Total Single Tickets,YourModel_Single_Tickets_Calgary,YourModel_Single_Tickets_Edmonton,YourModel_Total_Single_Tickets
+Alice in Wonderland,4507,2029,6536,3815,1997,5812
+All of Us - Tragically Hip,7296,4081,11377,4692,2738,7430
+Away We Go - Mixed Bill,938,630,1568,1390,784,2174
+Ballet BC,874,465,1339,1314,612,1926
+Ballet Boyz,1314,725,2039,2491,1179,3670
+BJM - L Cohen,2488,1720,4208,2757,1643,4400
+Botero,1617,714,2331,1315,629,1944
+Cinderella,7017,4101,11118,3964,2922,6886
+Cinderella,7290,5545,12835,3964,2922,6886
+Complexions - Lenny Kravitz,2728,1237,3965,2285,1127,3412
+Dance Theatre of Harlem,2912,1603,4515,2001,855,2856
+Dangerous Liaisons,2045,1087,3132,2430,993,3423
+Der Wolf & Rite of Spring,1411,845,2256,1107,604,1711
+deViate - Mixed Bill,1174,606,1780,1849,713,2562
+Diavolo,4296,2646,6942,3497,1625,5122
+Don Quixote,1916,1033,2949,1225,661,1886
+Dona Peron,1867,746,2613,1711,602,2313
+Dracula,4202,2329,6531,3187,2088,5275
+Fiddle and the Drum - Joni Mitchell,1465,994,2459,2108,1257,3365
+Frankenstein,3885,2868,6753,3379,1785,5164
+Giselle,3652,2278,5930,2410,1565,3975
+Grimm,2300,1405,3705,1833,1145,2978
+Handmaid's Tale,2250,1441,3691,2270,1034,3304
+Hansel & Gretel,2743,1905,4648,1915,1294,3209
+La Sylphide,1845,729,2574,1637,801,2438
+Midsummer Night's Dream,1637,1366,3003,2365,1518,3883
+Momix,2781,1605,4386,2913,1262,4175
+Nijinsky,973,619,1592,864,458,1322
+Once Upon a Time,1802,1396,3198,2015,1394,3409
+Our Canada - Gordon Lightfoot,3574,1729,5303,3151,1702,4853
+Phi - David Bowie,5114,2742,7856,3604,2148,5752
+Shaping Sound,5516,3205,8721,3305,1588,4893
+Sleeping Beauty,4374,3230,7604,2640,1896,4536
+Sleeping Beauty,2869,2526,5395,2640,1896,4536
+Swan Lake,5559,3631,9190,3421,2280,5701
+Taj Express,4090,2525,6615,3239,1522,4761
+Tango Fire,1994,1264,3258,2321,1032,3353
+Trockadero,3350,2126,5476,1701,913,2614
+Unleashed - Mixed Bill,1294,706,2000,1639,925,2564
+Winter Gala,390,308,698,321,191,512
+Winter Gala,447,324,771,321,191,512
+Wizard of Oz,3338,2294,5632,2063,1435,3498

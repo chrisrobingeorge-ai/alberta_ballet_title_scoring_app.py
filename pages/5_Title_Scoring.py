@@ -67,14 +67,9 @@ with st.expander("📊 Understanding the Accuracy Metrics (R² and MAE)"):
 #
 # FROM HISTORICAL DATA (history_city_sales.csv):
 #   - single_tickets_calgary/edmonton: Actual single tickets sold per city
-#   - subscription_tickets_calgary/edmonton: Actual subscription tickets per city
 #   - total_single_tickets: Actual total single tickets sold (Calgary + Edmonton)
 #   - yourmodel_single_tickets_calgary/edmonton: Historical model predictions per city
 #   - yourmodel_total_single_tickets: Historical model's predicted total single tickets
-#
-# DERIVED FEATURES (computed by derive_basic_features):
-#   - total_subscription_tickets: Sum of subscription tickets across both cities
-#   - total_tickets_all: Grand total (total_single_tickets + total_subscription_tickets)
 #
 # ML MODEL OUTPUT (from score_dataframe):
 #   - forecast_single_tickets: ML model's prediction for single ticket sales

@@ -36,6 +36,8 @@
 #
 # One-time script to train a PyCaret regression model from history_city_sales.csv
 # and save it as "title_demand_model.pkl" for the Streamlit app.
+# 
+# Note: This app focuses on single ticket estimation only.
 
 import pandas as pd
 from pycaret.regression import setup, compare_models, save_model
@@ -50,14 +52,10 @@ df.columns = [c.replace(" ", "_") for c in df.columns]
 # - Show_Title
 # - Single_Tickets_-_Calgary
 # - Single_Tickets_-_Edmonton
-# - Subscription_Tickets_-_Calgary
-# - Subscription_Tickets_-_Edmonton
 
 ticket_cols = [
     "Single_Tickets_-_Calgary",
     "Single_Tickets_-_Edmonton",
-    "Subscription_Tickets_-_Calgary",
-    "Subscription_Tickets_-_Edmonton",
 ]
 
 # 3. Make sure all ticket columns are numeric and treat blanks as 0

@@ -192,7 +192,6 @@ The new training pipeline (`scripts/train_safe_model.py`) ensures no data leakag
 
 2. **Forbidden Features** (will cause assertion error if detected):
    - Single Tickets - Calgary/Edmonton
-   - Subscription Tickets - Calgary/Edmonton
    - Total Tickets columns
    - Any column matching current-run sales patterns
 

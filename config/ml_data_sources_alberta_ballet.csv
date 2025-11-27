@@ -1,5 +1,5 @@
 Data Source Name,Description,Owner,Access Method,Update Frequency,Sample File / Table
-Historical Show-Level Sales CSV,Aggregated show-level single and subscription tickets by city for Alberta Ballet productions.,Finance / Analytics,"CSV on shared drive / data lake (e.g., history_city_sales.csv).",Ad hoc / after each season load.,history_city_sales.csv
+Historical Show-Level Sales CSV,Aggregated show-level single tickets by city for Alberta Ballet productions.,Finance / Analytics,"CSV on shared drive / data lake (e.g., history_city_sales.csv).",Ad hoc / after each season load.,history_city_sales.csv
 Ticketing Transaction Database,"Performance- and ticket-level data: ticket type, price, channel, timestamps, promo codes, comps.",Ticketing / IT,Direct DB connection or API; secured credentials.,Daily / near-real-time.,"fact_tickets, dim_price_type, dim_performance."
 Ticketing Event & Production Metadata,"Setup tables for productions, seasons, venues, and capacities.",Ticketing / Artistic Admin,DB/API or scheduled CSV exports.,Updated as shows are created/edited.,"dim_production, dim_season, dim_venue."
 CRM / Customer Database,"Patron profiles, purchase history, segmentation, email permissions.",Marketing / Development,CRM UI + API or scheduled exports.,Daily/Weekly.,"customers, households, interactions."

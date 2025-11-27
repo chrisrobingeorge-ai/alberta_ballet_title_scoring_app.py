@@ -7,10 +7,7 @@ venue_capacity,N,Y,Capacity known once venue is booked; safe.
 performance_count_city,N,Y,Schedule defined pre-forecast; safe.
 single_tickets_calgary,N,Y,Historical sales from prior seasons as lagged features; never from the forecast season.
 single_tickets_edmonton,N,Y,Historical sales from prior seasons as lagged features; never from the forecast season.
-subscription_tickets_calgary,N,Y,Historical subscription data from prior seasons; safe as lagged features.
-subscription_tickets_edmonton,N,Y,Historical subscription data from prior seasons; safe as lagged features.
 total_single_tickets,N,Y,Aggregated historical single tickets; safe as lagged features.
-total_subscription_tickets,N,Y,Derived historical subscription totals; safe as lagged features.
 total_tickets_all,N,Y,Derived historical total tickets; safe as lagged features.
 prior_season_title_sales,N,Y,Construct using only seasons prior to the forecast season.
 weeks_to_80pct_sold,Y,N,Requires future sales trajectory; exclude from initial forecasting models.

@@ -14,8 +14,6 @@ import pandas as pd
 FORBIDDEN_PATTERNS = [
     "single_tickets",
     "single tickets",
-    "subscription_tickets", 
-    "subscription tickets",
     "total_tickets",
     "total tickets",
     "total_single_tickets",
@@ -61,7 +59,6 @@ def test_is_forbidden_column_function():
     assert is_forbidden_column("Single Tickets - Calgary")
     assert is_forbidden_column("single_tickets_calgary")
     assert is_forbidden_column("Total Single Tickets")
-    assert is_forbidden_column("Subscription_Tickets_-_Edmonton")
     assert is_forbidden_column("YourModel_Single_Tickets_Calgary")
     
     # These should be allowed

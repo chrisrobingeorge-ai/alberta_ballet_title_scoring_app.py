@@ -10,18 +10,11 @@ def apply_registry_renames(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def derive_basic_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create simple derived features based on registry guidance."""
+    """Create simple derived features based on registry guidance.
+    
+    Note: This app focuses on single ticket estimation only.
+    """
     out = df.copy()
-    # Example: total_subscription_tickets, total_tickets_all
-    if {"subscription_tickets_calgary", "subscription_tickets_edmonton"}.issubset(out.columns):
-        out["total_subscription_tickets"] = (
-            out["subscription_tickets_calgary"].fillna(0) +
-            out["subscription_tickets_edmonton"].fillna(0)
-        )
-    if {"total_single_tickets", "total_subscription_tickets"}.issubset(out.columns):
-        out["total_tickets_all"] = (
-            out["total_single_tickets"].fillna(0) + out["total_subscription_tickets"].fillna(0)
-        )
     return out
 
 

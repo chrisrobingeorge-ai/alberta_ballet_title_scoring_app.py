@@ -62,7 +62,7 @@ class TestDatasetBuilding:
     def test_dataset_no_leakage_columns(self, synthetic_modelling_dataset):
         """Verify no leakage columns are present."""
         forbidden_patterns = [
-            "single_tickets", "subscription_tickets", "total_tickets",
+            "single_tickets", "total_tickets",
             "yourmodel_", "_tickets_calgary", "_tickets_edmonton"
         ]
         
