@@ -509,3 +509,418 @@ def load_history_with_external_factors(
     except Exception as e:
         logger.warning(f"Failed to merge external factors: {e}. Returning history only.")
         return history
+
+
+# =============================================================================
+# ECONOMIC DATA LOADERS
+# =============================================================================
+# These functions load economic indicator files for market sentiment analysis.
+
+@lru_cache(maxsize=8)
+def _load_csv_cached(path: str, mtime: float) -> pd.DataFrame:
+    """Generic cached CSV loader with normalized column names."""
+    df = pd.read_csv(path)
+    df.columns = [
+        c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
+        for c in df.columns
+    ]
+    return df
+
+
+def load_oil_prices(
+    csv_name: str = "economics/oil_price.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load historical oil prices (WCS and WTI).
+    
+    Oil prices are a key economic indicator for Alberta's economy and can
+    influence discretionary spending patterns including arts attendance.
+    
+    Expected columns:
+    - date: Date of the price observation (YYYY-MM-DD)
+    - wcs_oil_price: Western Canadian Select price in USD
+    - oil_series: Which series (WCS or WTI)
+    
+    Args:
+        csv_name: Path to oil price CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with oil price data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Oil price file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading oil prices: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading oil prices from {path}: {e}")
+
+
+def load_unemployment_rates(
+    csv_name: str = "economics/unemployment_by_city.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load unemployment rates by city (Calgary, Edmonton, Alberta).
+    
+    Unemployment rates indicate economic health and consumer confidence,
+    which can affect arts attendance.
+    
+    Expected columns:
+    - date: Date of the observation (YYYY-MM-DD)
+    - unemployment_rate: Unemployment rate as percentage
+    - region: Geographic region (Alberta, Calgary, Edmonton, Lethbridge)
+    
+    Args:
+        csv_name: Path to unemployment CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with unemployment rate data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Unemployment file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading unemployment rates: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading unemployment rates from {path}: {e}")
+
+
+def load_segment_priors(
+    csv_name: str = "productions/segment_priors.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load segment prior weights by region and category.
+    
+    Segment priors represent the relative propensity of different audience
+    segments to attend shows of different categories. Used for segment-based
+    ticket estimation adjustments.
+    
+    Expected columns:
+    - region: Geographic region (Province, Calgary, Edmonton)
+    - category: Show category (classic_romance, family_classic, etc.)
+    - segment: Audience segment name
+    - weight: Prior weight multiplier
+    
+    Args:
+        csv_name: Path to segment priors CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with segment prior weights
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Segment priors file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading segment priors: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading segment priors from {path}: {e}")
+
+
+def load_audience_analytics(
+    csv_name: str = "audiences/live_analytics.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load audience analytics data from live event research.
+    
+    Contains demographic and behavioral data about audiences for different
+    show categories, useful for understanding audience composition.
+    
+    Args:
+        csv_name: Path to audience analytics CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with audience analytics data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Audience analytics file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading audience analytics: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading audience analytics from {path}: {e}")
+
+
+def load_past_runs(
+    csv_name: str = "productions/past_runs.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load past production run dates.
+    
+    Contains start and end dates for historical productions, useful for
+    calculating remount timing and seasonality factors.
+    
+    Expected columns:
+    - title: Show title
+    - start_date: Run start date
+    - end_date: Run end date
+    
+    Args:
+        csv_name: Path to past runs CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with past run dates
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Past runs file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Parse dates if present
+        for col in ['start_date', 'end_date']:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+        
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading past runs: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading past runs from {path}: {e}")
+
+
+# =============================================================================
+# ECONOMIC SENTIMENT CALCULATOR
+# =============================================================================
+
+def get_economic_sentiment_factor(
+    run_date: Optional["pd.Timestamp"] = None,
+    city: Optional[str] = None,
+    baseline_oil_price: float = 60.0,
+    baseline_unemployment: float = 6.0,
+    oil_weight: float = 0.4,
+    unemployment_weight: float = 0.6,
+    min_factor: float = 0.85,
+    max_factor: float = 1.10
+) -> float:
+    """Calculate an economic sentiment adjustment factor.
+    
+    Combines oil price and unemployment data to produce a multiplier
+    that can adjust ticket estimates based on economic conditions.
+    
+    Higher oil prices and lower unemployment generally correlate with
+    higher discretionary spending, which benefits arts attendance.
+    
+    Args:
+        run_date: Date of the planned show run (defaults to current date)
+        city: City for unemployment lookup (Calgary, Edmonton, or None for Alberta)
+        baseline_oil_price: Reference oil price (USD) for neutral factor
+        baseline_unemployment: Reference unemployment rate (%) for neutral factor
+        oil_weight: Weight for oil price component (0-1)
+        unemployment_weight: Weight for unemployment component (0-1)
+        min_factor: Minimum allowed factor (floor)
+        max_factor: Maximum allowed factor (ceiling)
+        
+    Returns:
+        Economic sentiment factor (1.0 = neutral, >1.0 = favorable, <1.0 = unfavorable)
+    """
+    if run_date is None:
+        run_date = pd.Timestamp.now()
+    
+    # Normalize weights
+    total_weight = oil_weight + unemployment_weight
+    if total_weight > 0:
+        oil_weight = oil_weight / total_weight
+        unemployment_weight = unemployment_weight / total_weight
+    else:
+        return 1.0
+    
+    # Get oil price data
+    oil_df = load_oil_prices()
+    oil_factor = 1.0
+    if not oil_df.empty and 'date' in oil_df.columns:
+        oil_df['date'] = pd.to_datetime(oil_df['date'], errors='coerce')
+        # Filter to WCS (Western Canadian Select - more relevant for Alberta)
+        wcs_df = oil_df[oil_df.get('oil_series', '') == 'WCS'].copy()
+        if wcs_df.empty:
+            wcs_df = oil_df.copy()
+        
+        # Find most recent price before run date
+        recent = wcs_df[wcs_df['date'] <= run_date].sort_values('date', ascending=False)
+        if not recent.empty:
+            price_col = 'wcs_oil_price' if 'wcs_oil_price' in recent.columns else recent.columns[1]
+            current_price = recent.iloc[0][price_col]
+            if pd.notna(current_price) and current_price > 0:
+                # Oil factor: higher prices = more positive sentiment
+                # Range roughly 0.8 to 1.2 based on typical oil price ranges
+                oil_factor = 0.8 + 0.4 * min(1.5, max(0.5, current_price / baseline_oil_price))
+    
+    # Get unemployment data
+    unemp_df = load_unemployment_rates()
+    unemp_factor = 1.0
+    if not unemp_df.empty and 'date' in unemp_df.columns:
+        unemp_df['date'] = pd.to_datetime(unemp_df['date'], errors='coerce')
+        
+        # Filter by city/region
+        region = city if city in ['Calgary', 'Edmonton'] else 'Alberta'
+        if 'region' in unemp_df.columns:
+            region_df = unemp_df[unemp_df['region'] == region].copy()
+        else:
+            region_df = unemp_df.copy()
+        
+        # Find most recent rate before run date
+        recent = region_df[region_df['date'] <= run_date].sort_values('date', ascending=False)
+        if not recent.empty and 'unemployment_rate' in recent.columns:
+            current_rate = recent.iloc[0]['unemployment_rate']
+            if pd.notna(current_rate) and current_rate > 0:
+                # Unemployment factor: lower rates = more positive sentiment
+                # Inverse relationship: low unemployment is good for spending
+                unemp_factor = 0.8 + 0.4 * min(1.5, max(0.5, baseline_unemployment / current_rate))
+    
+    # Combine factors with weights
+    combined = (oil_weight * oil_factor) + (unemployment_weight * unemp_factor)
+    
+    # Clip to min/max range
+    return float(max(min_factor, min(max_factor, combined)))
+
+
+def get_segment_weight(
+    region: str,
+    category: str,
+    segment: str,
+    default: float = 1.0
+) -> float:
+    """Get segment prior weight for a specific region/category/segment combination.
+    
+    Args:
+        region: Geographic region (Province, Calgary, Edmonton)
+        category: Show category (classic_romance, family_classic, etc.)
+        segment: Audience segment name
+        default: Default weight if not found
+        
+    Returns:
+        Segment weight multiplier
+    """
+    df = load_segment_priors()
+    if df.empty:
+        return default
+    
+    # Normalize inputs for matching
+    region_lower = region.lower().strip()
+    category_lower = category.lower().strip()
+    segment_lower = segment.lower().strip()
+    
+    # Try exact match first
+    mask = (
+        df['region'].str.lower().str.strip() == region_lower
+    ) & (
+        df['category'].str.lower().str.strip() == category_lower
+    ) & (
+        df['segment'].str.lower().str.strip() == segment_lower
+    )
+    
+    matches = df[mask]
+    if not matches.empty and 'weight' in matches.columns:
+        return float(matches.iloc[0]['weight'])
+    
+    # Try Province-level fallback
+    if region_lower != 'province':
+        mask = (
+            df['region'].str.lower().str.strip() == 'province'
+        ) & (
+            df['category'].str.lower().str.strip() == category_lower
+        ) & (
+            df['segment'].str.lower().str.strip() == segment_lower
+        )
+        matches = df[mask]
+        if not matches.empty and 'weight' in matches.columns:
+            return float(matches.iloc[0]['weight'])
+    
+    return default
+
+
+def get_all_segment_weights(region: str, category: str) -> dict:
+    """Get all segment weights for a region/category combination.
+    
+    Args:
+        region: Geographic region (Province, Calgary, Edmonton)
+        category: Show category
+        
+    Returns:
+        Dictionary mapping segment names to weights
+    """
+    df = load_segment_priors()
+    if df.empty:
+        return {}
+    
+    region_lower = region.lower().strip()
+    category_lower = category.lower().strip()
+    
+    # Try region-specific first
+    mask = (
+        df['region'].str.lower().str.strip() == region_lower
+    ) & (
+        df['category'].str.lower().str.strip() == category_lower
+    )
+    matches = df[mask]
+    
+    # Fallback to Province
+    if matches.empty and region_lower != 'province':
+        mask = (
+            df['region'].str.lower().str.strip() == 'province'
+        ) & (
+            df['category'].str.lower().str.strip() == category_lower
+        )
+        matches = df[mask]
+    
+    if matches.empty:
+        return {}
+    
+    return dict(zip(matches['segment'], matches['weight']))
