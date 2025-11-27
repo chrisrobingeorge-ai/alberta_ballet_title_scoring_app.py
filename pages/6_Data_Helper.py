@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Maximum file size in MB
-MAX_FILE_SIZE_MB = 50
-MAX_ROWS_PER_FILE = 100000  # Maximum rows to prevent memory issues
+MAX_FILE_SIZE_MB = 200
+MAX_ROWS_PER_FILE = 500000  # Maximum rows to prevent memory issues
 ERROR_MESSAGE_MAX_LENGTH = 200  # Maximum length for error messages in UI
 
 st.set_page_config(
