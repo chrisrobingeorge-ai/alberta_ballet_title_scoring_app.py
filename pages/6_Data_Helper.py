@@ -846,14 +846,9 @@ else:
                     new_cols = list(after_cols - before_cols)
                     merge_log.append(f"✅ Merged **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (on {', '.join(join_on)})")
                 else:
-                    # If no common join key, just concatenate columns (outer join on index)
-                    before_cols = set(merged_df.columns)
-                    for col in ext_df.columns:
-                        if col not in merged_df.columns:
-                            merged_df[col] = ext_df[col].iloc[0] if len(ext_df) > 0 else None
-                    after_cols = set(merged_df.columns)
-                    new_cols = list(after_cols - before_cols)
-                    merge_log.append(f"⚠️ Added **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (no common join key)")
+                    # If no common join key, skip this file with a warning
+                    # (Can't meaningfully merge without a common key)
+                    merge_log.append(f"⚠️ Skipped **{file_key}** ({cat_info['name']}): No common join key (year or city) found")
         
         # Handle title-based files (informational only in external mode)
         if title_based_files:

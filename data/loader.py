@@ -438,9 +438,14 @@ def load_history_with_external_factors(
         logger.info("No external factors file found. Returning history only.")
         return history
     
+    # Suffix constant for consistency
+    _MERGE_SUFFIX = "_ext"
+    
     # Auto-detect join keys if not specified
     if join_on is None:
         join_on = []
+        left_on = []
+        right_on = []
         
         # Check for year column
         history_year_col = None
@@ -452,39 +457,50 @@ def load_history_with_external_factors(
         external_year_col = "year" if "year" in external.columns else None
         
         if history_year_col and external_year_col:
-            # Need to handle different column names
-            if history_year_col != external_year_col:
-                history = history.copy()
-                history["_join_year"] = history[history_year_col]
-                external = external.copy()
-                external["_join_year"] = external[external_year_col]
-                join_on.append("_join_year")
-            else:
-                join_on.append("year")
+            left_on.append(history_year_col)
+            right_on.append(external_year_col)
         
         # Check for city column
         if "city" in history.columns and "city" in external.columns:
-            join_on.append("city")
+            left_on.append("city")
+            right_on.append("city")
+        
+        if not left_on:
+            logger.warning("No common join keys found between history and external factors.")
+            return history
+        
+        # Perform merge with potentially different column names
+        try:
+            merged = history.merge(
+                external,
+                left_on=left_on,
+                right_on=right_on,
+                how="left",
+                suffixes=("", _MERGE_SUFFIX)
+            )
+            
+            # Remove duplicate columns with the suffix
+            merged = merged.loc[:, ~merged.columns.str.endswith(_MERGE_SUFFIX)]
+            
+            logger.info(f"Merged history with external factors on {left_on}. "
+                       f"Result: {len(merged)} rows, {len(merged.columns)} columns.")
+            return merged
+            
+        except Exception as e:
+            logger.warning(f"Failed to merge external factors: {e}. Returning history only.")
+            return history
     
-    if not join_on:
-        logger.warning("No common join keys found between history and external factors.")
-        return history
-    
-    # Perform merge
+    # If join_on is explicitly provided, use it directly
     try:
         merged = history.merge(
             external,
             on=join_on,
             how="left",
-            suffixes=("", "_ext")
+            suffixes=("", _MERGE_SUFFIX)
         )
         
-        # Clean up temporary join columns
-        if "_join_year" in merged.columns:
-            merged = merged.drop(columns=["_join_year"])
-        
-        # Remove duplicate columns
-        merged = merged.loc[:, ~merged.columns.str.endswith("_ext")]
+        # Remove duplicate columns with the suffix
+        merged = merged.loc[:, ~merged.columns.str.endswith(_MERGE_SUFFIX)]
         
         logger.info(f"Merged history with external factors on {join_on}. "
                    f"Result: {len(merged)} rows, {len(merged.columns)} columns.")
