@@ -270,8 +270,8 @@ def _narrative_for_row(r: dict) -> str:
     f_season = r.get("FutureSeasonalityFactor", None)
     decay_pct = r.get("ReturnDecayPct", 0.0)
 
-    yyc = (r.get("YYC_Singles",0) or 0) + (r.get("YYC_Subs",0) or 0)
-    yeg = (r.get("YEG_Singles",0) or 0) + (r.get("YEG_Subs",0) or 0)
+    yyc = (r.get("YYC_Singles",0) or 0)
+    yeg = (r.get("YEG_Singles",0) or 0)
     c_share = r.get("CityShare_Calgary", None); e_share = r.get("CityShare_Edmonton", None)
 
     pri = r.get("PrimarySegment",""); sec = r.get("SecondarySegment","")
@@ -385,14 +385,14 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
 
         out.at["YYC Singles", col_name] = int(r.get("YYC_Singles", 0) or 0)
         out.at["YEG Singles", col_name] = int(r.get("YEG_Singles", 0) or 0)
-        out.at["YYC Total", col_name] = int(r.get("YYC_Subs", 0) or 0)
-        out.at["YEG Total", col_name] = int(r.get("YEG_Subs", 0) or 0)
+        # YYC Total no longer needed (single tickets only)
+        # YEG Total no longer needed (single tickets only)
 
         # Revenue (numeric for now; we format later)
         out.at["YYC Singles Revenue", col_name]       = float(r.get("YYC_Single_Revenue", 0) or 0)
         out.at["YEG Singles Revenue", col_name]       = float(r.get("YEG_Single_Revenue", 0) or 0)
-        out.at["YYC Single Revenue", col_name]  = float(r.get("YYC_Subs_Revenue", 0) or 0)
-        out.at["YEG Single Revenue", col_name]  = float(r.get("YEG_Subs_Revenue", 0) or 0)
+        # YYC_Subs_Revenue no longer needed (single tickets only)
+        # YEG_Subs_Revenue no longer needed (single tickets only)
         out.at["Total Revenue", col_name]             = float(r.get("Total_Revenue", 0) or 0)
 
         # Expenses (numeric for now)
@@ -733,8 +733,8 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     ### 8) Revenue & marketing spend recommendations
     **Revenue estimates**  
     - The app uses fixed **average realized ticket prices** from the last season:  
-      - YYC Singles / Subs: `YYC_SINGLE_AVG`, `YYC_SUB_AVG`  
-      - YEG Singles / Subs: `YEG_SINGLE_AVG`, `YEG_SUB_AVG`  
+      - YYC Singles: `YYC_SINGLE_AVG`  
+      - YEG Singles: `YEG_SINGLE_AVG`  
     - For each season plan (in **📅 Build a Season**), it multiplies:
       - YYC Singles / Subs counts by their YYC averages  
       - YEG Singles / Subs counts by their YEG averages  
@@ -800,7 +800,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **K_SHRINK** = `5.0`; **MINF/MAXF** = `0.90/1.15` (seasonality)  
     - **N_MIN** (per Category×Month before trusting a specific month) = `3`  
     - **DEFAULT_BASE_CITY_SPLIT** = `Calgary 0.60 / Edmonton 0.40`, **_CITY_CLIP_RANGE** = `[0.15, 0.85]`  
-    - **_DEFAULT_SUBS_SHARE** = `YYC 0.35 / YEG 0.45`, clipped to `[0.05, 0.95]`  
+    Note: This app focuses on single ticket estimation only.  
     - **Prediction clip** for ticket index: `[20, 180]`  
     - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)  
     - **DEFAULT_MARKETING_SPT_CITY**: initial city-wide per single-ticket $ before learning from marketing history (`Calgary 10 / Edmonton 8`).
@@ -2872,7 +2872,7 @@ def compute_scores_and_store(
     # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
     cal_total, edm_total = [], []
-    cal_singles, cal_subs, edm_singles, edm_subs = [], [], [], []
+    cal_singles, edm_singles = [], []
     for _, r in df.iterrows():
         title = str(r["Title"])
         cat   = str(r["Category"])
@@ -2883,26 +2883,19 @@ def compute_scores_and_store(
         cal_share.append(c_sh); edm_share.append(e_sh)
         cal_t = total * c_sh; edm_t = total * e_sh
         cal_total.append(round(cal_t)); edm_total.append(round(edm_t))
-        cal_sub_ratio = subs_share_for(cat, "Calgary")
-        edm_sub_ratio = subs_share_for(cat, "Edmonton")
-        cal_subs.append(int(round(cal_t * cal_sub_ratio)))
-        cal_singles.append(int(round(cal_t * (1.0 - cal_sub_ratio))))
-        edm_subs.append(int(round(edm_t * edm_sub_ratio)))
-        edm_singles.append(int(round(edm_t * (1.0 - edm_sub_ratio))))
+        # All tickets are single tickets (no subscription split)
+        cal_singles.append(int(round(cal_t)))
+        edm_singles.append(int(round(edm_t)))
     df["CityShare_Calgary"] = cal_share
     df["CityShare_Edmonton"] = edm_share
     df["YYC_Total"] = cal_total
     df["YEG_Total"] = edm_total
     df["YYC_Singles"] = cal_singles
-    df["YYC_Subs"] = cal_subs
     df["YEG_Singles"] = edm_singles
-    df["YEG_Subs"] = edm_subs
 
     # 13) Revenue & marketing (title-level, for table view)
     yyc_single_rev = []
-    yyc_sub_rev = []
     yeg_single_rev = []
-    yeg_sub_rev = []
     yyc_rev = []
     yeg_rev = []
     total_rev = []
@@ -2917,23 +2910,17 @@ def compute_scores_and_store(
         cat   = str(r.get("Category", ""))
 
         yyc_sing = float(r.get("YYC_Singles", 0.0) or 0.0)
-        yyc_subs = float(r.get("YYC_Subs", 0.0) or 0.0)
         yeg_sing = float(r.get("YEG_Singles", 0.0) or 0.0)
-        yeg_subs = float(r.get("YEG_Subs", 0.0) or 0.0)
 
-        # Revenue by city × type
+        # Revenue by city (single tickets only)
         ysr   = yyc_sing * YYC_SINGLE_AVG
-        ysubr = yyc_subs * YYC_SUB_AVG
         esr   = yeg_sing * YEG_SINGLE_AVG
-        esubr = yeg_subs * YEG_SUB_AVG
 
         yyc_single_rev.append(ysr)
-        yyc_sub_rev.append(ysubr)
         yeg_single_rev.append(esr)
-        yeg_sub_rev.append(esubr)
 
-        yyc_tot_r = ysr + ysubr
-        yeg_tot_r = esr + esubr
+        yyc_tot_r = ysr
+        yeg_tot_r = esr
         tot_r     = yyc_tot_r + yeg_tot_r
 
         yyc_rev.append(yyc_tot_r)
@@ -2954,9 +2941,7 @@ def compute_scores_and_store(
         total_mkt.append(yyc_m + yeg_m)
 
     df["YYC_Single_Revenue"] = yyc_single_rev
-    df["YYC_Subs_Revenue"]   = yyc_sub_rev
     df["YEG_Single_Revenue"] = yeg_single_rev
-    df["YEG_Subs_Revenue"]   = yeg_sub_rev
     df["YYC_Revenue"]        = yyc_rev
     df["YEG_Revenue"]        = yeg_rev
     df["Total_Revenue"]      = total_rev
@@ -3085,10 +3070,10 @@ def render_results():
         "Composite","Score",
         "EstimatedTickets",
         "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+        "YYC_Singles","YEG_Singles",
         "CityShare_Calgary","CityShare_Edmonton",
-        "YYC_Single_Revenue","YYC_Subs_Revenue",
-        "YEG_Single_Revenue","YEG_Subs_Revenue",
+        "YYC_Single_Revenue",
+        "YEG_Single_Revenue",
         "YYC_Revenue","YEG_Revenue","Total_Revenue",
         "YYC_Mkt_SPT","YEG_Mkt_SPT",
         "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
@@ -3125,15 +3110,11 @@ def render_results():
             "ReturnDecayPct": "{:.0%}",
             "ReturnDecayFactor": "{:.2f}",
             "YYC_Singles": "{:,.0f}",
-            "YYC_Subs": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
-            "YEG_Subs": "{:,.0f}",
             "CityShare_Calgary": "{:.0%}",
             "CityShare_Edmonton": "{:.0%}",
             "YYC_Single_Revenue": "${:,.0f}",
-            "YYC_Subs_Revenue": "${:,.0f}",
             "YEG_Single_Revenue": "${:,.0f}",
-            "YEG_Subs_Revenue": "${:,.0f}",
             "YYC_Revenue": "${:,.0f}",
             "YEG_Revenue": "${:,.0f}",
             "Total_Revenue": "${:,.0f}",
@@ -3236,32 +3217,24 @@ def render_results():
         yyc_total = est_tix_final * c_sh
         yeg_total = est_tix_final * e_sh
 
-        # s by category × city
-        yyc_sub_ratio = float(subs_share_for(cat, "Calgary"))
-        yeg_sub_ratio = float(subs_share_for(cat, "Edmonton"))
-
-        yyc_subs = int(round(yyc_total * yyc_sub_ratio))
-        yyc_singles = int(round(yyc_total * (1.0 - yyc_sub_ratio)))
-        yeg_subs = int(round(yeg_total * yeg_sub_ratio))
-        yeg_singles = int(round(yeg_total * (1.0 - yeg_sub_ratio)))
+        # All tickets are single tickets (no subscription split)
+        yyc_singles = int(round(yyc_total))
+        yeg_singles = int(round(yeg_total))
 
         # --- Recommended marketing spend (per city, based on $/ticket) ---
         spt_yyc = marketing_spt_for(title_sel, cat, "Calgary")
         spt_yeg = marketing_spt_for(title_sel, cat, "Edmonton")
-        yyc_mkt = yyc_total * spt_yyc
         # Marketing spend is benchmarked on singles only
         yyc_mkt = float(yyc_singles or 0) * float(spt_yyc or 0)
         yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
         total_mkt = float(yyc_mkt) + float(yeg_mkt)  
 
-        # --- Revenue estimates by city and ticket type ---
+        # --- Revenue estimates by city (single tickets only) ---
         yyc_single_rev = yyc_singles * YYC_SINGLE_AVG
         yeg_single_rev = yeg_singles * YEG_SINGLE_AVG
-        yyc_sub_rev = yyc_subs * YYC_SUB_AVG
-        yeg_sub_rev = yeg_subs * YEG_SUB_AVG
 
-        yyc_revenue = yyc_single_rev + yyc_sub_rev
-        yeg_revenue = yeg_single_rev + yeg_sub_rev
+        yyc_revenue = yyc_single_rev
+        yeg_revenue = yeg_single_rev
         total_revenue = yyc_revenue + yeg_revenue
 
         # Show type + production expense for budgeting
@@ -3309,17 +3282,13 @@ def render_results():
             "ReturnDecayPct": float(1.0 - decay_factor),
             "EstimatedTickets_Final": int(est_tix_final),
             "YYC_Singles": int(yyc_singles),
-            "YYC_Subs": int(yyc_subs),
             "YEG_Singles": int(yeg_singles),
-            "YEG_Subs": int(yeg_subs),
             "CityShare_Calgary": float(c_sh),
             "CityShare_Edmonton": float(e_sh),
 
-            # Revenue by city × type
+            # Revenue by city (single tickets only)
             "YYC_Single_Revenue": float(yyc_single_rev),
-            "YYC_Subs_Revenue":   float(yyc_sub_rev),
             "YEG_Single_Revenue": float(yeg_single_rev),
-            "YEG_Subs_Revenue":   float(yeg_sub_rev),
 
             # Totals
             "YYC_Revenue": float(yyc_revenue),
@@ -3380,10 +3349,9 @@ def render_results():
         st.markdown("### 📊 Season at a glance")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
 
-        yyc_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YYC_Subs"].sum())
-        yeg_tot = int(plan_df["YEG_Singles"].sum() + plan_df["YEG_Subs"].sum())
+        yyc_tot = int(plan_df["YYC_Singles"].sum())
+        yeg_tot = int(plan_df["YEG_Singles"].sum())
         singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
-        subs_tot    = int(plan_df["YYC_Subs"].sum()    + plan_df["YEG_Subs"].sum())
         grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
 
         total_rev  = float(plan_df["Total_Revenue"].sum())
@@ -3456,10 +3424,10 @@ def render_results():
             "FutureSeasonalityFactor","HistSeasonalityFactor",
             "Composite","Score",
             "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
+            "YYC_Singles","YEG_Singles",
             "CityShare_Calgary","CityShare_Edmonton",
-            "YYC_Single_Revenue","YYC_Subs_Revenue",
-            "YEG_Single_Revenue","YEG_Subs_Revenue",
+            "YYC_Single_Revenue",
+            "YEG_Single_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
@@ -3477,9 +3445,9 @@ def render_results():
         # Integer counts / $ (tickets & money)
         int_like_rows = [
             "TicketHistory","EstimatedTickets","EstimatedTickets_Final",
-            "YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs",
-            "YYC_Single_Revenue","YYC_Subs_Revenue",
-            "YEG_Single_Revenue","YEG_Subs_Revenue",
+            "YYC_Singles","YEG_Singles",
+            "YYC_Single_Revenue",
+            "YEG_Single_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
             "Prod_Expense","Net_Contribution",
@@ -3533,22 +3501,16 @@ def render_results():
     with tab_city:
         try:
             plot_df = (
-                plan_df[["Month","YYC_Singles","YYC_Subs","YEG_Singles","YEG_Subs"]]
+                plan_df[["Month","YYC_Singles","YEG_Singles"]]
                 .copy()
                 .groupby("Month", as_index=False).sum()
             )
             fig, ax = plt.subplots()
             ax.bar(plot_df["Month"], plot_df["YYC_Singles"], label="YYC Singles")
-            ax.bar(plot_df["Month"], plot_df["YYC_Subs"], bottom=plot_df["YYC_Singles"], label="YYC Subs")
             ax.bar(
                 plot_df["Month"], plot_df["YEG_Singles"],
-                bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"]),
+                bottom=plot_df["YYC_Singles"],
                 label="YEG Singles"
-            )
-            ax.bar(
-                plot_df["Month"], plot_df["YEG_Subs"],
-                bottom=(plot_df["YYC_Singles"] + plot_df["YYC_Subs"] + plot_df["YEG_Singles"]),
-                label="YEG Subs"
             )
             ax.set_title("City split by month (stacked)")
             ax.set_xlabel("Month")
