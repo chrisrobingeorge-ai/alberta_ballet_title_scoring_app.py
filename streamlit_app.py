@@ -1795,9 +1795,9 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     return fam, mot
 
 # --- Ticket priors (from CSV) ---
-# CSV: data/ticket_priors_raw.csv
+# CSV: data/history_city_sales.csv
 # Expected columns (case-insensitive):
-#   title, tickets
+#   show_title (or title), total single tickets (or tickets)
 # One row per run: multiple rows per title are allowed; we keep a list per title.
 
 TICKET_PRIORS_RAW: dict[str, list[float]] = {}
@@ -1809,43 +1809,35 @@ def _median(xs):
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
-def load_ticket_priors(path: str = "data/ticket_priors_raw.csv") -> None:
+def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
     global TICKET_PRIORS_RAW
     try:
-        df = pd.read_csv(path)
+        df = pd.read_csv(path, thousands=",")
     except Exception as e:
         st.error(f"Could not load ticket priors CSV at '{path}': {e}")
         TICKET_PRIORS_RAW = {}
         return
 
     # normalize columns
-    colmap = {c.lower().strip(): c for c in df.columns}
-    title_col = colmap.get("title")
-    tix_col = colmap.get("tickets") or colmap.get("ticket_median")
+    colmap = {c.lower().strip().replace(" ", "_").replace("-", "_"): c for c in df.columns}
+    # Support both 'show_title' (history_city_sales.csv) and 'title' (legacy)
+    title_col = colmap.get("show_title") or colmap.get("title")
+    # Support 'total_single_tickets' (history_city_sales.csv) and 'tickets' (legacy)
+    tix_col = colmap.get("total_single_tickets") or colmap.get("tickets") or colmap.get("ticket_median")
 
     if not title_col or not tix_col:
-        st.error("ticket_priors_raw.csv must have columns: 'title' and 'tickets'")
+        st.error("CSV must have title column ('show_title' or 'title') and tickets column ('Total Single Tickets', 'tickets', or 'ticket_median')")
         TICKET_PRIORS_RAW = {}
         return
 
     df[title_col] = df[title_col].astype(str).str.strip()
 
-    def _num(x):
-        try:
-            if pd.isna(x):
-                return None
-            s = str(x).strip().replace(",", "")
-            if not s:
-                return None
-            return float(s)
-        except Exception:
-            return None
-
-    df[tix_col] = df[tix_col].map(_num)
+    # Convert ticket column to numeric (handles NaN and invalid values)
+    df[tix_col] = pd.to_numeric(df[tix_col], errors="coerce")
 
     priors: dict[str, list[float]] = {}
     for title, g in df.groupby(title_col):
-        vals = [v for v in g[tix_col].tolist() if v is not None and v > 0]
+        vals = [v for v in g[tix_col].tolist() if pd.notna(v) and v > 0]
         if not vals:
             continue
         priors[str(title)] = vals

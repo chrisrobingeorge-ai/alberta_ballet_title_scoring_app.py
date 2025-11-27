@@ -141,13 +141,12 @@ See [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md) for detailed technica
 
 The app uses several CSV files in the `data/` directory:
 
-- `history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions)
+- `history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions, and ticket priors)
 - `baselines.csv` - Familiarity and motivation scores for all titles (includes both historical and reference titles)
 - `marketing_spend_per_ticket.csv` - Historical marketing spend data
 - `past_runs.csv` - Performance dates for seasonality analysis
 - `showtype_expense.csv` - Production expense by show type
 - `segment_priors.csv` - Audience segment preferences
-- `ticket_priors_raw.csv` - Historical ticket medians
 - `title_id_map.csv` - Title canonicalization mapping
 - `modelling_dataset.csv` - Generated leak-free dataset (created by scripts)
 
