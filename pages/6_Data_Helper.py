@@ -3,11 +3,13 @@
 External Data Helper for Title Scorer
 
 This Streamlit page allows users to upload external data CSVs and merge them
-with base titles data to produce model-ready feature tables for the ML pipeline.
+into a unified external factors dataset that can be used with the ML pipeline.
 
 Features:
 - Smart auto-detection of file types based on column names
 - Drag-and-drop any file and the system will identify what it is
+- Merge multiple external factor files (economic, demographic, tourism, etc.)
+- Generate ML-ready feature files without requiring base titles
 - Comprehensive instructions and templates for each data category
 """
 
@@ -548,37 +550,48 @@ st.title("🎭 External Data Helper for Alberta Ballet Title Scoring")
 # Instructions section
 with st.expander("📖 **How to Use This Tool** (Click to expand)", expanded=True):
     st.markdown("""
-### Welcome to the Smart Data Helper!
+### Welcome to the External Data Helper!
 
-This tool helps you build a complete dataset for the Title Scoring ML model by:
-1. **Automatically detecting** what type of data you upload
-2. **Merging** multiple data sources together
-3. **Validating** that your data has the right columns
+This tool helps you build external factor datasets that enhance the ML model's 
+ticket forecasting accuracy. You can:
 
-### Quick Start
-1. **Drop any CSV file** in the upload area below
-2. The system will **automatically identify** what type of data it is
-3. Review the detected category and confirm or override
-4. Repeat for all your data files
-5. Download the merged dataset
+1. **Upload external factor CSVs** (economic, demographic, tourism data, etc.)
+2. **Merge multiple data sources** into a unified dataset
+3. **Download the merged data** for use in the ML pipeline
+4. **Optionally merge with base titles** for a complete feature set
 
-### What Data Do You Need?
+### Two Workflows
+
+**Workflow A: External Factors Only (Recommended Start)**
+1. Upload your external data files (unemployment, CPI, GDP, tourism, etc.)
+2. The system will merge them by common keys (year, city)
+3. Download the merged external factors CSV
+4. Place it in the `data/` folder to enhance model predictions
+
+**Workflow B: Full Feature Merge (With Base Titles)**
+1. Upload your base titles/sales data first
+2. Upload external factor files
+3. The system merges everything into one dataset
+4. Download for complete ML model training
+
+### What Data Can You Upload?
 
 | Priority | Data Type | Purpose |
 |----------|-----------|---------|
-| **Required** | Base Titles | Your show list with sales data |
-| Recommended | Economic Indicators | Unemployment, CPI, oil prices |
-| Recommended | Demographics | City population and income |
+| Recommended | Economic Indicators | Unemployment, CPI, oil prices affect spending |
+| Recommended | Demographics | Population, income by city |
+| Optional | Tourism | Visitor activity |
+| Optional | Arts Sector | Cultural confidence index |
+| Optional | Google Trends | Search interest by title |
 | Optional | Marketing | Campaign data, ad spend |
 | Optional | Production Attributes | Venue, pricing, show type |
-| Optional | Timing/Schedule | Dates, holidays, competing events |
-| Optional | Tourism | Visitor activity |
-| Optional | Google Trends | Search interest by title |
+| Optional | Base Titles | Your show list with sales data |
 
 ### Tips
 - **Column names are flexible** – the system looks for keywords, not exact names
 - **You can upload files in any order** – the system will sort them out
 - **Partial data is OK** – upload what you have; missing data uses defaults
+- **Year column is key** – most external data merges on `year`
     """)
 
 st.markdown("---")
@@ -738,10 +751,13 @@ st.header("🔗 Step 3 – Merge Data and Download")
 if not st.session_state.uploaded_data:
     st.info("👆 Upload some files in Step 1 to begin merging.")
 else:
-    # Find base data
+    # Separate files into categories
     base_file = None
     base_df = None
     external_files = []
+    year_based_files = []  # Files that merge on year (economic, arts sector)
+    year_city_files = []   # Files that merge on year + city (demographics, tourism)
+    title_based_files = [] # Files that merge on show_title
     
     for file_key, file_info in st.session_state.uploaded_data.items():
         category = file_info.get("confirmed_category") or file_info.get("detected_category")
@@ -750,17 +766,170 @@ else:
             base_df = file_info["df"].copy()
         else:
             external_files.append((file_key, file_info, category))
+            # Categorize by join key type
+            if category in ["economic_indicators", "arts_sector"]:
+                year_based_files.append((file_key, file_info, category))
+            elif category in ["demographics", "tourism"]:
+                year_city_files.append((file_key, file_info, category))
+            elif category in ["google_trends", "marketing", "production_attributes", 
+                            "timing_schedule", "audience_donor"]:
+                title_based_files.append((file_key, file_info, category))
     
-    if base_df is None:
-        st.warning("""
-⚠️ **No base titles file detected.** 
+    # Count external files
+    external_count = len(external_files)
+    
+    # WORKFLOW DECISION
+    if base_df is None and external_count == 0:
+        st.info("👆 Upload some files in Step 1 to begin merging.")
+    
+    elif base_df is None and external_count > 0:
+        # Workflow A: External Factors Only
+        st.success(f"📊 **External Factors Mode** — {external_count} external data file(s) uploaded")
+        st.caption("Merging external factors together. These can be saved and placed in the `data/` folder to enhance model predictions.")
+        
+        # Merge year-based files first
+        merged_df = None
+        merge_log = []
+        
+        # Start with year-based data (economic, arts sector)
+        for file_key, file_info, category in year_based_files:
+            ext_df = file_info["df"]
+            cat_info = DATA_CATEGORIES.get(category)
+            
+            if merged_df is None:
+                merged_df = ext_df.copy()
+                merge_log.append(f"✅ Started with **{file_key}** ({cat_info['name']}): {len(ext_df.columns)} columns")
+            else:
+                # Merge on year
+                if "year" in merged_df.columns and "year" in ext_df.columns:
+                    before_cols = set(merged_df.columns)
+                    merged_df = merged_df.merge(
+                        ext_df,
+                        on="year",
+                        how="outer",
+                        suffixes=("", "_dup")
+                    )
+                    # Remove duplicate columns
+                    merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
+                    after_cols = set(merged_df.columns)
+                    new_cols = list(after_cols - before_cols)
+                    merge_log.append(f"✅ Merged **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (on year)")
+                else:
+                    merge_log.append(f"⚠️ Skipped **{file_key}**: Missing 'year' column for merge")
+        
+        # Add year+city based data (demographics, tourism)
+        for file_key, file_info, category in year_city_files:
+            ext_df = file_info["df"]
+            cat_info = DATA_CATEGORIES.get(category)
+            
+            if merged_df is None:
+                merged_df = ext_df.copy()
+                merge_log.append(f"✅ Started with **{file_key}** ({cat_info['name']}): {len(ext_df.columns)} columns")
+            else:
+                # Determine join keys
+                join_on = []
+                if "year" in merged_df.columns and "year" in ext_df.columns:
+                    join_on.append("year")
+                if "city" in merged_df.columns and "city" in ext_df.columns:
+                    join_on.append("city")
+                
+                if join_on:
+                    before_cols = set(merged_df.columns)
+                    merged_df = merged_df.merge(
+                        ext_df,
+                        on=join_on,
+                        how="outer",
+                        suffixes=("", "_dup")
+                    )
+                    merged_df = merged_df.loc[:, ~merged_df.columns.str.endswith("_dup")]
+                    after_cols = set(merged_df.columns)
+                    new_cols = list(after_cols - before_cols)
+                    merge_log.append(f"✅ Merged **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (on {', '.join(join_on)})")
+                else:
+                    # If no common join key, just concatenate columns (outer join on index)
+                    before_cols = set(merged_df.columns)
+                    for col in ext_df.columns:
+                        if col not in merged_df.columns:
+                            merged_df[col] = ext_df[col].iloc[0] if len(ext_df) > 0 else None
+                    after_cols = set(merged_df.columns)
+                    new_cols = list(after_cols - before_cols)
+                    merge_log.append(f"⚠️ Added **{file_key}** ({cat_info['name']}): +{len(new_cols)} columns (no common join key)")
+        
+        # Handle title-based files (informational only in external mode)
+        if title_based_files:
+            st.info(f"ℹ️ {len(title_based_files)} title-based file(s) uploaded. These require base titles data to merge. Switch to 'Full Feature Merge' workflow by uploading your base titles file.")
+        
+        # Show merge log
+        if merge_log:
+            st.subheader("📝 Merge Log")
+            for log_entry in merge_log:
+                st.write(log_entry)
+        
+        if merged_df is not None and not merged_df.empty:
+            st.markdown("---")
+            
+            # Preview merged data
+            st.subheader("📊 Preview Merged External Factors")
+            st.dataframe(merged_df.head(20), use_container_width=True)
+            st.caption(f"Total: {len(merged_df)} rows × {len(merged_df.columns)} columns")
+            
+            # Download buttons
+            col1, col2 = st.columns(2)
+            with col1:
+                csv_buffer = StringIO()
+                merged_df.to_csv(csv_buffer, index=False)
+                st.download_button(
+                    label="⬇️ Download Merged External Factors CSV",
+                    data=csv_buffer.getvalue(),
+                    file_name="external_factors_merged.csv",
+                    mime="text/csv",
+                    key="download_external_merged"
+                )
+            
+            with col2:
+                st.caption("💡 **Next Step**: Place this file in the `data/` folder as `external_factors.csv` to enhance ML predictions.")
+            
+            # Usage instructions
+            with st.expander("📋 How to Use This File with the ML Model"):
+                st.markdown("""
+### Integration Instructions
 
-Please upload a file with your show titles and sales data. It should contain 
-at least a `show_title` column, and ideally `season_year` and sales columns.
+After downloading the merged external factors file:
 
-You can also click the "Base Titles" tab above to download a template.
-        """)
+1. **Place in data folder**: Save as `data/external_factors.csv`
+
+2. **Update data loader**: The file can be loaded in `data/loader.py`:
+   ```python
+   def load_external_factors(csv_name="external_factors.csv"):
+       path = DATA_DIR / csv_name
+       if not path.exists():
+           return pd.DataFrame()
+       df = pd.read_csv(path)
+       return df
+   ```
+
+3. **Merge with history**: In your dataset builder, merge on `year` (and `city` if applicable):
+   ```python
+   history = load_history_sales()
+   external = load_external_factors()
+   if not external.empty and "year" in history.columns:
+       history = history.merge(external, on="year", how="left")
+   ```
+
+4. **Train enhanced model**: The additional features will be available for model training.
+
+### Feature Columns in This File
+                """)
+                if merged_df is not None:
+                    st.write(", ".join(merged_df.columns.tolist()))
+            
+            # Store in session state for other pages
+            st.session_state.external_factors_df = merged_df
+        else:
+            st.warning("No data to merge. Please check that your files have compatible columns.")
+    
     else:
+        # Workflow B: Full Feature Merge (With Base Titles)
         st.success(f"✅ Using **{base_file}** as base data ({len(base_df)} rows)")
         
         # Ensure season_year exists
@@ -869,6 +1038,11 @@ with st.expander("❓ Troubleshooting & FAQ"):
     st.markdown("""
 ### Common Issues
 
+**Q: Do I need to upload base titles first?**  
+A: No! You can upload external factor files (economic, demographic, etc.) first and 
+   merge them together. The system will create a combined external factors file that 
+   can enhance the ML model. If you also upload base titles, everything gets merged together.
+
 **Q: My file wasn't detected correctly**  
 A: Use the dropdown to manually select the correct category. The auto-detection 
    looks for keyword matches in column names.
@@ -891,6 +1065,12 @@ A: Make sure cities are spelled consistently (e.g., always "Calgary" not
 **Q: How do I add new years of data?**  
 A: Upload your updated files and re-run the merge. The download will include 
    all the latest data.
+
+**Q: How do I integrate the merged file with the main app?**  
+A: After downloading the merged external factors CSV:
+   1. Place it in the `data/` folder
+   2. The ML model can then use these additional features for better predictions
+   3. See the integration instructions in Step 3 for detailed code examples
 
 ### Data Sources Reference
 
