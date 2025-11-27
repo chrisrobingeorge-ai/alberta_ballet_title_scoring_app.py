@@ -1826,28 +1826,18 @@ def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
     tix_col = colmap.get("total_single_tickets") or colmap.get("tickets") or colmap.get("ticket_median")
 
     if not title_col or not tix_col:
-        st.error("history_city_sales.csv must have columns: 'show_title' and 'Total Single Tickets'")
+        st.error("CSV must have title column ('show_title' or 'title') and tickets column ('Total Single Tickets', 'tickets', or 'ticket_median')")
         TICKET_PRIORS_RAW = {}
         return
 
     df[title_col] = df[title_col].astype(str).str.strip()
 
-    def _num(x):
-        try:
-            if pd.isna(x):
-                return None
-            s = str(x).strip().replace(",", "")
-            if not s:
-                return None
-            return float(s)
-        except Exception:
-            return None
-
-    df[tix_col] = df[tix_col].map(_num)
+    # Convert ticket column to numeric (handles NaN and invalid values)
+    df[tix_col] = pd.to_numeric(df[tix_col], errors="coerce")
 
     priors: dict[str, list[float]] = {}
     for title, g in df.groupby(title_col):
-        vals = [v for v in g[tix_col].tolist() if v is not None and v > 0]
+        vals = [v for v in g[tix_col].tolist() if pd.notna(v) and v > 0]
         if not vals:
             continue
         priors[str(title)] = vals
