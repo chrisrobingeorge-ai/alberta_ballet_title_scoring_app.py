@@ -1,0 +1,23 @@
+﻿Feature,Primary Source(s),Source Type,External Link(s)
+show_title,Archtics / Ticketmaster event & production setup,Internal (Archtics/Ticketmaster),—
+show_title_id,Archtics / Ticketmaster production or event ID,Internal (Archtics/Ticketmaster),—
+production_season,Internal season-planning sheets; Archtics season codes,Internal,—
+city,Archtics / Ticketmaster performance records (venue/city fields),Internal (Archtics/Ticketmaster),—
+venue_name,Archtics / Ticketmaster venue configuration,Internal (Archtics/Ticketmaster),—
+venue_capacity,Archtics / Ticketmaster seating/manifest config,Internal (Archtics/Ticketmaster),—
+performance_count_city,Archtics / Ticketmaster performance schedule,Internal (Archtics/Ticketmaster),—
+performance_count_total,Archtics / Ticketmaster performance schedule,Internal (Archtics/Ticketmaster),—
+run_type,Internal artistic/marketing taxonomy,Internal,—
+musical_forces,"Internal production notes (orchestra vs track, etc.)",Internal,—
+score_familiarity_index,Internal expert scoring + Spotify popularity + YouTube views,Mixed (Internal + External APIs),Spotify Web API: https://developer.spotify.com/documentation/web-api YouTube Data API: https://developers.google.com/youtube/v3
+story_familiarity_index,Internal expert scoring + Google Trends search interest,Mixed (Internal + External),Google Trends UI: https://trends.google.com (API/docs/info): https://developers.google.com/trends
+production_branding_cluster,Internal clustering/segmentation work,Internal,—
+family_friendliness_flag,"Internal marketing classification (e.g., “Family Series”)",Internal,—
+run_length_days,Archtics / Ticketmaster performance schedule,Internal (Archtics/Ticketmaster),—
+pricing_tier_structure,Archtics / Ticketmaster price tables / manifests,Internal (Archtics/Ticketmaster),—
+average_base_ticket_price,Archtics / Ticketmaster pricing & sales data,Internal (Archtics/Ticketmaster),—
+discounting_intensity_index,"Archtics / Ticketmaster transaction data (promo codes, discounts)",Internal (Archtics/Ticketmaster),—
+subscription_eligibility_flag,Internal season design; Archtics subscription package setup,Internal,—
+guest_star_flag,Internal casting records; marketing copy,Internal,—
+world_premiere_flag,Internal production archives,Internal,—
+co_production_flag,Internal co-production contracts/notes,Internal,—

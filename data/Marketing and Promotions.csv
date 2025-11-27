@@ -1,0 +1,18 @@
+﻿Feature,Primary Source(s),Source Type,External Link(s)
+marketing_campaign_id,Internal campaign tracking (CRM/marketing system),Internal,—
+marketing_budget_city,Internal finance/marketing budget spreadsheets,Internal,—
+digital_ad_spend,"Meta Ads, Google Ads, other paid digital platforms",External (Commercial APIs / Ad Platforms),Meta Marketing API: https://developers.facebook.com/docs/marketing-apis/ Google Ads API: https://developers.google.com/google-ads/api
+email_campaign_count,"Email platform (e.g., Mailchimp, WordFly, Campaign Monitor, etc.)",External (Commercial platform),Mailchimp: https://mailchimp.com WordFly: https://www.wordfly.com Campaign Monitor: https://www.campaignmonitor.com
+email_impressions (sends),Email platform campaign reports,External (Commercial platform),(same as above)
+email_open_rate,Email platform analytics (opens),External (Commercial platform),(same as above)
+email_click_rate,Email platform analytics (clicks),External (Commercial platform),(same as above)
+email_to_sale_conversion_rate,Match-back between email platform and Archtics/Ticketmaster CRM,Mixed (Internal + External),Email side: see platform links above
+social_posts_count,"Native platforms or social scheduling tool (Hootsuite, Sprout, etc.)",External (Platforms / SaaS),Hootsuite: https://www.hootsuite.com Sprout Social: https://sproutsocial.com Facebook/Instagram (Meta): https://developers.facebook.com/docs/graph-api
+social_engagement_rate,"Social analytics (Meta Insights, X/Twitter, etc.)",External (APIs / analytics),Meta Graph API / Insights: https://developers.facebook.com/docs/graph-api X (Twitter) API: https://developer.x.com
+video_views_production_trailer,"YouTube, Vimeo, Meta video insights",External (Video platforms),YouTube Data API: https://developers.google.com/youtube/v3 Vimeo stats: https://developer.vimeo.com/api/reference Meta video insights: https://developers.facebook.com/docs/graph-api
+remarketing_flag,"Meta/Google Ads campaign setup (custom audiences, remarketing lists)",External (Ad platforms),Meta Ads Manager: https://www.facebook.com/business/tools/ads-manager Google Ads remarketing: https://ads.google.com/home/resources/remarketing
+out_of_home_flag,Internal media plan / agency reports,Internal,—
+media_partnership_flag,Internal promo/media partnership agreements,Internal,—
+pricing_promotion_flag,Internal promo planning + Archtics/Ticketmaster promo codes,Internal,—
+special_offer_volume,Archtics/Ticketmaster sales tagged with promo codes,Internal (Archtics/Ticketmaster),—
+campaign_start_lead_time_days,Internal marketing calendar (campaign start) + opening date,Internal,—

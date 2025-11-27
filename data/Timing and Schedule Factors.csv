@@ -1,0 +1,12 @@
+﻿Feature,Primary Source(s),Source Type,External Link(s)
+opening_date,Archtics / Ticketmaster performance schedule,Internal (Archtics/Ticketmaster),—
+closing_date,Archtics / Ticketmaster performance schedule,Internal (Archtics/Ticketmaster),—
+performance_day_of_week_distribution,Derived from performance dates in Archtics/Ticketmaster,Internal,—
+typical_performance_time,Internal performance schedule (start times),Internal,—
+weekday_vs_weekend_mix,Derived from internal schedule (day-of-week tags),Internal,—
+days_on_sale_before_opening,Ticket on-sale date vs opening (Archtics/Ticketmaster),Internal (Archtics/Ticketmaster),—
+on_sale_month,Derived from internal on-sale date,Internal,—
+overlapping_internal_events_flag,Internal season schedule (all AB productions),Internal,—
+holiday_period_flag,Run dates intersecting public holiday calendar,External (Public holidays) + Internal dates,Example Canada holidays API: https://canada-holidays.ca/api Gov’t of Canada holidays info: https://www.canada.ca/en/revenue-agency/services/tax/public-holidays.html
+school_break_overlap_flag,"Public school board calendars (Calgary, Edmonton)",External (Public school calendars) + Internal dates,Calgary Board of Education: https://cbe.ab.ca/calendar Edmonton Public Schools: https://epsb.ca/schools/schoolyearcalendar
+competing_major_event_flag,"City events & sports schedules (Stampede, NHL, concerts, etc.)",External (Event/sports data) + Internal dates,Calgary Stampede: https://www.calgarystampede.com Calgary Flames schedule: https://www.nhl.com/flames/schedule Edmonton Oilers schedule: https://www.nhl.com/oilers/schedule Tourism Calgary events: https://www.visitcalgary.com/events Explore Edmonton events: https://exploreedmonton.com/event-calendar

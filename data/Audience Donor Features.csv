@@ -1,0 +1,7 @@
+﻿Feature,Primary Source(s),Source Type,External Link(s)
+audience_age_bracket,Patron demographics in Archtics/Ticketmaster CRM; enrichment via StatsCan by postal code,Mixed (Internal + External),StatsCan dissemination by postal code / area: https://www150.statcan.gc.ca
+new_vs_returning_attendee,Patron purchase history in Archtics/Ticketmaster,Internal (Archtics/Ticketmaster),—
+subscriber_attendance_share,Subscription flags in Archtics/Ticketmaster,Internal (Archtics/Ticketmaster),—
+donor_flag,"Donor/fundraising CRM (if integrated, same patron record)",Internal,—
+donation_amount_recent,Donor CRM gift history,Internal,—
+engagement_score,"Composite of internal CRM, email metrics, web analytics (e.g., Google Analytics)",Mixed (Internal + External),Google Analytics 4: https://developers.google.com/analytics

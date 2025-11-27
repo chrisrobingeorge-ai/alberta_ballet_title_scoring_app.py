@@ -1,0 +1,11 @@
+﻿Feature,Primary Source(s),Source Type,External Link(s)
+alberta_unemployment_rate,Statistics Canada Labour Force Survey – Alberta,External (Public data),StatsCan LFS table (example): https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028703
+alberta_cpi_index,Statistics Canada Consumer Price Index – Alberta,External (Public data),CPI tables (provincial): https://www150.statcan.gc.ca/n1/en/type/data?subject_levels=2563
+alberta_real_gdp_growth_rate,Provincial economic accounts (StatsCan) or Alberta Treasury Board & Finance reports,External (Public data),Govt of Alberta economic dashboard: https://economicdashboard.alberta.ca StatsCan GDP by province: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610022201
+wti_oil_price_avg,"Historical WTI crude oil prices (EIA, Bank of Canada)",External (Public data),U.S. EIA WTI series: https://www.eia.gov/dnav/pet/pet_pri_spt_s1_d.htm Bank of Canada market data: https://www.bankofcanada.ca/rates/price-indexes/commodity-prices
+exchange_rate_cad_usd,Bank of Canada – daily/monthly USD–CAD rates,External (Public data),BoC exchange rates: https://www.bankofcanada.ca/rates/exchange
+population_city,Statistics Canada population estimates for Calgary/Edmonton (CMAs),External (Public data),Population and demographic data: https://www150.statcan.gc.ca/n1/en/type/data?subject_levels=2
+median_household_income_city,Statistics Canada Census – median household income by geography,External (Public data),Census profiles: https://www12.statcan.gc.ca/census-recensement/index-eng.cfm
+tourism_visitation_index,"Travel Alberta / municipal tourism stats (visitation, hotel occupancy)",External (Public data / industry reports),Travel Alberta research & insights: https://industry.travelalberta.com/research Example visitation trends: https://industry.travelalberta.com/research/reports
+google_trends_title_interest,Google Trends search interest for title/story keywords,External (Public tool/API),Google Trends: https://trends.google.com
+arts_sector_confidence_index,"CADAC, Canada Council, or arts-sector research reports (compiled into index)",External (Public/sector data),CADAC (Canadian Arts Data): https://www.thecadac.ca Canada Council research: https://canadacouncil.ca/research
