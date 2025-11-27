@@ -329,3 +329,183 @@ def load_all_baselines(
 # """
 #
 # =============================================================================
+
+
+# =============================================================================
+# EXTERNAL FACTORS LOADER FUNCTIONS
+# =============================================================================
+# These functions load external factor files created by the Data Helper app.
+# The merged external factors file can be used to enhance ML model predictions.
+
+@lru_cache(maxsize=8)
+def _load_external_factors_cached(path: str, mtime: float) -> pd.DataFrame:
+    """
+    Load external factors CSV with caching.
+    
+    Args:
+        path: Path to CSV file
+        mtime: File modification time (used for cache key)
+        
+    Returns:
+        DataFrame with normalized column names
+    """
+    df = pd.read_csv(path)
+    df.columns = [
+        c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
+        for c in df.columns
+    ]
+    return df
+
+
+def load_external_factors(
+    csv_name: str = "external_factors.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load merged external factors data (economic, demographic, tourism, etc.).
+    
+    This file is typically created by the Data Helper app (pages/6_Data_Helper.py).
+    It contains external factors that can enhance ML model predictions.
+    
+    Expected columns may include:
+    - year: Calendar year (key for joining)
+    - city: City name (Calgary/Edmonton) for city-specific data
+    - alberta_unemployment_rate: Provincial unemployment rate
+    - alberta_cpi_index: Consumer Price Index for Alberta
+    - alberta_real_gdp_growth_rate: GDP growth percentage
+    - wti_oil_price_avg: Average WTI oil price in USD
+    - exchange_rate_cad_usd: CAD to USD exchange rate
+    - population_city: City population
+    - median_household_income_city: Median household income
+    - tourism_visitation_index: Tourism activity index
+    - arts_sector_confidence_index: Arts sector health index
+    
+    Args:
+        csv_name: Name of the CSV file to load
+        fallback_empty: If True, return empty DataFrame on error (default True)
+        
+    Returns:
+        DataFrame with external factors data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"External factors file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_external_factors_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading external factors: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading external factors from {path}: {e}")
+
+
+def load_history_with_external_factors(
+    history_csv: str = "history_city_sales.csv",
+    external_csv: str = "external_factors.csv",
+    join_on: Optional[list] = None
+) -> pd.DataFrame:
+    """Load history sales data merged with external factors.
+    
+    This is a convenience function that combines the historical sales data
+    with external factors (economic, demographic, etc.) for enhanced modeling.
+    
+    The merge is performed on common columns:
+    - If 'year' or 'season_year' exists in both: merge on year
+    - If 'city' exists in both: additionally merge on city
+    
+    Args:
+        history_csv: Name of the history sales CSV
+        external_csv: Name of the external factors CSV
+        join_on: Optional list of columns to join on. If None, auto-detects.
+        
+    Returns:
+        DataFrame with history data merged with external factors
+    """
+    history = load_history_sales(history_csv, fallback_empty=True)
+    external = load_external_factors(external_csv, fallback_empty=True)
+    
+    if history.empty:
+        return history
+    
+    if external.empty:
+        logger.info("No external factors file found. Returning history only.")
+        return history
+    
+    # Suffix constant for consistency
+    _MERGE_SUFFIX = "_ext"
+    
+    # Auto-detect join keys if not specified
+    if join_on is None:
+        join_on = []
+        left_on = []
+        right_on = []
+        
+        # Check for year column
+        history_year_col = None
+        if "year" in history.columns:
+            history_year_col = "year"
+        elif "season_year" in history.columns:
+            history_year_col = "season_year"
+        
+        external_year_col = "year" if "year" in external.columns else None
+        
+        if history_year_col and external_year_col:
+            left_on.append(history_year_col)
+            right_on.append(external_year_col)
+        
+        # Check for city column
+        if "city" in history.columns and "city" in external.columns:
+            left_on.append("city")
+            right_on.append("city")
+        
+        if not left_on:
+            logger.warning("No common join keys found between history and external factors.")
+            return history
+        
+        # Perform merge with potentially different column names
+        try:
+            merged = history.merge(
+                external,
+                left_on=left_on,
+                right_on=right_on,
+                how="left",
+                suffixes=("", _MERGE_SUFFIX)
+            )
+            
+            # Remove duplicate columns with the suffix
+            merged = merged.loc[:, ~merged.columns.str.endswith(_MERGE_SUFFIX)]
+            
+            logger.info(f"Merged history with external factors on {left_on}. "
+                       f"Result: {len(merged)} rows, {len(merged.columns)} columns.")
+            return merged
+            
+        except Exception as e:
+            logger.warning(f"Failed to merge external factors: {e}. Returning history only.")
+            return history
+    
+    # If join_on is explicitly provided, use it directly
+    try:
+        merged = history.merge(
+            external,
+            on=join_on,
+            how="left",
+            suffixes=("", _MERGE_SUFFIX)
+        )
+        
+        # Remove duplicate columns with the suffix
+        merged = merged.loc[:, ~merged.columns.str.endswith(_MERGE_SUFFIX)]
+        
+        logger.info(f"Merged history with external factors on {join_on}. "
+                   f"Result: {len(merged)} rows, {len(merged.columns)} columns.")
+        return merged
+        
+    except Exception as e:
+        logger.warning(f"Failed to merge external factors: {e}. Returning history only.")
+        return history
