@@ -63,30 +63,30 @@ Midsummer Night’s Dream,82,46,79,47,classic_romance,male,historical,
 Momix,48,10,70,3,touring_contemporary_company,co,historical,
 Movin' Out,72,35,85,78,pop_ip,male,external_reference,Billy Joel - strong crossover
 Nijinsky,70,16,69,2,contemporary,male,historical,
-Once Upon a Time,59,32,0,87,family_classic,co,historical,
+Once Upon a Time,59,32,68,87,family_classic,co,historical,
 Onegin,72,26,82,58,romantic_tragedy,male,external_reference,Pushkin literary classic
-Opera - the Ballet,44,36,0,32,contemporary_mixed_bill,female,historical,
-Othello,81,14,0,44,adult_literary_drama,male,historical,
+Opera - the Ballet,44,36,55,32,contemporary_mixed_bill,female,historical,
+Othello,81,14,75,44,adult_literary_drama,male,historical,
 Our Canada - Gordon Lightfoot,81,58,92,72,pop_ip,co,historical,
 Paquita,52,10,62,32,classic_romance,female,external_reference,Spanish-themed classical
-Peter Pan,81,18,0,70,family_classic,male,historical,
-Phi – David Bowie,71,34,0,78,pop_ip,male,historical,
-Pinocchio,80,18,0,46,family_classic,male,historical,
+Peter Pan,81,18,90,70,family_classic,male,historical,
+Phi – David Bowie,71,34,75,78,pop_ip,male,historical,
+Pinocchio,80,18,88,46,family_classic,male,historical,
 Polyphonia,48,12,58,38,contemporary_mixed_bill,co,external_reference,Wheeldon Ligeti music
-Pulcinella,68,20,0,36,classic_comedy,male,historical,
+Pulcinella,68,20,70,36,classic_comedy,male,historical,
 Push Comes to Shove,52,14,62,42,contemporary,male,external_reference,Tharp crossover piece
 Raymonda,55,12,65,35,classic_romance,female,external_reference,Grand classical ballet
-Rite of Spring,74,28,0,43,contemporary,co,historical,
+Rite of Spring,74,28,82,43,contemporary,co,historical,
 Rodeo,54,20,68,48,pop_ip,co,external_reference,American classic with Copland
-Romeo and Juliet,86,32,0,80,romantic_tragedy,co,historical,
+Romeo and Juliet,86,32,95,80,romantic_tragedy,co,historical,
 Serenade,54,16,68,38,contemporary,co,external_reference,Neoclassical Balanchine
-Shaping Sound,49,26,0,40,touring_contemporary_company,male,historical,
+Shaping Sound,49,26,75,40,touring_contemporary_company,male,historical,
 Sinatra Suite,65,28,78,72,pop_ip,male,external_reference,Popular music crossover
 Slava's Snow Show,54,34,78,84,family_classic,male,historical,
-Sleeping Beauty,77,30,0,70,classic_romance,female,historical,
-Swan Lake,80,18,0,71,romantic_tragedy,female,historical,
-Taj Express,44,22,0,42,touring_contemporary_company,male,historical,
-Tango Fire,72,20,0,52,touring_contemporary_company,co,historical,
+Sleeping Beauty,77,30,92,70,classic_romance,female,historical,
+Swan Lake,80,18,95,71,romantic_tragedy,female,historical,
+Taj Express,44,22,72,42,touring_contemporary_company,male,historical,
+Tango Fire,72,20,78,52,touring_contemporary_company,co,historical,
 The Catherine Wheel,48,12,58,38,contemporary,female,external_reference,Tharp theatrical work
 The Firebird,74,22,85,48,romantic_tragedy,female,external_reference,Stravinsky ballet - strong visual appeal
 The Four Temperaments,48,12,55,30,contemporary,co,external_reference,Abstract neoclassical
@@ -94,195 +94,195 @@ The Great Gatsby (2024),85,32,92,68,adult_literary_drama,male,external_reference
 The Lady of the Camellias,65,20,75,52,adult_literary_drama,female,external_reference,French literary drama
 The Leaves Are Fading,48,10,55,35,contemporary_mixed_bill,co,external_reference,Tudor romantic work
 The Little Mermaid,78,35,95,72,family_classic,female,external_reference,Disney-style family appeal
-The Merry Widow,65,30,0,36,classic_comedy,female,historical,
+The Merry Widow,65,30,75,36,classic_comedy,female,historical,
 The Nutcracker,95,52,100,82,family_classic,co,external_reference,Classic Christmas ballet - highest demand title
 The Snow Queen,70,28,82,58,family_classic,female,external_reference,Fairy tale classic
-The Stone Angel,57,30,0,78,adult_literary_drama,female,historical,
+The Stone Angel,57,30,60,78,adult_literary_drama,female,historical,
 The Taming of the Shrew,68,24,75,45,classic_comedy,male,external_reference,Shakespeare comedy
 The Times They Are A-Changin',60,25,72,68,pop_ip,co,external_reference,Bob Dylan music
 The Two Pigeons,52,12,60,35,classic_romance,co,external_reference,Romantic story ballet
 The Vertiginous Thrill of Exactitude,46,12,55,32,contemporary_mixed_bill,co,external_reference,Forsythe neoclassical
 Theme and Variations,50,14,58,34,contemporary_mixed_bill,co,external_reference,Balanchine bravura
-Trockadero,56,20,0,59,touring_contemporary_company,male,historical,
-Unleashed – Mixed Bill,54,44,0,64,contemporary_mixed_bill,co,historical,
+Trockadero,56,20,80,59,touring_contemporary_company,male,historical,
+Unleashed – Mixed Bill,54,44,60,64,contemporary_mixed_bill,co,historical,
 West Side Story Suite,78,42,92,82,pop_ip,co,external_reference,Bernstein classic - high recognition
 Who Cares?,56,22,72,55,pop_ip,co,external_reference,Gershwin music - crossover appeal
 Winter Dreams,55,14,65,42,contemporary,female,external_reference,Chekhov-inspired
-Winter Gala,74,22,0,41,contemporary_mixed_bill,co,historical,
+Winter Gala,74,22,65,41,contemporary_mixed_bill,co,historical,
 Within the Golden Hour,52,15,65,45,contemporary_mixed_bill,co,external_reference,Wheeldon abstract
-Wizard of Oz,60,30,0,64,family_classic,female,historical,
+Wizard of Oz,60,30,85,64,family_classic,female,historical,
 Woolf Works,52,16,65,42,contemporary,female,external_reference,McGregor Virginia Woolf
 deViate - Mixed Bill,77,40,70,64,contemporary_mixed_bill,co,historical,
-A Month in the Country,59,44,0,70,romantic_tragedy,female,external_reference,Ashton romantic ballet
-Adagio Hammerklavier,26,40,0,45,contemporary,co,external_reference,Van Manen abstract work
-AftA,35,8,0,82,contemporary,co,external_reference,Contemporary work
-Afternoon of a Faun,56,38,0,80,contemporary,male,external_reference,Robbins/Nijinsky classic
-Agon,58,3,0,65,contemporary,co,external_reference,Balanchine neoclassical
-Allegro Brillante,37,34,0,52,contemporary,co,external_reference,Balanchine neoclassical
-Anastasia,65,56,0,66,adult_literary_drama,female,external_reference,MacMillan dramatic ballet
-Angels' Atlas,33,26,0,61,contemporary,co,external_reference,Pite contemporary
-Anna Karenina,82,3,0,68,adult_literary_drama,female,external_reference,Tolstoy literary classic
-Approximate Sonata,45,36,0,44,contemporary,co,external_reference,Forsythe abstract
-Artifact Suite,58,28,0,45,contemporary,co,external_reference,Forsythe abstract work
-Autobiography,72,47,0,58,contemporary,co,external_reference,Contemporary work
-Ballet Imperial,60,2,0,37,contemporary,co,external_reference,Balanchine neoclassical
-Bella Figura,39,24,0,72,contemporary,co,external_reference,Kylián contemporary
-Betroffenheit,53,26,0,6,contemporary,co,external_reference,Pite/Young theatrical
-Birthday Offering,29,34,0,38,contemporary,co,external_reference,Ashton celebration piece
-Black Cake,70,47,0,61,contemporary,co,external_reference,Contemporary work
-Blake Works,38,22,0,34,contemporary,co,external_reference,Forsythe/James Blake
-Blanche Neige,39,26,0,45,family_classic,female,external_reference,French Snow White
-Body and Soul,75,7,0,84,contemporary,co,external_reference,Pite contemporary
-Brandenburg,74,3,0,45,contemporary,co,external_reference,Bach music ballet
-Carbon Life,60,3,0,45,contemporary,co,external_reference,McGregor contemporary
-Charlotte's Web,77,30,0,47,family_classic,female,external_reference,E.B. White children's classic
-Chopiniana,57,20,0,47,romantic_tragedy,female,external_reference,Romantic era ballet
-Concerto (MacMillan),17,40,0,42,contemporary,co,external_reference,MacMillan neoclassical
-Concerto Barocco,39,32,0,54,contemporary,co,external_reference,Balanchine neoclassical
-Concerto DSCH,30,26,0,56,contemporary,co,external_reference,Ratmansky neoclassical
-Dances at a Gathering,40,42,0,74,contemporary,co,external_reference,Robbins Chopin ballet
-Daphnis and Chloé,61,34,0,47,romantic_tragedy,co,external_reference,Greek mythology ballet
-Dark Matters,82,24,0,47,contemporary,co,external_reference,Pite theatrical work
-Death in Venice,70,2,0,74,adult_literary_drama,male,external_reference,Thomas Mann adaptation
-Deep Field,63,4,0,48,contemporary,co,external_reference,Contemporary work
-Divertimento No. 15,13,38,0,85,contemporary,co,external_reference,Balanchine neoclassical
-Duende,71,2,0,74,contemporary,co,external_reference,Nacho Duato Spanish
-Dybbuk,71,12,0,63,adult_literary_drama,co,external_reference,Robbins Jewish folklore
-Elite Syncopations,42,2,0,27,contemporary,co,external_reference,MacMillan ragtime
-Emergence,71,9,0,75,contemporary,co,external_reference,Pite contemporary
-Enemy in the Figure,80,38,0,67,contemporary,co,external_reference,Forsythe abstract
-Enigma Variations,67,34,0,53,adult_literary_drama,co,external_reference,Ashton character ballet
-Episodes,40,70,0,49,contemporary,co,external_reference,Balanchine/Graham work
-Etudes (Lander),40,2,0,38,contemporary,co,external_reference,Lander classical showcase
-Façade,70,2,0,46,classic_comedy,co,external_reference,Ashton comedic work
-Falling Angels,57,28,0,64,contemporary,female,external_reference,Kylián contemporary
-Fancy Free,67,2,0,70,contemporary,male,external_reference,Robbins American ballet
-Five Tangos,36,2,0,11,contemporary,co,external_reference,Van Manen tango work
-Flight Pattern,35,3,0,53,contemporary,co,external_reference,Pite refugee narrative
-Flower Festival in Genzano,38,52,0,50,classic_romance,co,external_reference,Bournonville pas de deux
-Forgotten Land (Kylián),48,46,0,84,contemporary,co,external_reference,Kylián dramatic
-Four Seasons (Kudelka),37,44,0,78,contemporary,co,external_reference,Kudelka Vivaldi
-Glass Pieces,39,3,0,56,contemporary,co,external_reference,Robbins minimalist
-Gloria (MacMillan),32,36,0,57,contemporary,co,external_reference,MacMillan WWI tribute
-Goldberg Variations,68,2,0,63,contemporary,co,external_reference,Robbins Bach work
-Gone (Rhoden),38,26,0,50,contemporary,co,external_reference,Rhoden contemporary
-Grand Pas de Deux Esmeralda,55,54,0,41,classic_romance,female,external_reference,Classical showpiece
-Grosse Fuge,57,22,0,52,contemporary,co,external_reference,Van Manen Beethoven
-Harlequinade,62,24,0,53,classic_comedy,co,external_reference,Balanchine commedia
-Herman Schmerman,54,2,0,0,contemporary,co,external_reference,Forsythe comedic
-Illuminations,30,2,0,47,contemporary,co,external_reference,Ashton Britten work
-In G Major,69,4,0,78,contemporary,co,external_reference,Robbins neoclassical
-In the Night,24,76,0,100,contemporary,co,external_reference,Robbins romantic
-In This Vessel,52,2,0,58,contemporary,co,external_reference,Contemporary work
-Initials R.B.M.E.,22,34,0,63,contemporary,co,external_reference,Cranko tribute work
-Interplay,69,4,0,68,contemporary,co,external_reference,Robbins jazz ballet
-Jardí Tancat,56,24,0,24,contemporary,co,external_reference,Nacho Duato Catalan
-Jewels: Diamonds,61,2,0,71,contemporary,co,external_reference,Balanchine Jewels
-Jewels: Emeralds,52,32,0,53,contemporary,co,external_reference,Balanchine Jewels
-Jewels: Rubies,52,28,0,36,contemporary,co,external_reference,Balanchine Jewels
-Khepera,67,14,0,37,contemporary,co,external_reference,Contemporary work
-La Boutique fantasque,48,42,0,62,classic_comedy,co,external_reference,Massine comedic
-La Esmeralda,26,24,0,41,romantic_tragedy,female,external_reference,Petipa classical
-La Source,38,3,0,62,classic_romance,female,external_reference,Classical ballet
-La Valse,54,16,0,64,contemporary,co,external_reference,Balanchine Ravel
-La Vivandière,35,26,0,32,classic_comedy,female,external_reference,Bournonville classical
-Las Hermanas,13,24,0,43,adult_literary_drama,female,external_reference,MacMillan Spanish
-Le Baiser de la fée,46,38,0,21,romantic_tragedy,female,external_reference,Stravinsky fairy tale
-Le Jeune Homme et la Mort,41,50,0,13,adult_literary_drama,male,external_reference,Petit existential
-Le Parc,23,2,0,49,contemporary,co,external_reference,Preljocaj romantic
-Les Patineurs,52,26,0,39,classic_comedy,co,external_reference,Ashton skating ballet
-Les Présages,23,24,0,51,contemporary,co,external_reference,Massine symphonic
-Les Rendezvous,30,28,0,55,classic_comedy,co,external_reference,Ashton divertissement
-Liebeslieder Walzer,38,38,0,50,contemporary,co,external_reference,Balanchine Brahms
-Liliom,54,12,0,49,adult_literary_drama,male,external_reference,Wheeldon Molnár
-Limb's Theorem,54,28,0,2,contemporary,co,external_reference,Forsythe abstract
-Limen,48,10,0,63,contemporary,co,external_reference,McGregor contemporary
-Minus 16,100,3,0,51,contemporary,co,external_reference,Naharin eclectic
-Misericordes,26,24,0,33,contemporary,co,external_reference,Wheeldon contemporary
-Monotones I,28,22,0,52,contemporary,co,external_reference,Ashton Satie
-Monotones II,28,24,0,52,contemporary,co,external_reference,Ashton Satie
-Movements for Piano and Orchestra,36,66,0,52,contemporary,co,external_reference,Balanchine Stravinsky
-Multiplicity – Forms of Silence and Emptiness,46,2,0,33,contemporary,co,external_reference,Nacho Duato Bach
-Na Floresta,51,22,0,57,contemporary,co,external_reference,Naharin contemporary
-No More Play,79,5,0,99,contemporary,co,external_reference,Kylián contemporary
-Odessa,77,51,0,69,contemporary,co,external_reference,Contemporary work
-On the Dnieper,71,28,0,100,romantic_tragedy,co,external_reference,Ratmansky Prokofiev
-Ondine,46,2,0,55,romantic_tragedy,female,external_reference,Ashton water nymph
-"One Flat Thing, Reproduced",54,52,0,78,contemporary,co,external_reference,Forsythe abstract
-Other Dances,31,24,0,40,contemporary,co,external_reference,Robbins Chopin
-Pas/Parts,64,18,0,45,contemporary,co,external_reference,Forsythe abstract
-Peer Gynt,72,3,0,61,adult_literary_drama,male,external_reference,Ibsen literary work
-Peter and the Wolf,72,3,0,48,family_classic,male,external_reference,Prokofiev children's classic
-Petite Mort,71,22,0,55,contemporary,co,external_reference,Kylián Mozart
-Petrouchka,66,20,0,56,adult_literary_drama,male,external_reference,Stravinsky/Fokine classic
-Poème de l'extase,52,34,0,20,contemporary,co,external_reference,Cranko Scriabin
-Polovtsian Dances,60,34,0,52,contemporary,co,external_reference,Fokine opera excerpt
-Prodigal Son,78,7,0,74,adult_literary_drama,male,external_reference,Balanchine biblical
-Puss in Boots,73,24,0,55,family_classic,male,external_reference,Children's fairy tale
-Remanso,29,14,0,41,contemporary,co,external_reference,Nacho Duato Spanish
-Requiem (MacMillan),29,38,0,66,contemporary,co,external_reference,MacMillan Fauré
-Requiem for a Rose,59,36,0,66,contemporary,co,external_reference,Contemporary work
-Rhapsody,53,57,0,75,contemporary,co,external_reference,Ashton Rachmaninoff
-Russian Seasons,32,30,0,36,contemporary,co,external_reference,Ratmansky contemporary
-Scenes de Ballet,25,32,0,69,contemporary,co,external_reference,Ashton Stravinsky
-Sechs Tänze,78,2,0,25,classic_comedy,co,external_reference,Kylián Mozart comedy
-Secus,30,10,0,4,contemporary,co,external_reference,Naharin contemporary
-Seven Sonatas,74,26,0,42,contemporary,co,external_reference,Pite Scarlatti
-Shostakovich Trilogy,80,2,0,54,contemporary,co,external_reference,Ratmansky Shostakovich
-Sinfonietta,39,22,0,34,contemporary,co,external_reference,Kylián Janáček
-Sleepless,79,7,0,70,adult_literary_drama,co,external_reference,Contemporary work
-Snow White,80,11,0,67,family_classic,female,external_reference,Fairy tale classic
-Solo,55,59,0,83,contemporary,co,external_reference,Contemporary work
-Spartacus,83,20,0,55,adult_literary_drama,male,external_reference,Grigorovich epic
-Square Dance,64,3,0,62,contemporary,co,external_reference,Balanchine neoclassical
-Stepping Stones,50,30,0,49,contemporary,co,external_reference,Kylián contemporary
-Stravinsky Violin Concerto,49,52,0,42,contemporary,co,external_reference,Balanchine Stravinsky
-Sylvia,46,71,0,60,classic_romance,female,external_reference,Classical mythology
-Symphonic Variations (Ashton),36,58,0,43,contemporary,co,external_reference,Ashton abstract
-Symphony in C,24,26,0,79,contemporary,co,external_reference,Balanchine neoclassical
-Symphony in Three Movements,43,2,0,38,contemporary,co,external_reference,Balanchine Stravinsky
-Symphony of Psalms,52,36,0,33,contemporary,co,external_reference,Kylián spiritual
-Tarantella,65,4,0,66,contemporary,co,external_reference,Balanchine showcase
-Tchaikovsky Pas de Deux,52,2,0,62,classic_romance,co,external_reference,Balanchine classical
-Thais Pas de Deux,38,34,0,60,classic_romance,co,external_reference,Classical showpiece
-The Age of Anxiety,57,36,0,47,contemporary,co,external_reference,Robbins Bernstein
-The Bright Stream,46,34,0,60,classic_comedy,co,external_reference,Ratmansky Soviet comedy
-The Bronze Horseman,62,38,0,79,adult_literary_drama,male,external_reference,Pushkin literary
-The Cage,31,69,0,44,contemporary,female,external_reference,Robbins dramatic
-The Concert,33,23,0,70,classic_comedy,co,external_reference,Robbins comedic
-The Contract,75,52,0,73,contemporary,co,external_reference,Contemporary work
-The Dream,74,70,0,64,classic_romance,co,external_reference,Ashton Shakespeare
-The Fiddle and the Drum,44,2,0,35,pop_ip,co,external_reference,Joni Mitchell music
-The Flames of Paris,57,38,0,42,adult_literary_drama,co,external_reference,Revolutionary drama
-The Fountain of Bakhchisarai,40,56,0,94,romantic_tragedy,female,external_reference,Pushkin romantic
-The Four Seasons (Robbins),51,52,0,78,contemporary,co,external_reference,Robbins Vivaldi
-The Frog Prince,69,2,0,42,family_classic,male,external_reference,Fairy tale classic
-The Golden Age,72,9,0,74,adult_literary_drama,co,external_reference,Grigorovich Soviet
-The Invitation,42,29,0,59,adult_literary_drama,female,external_reference,MacMillan dramatic
-The Jungle Book,76,4,0,60,family_classic,male,external_reference,Kipling children's classic
-The Little Humpbacked Horse,34,54,0,82,family_classic,male,external_reference,Russian fairy tale
-The Man in Black,38,6,0,90,contemporary,male,external_reference,Contemporary work
-The Pharaoh's Daughter,68,44,0,49,classic_romance,female,external_reference,Petipa Egyptian
-The Pied Piper,80,2,0,70,family_classic,male,external_reference,Folk tale classic
-The Prince & the Pauper,68,46,0,55,family_classic,male,external_reference,Mark Twain classic
-The Red Poppy,48,2,0,49,adult_literary_drama,female,external_reference,Soviet ballet classic
-The Red Shoes,73,3,0,90,adult_literary_drama,female,external_reference,Bourne fairy tale
-The Rite of Spring,74,2,0,43,contemporary,co,external_reference,Stravinsky revolutionary
-The Seagull,71,2,0,49,adult_literary_drama,female,external_reference,Chekhov adaptation
-The Seasons' Canon,41,36,0,84,contemporary,co,external_reference,Pite Vivaldi
-The Secret Garden,79,8,0,72,family_classic,female,external_reference,Burnett children's classic
-The Sleeping Beauty,77,4,0,82,classic_romance,female,external_reference,Petipa classical
-The Snow Maiden,55,30,0,33,romantic_tragedy,female,external_reference,Russian folk tale
-The Steadfast Tin Soldier,63,50,0,20,family_classic,male,external_reference,Andersen fairy tale
-The Two of Us,33,26,0,92,contemporary,co,external_reference,Contemporary work
-Third Symphony of Gustav Mahler,65,62,0,29,contemporary,co,external_reference,Neumeier symphonic
-Trois Gnossiennes,67,34,0,27,contemporary,co,external_reference,Van Manen Satie
-Valse Fantaisie,70,30,0,48,contemporary,co,external_reference,Balanchine Glinka
-Variations Sérieuses,43,40,0,57,contemporary,co,external_reference,Van Manen Mendelssohn
-Vienna Waltzes,50,28,0,45,contemporary,co,external_reference,Balanchine waltz
-Watermill,66,18,0,73,contemporary,male,external_reference,Robbins meditative
-Western Symphony,33,32,0,79,contemporary,co,external_reference,Balanchine Americana
-Whereabouts Unknown,32,38,0,63,contemporary,co,external_reference,Contemporary work
-Whipped Cream,66,44,0,66,family_classic,co,external_reference,Ratmansky confection
-Wings of Wax,35,24,0,53,contemporary,co,external_reference,Ekman Icarus theme
-Winter's Tale,70,26,0,38,romantic_tragedy,co,external_reference,Wheeldon Shakespeare
+A Month in the Country,59,44,65,70,romantic_tragedy,female,external_reference,Ashton romantic ballet
+Adagio Hammerklavier,26,40,55,45,contemporary,co,external_reference,Van Manen abstract work
+AftA,35,8,45,82,contemporary,co,external_reference,Contemporary work
+Afternoon of a Faun,56,38,72,80,contemporary,male,external_reference,Robbins/Nijinsky classic
+Agon,58,3,62,65,contemporary,co,external_reference,Balanchine neoclassical
+Allegro Brillante,37,34,58,52,contemporary,co,external_reference,Balanchine neoclassical
+Anastasia,65,56,75,66,adult_literary_drama,female,external_reference,MacMillan dramatic ballet
+Angels' Atlas,33,26,55,61,contemporary,co,external_reference,Pite contemporary
+Anna Karenina,82,3,72,68,adult_literary_drama,female,external_reference,Tolstoy literary classic
+Approximate Sonata,45,36,52,44,contemporary,co,external_reference,Forsythe abstract
+Artifact Suite,58,28,58,45,contemporary,co,external_reference,Forsythe abstract work
+Autobiography,72,47,50,58,contemporary,co,external_reference,Contemporary work
+Ballet Imperial,60,2,60,37,contemporary,co,external_reference,Balanchine neoclassical
+Bella Figura,39,24,58,72,contemporary,co,external_reference,Kylián contemporary
+Betroffenheit,53,26,62,6,contemporary,co,external_reference,Pite/Young theatrical
+Birthday Offering,29,34,55,38,contemporary,co,external_reference,Ashton celebration piece
+Black Cake,70,47,48,61,contemporary,co,external_reference,Contemporary work
+Blake Works,38,22,55,34,contemporary,co,external_reference,Forsythe/James Blake
+Blanche Neige,39,26,65,45,family_classic,female,external_reference,French Snow White
+Body and Soul,75,7,52,84,contemporary,co,external_reference,Pite contemporary
+Brandenburg,74,3,55,45,contemporary,co,external_reference,Bach music ballet
+Carbon Life,60,3,52,45,contemporary,co,external_reference,McGregor contemporary
+Charlotte's Web,77,30,72,47,family_classic,female,external_reference,E.B. White children's classic
+Chopiniana,57,20,68,47,romantic_tragedy,female,external_reference,Romantic era ballet
+Concerto (MacMillan),17,40,55,42,contemporary,co,external_reference,MacMillan neoclassical
+Concerto Barocco,39,32,62,54,contemporary,co,external_reference,Balanchine neoclassical
+Concerto DSCH,30,26,55,56,contemporary,co,external_reference,Ratmansky neoclassical
+Dances at a Gathering,40,42,65,74,contemporary,co,external_reference,Robbins Chopin ballet
+Daphnis and Chloé,61,34,68,47,romantic_tragedy,co,external_reference,Greek mythology ballet
+Dark Matters,82,24,58,47,contemporary,co,external_reference,Pite theatrical work
+Death in Venice,70,2,60,74,adult_literary_drama,male,external_reference,Thomas Mann adaptation
+Deep Field,63,4,48,48,contemporary,co,external_reference,Contemporary work
+Divertimento No. 15,13,38,55,85,contemporary,co,external_reference,Balanchine neoclassical
+Duende,71,2,55,74,contemporary,co,external_reference,Nacho Duato Spanish
+Dybbuk,71,12,52,63,adult_literary_drama,co,external_reference,Robbins Jewish folklore
+Elite Syncopations,42,2,58,27,contemporary,co,external_reference,MacMillan ragtime
+Emergence,71,9,62,75,contemporary,co,external_reference,Pite contemporary
+Enemy in the Figure,80,38,55,67,contemporary,co,external_reference,Forsythe abstract
+Enigma Variations,67,34,62,53,adult_literary_drama,co,external_reference,Ashton character ballet
+Episodes,40,70,55,49,contemporary,co,external_reference,Balanchine/Graham work
+Etudes (Lander),40,2,60,38,contemporary,co,external_reference,Lander classical showcase
+Façade,70,2,58,46,classic_comedy,co,external_reference,Ashton comedic work
+Falling Angels,57,28,60,64,contemporary,female,external_reference,Kylián contemporary
+Fancy Free,67,2,72,70,contemporary,male,external_reference,Robbins American ballet
+Five Tangos,36,2,50,11,contemporary,co,external_reference,Van Manen tango work
+Flight Pattern,35,3,58,53,contemporary,co,external_reference,Pite refugee narrative
+Flower Festival in Genzano,38,52,62,50,classic_romance,co,external_reference,Bournonville pas de deux
+Forgotten Land (Kylián),48,46,55,84,contemporary,co,external_reference,Kylián dramatic
+Four Seasons (Kudelka),37,44,58,78,contemporary,co,external_reference,Kudelka Vivaldi
+Glass Pieces,39,3,58,56,contemporary,co,external_reference,Robbins minimalist
+Gloria (MacMillan),32,36,55,57,contemporary,co,external_reference,MacMillan WWI tribute
+Goldberg Variations,68,2,70,63,contemporary,co,external_reference,Robbins Bach work
+Gone (Rhoden),38,26,48,50,contemporary,co,external_reference,Rhoden contemporary
+Grand Pas de Deux Esmeralda,55,54,65,41,classic_romance,female,external_reference,Classical showpiece
+Grosse Fuge,57,22,52,52,contemporary,co,external_reference,Van Manen Beethoven
+Harlequinade,62,24,62,53,classic_comedy,co,external_reference,Balanchine commedia
+Herman Schmerman,54,2,45,0,contemporary,co,external_reference,Forsythe comedic
+Illuminations,30,2,52,47,contemporary,co,external_reference,Ashton Britten work
+In G Major,69,4,55,78,contemporary,co,external_reference,Robbins neoclassical
+In the Night,24,76,65,100,contemporary,co,external_reference,Robbins romantic
+In This Vessel,52,2,45,58,contemporary,co,external_reference,Contemporary work
+Initials R.B.M.E.,22,34,50,63,contemporary,co,external_reference,Cranko tribute work
+Interplay,69,4,58,68,contemporary,co,external_reference,Robbins jazz ballet
+Jardí Tancat,56,24,52,24,contemporary,co,external_reference,Nacho Duato Catalan
+Jewels: Diamonds,61,2,65,71,contemporary,co,external_reference,Balanchine Jewels
+Jewels: Emeralds,52,32,60,53,contemporary,co,external_reference,Balanchine Jewels
+Jewels: Rubies,52,28,62,36,contemporary,co,external_reference,Balanchine Jewels
+Khepera,67,14,48,37,contemporary,co,external_reference,Contemporary work
+La Boutique fantasque,48,42,58,62,classic_comedy,co,external_reference,Massine comedic
+La Esmeralda,26,24,65,41,romantic_tragedy,female,external_reference,Petipa classical
+La Source,38,3,55,62,classic_romance,female,external_reference,Classical ballet
+La Valse,54,16,62,64,contemporary,co,external_reference,Balanchine Ravel
+La Vivandière,35,26,52,32,classic_comedy,female,external_reference,Bournonville classical
+Las Hermanas,13,24,50,43,adult_literary_drama,female,external_reference,MacMillan Spanish
+Le Baiser de la fée,46,38,55,21,romantic_tragedy,female,external_reference,Stravinsky fairy tale
+Le Jeune Homme et la Mort,41,50,68,13,adult_literary_drama,male,external_reference,Petit existential
+Le Parc,23,2,55,49,contemporary,co,external_reference,Preljocaj romantic
+Les Patineurs,52,26,60,39,classic_comedy,co,external_reference,Ashton skating ballet
+Les Présages,23,24,48,51,contemporary,co,external_reference,Massine symphonic
+Les Rendezvous,30,28,52,55,classic_comedy,co,external_reference,Ashton divertissement
+Liebeslieder Walzer,38,38,58,50,contemporary,co,external_reference,Balanchine Brahms
+Liliom,54,12,52,49,adult_literary_drama,male,external_reference,Wheeldon Molnár
+Limb's Theorem,54,28,48,2,contemporary,co,external_reference,Forsythe abstract
+Limen,48,10,50,63,contemporary,co,external_reference,McGregor contemporary
+Minus 16,100,3,65,51,contemporary,co,external_reference,Naharin eclectic
+Misericordes,26,24,48,33,contemporary,co,external_reference,Wheeldon contemporary
+Monotones I,28,22,55,52,contemporary,co,external_reference,Ashton Satie
+Monotones II,28,24,55,52,contemporary,co,external_reference,Ashton Satie
+Movements for Piano and Orchestra,36,66,52,52,contemporary,co,external_reference,Balanchine Stravinsky
+Multiplicity – Forms of Silence and Emptiness,46,2,48,33,contemporary,co,external_reference,Nacho Duato Bach
+Na Floresta,51,22,52,57,contemporary,co,external_reference,Naharin contemporary
+No More Play,79,5,55,99,contemporary,co,external_reference,Kylián contemporary
+Odessa,77,51,55,69,contemporary,co,external_reference,Contemporary work
+On the Dnieper,71,28,52,100,romantic_tragedy,co,external_reference,Ratmansky Prokofiev
+Ondine,46,2,60,55,romantic_tragedy,female,external_reference,Ashton water nymph
+"One Flat Thing, Reproduced",54,52,65,78,contemporary,co,external_reference,Forsythe abstract
+Other Dances,31,24,58,40,contemporary,co,external_reference,Robbins Chopin
+Pas/Parts,64,18,55,45,contemporary,co,external_reference,Forsythe abstract
+Peer Gynt,72,3,62,61,adult_literary_drama,male,external_reference,Ibsen literary work
+Peter and the Wolf,72,3,72,48,family_classic,male,external_reference,Prokofiev children's classic
+Petite Mort,71,22,68,55,contemporary,co,external_reference,Kylián Mozart
+Petrouchka,66,20,70,56,adult_literary_drama,male,external_reference,Stravinsky/Fokine classic
+Poème de l'extase,52,34,50,20,contemporary,co,external_reference,Cranko Scriabin
+Polovtsian Dances,60,34,65,52,contemporary,co,external_reference,Fokine opera excerpt
+Prodigal Son,78,7,68,74,adult_literary_drama,male,external_reference,Balanchine biblical
+Puss in Boots,73,24,68,55,family_classic,male,external_reference,Children's fairy tale
+Remanso,29,14,50,41,contemporary,co,external_reference,Nacho Duato Spanish
+Requiem (MacMillan),29,38,55,66,contemporary,co,external_reference,MacMillan Fauré
+Requiem for a Rose,59,36,48,66,contemporary,co,external_reference,Contemporary work
+Rhapsody,53,57,60,75,contemporary,co,external_reference,Ashton Rachmaninoff
+Russian Seasons,32,30,52,36,contemporary,co,external_reference,Ratmansky contemporary
+Scenes de Ballet,25,32,55,69,contemporary,co,external_reference,Ashton Stravinsky
+Sechs Tänze,78,2,55,25,classic_comedy,co,external_reference,Kylián Mozart comedy
+Secus,30,10,45,4,contemporary,co,external_reference,Naharin contemporary
+Seven Sonatas,74,26,55,42,contemporary,co,external_reference,Pite Scarlatti
+Shostakovich Trilogy,80,2,52,54,contemporary,co,external_reference,Ratmansky Shostakovich
+Sinfonietta,39,22,58,34,contemporary,co,external_reference,Kylián Janáček
+Sleepless,79,7,50,70,adult_literary_drama,co,external_reference,Contemporary work
+Snow White,80,11,85,67,family_classic,female,external_reference,Fairy tale classic
+Solo,55,59,48,83,contemporary,co,external_reference,Contemporary work
+Spartacus,83,20,78,55,adult_literary_drama,male,external_reference,Grigorovich epic
+Square Dance,64,3,55,62,contemporary,co,external_reference,Balanchine neoclassical
+Stepping Stones,50,30,52,49,contemporary,co,external_reference,Kylián contemporary
+Stravinsky Violin Concerto,49,52,60,42,contemporary,co,external_reference,Balanchine Stravinsky
+Sylvia,46,71,72,60,classic_romance,female,external_reference,Classical mythology
+Symphonic Variations (Ashton),36,58,58,43,contemporary,co,external_reference,Ashton abstract
+Symphony in C,24,26,65,79,contemporary,co,external_reference,Balanchine neoclassical
+Symphony in Three Movements,43,2,55,38,contemporary,co,external_reference,Balanchine Stravinsky
+Symphony of Psalms,52,36,52,33,contemporary,co,external_reference,Kylián spiritual
+Tarantella,65,4,55,66,contemporary,co,external_reference,Balanchine showcase
+Tchaikovsky Pas de Deux,52,2,70,62,classic_romance,co,external_reference,Balanchine classical
+Thais Pas de Deux,38,34,55,60,classic_romance,co,external_reference,Classical showpiece
+The Age of Anxiety,57,36,55,47,contemporary,co,external_reference,Robbins Bernstein
+The Bright Stream,46,34,62,60,classic_comedy,co,external_reference,Ratmansky Soviet comedy
+The Bronze Horseman,62,38,58,79,adult_literary_drama,male,external_reference,Pushkin literary
+The Cage,31,69,58,44,contemporary,female,external_reference,Robbins dramatic
+The Concert,33,23,65,70,classic_comedy,co,external_reference,Robbins comedic
+The Contract,75,52,48,73,contemporary,co,external_reference,Contemporary work
+The Dream,74,70,68,64,classic_romance,co,external_reference,Ashton Shakespeare
+The Fiddle and the Drum,44,2,55,35,pop_ip,co,external_reference,Joni Mitchell music
+The Flames of Paris,57,38,62,42,adult_literary_drama,co,external_reference,Revolutionary drama
+The Fountain of Bakhchisarai,40,56,60,94,romantic_tragedy,female,external_reference,Pushkin romantic
+The Four Seasons (Robbins),51,52,65,78,contemporary,co,external_reference,Robbins Vivaldi
+The Frog Prince,69,2,65,42,family_classic,male,external_reference,Fairy tale classic
+The Golden Age,72,9,58,74,adult_literary_drama,co,external_reference,Grigorovich Soviet
+The Invitation,42,29,52,59,adult_literary_drama,female,external_reference,MacMillan dramatic
+The Jungle Book,76,4,82,60,family_classic,male,external_reference,Kipling children's classic
+The Little Humpbacked Horse,34,54,68,82,family_classic,male,external_reference,Russian fairy tale
+The Man in Black,38,6,55,90,contemporary,male,external_reference,Contemporary work
+The Pharaoh's Daughter,68,44,62,49,classic_romance,female,external_reference,Petipa Egyptian
+The Pied Piper,80,2,72,70,family_classic,male,external_reference,Folk tale classic
+The Prince & the Pauper,68,46,68,55,family_classic,male,external_reference,Mark Twain classic
+The Red Poppy,48,2,55,49,adult_literary_drama,female,external_reference,Soviet ballet classic
+The Red Shoes,73,3,72,90,adult_literary_drama,female,external_reference,Bourne fairy tale
+The Rite of Spring,74,2,82,43,contemporary,co,external_reference,Stravinsky revolutionary
+The Seagull,71,2,58,49,adult_literary_drama,female,external_reference,Chekhov adaptation
+The Seasons' Canon,41,36,62,84,contemporary,co,external_reference,Pite Vivaldi
+The Secret Garden,79,8,72,72,family_classic,female,external_reference,Burnett children's classic
+The Sleeping Beauty,77,4,90,82,classic_romance,female,external_reference,Petipa classical
+The Snow Maiden,55,30,58,33,romantic_tragedy,female,external_reference,Russian folk tale
+The Steadfast Tin Soldier,63,50,62,20,family_classic,male,external_reference,Andersen fairy tale
+The Two of Us,33,26,45,92,contemporary,co,external_reference,Contemporary work
+Third Symphony of Gustav Mahler,65,62,55,29,contemporary,co,external_reference,Neumeier symphonic
+Trois Gnossiennes,67,34,52,27,contemporary,co,external_reference,Van Manen Satie
+Valse Fantaisie,70,30,58,48,contemporary,co,external_reference,Balanchine Glinka
+Variations Sérieuses,43,40,52,57,contemporary,co,external_reference,Van Manen Mendelssohn
+Vienna Waltzes,50,28,62,45,contemporary,co,external_reference,Balanchine waltz
+Watermill,66,18,55,73,contemporary,male,external_reference,Robbins meditative
+Western Symphony,33,32,58,79,contemporary,co,external_reference,Balanchine Americana
+Whereabouts Unknown,32,38,45,63,contemporary,co,external_reference,Contemporary work
+Whipped Cream,66,44,62,66,family_classic,co,external_reference,Ratmansky confection
+Wings of Wax,35,24,52,53,contemporary,co,external_reference,Ekman Icarus theme
+Winter's Tale,70,26,70,38,romantic_tragedy,co,external_reference,Wheeldon Shakespeare
