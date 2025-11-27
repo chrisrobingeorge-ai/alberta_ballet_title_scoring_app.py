@@ -20,7 +20,7 @@ This audit ensures the model only uses legitimate forecast-time predictors.
 """)
 
 audit = load_leakage_audit()
-st.dataframe(audit, use_container_width=True)
+st.dataframe(audit, width='stretch')
 
 st.subheader("✅ Allowed Features Only")
 allowed = audit[audit["Allowed at Forecast Time (Y/N)"].str.upper() == "Y"]["Feature Name"].tolist()

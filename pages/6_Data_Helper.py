@@ -700,7 +700,7 @@ if st.session_state.uploaded_data:
             
             # Preview data
             st.caption("Preview (first 5 rows):")
-            st.dataframe(df.head(), use_container_width=True)
+            st.dataframe(df.head(), width='stretch')
             st.caption(f"Columns: {', '.join(df.columns.tolist())}")
 
 st.markdown("---")
@@ -727,7 +727,7 @@ for tab, (cat_key, cat_info) in zip(tabs, DATA_CATEGORIES.items()):
         st.subheader("📋 Sample Data Template")
         sample_df = cat_info.get("sample_data")
         if sample_df is not None:
-            st.dataframe(sample_df, use_container_width=True)
+            st.dataframe(sample_df, width='stretch')
             
             # Download template button
             csv_buffer = StringIO()
@@ -865,7 +865,7 @@ else:
             
             # Preview merged data
             st.subheader("📊 Preview Merged External Factors")
-            st.dataframe(merged_df.head(20), use_container_width=True)
+            st.dataframe(merged_df.head(20), width='stretch')
             st.caption(f"Total: {len(merged_df)} rows × {len(merged_df.columns)} columns")
             
             # Download buttons
@@ -1006,7 +1006,7 @@ After downloading the merged external factors file:
         
         # Preview merged data
         st.subheader("📊 Preview Merged Data")
-        st.dataframe(base_df.head(20), use_container_width=True)
+        st.dataframe(base_df.head(20), width='stretch')
         st.caption(f"Total: {len(base_df)} rows × {len(base_df.columns)} columns")
         
         # Download button

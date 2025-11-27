@@ -435,7 +435,7 @@ if run_button:
             "wiki", "trends", "youtube", "spotify",
             "category", "gender",
         ]],
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
 

@@ -86,7 +86,7 @@ df = derive_basic_features(df)
 st.info(f"📊 Showing **{len(df)}** titles from historical data")
 
 # Display ALL rows, not just head(20)
-st.dataframe(df, use_container_width=True, height=600)
+st.dataframe(df, width='stretch', height=600)
 
 # Check if model exists
 model_path = Path(__file__).parent.parent / "models" / "title_demand_rf.pkl"
@@ -131,7 +131,7 @@ else:
                 result_df["total_tickets_all"] = df["total_tickets_all"].values
             
             st.subheader("Scoring Results")
-            st.dataframe(result_df, use_container_width=True)
+            st.dataframe(result_df, width='stretch')
             
             # Show accuracy metrics if actual data is available
             if "total_single_tickets" in df.columns:

@@ -1273,7 +1273,7 @@ def subs_share_for(category: str | None, city: str) -> float:
 # --- Historicals (loads your wide CSV and learns) ---
 with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
     uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
-    relearn = st.button("🔁 Force re-learn from history", use_container_width=False)
+    relearn = st.button("🔁 Force re-learn from history", width='content')
 
 # (Re)load the history df
 if ("hist_df" not in st.session_state) or relearn:
@@ -2867,7 +2867,7 @@ def render_results():
             "Total_Mkt_Spend": "${:,.0f}",
             "Prod_Expense": "${:,.0f}",
         }),
-        use_container_width=True,
+        width='stretch',
         hide_index=True
     )
 
@@ -3211,7 +3211,7 @@ def render_results():
         sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton","ReturnDecayPct"], :])
 
         st.markdown("#### 🗓️ Season table")
-        st.dataframe(sty, use_container_width=True)
+        st.dataframe(sty, width='stretch')
 
         # CSV download
         st.download_button(
@@ -3235,7 +3235,7 @@ def render_results():
                 data=pdf_bytes,
                 file_name=f"alberta_ballet_season_report_{season_year}.pdf",
                 mime="application/pdf",
-                use_container_width=False
+                width='content'
             )
         except Exception as e:
             st.warning(f"PDF report unavailable: {e}")
@@ -3272,7 +3272,7 @@ def render_results():
         )
         st.dataframe(
             rank_df.style.format({"Composite":"{:.1f}","EstimatedTickets_Final":"{:,.0f}"}),
-            use_container_width=True, hide_index=True
+            width='stretch', hide_index=True
         )
 
     with tab_scatter:
@@ -3314,7 +3314,7 @@ def render_results():
 
     if not summary_df.empty:
         st.subheader("📊 Season Financial Summary (months as columns)")
-        st.dataframe(summary_df, use_container_width=True)
+        st.dataframe(summary_df, width='stretch')
 
         csv_bytes = summary_df.to_csv(index=True).encode("utf-8")
         st.download_button(
@@ -3322,7 +3322,7 @@ def render_results():
             data=csv_bytes,
             file_name=f"season_financial_summary_{season_year}.csv",
             mime="text/csv",
-            use_container_width=False,
+            width='content',
         )
 
 # -------------------------
