@@ -108,7 +108,7 @@ def validate_args(args: argparse.Namespace) -> tuple[str, str]:
         )
     
     show_title = args.show_title or args.show_id
-    show_id = args.show_id or args.show_title.lower().replace(" ", "_")
+    show_id = args.show_id or (args.show_title.lower().replace(" ", "_") if args.show_title else "")
     
     return show_title, show_id
 

@@ -96,10 +96,17 @@ def export_show_csv(
         writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
         
         # Write header only if not appending or file is empty
+        # Check file position to determine if header is needed (safer than stat)
         if include_header and not append:
             writer.writeheader()
-        elif include_header and append and file_path.stat().st_size == 0:
-            writer.writeheader()
+        elif include_header and append:
+            # For append mode, check if we're at the start of the file
+            try:
+                if f.tell() == 0 or file_path.stat().st_size == 0:
+                    writer.writeheader()
+            except OSError:
+                # If stat fails, write header anyway to be safe
+                writer.writeheader()
         
         for item in data_list:
             row = item.to_dict()

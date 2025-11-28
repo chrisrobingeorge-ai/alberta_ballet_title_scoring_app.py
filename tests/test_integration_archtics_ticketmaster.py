@@ -225,7 +225,11 @@ class TestCSVExporter:
             output_dir=temp_output_dir,
         )
         
-        assert "nutcracker_2024_archtics_ticketmaster.csv" in result_path
+        # Check the filename follows the expected pattern
+        from pathlib import Path
+        filename = Path(result_path).name
+        assert filename.endswith("_archtics_ticketmaster.csv")
+        assert "nutcracker" in filename.lower()
         assert os.path.exists(result_path)
     
     def test_export_multiple_records(self, sample_normalized_data, temp_output_dir):

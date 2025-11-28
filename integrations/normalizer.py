@@ -548,7 +548,7 @@ class ShowDataNormalizer:
         for date_str in dates:
             try:
                 dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.weekday() < 5:  # Monday=0, Sunday=6
+                if dt.weekday() < 5:  # Monday=0, Friday=4 are weekdays; Saturday=5, Sunday=6 are weekend
                     weekday += 1
                 else:
                     weekend += 1
