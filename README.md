@@ -411,7 +411,7 @@ python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
 
 # Scheduled pull via cron (Linux/macOS)
 # Add to crontab: crontab -e
-0 6 * * * cd /path/to/repo && python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
+0 6 * * * cd /path/to/repo && python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25 >> /var/log/show_pull.log 2>&1
 
 # Scheduled pull via Task Scheduler (Windows)
 # Create a scheduled task pointing to the script
@@ -419,15 +419,29 @@ python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
 
 #### Option 2: Cloud Function / Lambda
 
-Deploy as a serverless function for event-driven pulls:
+Deploy as a serverless function for event-driven pulls. The implementation follows the same pattern as `scripts/pull_show_data.py`:
 
 ```python
-# Example AWS Lambda handler
+# Example AWS Lambda handler - see scripts/pull_show_data.py for full implementation
+import os
+from integrations import TicketmasterClient, ArchticsClient, ShowDataNormalizer, export_show_csv
+
 def lambda_handler(event, context):
-    from integrations import TicketmasterClient, ArchticsClient, ShowDataNormalizer, export_show_csv
-    
     show_title = event.get("show_title", "The Nutcracker")
-    # ... rest of the pull logic
+    season = event.get("season")
+    
+    # Initialize clients (API keys from environment variables)
+    tm_client = TicketmasterClient(api_key=os.environ.get("TM_API_KEY"))
+    archtics_client = ArchticsClient(
+        api_key=os.environ.get("ARCHTICS_API_KEY"),
+        base_url=os.environ.get("ARCHTICS_BASE_URL")
+    )
+    
+    # Fetch and normalize - see scripts/pull_show_data.py for full logic
+    tm_events = tm_client.search_events(keyword=show_title, state_code="AB")
+    # ... additional API calls and normalization
+    
+    return {"statusCode": 200, "body": f"Processed {show_title}"}
 ```
 
 #### Option 3: Integrate with Streamlit App
