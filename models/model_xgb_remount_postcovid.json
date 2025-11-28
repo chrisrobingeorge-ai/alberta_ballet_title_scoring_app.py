@@ -1,5 +1,5 @@
 {
-  "training_date": "2025-11-28T00:31:25.576291",
+  "training_date": "2025-11-28T16:59:49.096966",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
@@ -37,5 +37,5 @@
     "rmse_log": 0.0015212796901788615
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/tmpcl9mwhdj/test_dataset.csv"
+  "dataset_path": "/tmp/tmpgyq8z_or/test_dataset.csv"
 }
