@@ -229,11 +229,11 @@ For full documentation, see README.md section "Archtics + Ticketmaster Integrati
     
     parser.add_argument(
         "--show_title",
-        help="Show title to search for (e.g., 'The Nutcracker')",
+        help="Show title to search for (e.g., 'The Nutcracker'). Required if --show_id is not provided.",
     )
     parser.add_argument(
         "--show_id",
-        help="Show identifier for the output file (e.g., 'nutcracker-2024')",
+        help="Show identifier for the output file (e.g., 'nutcracker-2024'). Required if --show_title is not provided.",
     )
     parser.add_argument(
         "--season",
