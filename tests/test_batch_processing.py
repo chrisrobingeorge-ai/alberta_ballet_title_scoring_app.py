@@ -9,9 +9,7 @@ These tests cover:
 """
 
 import csv
-import os
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -33,55 +31,51 @@ from scripts.pull_show_data import (
 # =============================================================================
 
 @pytest.fixture
-def temp_csv_file():
+def temp_csv_file(tmp_path):
     """Create a temporary CSV file with show titles."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv', newline='') as f:
+    csv_file = tmp_path / "test_shows.csv"
+    with open(csv_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['show_title', 'Single Tickets - Calgary', 'Single Tickets - Edmonton'])
         writer.writerow(['The Nutcracker', '5000', '3000'])
         writer.writerow(['Swan Lake', '4000', '2500'])
         writer.writerow(['Cinderella', '6000', '4000'])
         writer.writerow(['The Nutcracker', '5500', '3200'])  # Duplicate
-        f.flush()
-        yield f.name
-    os.unlink(f.name)
+    return str(csv_file)
 
 
 @pytest.fixture
-def temp_csv_file_alt_column():
+def temp_csv_file_alt_column(tmp_path):
     """Create a temporary CSV file with alternative column name 'Show Title'."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv', newline='') as f:
+    csv_file = tmp_path / "test_shows_alt.csv"
+    with open(csv_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Show Title', 'Sales'])
         writer.writerow(['Romeo and Juliet', '8000'])
         writer.writerow(['Giselle', '5000'])
-        f.flush()
-        yield f.name
-    os.unlink(f.name)
+    return str(csv_file)
 
 
 @pytest.fixture
-def temp_csv_file_title_column():
+def temp_csv_file_title_column(tmp_path):
     """Create a temporary CSV file with column name 'title'."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv', newline='') as f:
+    csv_file = tmp_path / "test_shows_title.csv"
+    with open(csv_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['title', 'venue'])
         writer.writerow(['Don Quixote', 'Jubilee Auditorium'])
-        f.flush()
-        yield f.name
-    os.unlink(f.name)
+    return str(csv_file)
 
 
 @pytest.fixture
-def temp_csv_invalid_columns():
+def temp_csv_invalid_columns(tmp_path):
     """Create a temporary CSV file with no recognizable show title column."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv', newline='') as f:
+    csv_file = tmp_path / "test_shows_invalid.csv"
+    with open(csv_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['production_name', 'venue'])
         writer.writerow(['Test Show', 'Some Venue'])
-        f.flush()
-        yield f.name
-    os.unlink(f.name)
+    return str(csv_file)
 
 
 # =============================================================================

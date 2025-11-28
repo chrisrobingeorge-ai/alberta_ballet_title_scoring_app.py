@@ -330,12 +330,12 @@ def generate_show_id(show_title: str, season: Optional[str] = None) -> str:
     Returns:
         Sanitized show ID string
     """
+    import re
     base_id = show_title.lower().replace(" ", "_")
     # Remove special characters
     base_id = "".join(c for c in base_id if c.isalnum() or c == "_")
-    # Collapse multiple underscores
-    while "__" in base_id:
-        base_id = base_id.replace("__", "_")
+    # Collapse multiple underscores using regex
+    base_id = re.sub(r'_+', '_', base_id)
     base_id = base_id.strip("_")
     
     if season:
