@@ -272,6 +272,51 @@ python scripts/pull_show_data.py --show_title "Swan Lake" --dry-run
 
 3. **Output**: Creates `data/<show_id>_archtics_ticketmaster.csv` with normalized data.
 
+### Batch Mode: Pull Data from CSV
+
+Automate pulling data for all shows in your historical dataset using the `--from_csv` option:
+
+```bash
+# Batch pull all shows from history_city_sales.csv
+python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv
+
+# With season filter
+python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --season 2024-25
+
+# Dry run to preview what would be processed
+python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --dry-run
+```
+
+**Batch Mode Features:**
+- Reads all unique show titles from the CSV (`show_title` column)
+- Automatically deduplicates titles (e.g., "Cinderella" appearing twice)
+- Exports a normalized CSV for each show to the `data/` directory
+- Prints a summary report showing successes and failures
+- Logs and skips shows where API data is unavailable
+
+**Example Output:**
+```
+============================================================
+BATCH PROCESSING SUMMARY
+============================================================
+Total shows in CSV:     42
+Unique shows processed: 39
+Duplicates skipped:     3
+------------------------------------------------------------
+Successful:  35
+Failed:      4
+
+✓ SUCCESSFUL:
+  - The Nutcracker: 10,000 tickets, 16 performances
+  - Swan Lake: 8,500 tickets, 12 performances
+  ...
+
+✗ FAILED:
+  - Unknown Show: No data retrieved from APIs
+  ...
+============================================================
+```
+
 ### Environment Variables
 
 | Variable | Description | Required |
@@ -288,6 +333,7 @@ python scripts/pull_show_data.py --show_title "Swan Lake" --dry-run
 ```
 --show_title      Show title to search for (e.g., "The Nutcracker")
 --show_id         Show identifier for output file
+--from_csv        Path to CSV file for batch processing (expects 'show_title' column)
 --season          Production season filter (e.g., "2024-25")
 --city            Filter by city (Calgary or Edmonton)
 --output          Custom output file path
