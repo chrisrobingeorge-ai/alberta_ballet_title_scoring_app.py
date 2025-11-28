@@ -274,17 +274,20 @@ python scripts/pull_show_data.py --show_title "Swan Lake" --dry-run
 
 ### Batch Mode: Pull Data from CSV
 
-Automate pulling data for all shows in your historical dataset using the `--from_csv` option:
+Automate pulling data for all shows in your historical dataset. **When run without arguments**, the script automatically uses `data/productions/history_city_sales.csv`:
 
 ```bash
-# Batch pull all shows from history_city_sales.csv
-python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv
-
-# With season filter
-python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --season 2024-25
+# Pull all shows (uses history_city_sales.csv by default)
+python scripts/pull_show_data.py
 
 # Dry run to preview what would be processed
-python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --dry-run
+python scripts/pull_show_data.py --dry-run
+
+# Specify a different CSV file
+python scripts/pull_show_data.py --from_csv path/to/custom.csv
+
+# With season filter
+python scripts/pull_show_data.py --season 2024-25
 ```
 
 **Batch Mode Features:**
