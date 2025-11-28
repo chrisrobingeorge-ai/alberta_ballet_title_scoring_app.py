@@ -51,6 +51,9 @@ from integrations import (
 from integrations.ticketmaster import TicketmasterError, TicketmasterAuthError
 from integrations.archtics import ArchticsError, ArchticsAuthError
 
+# Default CSV path for batch processing when no arguments provided
+DEFAULT_CSV_PATH = Path(__file__).parent.parent / "data" / "productions" / "history_city_sales.csv"
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -667,18 +670,17 @@ For full documentation, see README.md section "Archtics + Ticketmaster Integrati
     setup_env_from_dotenv()
     
     # Default to history_city_sales.csv if no show/CSV specified
-    default_csv_path = Path(__file__).parent.parent / "data" / "productions" / "history_city_sales.csv"
     if not args.show_title and not args.show_id and not args.from_csv:
-        if default_csv_path.exists():
-            logger.info(f"No show specified, using default CSV: {default_csv_path}")
-            args.from_csv = str(default_csv_path)
+        if DEFAULT_CSV_PATH.exists():
+            logger.info(f"No show specified, using default CSV: {DEFAULT_CSV_PATH}")
+            args.from_csv = str(DEFAULT_CSV_PATH)
         else:
             logger.error(
-                "Either --show_title, --show_id, or --from_csv must be provided.\n"
-                "Examples:\n"
+                f"Default CSV file not found: {DEFAULT_CSV_PATH}\n"
+                "Please provide arguments:\n"
                 "  python scripts/pull_show_data.py --show_title 'The Nutcracker'\n"
                 "  python scripts/pull_show_data.py --show_id 'nutcracker-2024'\n"
-                "  python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv"
+                "  python scripts/pull_show_data.py --from_csv path/to/your.csv"
             )
             return 1
     
