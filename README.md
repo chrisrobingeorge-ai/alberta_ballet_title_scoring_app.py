@@ -234,8 +234,170 @@ pip install lightgbm
 │   └── canonicalize_titles.py # Title normalization
 ├── legacy/                    # ⚠️ DEPRECATED scripts (do not use for production)
 │   └── build_city_priors.py   # Legacy city prior generator
+├── integrations/              # API integrations
+│   ├── ticketmaster.py        # Ticketmaster Discovery API client
+│   ├── archtics.py            # Archtics Reporting API client
+│   ├── normalizer.py          # Data normalization to target schema
+│   └── csv_exporter.py        # CSV export with target column order
 └── ML_MODEL_DOCUMENTATION.md  # Technical ML documentation
 ```
+
+---
+
+## Archtics + Ticketmaster Integration
+
+Pull per-show/performance data from Ticketmaster and Archtics ticketing systems and export to a normalized CSV for analysis.
+
+### Quick Start
+
+1. **Set up credentials** - Copy `.env.example` to `.env` and fill in your API keys:
+
+```bash
+cp .env.example .env
+# Edit .env with your credentials
+```
+
+2. **Run the CLI**:
+
+```bash
+# By show title
+python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
+
+# By show ID
+python scripts/pull_show_data.py --show_id nutcracker-2024 --city Calgary
+
+# Dry run (no API calls)
+python scripts/pull_show_data.py --show_title "Swan Lake" --dry-run
+```
+
+3. **Output**: Creates `data/<show_id>_archtics_ticketmaster.csv` with normalized data.
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `TM_API_KEY` | Ticketmaster API key | For Ticketmaster data |
+| `ARCHTICS_API_KEY` | Archtics API key | For Archtics data |
+| `ARCHTICS_BASE_URL` | Archtics organization endpoint | For Archtics data |
+| `ARCHTICS_CLIENT_ID` | Alternative Archtics auth | Optional |
+
+**Important**: Never commit `.env` files. Use `.env.example` as a template.
+
+### CLI Options
+
+```
+--show_title      Show title to search for (e.g., "The Nutcracker")
+--show_id         Show identifier for output file
+--season          Production season filter (e.g., "2024-25")
+--city            Filter by city (Calgary or Edmonton)
+--output          Custom output file path
+--tm-only         Only fetch from Ticketmaster
+--archtics-only   Only fetch from Archtics
+--verbose         Enable debug logging
+--dry-run         Show what would be done without API calls
+```
+
+### Output CSV Schema
+
+The normalized CSV contains these columns in order:
+
+| Column | Description |
+|--------|-------------|
+| `show_title` | Show name |
+| `show_title_id` | Unique identifier |
+| `production_season` | Season (e.g., "2024-25") |
+| `city` | Primary city |
+| `venue_name` | Venue name |
+| `venue_capacity` | Venue capacity |
+| `performance_count_city` | Performances in primary city |
+| `performance_count_total` | Total performances |
+| `single_tickets_calgary` | Single tickets sold in Calgary |
+| `single_tickets_edmonton` | Single tickets sold in Edmonton |
+| `subscription_tickets_calgary` | Subscription tickets in Calgary |
+| `subscription_tickets_edmonton` | Subscription tickets in Edmonton |
+| `total_single_tickets` | Total single tickets |
+| `total_subscription_tickets` | Total subscription tickets |
+| `total_tickets_all` | Grand total tickets |
+| `avg_tickets_per_performance` | Average tickets per show |
+| `load_factor` | Tickets / (capacity × performances) |
+| `weeks_to_80pct_sold` | Time to 80% sold (if available) |
+| `late_sales_share` | Share of late sales (if available) |
+| `channel_mix_distribution` | Sales by channel (key:value pairs) |
+| `group_sales_share` | Group sales percentage |
+| `comp_ticket_share` | Comp ticket percentage |
+| `refund_cancellation_rate` | Refund/cancellation rate |
+| `pricing_tier_structure` | Price tiers (serialized) |
+| `average_base_ticket_price` | Average ticket price |
+| `opening_date` | First performance date |
+| `closing_date` | Last performance date |
+| `weekday_vs_weekend_mix` | Weekday/weekend distribution |
+
+### Programmatic Usage
+
+```python
+from integrations import (
+    TicketmasterClient,
+    ArchticsClient,
+    ShowDataNormalizer,
+    export_show_csv,
+)
+
+# Initialize clients
+tm_client = TicketmasterClient(api_key="your_key")
+archtics_client = ArchticsClient(
+    api_key="your_key",
+    base_url="https://your-org.archtics.com/api"
+)
+
+# Fetch data
+tm_events = tm_client.search_events(keyword="The Nutcracker", city="Calgary")
+archtics_sales = archtics_client.get_sales_summary(event_id="12345")
+
+# Normalize
+normalizer = ShowDataNormalizer()
+normalized = normalizer.normalize(
+    show_title="The Nutcracker",
+    show_id="nutcracker-2024",
+    tm_events=tm_events,
+    archtics_sales=archtics_sales,
+    season="2024-25",
+)
+
+# Export
+output_path = export_show_csv(normalized)
+print(f"Saved to {output_path}")
+```
+
+### Troubleshooting
+
+| Error | Solution |
+|-------|----------|
+| 401 Unauthorized | Check API key is correct and not expired |
+| 403 Forbidden | Verify API key has required permissions |
+| 429 Rate Limited | Wait and retry; the client handles automatic retries |
+| Empty results | Verify show title/ID spelling; check season format |
+| No credentials | Set environment variables or create `.env` file |
+
+### Rate Limits
+
+- **Ticketmaster Discovery API**: 5 requests/second, 5000/day (free tier)
+- **Archtics**: Varies by contract
+
+The API clients include built-in rate limiting and retry logic.
+
+### Data Lineage
+
+| Field | Ticketmaster Source | Archtics Source |
+|-------|--------------------|-----------------| 
+| Events/performances | Discovery API `/events` | `/events`, `/performances` |
+| Venue info | Embedded in event | `/venues` endpoint |
+| Ticket sales | Not available | `/sales` endpoint |
+| Channel mix | Not available | `/sales/channels` |
+| Price tiers | `priceRanges` in event | Venue manifest |
+
+**Note**: Some fields require both data sources. Fields not available from APIs are documented in the output with null values.
+
+---
 
 ## Contributing
 

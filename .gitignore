@@ -24,6 +24,9 @@ diagnostics/*.json
 # Generated modelling dataset (can be regenerated)
 data/modelling_dataset.csv
 
+# Generated API integration CSVs (can be regenerated)
+data/*_archtics_ticketmaster.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
