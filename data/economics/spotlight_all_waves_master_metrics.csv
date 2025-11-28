@@ -1,0 +1,310 @@
+Wave,Region,Measure_Group,Metric_or_Item,Response_Category,Segment_or_Population,Percent,Base_N,Question_Code,Notes,Source_File
+6,Alberta,Community mood,Local economy mood,Positive (8-10),,12,1161,Q7,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Community mood,Local economy mood,Negative (1-3),,20,1161,Q7,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Community mood,General public mood,Positive (8-10),,12,1161,Q7,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Community mood,General public mood,Negative (1-3),,19,1161,Q7,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Outlook next year,Personal financial situation,Worse (net),,32,1161,Q8,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Outlook next year,Personal financial situation,Better (net),,25,1161,Q8,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Outlook next year,Quality of life in city/town,Worse (net),,43,1161,Q8,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Outlook next year,Quality of life in city/town,Better (net),,18,1161,Q8,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts impact,Impact of arts on community,Very positive,,29,1161,Q9,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts impact,Impact of arts on community,Somewhat positive,,51,1161,Q9,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts impact,Impact of arts on community,No impact,,18,1161,Q9,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts impact,Impact of arts on community,Somewhat negative,,2,1161,Q9,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts impact,Impact of arts on community,Very negative,,0,1161,Q9,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts impact,Impact of arts on community,Positive (net),,80,1161,Q9,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts availability,Number of arts events in community,Too few,,37,1161,Q10,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts availability,Number of arts events in community,Just enough,,59,1161,Q10,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arts availability,Number of arts events in community,Too many,,5,1161,Q10,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Contribution importance (top-3),Contribute to a vibrant city or community,Top 3 (any rank),,82,1041,Q12,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Contribution importance (top-3),Enhance city/community as a place to live,Top 3 (any rank),,79,1041,Q12,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Contribution importance (top-3),Attract visitors/support tourism,Top 3 (any rank),,52,1041,Q12,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Contribution importance (top-3),Create spaces of welcoming and inclusivity,Top 3 (any rank),,43,1041,Q12,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Contribution importance (top-3),Strengthen cultural identity,Top 3 (any rank),,43,1041,Q12,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Participation (leisure),Participate in any arts activities (NET),Selected,,82,1161,Q5,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Participation (leisure),Attend other live performances,Selected,,53,1161,Q5,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Participation (leisure),Attend festivals,Selected,,46,1161,Q5,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Participation (leisure),Visit museums or art galleries,Selected,,42,1161,Q5,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Participation (leisure),Practice or learn an art form/creative skill/craft,Selected,,39,1161,Q5,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Participation (leisure),Attend live theatre,Selected,,37,1161,Q5,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Planning tools that show me how to get there and where to go,Selected,,52,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Restaurant ideas or promotions for things to do before/after,Selected,,47,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Direct emails with info about attending the experience,Selected,,43,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Tools that show the view from your seats (if applicable),Selected,,40,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,In-depth guide to deeper understanding of the content,Selected,,35,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Digital content to show what the experience will be like / vibe,Selected,,34,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Tools that show the museum/gallery space you are about to visit,Selected,,33,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,"Related content (music, visuals, messages) to get in the mood",Selected,,33,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Content directly from the artist/performer about what to expect,Selected,,28,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Contact from show organizers to make it easier to attend,Selected,,27,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Ability to pre-order and pay for food or drink,Selected,,18,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Access to buy merchandise before going,Selected,,13,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Pre-experience enhancements,Something else (open-ended ideas),Selected,,6,1161,Q13,,spotlight_wave6_alberta_metrics.csv
+6,Alberta,Arrival enhancements,Having clear signage available,Selected,,73,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Friendly and welcoming staff available to show you around,Selected,,67,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Mobile ticket scanning for entry,Selected,,50,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Having somewhere to sit and chat before you go to your seats,Selected,,41,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Signage or information about the show you are about to see,Selected,,39,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Any music being played,Selected,,37,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Time / space to read about the experience you are about to have,Selected,,34,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Opening reception or gathering place to socialize before event,Selected,,32,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Live music being performed,Selected,,32,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Staff/volunteers/performers engaging people in line,Selected,,25,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Opportunity to take photos to remember event or share on social,Selected,,24,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Digital content/guides that can be viewed prior to the event,Selected,,24,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Short background/intro piece about the event before it begins,Selected,,19,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Performers engaging with the audience in character,Selected,,19,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Performers or artists visiting the audience before the event,Selected,,16,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Pre-recorded music related to the event or experience,Selected,,16,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Having people who can provide more context to the experience,Selected,,15,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Arrival enhancements,Something else,Selected,,3,1161,Q14,,spotlight_wave6_alberta_arrival_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,All respondents,51,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,All respondents,45,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,All respondents,36,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,All respondents,33,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,All respondents,30,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,All respondents,29,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,All respondents,29,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,All respondents,23,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,All respondents,17,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,All respondents,17,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,All respondents,13,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,All respondents,5,1161,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,18-34,64,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,35-54,50,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,55+,42,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,Immersed,52,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,Active,53,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to attend again,Selected,Passives,52,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,18-34,49,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,35-54,43,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,55+,45,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,Immersed,47,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,Active,52,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Recommendations for other events I might like,Selected,Passives,47,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,18-34,47,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,35-54,36,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,55+,30,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,Immersed,41,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,Active,37,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Discounts or offers to share with others/use to invite others,Selected,Passives,38,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,18-34,42,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,35-54,33,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,55+,26,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,Immersed,57,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,Active,35,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,A chance to talk or socialize with the artists or creators,Selected,Passives,33,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,18-34,38,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,35-54,31,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,55+,22,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,Immersed,54,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,Active,32,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Chance to see behind the scenes/backstage tour,Selected,Passives,27,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,18-34,36,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,35-54,32,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,55+,22,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,Immersed,43,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,Active,32,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Post-event reception/opportunity to be social after the experience,Selected,Passives,31,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,18-34,30,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,35-54,23,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,55+,34,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,Immersed,32,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,Active,27,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunity to review/rate the experience,Selected,Passives,28,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,18-34,31,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,35-54,23,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,55+,16,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,Immersed,30,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,Active,24,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Digital content from the venue/event accessible on your device,Selected,Passives,25,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,18-34,19,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,35-54,17,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,55+,14,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,Immersed,27,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,Active,16,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Opportunities to share my experience on social media,Selected,Passives,17,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,18-34,23,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,35-54,15,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,55+,13,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,Immersed,19,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,Active,19,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Attendance appreciation / thank you follow-up call or email,Selected,Passives,15,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,18-34,21,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,35-54,12,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,55+,7,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,Immersed,34,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,Active,16,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Community discussions or panels with show creators/producers,Selected,Passives,10,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,18-34,3,298,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,35-54,6,432,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,55+,6,431,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,Immersed,2,113,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,Active,5,263,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+6,Alberta,Post-experience enhancements,Something else,Selected,Passives,6,485,Q15,,spotlight_wave6_alberta_post_experience_enhancements.csv
+4,Edmonton,Community mood (local economy),Local economy mood - Edmonton,Positive (8-10),,13,400,Q10,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (local economy),Local economy mood - Edmonton,Negative (1-3),,16,400,Q10,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (local economy),Local economy mood - Alberta overall,Positive (8-10),,14,1160,Q10,Comparison,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (local economy),Local economy mood - Alberta overall,Negative (1-3),,15,1160,Q10,Comparison,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (public),General public mood - Edmonton,Positive (8-10),,11,400,Q10,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (public),General public mood - Edmonton,Negative (1-3),,20,400,Q10,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (public),General public mood - Alberta overall,Positive (8-10),,12,1160,Q10,Comparison,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Community mood (public),General public mood - Alberta overall,Negative (1-3),,19,1160,Q10,Comparison,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Pessimistic,Selected (up to 3),,33,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Tired,Selected (up to 3),,26,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Annoyed,Selected (up to 3),,26,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Nervous,Selected (up to 3),,25,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Depressed,Selected (up to 3),,20,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Optimistic,Selected (up to 3),,20,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Content,Selected (up to 3),,19,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Grateful,Selected (up to 3),,17,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Angry,Selected (up to 3),,15,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Calm,Selected (up to 3),,14,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Ambivalent,Selected (up to 3),,12,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Sad,Selected (up to 3),,10,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Bitter,Selected (up to 3),,10,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Confident,Selected (up to 3),,8,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Relaxed,Selected (up to 3),,8,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Confused,Selected (up to 3),,7,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Happy,Selected (up to 3),,5,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Light-hearted,Selected (up to 3),,3,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Energized,Selected (up to 3),,2,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Current state of mind (emotions),Feeling: Excited,Selected (up to 3),,2,400,Q11,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Outlook next year,Personal financial situation,Worse (net),,36,400,Q12,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Outlook next year,Personal financial situation,Better (net),,29,400,Q12,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Outlook next year,Quality of life in city/town,Worse (net),,43,400,Q12,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Outlook next year,Quality of life in city/town,Better (net),,18,400,Q12,,spotlight_wave4_edmonton_metrics.csv
+4,Edmonton,Desired outcomes from activities,"Spend time with people I care about, doesn’t matter what it is",Ranked top-3,Edmontonians,45,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Spend time with people I care about, doesn’t matter what it is",Ranked top-3,Albertans,46,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,"Get healthy (emotionally, mentally, or physically)",Ranked top-3,Edmontonians,42,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Get healthy (emotionally, mentally, or physically)",Ranked top-3,Albertans,41,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Feel happy and content,Ranked top-3,Edmontonians,41,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Feel happy and content,Ranked top-3,Albertans,42,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Humour and laughter,Ranked top-3,Edmontonians,26,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Humour and laughter,Ranked top-3,Albertans,27,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Escape for a little bit,Ranked top-3,Edmontonians,22,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Escape for a little bit,Ranked top-3,Albertans,23,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Feel relaxed,Ranked top-3,Edmontonians,22,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Feel relaxed,Ranked top-3,Albertans,20,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Get out of the house,Ranked top-3,Edmontonians,21,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Get out of the house,Ranked top-3,Albertans,20,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Learn something new,Ranked top-3,Edmontonians,17,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Learn something new,Ranked top-3,Albertans,18,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Share a unique experience with people,Ranked top-3,Edmontonians,17,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Share a unique experience with people,Ranked top-3,Albertans,13,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,"Do something different, out of routine",Ranked top-3,Edmontonians,14,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Do something different, out of routine",Ranked top-3,Albertans,13,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Break out of my rut,Ranked top-3,Edmontonians,12,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Break out of my rut,Ranked top-3,Albertans,12,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,"Do something different, out of the ordinary",Ranked top-3,Edmontonians,7,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Do something different, out of the ordinary",Ranked top-3,Albertans,9,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Excitement and thrills,Ranked top-3,Edmontonians,6,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Excitement and thrills,Ranked top-3,Albertans,5,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,Feel “wowed”,Ranked top-3,Edmontonians,2,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Feel “wowed”,Ranked top-3,Albertans,3,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Desired outcomes from activities,I want to celebrate!,Ranked top-3,Edmontonians,4,400,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,I want to celebrate!,Ranked top-3,Albertans,3,1160,Q14,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Being outdoors,Selected,Edmontonians,65,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Watch movies or shows online or on TV,Selected,Edmontonians,64,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Listen to music,Selected,Edmontonians,64,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Travel,Selected,Edmontonians,54,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,"Exercise, fitness activities",Selected,Edmontonians,52,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Attend live music events,Selected,Edmontonians,43,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Watch live sports online or on TV,Selected,Edmontonians,37,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Visit museums and heritage sites,Selected,Edmontonians,35,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Attend the cinema or film events,Selected,Edmontonians,34,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Learn a new skill,Selected,Edmontonians,33,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Cultural/Heritage festivals,Selected,Edmontonians,32,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Attend live theatre,Selected,Edmontonians,31,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,"Learn a new art, creative skill, or craft",Selected,Edmontonians,30,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Performing arts festivals,Selected,Edmontonians,29,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Attend live sports events,Selected,Edmontonians,29,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Attend other live arts experiences,Selected,Edmontonians,27,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Community festivals,Selected,Edmontonians,26,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,"Visit art galleries, art shows or other visual arts",Selected,Edmontonians,25,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Watch live performances online or on TV,Selected,Edmontonians,22,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Play sports,Selected,Edmontonians,21,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Edmonton,Activities to achieve outcomes,Attend literary events,Selected,Edmontonians,7,397,Q15,,spotlight_wave4_edmonton_outcomes_activities.csv
+4,Calgary,Community mood (local economy),Local economy mood - Calgary,Positive (8-10),,12,400,Q10,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (local economy),Local economy mood - Calgary,Negative (1-3),,17,400,Q10,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (local economy),Local economy mood - Alberta overall,Positive (8-10),,14,1160,Q10,Comparison,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (local economy),Local economy mood - Alberta overall,Negative (1-3),,15,1160,Q10,Comparison,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (public),General public mood - Calgary,Positive (8-10),,10,400,Q10,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (public),General public mood - Calgary,Negative (1-3),,19,400,Q10,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (public),General public mood - Alberta overall,Positive (8-10),,12,1160,Q10,Comparison,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Community mood (public),General public mood - Alberta overall,Negative (1-3),,19,1160,Q10,Comparison,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Pessimistic,Selected (up to 3),,31,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Tired,Selected (up to 3),,26,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Grateful,Selected (up to 3),,26,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Nervous,Selected (up to 3),,26,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Optimistic,Selected (up to 3),,24,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Annoyed,Selected (up to 3),,21,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Content,Selected (up to 3),,18,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Depressed,Selected (up to 3),,15,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Angry,Selected (up to 3),,13,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Calm,Selected (up to 3),,10,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Sad,Selected (up to 3),,10,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Confused,Selected (up to 3),,10,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Ambivalent,Selected (up to 3),,10,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Relaxed,Selected (up to 3),,9,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Bitter,Selected (up to 3),,8,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Confident,Selected (up to 3),,7,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Happy,Selected (up to 3),,7,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Light-hearted,Selected (up to 3),,4,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Energized,Selected (up to 3),,2,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Current state of mind (emotions),Feeling: Excited,Selected (up to 3),,1,400,Q11,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Outlook next year,Personal financial situation,Worse (net),,29,400,Q12,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Outlook next year,Personal financial situation,Better (net),,33,400,Q12,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Outlook next year,Quality of life in city/town,Worse (net),,44,400,Q12,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Outlook next year,Quality of life in city/town,Better (net),,18,400,Q12,,spotlight_wave4_calgary_metrics.csv
+4,Calgary,Desired outcomes from activities,"Spend time with people I care about, doesn’t matter what it is",Ranked top-3,Calgarians,45,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Spend time with people I care about, doesn’t matter what it is",Ranked top-3,Albertans,46,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,"Get healthy (emotionally, mentally, or physically)",Ranked top-3,Calgarians,45,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Get healthy (emotionally, mentally, or physically)",Ranked top-3,Albertans,42,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Feel happy and content,Ranked top-3,Calgarians,41,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Feel happy and content,Ranked top-3,Albertans,41,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Humour and laughter,Ranked top-3,Calgarians,25,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Humour and laughter,Ranked top-3,Albertans,27,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Escape for a little bit,Ranked top-3,Calgarians,21,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Escape for a little bit,Ranked top-3,Albertans,23,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Feel relaxed,Ranked top-3,Calgarians,19,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Feel relaxed,Ranked top-3,Albertans,20,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Get out of the house,Ranked top-3,Calgarians,19,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Get out of the house,Ranked top-3,Albertans,20,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Learn something new,Ranked top-3,Calgarians,18,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Learn something new,Ranked top-3,Albertans,18,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Share a unique experience with people,Ranked top-3,Calgarians,14,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Share a unique experience with people,Ranked top-3,Albertans,13,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,"Do something different, out of routine",Ranked top-3,Calgarians,15,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Do something different, out of routine",Ranked top-3,Albertans,13,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Break out of my rut,Ranked top-3,Calgarians,11,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Break out of my rut,Ranked top-3,Albertans,12,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,"Do something different, out of the ordinary",Ranked top-3,Calgarians,11,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,"Do something different, out of the ordinary",Ranked top-3,Albertans,9,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Excitement and thrills,Ranked top-3,Calgarians,7,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Excitement and thrills,Ranked top-3,Albertans,5,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,Feel “wowed”,Ranked top-3,Calgarians,4,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,Feel “wowed”,Ranked top-3,Albertans,3,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Desired outcomes from activities,I want to celebrate!,Ranked top-3,Calgarians,2,400,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Alberta,Desired outcomes from activities,I want to celebrate!,Ranked top-3,Albertans,3,1160,Q14,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Watch movies or shows online or on TV,Selected,Calgarians,64,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Being outdoors,Selected,Calgarians,62,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Travel,Selected,Calgarians,59,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Listen to music,Selected,Calgarians,57,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,"Exercise, fitness activities",Selected,Calgarians,52,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Attend live music events,Selected,Calgarians,40,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Community festivals,Selected,Calgarians,40,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Attend the cinema or film events,Selected,Calgarians,33,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Visit museums and heritage sites,Selected,Calgarians,32,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Learn a new skill,Selected,Calgarians,29,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Watch live sports online or on TV,Selected,Calgarians,29,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Attend live sports events,Selected,Calgarians,29,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Attend live theatre,Selected,Calgarians,29,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,"Learn a new art, creative skill, or craft",Selected,Calgarians,26,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Play sports,Selected,Calgarians,23,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Attend other live arts experiences,Selected,Calgarians,23,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,"Visit art galleries, art shows or other visual arts",Selected,Calgarians,22,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Performing arts festivals,Selected,Calgarians,22,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Cultural/Heritage festivals,Selected,Calgarians,21,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Watch live performances online or on TV,Selected,Calgarians,15,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv
+4,Calgary,Activities to achieve outcomes,Attend literary events,Selected,Calgarians,8,397,Q15,,spotlight_wave4_calgary_outcomes_activities.csv

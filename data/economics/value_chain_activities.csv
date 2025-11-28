@@ -1,0 +1,13 @@
+﻿Industry,Activity,Notes
+Banking,Credit Card Acquisition,Profit per acquired subscriber estimated from industry and internal data
+Banking,Credit Card Funding,Revenues and costs tied to interest income and funding costs
+Banking,Credit Card Servicing,Pure players exist making data cleaner; margins ~17%
+Automotive,Lending,Treated as standalone value-chain activity
+Automotive,Leasing,Part of financial services subsegment
+Automotive,Rental,Often reported within dealer revenue mix
+Paint Manufacturing,Disposal Costs,Impacts demand through environmental requirements
+Catalog Retail,Call-Centre Order Handling,Included as customer-service activity
+Consumer Finance,Mortgages,One major product line in pool sizing
+Consumer Finance,Deposits,Large contributor to profit pools
+Consumer Finance,Mutual Funds,Included in product-level analysis
+Consumer Finance,Consumer Loans,One of the five major product categories
