@@ -19,6 +19,33 @@ import plotly.express as px
 import plotly.graph_objects as go
 from typing import Dict, List, Optional, Tuple
 
+# =============================================================================
+# CONSTANTS - Economic factor calculation parameters
+# =============================================================================
+# These constants define the economic sentiment factor calculation.
+# The factor ranges from SENTIMENT_MIN_FACTOR to SENTIMENT_MAX_FACTOR.
+
+# Baseline values (neutral point = factor of 1.0)
+BASELINE_OIL_PRICE = 60.0  # USD, Western Canadian Select baseline
+BASELINE_UNEMPLOYMENT = 6.0  # Percentage, Alberta baseline
+
+# Component weights (must sum to 1.0)
+OIL_WEIGHT = 0.4  # Weight for oil price component
+UNEMPLOYMENT_WEIGHT = 0.6  # Weight for employment component
+
+# Factor calculation constants
+FACTOR_BASE = 0.8  # Base value for factor calculation
+FACTOR_RANGE = 0.4  # Range added based on economic conditions
+FACTOR_CLIP_LOW = 0.5  # Minimum ratio before clipping
+FACTOR_CLIP_HIGH = 1.5  # Maximum ratio before clipping
+
+# Sentiment factor bounds
+SENTIMENT_MIN_FACTOR = 0.85  # Floor for economic sentiment factor
+SENTIMENT_MAX_FACTOR = 1.10  # Ceiling for economic sentiment factor
+
+# Consumer confidence reference (Nanos Bloomberg)
+DEFAULT_CONSUMER_CONFIDENCE_AVG = 54.92  # Historical average BNCCI index (2008-2025)
+
 # Configure page
 st.set_page_config(
     page_title="External Data Impact — Alberta Ballet",
@@ -229,8 +256,8 @@ def calculate_current_economic_impact() -> dict:
         "combined_factor": 1.0,
         "oil_price": None,
         "unemployment_rate": None,
-        "baseline_oil": 60.0,
-        "baseline_unemployment": 6.0,
+        "baseline_oil": BASELINE_OIL_PRICE,
+        "baseline_unemployment": BASELINE_UNEMPLOYMENT,
     }
     
     if not DATA_LOADERS_AVAILABLE:
@@ -241,12 +268,12 @@ def calculate_current_economic_impact() -> dict:
         impact["sentiment_factor"] = get_economic_sentiment_factor(
             run_date=pd.Timestamp.now(),
             city=None,
-            baseline_oil_price=60.0,
-            baseline_unemployment=6.0,
-            oil_weight=0.4,
-            unemployment_weight=0.6,
-            min_factor=0.85,
-            max_factor=1.10
+            baseline_oil_price=BASELINE_OIL_PRICE,
+            baseline_unemployment=BASELINE_UNEMPLOYMENT,
+            oil_weight=OIL_WEIGHT,
+            unemployment_weight=UNEMPLOYMENT_WEIGHT,
+            min_factor=SENTIMENT_MIN_FACTOR,
+            max_factor=SENTIMENT_MAX_FACTOR
         )
         
         # Load oil prices for latest value
@@ -261,9 +288,11 @@ def calculate_current_economic_impact() -> dict:
                 for col in ["wcs_oil_price", "oil_price", "price"]:
                     if col in recent.columns:
                         impact["oil_price"] = float(recent.iloc[0][col])
-                        # Calculate oil factor component
+                        # Calculate oil factor component using constants
                         if impact["oil_price"] > 0:
-                            impact["oil_factor"] = 0.8 + 0.4 * min(1.5, max(0.5, impact["oil_price"] / 60.0))
+                            ratio = impact["oil_price"] / BASELINE_OIL_PRICE
+                            clipped_ratio = min(FACTOR_CLIP_HIGH, max(FACTOR_CLIP_LOW, ratio))
+                            impact["oil_factor"] = FACTOR_BASE + FACTOR_RANGE * clipped_ratio
                         break
         
         # Load unemployment for latest value
@@ -280,12 +309,18 @@ def calculate_current_economic_impact() -> dict:
             recent = alberta_df.sort_values("date", ascending=False)
             if not recent.empty and "unemployment_rate" in recent.columns:
                 impact["unemployment_rate"] = float(recent.iloc[0]["unemployment_rate"])
-                # Calculate unemployment factor component
+                # Calculate unemployment factor component using constants
+                # Note: inverse relationship - lower unemployment = higher factor
                 if impact["unemployment_rate"] > 0:
-                    impact["unemployment_factor"] = 0.8 + 0.4 * min(1.5, max(0.5, 6.0 / impact["unemployment_rate"]))
+                    ratio = BASELINE_UNEMPLOYMENT / impact["unemployment_rate"]
+                    clipped_ratio = min(FACTOR_CLIP_HIGH, max(FACTOR_CLIP_LOW, ratio))
+                    impact["unemployment_factor"] = FACTOR_BASE + FACTOR_RANGE * clipped_ratio
         
         # Calculate combined factor (weighted average)
-        impact["combined_factor"] = 0.4 * impact["oil_factor"] + 0.6 * impact["unemployment_factor"]
+        impact["combined_factor"] = (
+            OIL_WEIGHT * impact["oil_factor"] + 
+            UNEMPLOYMENT_WEIGHT * impact["unemployment_factor"]
+        )
         
     except Exception as e:
         st.warning(f"Error calculating economic impact: {e}")
@@ -449,7 +484,7 @@ with tab_overview:
         nanos = get_nanos_consumer_confidence_summary()
         if "current_index" in nanos:
             ci = nanos["current_index"]
-            avg = nanos.get("overall_avg", 54.92)
+            avg = nanos.get("overall_avg", DEFAULT_CONSUMER_CONFIDENCE_AVG)
             st.metric(
                 "Consumer Confidence",
                 f"{ci:.1f}",
@@ -565,15 +600,31 @@ with tab_economic:
             col1, col2 = st.columns([2, 1])
             
             with col1:
-                # Chart
-                fig = px.line(
-                    oil_df, x="date", y="wcs_oil_price" if "wcs_oil_price" in oil_df.columns else oil_df.columns[1],
-                    color="oil_series" if "oil_series" in oil_df.columns else None,
-                    title="Historical Oil Prices"
-                )
-                fig.add_hline(y=60, line_dash="dash", line_color="red", 
-                             annotation_text="Baseline ($60)")
-                st.plotly_chart(fig, use_container_width=True)
+                # Determine y-axis column with robust fallback
+                y_col = None
+                if "wcs_oil_price" in oil_df.columns:
+                    y_col = "wcs_oil_price"
+                elif "oil_price" in oil_df.columns:
+                    y_col = "oil_price"
+                else:
+                    # Find first numeric column that isn't 'date'
+                    numeric_cols = oil_df.select_dtypes(include=['float64', 'int64']).columns
+                    numeric_cols = [c for c in numeric_cols if c != 'date']
+                    if numeric_cols:
+                        y_col = numeric_cols[0]
+                
+                if y_col:
+                    # Chart
+                    fig = px.line(
+                        oil_df, x="date", y=y_col,
+                        color="oil_series" if "oil_series" in oil_df.columns else None,
+                        title="Historical Oil Prices"
+                    )
+                    fig.add_hline(y=BASELINE_OIL_PRICE, line_dash="dash", line_color="red", 
+                                 annotation_text=f"Baseline (${BASELINE_OIL_PRICE:.0f})")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Could not determine price column for chart")
             
             with col2:
                 st.markdown("**Recent Data**")
@@ -603,8 +654,8 @@ with tab_economic:
                     color="region" if "region" in unemp_df.columns else None,
                     title="Unemployment Rates by Region"
                 )
-                fig.add_hline(y=6.0, line_dash="dash", line_color="red",
-                             annotation_text="Baseline (6.0%)")
+                fig.add_hline(y=BASELINE_UNEMPLOYMENT, line_dash="dash", line_color="red",
+                             annotation_text=f"Baseline ({BASELINE_UNEMPLOYMENT:.1f}%)")
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
