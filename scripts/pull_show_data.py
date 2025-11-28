@@ -6,11 +6,15 @@ This script pulls per-show/performance data from Ticketmaster and Archtics
 APIs and exports a normalized CSV aligned to the analysis schema.
 
 Usage:
+    # Default: Process all shows from history_city_sales.csv
+    python scripts/pull_show_data.py
+
+    # Single show mode
     python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
     python scripts/pull_show_data.py --show_id "nutcracker-2024" --city Calgary
 
-Batch Mode:
-    python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --season 2024-25
+    # Custom CSV batch mode
+    python scripts/pull_show_data.py --from_csv path/to/custom.csv --season 2024-25
 
 Environment Variables Required:
     TM_API_KEY: Ticketmaster API key
@@ -46,6 +50,9 @@ from integrations import (
 )
 from integrations.ticketmaster import TicketmasterError, TicketmasterAuthError
 from integrations.archtics import ArchticsError, ArchticsAuthError
+
+# Default CSV path for batch processing when no arguments provided
+DEFAULT_CSV_PATH = Path(__file__).parent.parent / "data" / "productions" / "history_city_sales.csv"
 
 # Configure logging
 logging.basicConfig(
@@ -584,15 +591,18 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Default: Process all shows from history_city_sales.csv
+  python scripts/pull_show_data.py
+  python scripts/pull_show_data.py --dry-run
+
   # Single show mode
   python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
   python scripts/pull_show_data.py --show_id nutcracker-2024 --city Calgary
   python scripts/pull_show_data.py --show_title "Swan Lake" --output custom_output.csv
 
-  # Batch mode (from CSV)
-  python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv
-  python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --season 2024-25
-  python scripts/pull_show_data.py --from_csv data/productions/history_city_sales.csv --dry-run
+  # Custom CSV batch mode
+  python scripts/pull_show_data.py --from_csv path/to/custom.csv
+  python scripts/pull_show_data.py --from_csv path/to/custom.csv --season 2024-25
 
 Environment Variables:
   TM_API_KEY           Ticketmaster API key
@@ -605,16 +615,16 @@ For full documentation, see README.md section "Archtics + Ticketmaster Integrati
     
     parser.add_argument(
         "--show_title",
-        help="Show title to search for (e.g., 'The Nutcracker'). Required if --show_id or --from_csv is not provided.",
+        help="Show title to search for (e.g., 'The Nutcracker').",
     )
     parser.add_argument(
         "--show_id",
-        help="Show identifier for the output file (e.g., 'nutcracker-2024'). Required if --show_title or --from_csv is not provided.",
+        help="Show identifier for the output file (e.g., 'nutcracker-2024').",
     )
     parser.add_argument(
         "--from_csv",
         metavar="CSV_PATH",
-        help="Path to CSV file with show titles for batch processing (expects 'show_title' column).",
+        help="Path to CSV file with show titles for batch processing. Defaults to data/productions/history_city_sales.csv if no arguments provided.",
     )
     parser.add_argument(
         "--season",
@@ -658,6 +668,21 @@ For full documentation, see README.md section "Archtics + Ticketmaster Integrati
     
     # Load .env file
     setup_env_from_dotenv()
+    
+    # Default to history_city_sales.csv if no show/CSV specified
+    if not args.show_title and not args.show_id and not args.from_csv:
+        if DEFAULT_CSV_PATH.exists():
+            logger.info(f"No show specified, using default CSV: {DEFAULT_CSV_PATH}")
+            args.from_csv = str(DEFAULT_CSV_PATH)
+        else:
+            logger.error(
+                f"Default CSV file not found: {DEFAULT_CSV_PATH}\n"
+                "Please provide arguments:\n"
+                "  python scripts/pull_show_data.py --show_title 'The Nutcracker'\n"
+                "  python scripts/pull_show_data.py --show_id 'nutcracker-2024'\n"
+                "  python scripts/pull_show_data.py --from_csv path/to/your.csv"
+            )
+            return 1
     
     # Check credentials early for both modes
     tm_available, archtics_available = check_credentials()
