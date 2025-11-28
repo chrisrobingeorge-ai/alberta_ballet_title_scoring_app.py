@@ -397,6 +397,61 @@ The API clients include built-in rate limiting and retry logic.
 
 **Note**: Some fields require both data sources. Fields not available from APIs are documented in the output with null values.
 
+### Deploying the Integration
+
+The Archtics + Ticketmaster integration can be deployed in several ways depending on your use case:
+
+#### Option 1: CLI Script (Recommended for Automation)
+
+Run the CLI script directly for one-time or scheduled data pulls:
+
+```bash
+# One-time pull
+python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
+
+# Scheduled pull via cron (Linux/macOS)
+# Add to crontab: crontab -e
+0 6 * * * cd /path/to/repo && python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
+
+# Scheduled pull via Task Scheduler (Windows)
+# Create a scheduled task pointing to the script
+```
+
+#### Option 2: Cloud Function / Lambda
+
+Deploy as a serverless function for event-driven pulls:
+
+```python
+# Example AWS Lambda handler
+def lambda_handler(event, context):
+    from integrations import TicketmasterClient, ArchticsClient, ShowDataNormalizer, export_show_csv
+    
+    show_title = event.get("show_title", "The Nutcracker")
+    # ... rest of the pull logic
+```
+
+#### Option 3: Integrate with Streamlit App
+
+The data pulled by the CLI script lands in the `data/` directory as CSV files. The main Streamlit app (`streamlit_app.py`) automatically picks up these files for analysis:
+
+1. **Pull data**: `python scripts/pull_show_data.py --show_title "Show Name"`
+2. **Run Streamlit**: `streamlit run streamlit_app.py`
+3. The app uses the normalized CSV for predictions and analysis
+
+#### Which App to Run?
+
+| Goal | Command |
+|------|---------|
+| Pull data from APIs (one-time) | `python scripts/pull_show_data.py --show_title "Show Name"` |
+| Pull data from APIs (scheduled) | Set up cron/scheduler for `scripts/pull_show_data.py` |
+| View predictions & analytics | `streamlit run streamlit_app.py` |
+| Score new titles manually | `python title_scoring_helper.py` |
+
+**Typical Workflow**:
+1. Set up API credentials in `.env`
+2. Run `scripts/pull_show_data.py` to fetch fresh data (manually or via scheduler)
+3. Run `streamlit run streamlit_app.py` to view and analyze the data
+
 ---
 
 ## Contributing
