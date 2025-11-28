@@ -1,0 +1,83 @@
+section,subcategory,metric,year_or_period,value,unit,notes,source_page
+Annual giving breakdown,Arts share,Avg %,2023,11,percent,,23
+Annual giving breakdown,Arts share,Avg %,2024,12,percent,,23
+Annual giving breakdown,Arts share,Avg %,2025,12,percent,,23
+Annual giving breakdown,Other charities,Avg %,2023,90,percent,,23
+Annual giving breakdown,Other charities,Avg %,2024,88,percent,,23
+Annual giving breakdown,Other charities,Avg %,2025,88,percent,,23
+Annual giving by age,18-34,Arts share,2025,11.9,percent,,24
+Annual giving by age,35-54,Arts share,2025,12.5,percent,,24
+Annual giving by age,55+,Arts share,2025,12,percent,,24
+Annual giving by gender,Men,Arts share,2025,12.9,percent,,24
+Annual giving by gender,Women,Arts share,2025,11.5,percent,,24
+Annual giving by region,Atlantic,Arts share,2025,16.3,percent,,24
+Annual giving by region,Quebec,Arts share,2025,10.2,percent,,24
+Annual giving by region,Ontario,Arts share,2025,11.1,percent,,24
+Annual giving by region,Prairies,Arts share,2025,12.3,percent,,24
+Annual giving by region,BC,Arts share,2025,15.3,percent,,24
+Donation requests,Recall,Recall being asked,2024,32,percent,,21
+Donation requests,Recall,Recall being asked,2025,34,percent,,21
+Donation requests,Recall,Do not recall,2025,66,percent,,21
+Donation requests by age,18-34,Recall,2025,29.5,percent,,22
+Donation requests by age,35-54,Recall,2025,34.9,percent,,22
+Donation requests by age,55+,Recall,2025,37,percent,,22
+Donation requests by gender,Men,Recall,2025,35.1,percent,,22
+Donation requests by gender,Women,Recall,2025,33.3,percent,,22
+Donation requests by region,Atlantic,Recall,2025,35.9,percent,,22
+Donation requests by region,Quebec,Recall,2025,27.8,percent,,22
+Donation requests by region,Ontario,Recall,2025,35.2,percent,,22
+Donation requests by region,Prairies,Recall,2025,36.8,percent,,22
+Donation requests by region,BC,Recall,2025,37.8,percent,,22
+Donations,Donation rate,Culture-goers planning to donate,2025,35,percent,,3
+Donations,Mean donation,Average donation 2024,2024,506.36,cad,Mean of donors only,19
+Donations,Median donation,Median donation 2024,2024,200,cad,,19
+Donations,Mean donation,Average donation 2023,2023,363.4,cad,,19
+Donations,Median donation,Median donation 2023,2023,120,cad,,19
+Donations,Mean donation,Average donation 2022,2022,315,cad,,19
+Donations,Median donation,Median donation 2022,2022,100,cad,,19
+Donations,Donation intentions,% giving 0 in 2024,2024,64.8,percent,,19
+Donations,Donation intentions,% giving 100 in 2024,2024,8.9,percent,,19
+Donations,Donation intentions,% giving 200 in 2024,2024,5,percent,,19
+Donations,Donation intentions,% giving 50 in 2024,2024,4.7,percent,,19
+Donations,Donation intentions,% giving 500 in 2024,2024,2.8,percent,,19
+Employer support,Sponsor arts events,Share,2025,12,percent,,27
+Employer support,Buy tickets,Share,2025,9,percent,,27
+Employer support,Corporate donation,Share,2025,8,percent,,27
+Employer support,Encourage volunteering,Share,2025,7,percent,,27
+Employer support,Group volunteering,Share,2025,5,percent,,27
+Employer support,Match donations,Share,2025,4,percent,,27
+Employer support,Does not support arts,Share,2025,51,percent,,27
+Employer support,Unsure,Share,2025,24,percent,,27
+Intentions 2025,Donations,None planned,2025,65,percent,,20
+Intentions 2025,Donations,$1-100,2025,15,percent,,20
+Intentions 2025,Donations,$101-500,2025,14,percent,,20
+Intentions 2025,Donations,$501+,2025,6,percent,,20
+Intentions 2025,Mean donation,Mean (donors only),2025,532.83,cad,,20
+Intentions 2025,Median donation,Median (donors only),2025,200,cad,,20
+KEY FINDINGS,Charitable giving,Share to arts & culture,2025,12,percent,Avg % of $100 donated,3
+KEY FINDINGS,Charitable giving,Share to other causes,2025,88,percent,,3
+KEY FINDINGS,Local donations,Local org share,2025,59,percent,,3
+KEY FINDINGS,Regional org share,Broader region,2025,21,percent,,3
+KEY FINDINGS,National org share,National orgs,2025,15,percent,,3
+KEY FINDINGS,Other donations,Other,2025,5,percent,,3
+Motivators,Value local impact,Top motivator,2025,55.3,percent,,26
+Motivators,Support artists,Top motivator,2025,53.9,percent,,26
+Motivators,Support Canadian culture,Top motivator,2025,52.7,percent,,26
+Motivators,Give back to community,Top motivator,2025,48.8,percent,,26
+Motivators,Believe in mission,Top motivator,2025,47,percent,,26
+Motivators,Worried about funding,Top motivator,2025,41.5,percent,,26
+Motivators,Admire org,Top motivator,2025,33.2,percent,,26
+Motivators,Felt personally benefited,Top motivator,2025,32.7,percent,,26
+Motivators,Find content compelling,Top motivator,2025,30.5,percent,,26
+Motivators,Impact on world,Top motivator,2025,29,percent,,26
+Org donations (regional variation),Atlantic,Local org share,2025,63.3,percent,,25
+Org donations (regional variation),Quebec,Local org share,2025,46.4,percent,,25
+Org donations (regional variation),Ontario,Local org share,2025,56.4,percent,,25
+Org donations (regional variation),Prairies,Local org share,2025,69.1,percent,,25
+Org donations (regional variation),BC,Local org share,2025,62.6,percent,,25
+Org donations by type,Local orgs,Proportion,2025,59,percent,,25
+Org donations by type,Regional orgs,Proportion,2025,21,percent,,25
+Org donations by type,National orgs,Proportion,2025,15,percent,,25
+Org donations by type,Other,Proportion,2025,5,percent,,25
+Survey,Fieldwork,Sample size,Oct-25,1045,count,Canadians surveyed,2
+Survey,Fieldwork,Margin of error,Oct-25,3,percentage_points,19 times out of 20,2
