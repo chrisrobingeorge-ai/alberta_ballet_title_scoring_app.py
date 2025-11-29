@@ -173,41 +173,18 @@ def mock_streamlit():
 class TestStreamlitPagesImport:
     """Test that Streamlit pages can be imported without errors."""
     
-    def test_feature_registry_page_imports(self, mock_streamlit):
-        """Test 1_Feature_Registry.py can be imported."""
-        # This page imports streamlit at module level, so we need to mock it
+    def test_config_registry_loaders(self, mock_streamlit):
+        """Test config registry loaders work (used by various pages)."""
+        # This tests the underlying config module that was used by removed pages
         with patch.dict(sys.modules, {"streamlit": mock_streamlit}):
-            # Force reload to pick up the mock
-            import importlib
             from config import registry
             
             # Check the registry loaders work
             df = registry.load_feature_inventory()
             assert df is not None
-    
-    def test_leakage_guard_page_imports(self, mock_streamlit):
-        """Test 2_Leakage_Guard.py can be imported."""
-        with patch.dict(sys.modules, {"streamlit": mock_streamlit}):
-            from config import registry
             
             df = registry.load_leakage_audit()
             assert df is not None
-    
-    def test_data_quality_page_imports(self, mock_streamlit):
-        """Test 3_Data_Quality.py can be imported."""
-        with patch.dict(sys.modules, {"streamlit": mock_streamlit}):
-            from config import registry
-            from data.loader import load_history_sales
-            
-            df_reg = registry.load_feature_inventory()
-            assert df_reg is not None
-            
-            # load_history_sales might fail if file doesn't exist
-            try:
-                df_raw = load_history_sales(fallback_empty=True)
-                assert df_raw is not None
-            except Exception:
-                pass  # OK if file doesn't exist
 
 
 class TestDataLoaders:

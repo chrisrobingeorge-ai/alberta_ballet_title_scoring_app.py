@@ -50,9 +50,9 @@ When you click "Score Titles" on the main page:
 | `EstimatedTickets_Final` | Predicted tickets **after** remount decay & post-COVID adjustment |
 | `YYC_Singles` / `YEG_Singles` | City-level single ticket predictions |
 
-#### B. Title Scoring Page (`pages/5_Title_Scoring.py`)
+#### B. ML Model Predictions
 
-When you use the ML-based Title Scoring page:
+When using trained ML models (via `ml/scoring.py`):
 
 | Column | Source | Description |
 |--------|--------|-------------|
