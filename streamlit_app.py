@@ -2173,23 +2173,26 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
                 boc_f = econ_context.get("boc_sentiment")
                 alberta_f = econ_context.get("alberta_sentiment")
                 
-                cols = st.columns(max(len(sources), 2))
-                col_idx = 0
-                
-                if boc_enabled:
-                    with cols[col_idx]:
-                        if boc_f is not None:
-                            st.caption(f"🇨🇦 BoC live: ×{boc_f:.3f}")
-                        else:
-                            st.caption("🇨🇦 BoC live: N/A")
-                    col_idx += 1
-                
-                if alberta_enabled:
-                    with cols[col_idx]:
-                        if alberta_f is not None:
-                            st.caption(f"🏔️ Alberta live: ×{alberta_f:.3f}")
-                        else:
-                            st.caption("🏔️ Alberta live: N/A")
+                # Calculate number of columns needed (at least 1 for each enabled source)
+                num_enabled = sum([boc_enabled, alberta_enabled])
+                if num_enabled > 0:
+                    cols = st.columns(num_enabled)
+                    col_idx = 0
+                    
+                    if boc_enabled:
+                        with cols[col_idx]:
+                            if boc_f is not None:
+                                st.caption(f"🇨🇦 BoC live: ×{boc_f:.3f}")
+                            else:
+                                st.caption("🇨🇦 BoC live: N/A")
+                        col_idx += 1
+                    
+                    if alberta_enabled and col_idx < len(cols):
+                        with cols[col_idx]:
+                            if alberta_f is not None:
+                                st.caption(f"🏔️ Alberta live: ×{alberta_f:.3f}")
+                            else:
+                                st.caption("🏔️ Alberta live: N/A")
                 
                 st.caption(
                     "Combined sentiment blends live data sources. "

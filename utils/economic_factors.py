@@ -1228,11 +1228,12 @@ def get_current_economic_context(
         sentiments.append(result["alberta_sentiment"])
         weights.append(alberta_weight)
     
-    if sentiments:
+    if sentiments and weights:
         total_weight = sum(weights)
-        result["combined_sentiment"] = sum(
-            s * w for s, w in zip(sentiments, weights)
-        ) / total_weight
+        if total_weight > 0:
+            result["combined_sentiment"] = sum(
+                s * w for s, w in zip(sentiments, weights)
+            ) / total_weight
     
     return result
 
