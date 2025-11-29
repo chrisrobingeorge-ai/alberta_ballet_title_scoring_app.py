@@ -11,6 +11,10 @@ from ml.scoring import (
     DEFAULT_ECONOMIC_BASELINES,
 )
 
+# Tolerance for neutral score assertion
+# Neutral inputs should produce scores within this range of zero
+NEUTRAL_SCORE_TOLERANCE = 15
+
 
 class TestEconomicBaselinesConfig:
     """Tests for economic baselines configuration."""
@@ -106,7 +110,7 @@ class TestEconomicImpactScoreComputation:
         score = result['economic_impact_score'].iloc[0]
         
         # Should be close to zero (within reasonable tolerance)
-        assert abs(score) < 15, f"Neutral inputs should give near-zero score, got {score}"
+        assert abs(score) < NEUTRAL_SCORE_TOLERANCE, f"Neutral inputs should give near-zero score, got {score}"
     
     def test_positive_indicators_produce_positive_score(self):
         """Strong economic indicators should produce positive score."""

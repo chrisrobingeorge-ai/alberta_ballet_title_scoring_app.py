@@ -52,6 +52,11 @@ DEFAULT_ECONOMIC_BASELINES = {
 }
 
 
+# Scaling factor for inflation impact on economic score
+# A factor of 5 means 20% inflation deviation from 1.0 hits the clip bounds
+INFLATION_IMPACT_SCALE = 5
+
+
 def load_economic_baselines(config_path: Optional[str] = None) -> dict:
     """Load economic baseline configuration.
     
@@ -169,7 +174,7 @@ def compute_economic_impact_score(
     if 'inflation_adjustment_factor' in out.columns:
         # Values > 1 mean prices have risen (negative impact)
         # Normalize around 1.0: 0.95-1.05 is neutral, beyond is impact
-        out['_inflation_score'] = -(out['inflation_adjustment_factor'] - 1.0) * 5
+        out['_inflation_score'] = -(out['inflation_adjustment_factor'] - 1.0) * INFLATION_IMPACT_SCALE
         out['_inflation_score'] = out['_inflation_score'].clip(-1, 1)
     else:
         out['_inflation_score'] = 0.0

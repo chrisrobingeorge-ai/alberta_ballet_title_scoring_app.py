@@ -242,7 +242,7 @@ def compute_inflation_adjustment_factor(
     Creates an adjustment factor relative to a base date that can be used
     to normalize ticket prices or revenue across time periods.
     
-    Formula: inflation_factor = cpi_base / cpi_current
+    Formula: inflation_factor = cpi_current / cpi_base
     (Values > 1 indicate prices have risen since base date)
     
     Args:
