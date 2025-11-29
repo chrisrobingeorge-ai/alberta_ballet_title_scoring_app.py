@@ -79,13 +79,14 @@ knn:
   # Number of neighbors
   k: 5
   
-  # Distance metric: "cosine", "euclidean", "manhattan", "mahalanobis"
+  # Distance metric: "cosine", "euclidean", "manhattan"
+  # Note: PCA preprocessing provides Mahalanobis-like distance when enabled
   metric: "cosine"
   
   # Use distance-weighted voting
   weights: "distance"
   
-  # Enable PCA preprocessing for similarity search
+  # Enable PCA preprocessing for similarity search (provides Mahalanobis-like distance)
   use_pca: false
   pca_components: 3
   

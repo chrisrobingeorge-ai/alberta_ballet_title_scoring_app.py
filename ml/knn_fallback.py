@@ -131,18 +131,20 @@ class KNNFallback:
                 "Install with: pip install scikit-learn"
             )
         
-        # Load defaults from config if available
+        # Load defaults from config file
         config = load_knn_config()
         
-        self.k = k if k != 5 else config.get("k", 5)
-        self.metric = metric if metric != "cosine" else config.get("metric", "cosine")
-        self.normalize = normalize if normalize else config.get("normalize", True)
-        self.recency_weight = recency_weight if recency_weight != 0.5 else config.get("recency_weight", 0.5)
-        self.recency_decay = recency_decay if recency_decay != DEFAULT_RECENCY_DECAY else config.get("recency_decay", DEFAULT_RECENCY_DECAY)
+        # Use provided values, falling back to config defaults
+        # Parameters are only overridden by config if not explicitly provided
+        self.k = k
+        self.metric = metric
+        self.normalize = normalize
+        self.recency_weight = recency_weight
+        self.recency_decay = recency_decay
         self.seed = seed
-        self.weights = weights if weights != "distance" else config.get("weights", "distance")
-        self.use_pca = use_pca if use_pca else config.get("use_pca", False)
-        self.pca_components = pca_components if pca_components != 3 else config.get("pca_components", 3)
+        self.weights = weights
+        self.use_pca = use_pca
+        self.pca_components = pca_components
         
         # Internal state
         self._nn_model: Optional[NearestNeighbors] = None
@@ -151,6 +153,9 @@ class KNNFallback:
         self._index_df: Optional[pd.DataFrame] = None
         self._feature_matrix: Optional[np.ndarray] = None
         self._is_fitted = False
+        
+        # Store config for reference
+        self._config = config
     
     def build_index(
         self,
@@ -403,6 +408,39 @@ def build_knn_index(
         >>> predicted = knn.predict({"wiki": 70, "trends": 40, "youtube": 80, "spotify": 60})
     """
     knn = KNNFallback(metric=metric, normalize=normalize)
+    return knn.build_index(baseline_df, outcome_col=outcome_col, last_run_col=last_run_col)
+
+
+def build_knn_from_config(
+    baseline_df: pd.DataFrame,
+    outcome_col: str = "ticket_median",
+    last_run_col: Optional[str] = "last_run_date"
+) -> KNNFallback:
+    """
+    Build a KNN index using settings from the config file.
+    
+    This factory function creates a KNNFallback instance with all parameters
+    loaded from configs/ml_config.yaml.
+    
+    Args:
+        baseline_df: DataFrame with baseline features and known outcomes
+        outcome_col: Column containing the outcome variable
+        last_run_col: Column containing last run date (optional)
+        
+    Returns:
+        Fitted KNNFallback instance with config-based settings
+    """
+    config = load_knn_config()
+    knn = KNNFallback(
+        k=config.get("k", 5),
+        metric=config.get("metric", "cosine"),
+        normalize=config.get("normalize", True),
+        recency_weight=config.get("recency_weight", 0.5),
+        recency_decay=config.get("recency_decay", DEFAULT_RECENCY_DECAY),
+        weights=config.get("weights", "distance"),
+        use_pca=config.get("use_pca", False),
+        pca_components=config.get("pca_components", 3)
+    )
     return knn.build_index(baseline_df, outcome_col=outcome_col, last_run_col=last_run_col)
 
 
