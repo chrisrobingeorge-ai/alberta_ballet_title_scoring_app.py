@@ -23,7 +23,7 @@ fallback_mode: "neutral"
 
 # API settings
 api:
-  base_url: "https://api.economicdata.alberta.ca/api/data"
+  base_url: "https://economicdashboard.alberta.ca"
   timeout_seconds: 15
   # Cache duration in hours (values refresh after this period)
   cache_ttl_hours: 24
