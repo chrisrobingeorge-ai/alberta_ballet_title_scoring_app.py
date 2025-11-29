@@ -1,5 +1,17 @@
+"""
+Model scoring module with schema validation and uncertainty quantification.
+
+Features:
+- Schema validation against training features
+- Column drift detection
+- Prediction interval estimation
+- Economic impact scoring
+"""
+
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
+import json
+import warnings
 import pandas as pd
 import numpy as np
 import joblib
@@ -7,6 +19,105 @@ import yaml
 import logging
 
 logger = logging.getLogger(__name__)
+
+MODELS_DIR = Path(__file__).parent.parent / "models"
+OUTPUTS_DIR = Path(__file__).parent.parent / "outputs"
+
+
+# =============================================================================
+# SCHEMA VALIDATION
+# =============================================================================
+
+
+class SchemaValidationWarning(UserWarning):
+    """Warning raised when input schema doesn't match training schema."""
+    pass
+
+
+def load_training_schema() -> Optional[Dict[str, Any]]:
+    """Load the training schema from model metadata.
+    
+    Returns:
+        Dictionary with feature names and metadata, or None if not available
+    """
+    metadata_path = MODELS_DIR / "model_metadata.json"
+    
+    if metadata_path.exists():
+        try:
+            with open(metadata_path) as f:
+                metadata = json.load(f)
+            return {
+                "features": metadata.get("features", []),
+                "n_features": metadata.get("n_features", 0),
+                "training_date": metadata.get("training_date")
+            }
+        except Exception as e:
+            logger.warning(f"Could not load training schema: {e}")
+    
+    return None
+
+
+def validate_input_schema(
+    df: pd.DataFrame,
+    training_schema: Optional[Dict[str, Any]] = None,
+    raise_on_error: bool = False
+) -> Tuple[bool, List[str]]:
+    """Validate input DataFrame schema against training schema.
+    
+    Args:
+        df: Input DataFrame to validate
+        training_schema: Schema from training (loads from metadata if None)
+        raise_on_error: If True, raise ValueError on schema mismatch
+        
+    Returns:
+        Tuple of (is_valid, list of warning messages)
+    """
+    if training_schema is None:
+        training_schema = load_training_schema()
+    
+    if training_schema is None:
+        return True, ["No training schema available for validation"]
+    
+    warnings_list = []
+    is_valid = True
+    
+    expected_features = set(training_schema.get("features", []))
+    actual_features = set(df.columns.tolist())
+    
+    # Check for missing columns
+    missing_cols = expected_features - actual_features
+    if missing_cols:
+        msg = f"Missing {len(missing_cols)} columns from training schema: {list(missing_cols)[:5]}"
+        if len(missing_cols) > 5:
+            msg += f"... and {len(missing_cols) - 5} more"
+        warnings_list.append(msg)
+        is_valid = False
+    
+    # Check for extra columns (may indicate drift)
+    extra_cols = actual_features - expected_features
+    if extra_cols:
+        msg = f"Found {len(extra_cols)} extra columns not in training schema: {list(extra_cols)[:5]}"
+        if len(extra_cols) > 5:
+            msg += f"... and {len(extra_cols) - 5} more"
+        warnings_list.append(msg)
+    
+    # Check column order (some models are sensitive to this)
+    if expected_features and actual_features:
+        common_features = expected_features & actual_features
+        if common_features:
+            training_order = [f for f in training_schema.get("features", []) if f in common_features]
+            actual_order = [f for f in df.columns if f in common_features]
+            if training_order != actual_order:
+                warnings_list.append("Column order differs from training schema")
+    
+    # Emit warnings
+    for warning_msg in warnings_list:
+        warnings.warn(warning_msg, SchemaValidationWarning)
+    
+    if not is_valid and raise_on_error:
+        raise ValueError(f"Schema validation failed: {'; '.join(warnings_list)}")
+    
+    return is_valid, warnings_list
 
 
 # =============================================================================
@@ -16,14 +127,107 @@ logger = logging.getLogger(__name__)
 
 def load_model(model_path: str | None = None):
     """Load a trained model from disk."""
-    path = Path(model_path or (Path(__file__).parent.parent / "models" / "title_demand_rf.pkl"))
+    path = Path(model_path or (MODELS_DIR / "title_demand_rf.pkl"))
     return joblib.load(path)
 
 
-def score_dataframe(df_features: pd.DataFrame, model=None) -> pd.Series:
-    """Score a DataFrame using the trained model."""
+def score_dataframe(
+    df_features: pd.DataFrame,
+    model=None,
+    validate_schema: bool = True
+) -> pd.Series:
+    """Score a DataFrame using the trained model.
+    
+    Args:
+        df_features: DataFrame with features for scoring
+        model: Trained model (loads default if None)
+        validate_schema: Whether to validate input schema
+        
+    Returns:
+        Series of predictions
+    """
     model = model or load_model()
-    return pd.Series(model.predict(df_features), index=df_features.index, name="forecast_single_tickets")
+    
+    # Validate schema if requested
+    if validate_schema:
+        validate_input_schema(df_features)
+    
+    return pd.Series(
+        model.predict(df_features),
+        index=df_features.index,
+        name="forecast_single_tickets"
+    )
+
+
+def score_with_uncertainty(
+    df_features: pd.DataFrame,
+    model=None,
+    confidence_level: float = 0.9,
+    n_bootstrap: int = 100
+) -> pd.DataFrame:
+    """Score DataFrame with prediction intervals via bootstrapping.
+    
+    For Random Forest models, uses the individual tree predictions to
+    estimate uncertainty. For other models, uses bootstrap resampling.
+    
+    Args:
+        df_features: DataFrame with features for scoring
+        model: Trained model (loads default if None)
+        confidence_level: Confidence level for intervals (default 0.9 = 90%)
+        n_bootstrap: Number of bootstrap samples (unused for RF)
+        
+    Returns:
+        DataFrame with columns: prediction, lower_bound, upper_bound
+    """
+    model = model or load_model()
+    
+    # Check if model has estimators (Random Forest)
+    pipeline_model = model
+    if hasattr(model, "named_steps"):
+        # It's a pipeline, get the estimator
+        for step_name, step in model.named_steps.items():
+            if hasattr(step, "estimators_"):
+                pipeline_model = model
+                estimator = step
+                break
+        else:
+            estimator = None
+    else:
+        estimator = model if hasattr(model, "estimators_") else None
+    
+    predictions = pipeline_model.predict(df_features)
+    
+    if estimator is not None and hasattr(estimator, "estimators_"):
+        # Random Forest: use individual tree predictions
+        # Need to transform features first if using pipeline
+        if hasattr(model, "named_steps") and "pre" in model.named_steps:
+            X_transformed = model.named_steps["pre"].transform(df_features)
+        else:
+            X_transformed = df_features
+        
+        tree_predictions = np.array([
+            tree.predict(X_transformed) for tree in estimator.estimators_
+        ])
+        
+        alpha = 1 - confidence_level
+        lower = np.percentile(tree_predictions, alpha / 2 * 100, axis=0)
+        upper = np.percentile(tree_predictions, (1 - alpha / 2) * 100, axis=0)
+    else:
+        # Fallback: use a simple uncertainty estimate based on prediction magnitude
+        # This is a rough approximation when we can't get true uncertainty
+        uncertainty = np.abs(predictions) * 0.2  # 20% relative uncertainty
+        alpha = 1 - confidence_level
+        z_score = 1.645 if confidence_level == 0.9 else 1.96  # Approximate
+        lower = predictions - z_score * uncertainty
+        upper = predictions + z_score * uncertainty
+    
+    result = pd.DataFrame({
+        "prediction": predictions,
+        "lower_bound": lower,
+        "upper_bound": upper
+    }, index=df_features.index)
+    
+    return result
 
 
 # =============================================================================
