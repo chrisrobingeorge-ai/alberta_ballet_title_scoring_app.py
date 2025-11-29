@@ -281,7 +281,23 @@ def get_cv_splitter(
     n_splits: int = 5,
     group_col: Optional[str] = None
 ):
-    """Get appropriate cross-validation splitter."""
+    """Get appropriate cross-validation splitter.
+    
+    Prioritizes time-aware splitting to prevent future data leakage:
+    1. If date column found, use TimeSeriesCVSplitter (strictest)
+    2. If season/year column found, use TimeSeriesSplit
+    3. If group column found, use GroupKFold (weaker guarantee)
+    4. Fall back to KFold with warning (no leakage guarantee)
+    """
+    # First, try to find a date column for strict chronological splitting
+    date_cols = ["end_date", "start_date", "date", "opening_date", "performance_date"]
+    for col in date_cols:
+        if col in df.columns:
+            try:
+                from ml.time_splits import TimeSeriesCVSplitter
+                return TimeSeriesCVSplitter(n_splits=n_splits, date_column=col)
+            except ImportError:
+                pass  # Fall through to TimeSeriesSplit
     
     # Try time-aware if we have a season/year column
     time_cols = ["season", "ref_year", "year", "fiscal_year"]
@@ -292,9 +308,22 @@ def get_cv_splitter(
     
     # Try group-based if we have a grouping column
     if group_col and group_col in df.columns:
+        import warnings
+        warnings.warn(
+            f"Using GroupKFold with group column '{group_col}'. "
+            "This does not guarantee chronological ordering within groups. "
+            "Consider adding a date column for strict time-aware splitting.",
+            UserWarning
+        )
         return GroupKFold(n_splits=n_splits)
     
-    # Fall back to standard KFold
+    # Fall back to standard KFold with warning
+    import warnings
+    warnings.warn(
+        "Using KFold with shuffle - this may allow future data to leak into training! "
+        "Consider adding date information for time-aware splitting.",
+        UserWarning
+    )
     return KFold(n_splits=n_splits, shuffle=True, random_state=42)
 
 
