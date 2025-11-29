@@ -2722,6 +2722,7 @@ def compute_scores_and_store(
     df["ReturnDecayFactor"] = decay_factors
     df["EstimatedTickets_Final"] = est_after_decay
     df["EconomicSentimentFactor"] = economic_sentiment_factor  # Track the factor used
+    df["PostCovidFactor"] = postcovid_factor  # Track the post-COVID factor used
 
     # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
@@ -2934,7 +2935,9 @@ def render_results():
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
         "Composite","Score",
         "EstimatedTickets",
-        "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+        "ReturnDecayFactor","ReturnDecayPct",
+        "PostCovidFactor","EconomicSentimentFactor",
+        "EstimatedTickets_Final",
         "YYC_Singles","YEG_Singles",
         "CityShare_Calgary","CityShare_Edmonton",
         "YYC_Single_Revenue",
@@ -2974,6 +2977,8 @@ def render_results():
             "HistSeasonalityFactor": "{:.3f}",
             "ReturnDecayPct": "{:.0%}",
             "ReturnDecayFactor": "{:.2f}",
+            "PostCovidFactor": "{:.2f}",
+            "EconomicSentimentFactor": "{:.3f}",
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
             "CityShare_Calgary": "{:.0%}",
