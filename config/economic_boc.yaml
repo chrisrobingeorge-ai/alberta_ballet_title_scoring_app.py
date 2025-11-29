@@ -1,0 +1,184 @@
+# Bank of Canada Valet API Configuration
+# 
+# This file configures the integration with the Bank of Canada Valet API
+# for fetching live economic indicators as supplemental context for the
+# economic sentiment adjustment.
+#
+# IMPORTANT: This is an OPTIONAL, SUPPLEMENTAL layer. Historical analysis,
+# backtests, and model training continue to rely on the existing historical
+# economic datasets (WCS oil prices, Alberta unemployment, etc.).
+#
+# Valet API Documentation: https://www.bankofcanada.ca/valet/docs
+# No API key required.
+
+# Master toggle for BoC live data integration
+# Set to false to disable all BoC API calls and use only historical data
+use_boc_live_data: true
+
+# Fallback behavior when BoC data is unavailable
+# Options:
+#   - "historical": Fall back to existing historical-based factor (default)
+#   - "neutral": Use neutral factor of 1.0
+#   - "last_cached": Use last successfully cached BoC values
+fallback_mode: "historical"
+
+# API settings
+api:
+  base_url: "https://www.bankofcanada.ca/valet"
+  timeout_seconds: 10
+  # Cache duration in hours (values refresh after this period)
+  cache_ttl_hours: 24
+
+# Curated BoC series for economic sentiment calculation
+# Each series has:
+#   - id: The BoC Valet series identifier
+#   - description: What this series measures
+#   - baseline: Reference value for "normal" conditions
+#   - weight: Contribution to overall sentiment (weights should sum to 1.0)
+#   - direction: "positive" (higher = better sentiment) or "negative" (lower = better)
+boc_series:
+  # Interest Rate Environment
+  policy_rate:
+    id: "B114039"
+    description: "Bank of Canada Target Rate (overnight rate)"
+    baseline: 3.0  # Reference rate (%)
+    weight: 0.15
+    direction: "negative"  # Higher rates = tighter conditions = less spending
+    
+  corra:
+    id: "AVG.INTWO"
+    description: "Canadian Overnight Repo Rate Average (CORRA) (%)"
+    baseline: 3.0
+    weight: 0.05
+    direction: "negative"
+    
+  # Government of Canada Bond Yields (longer-term rate expectations)
+  gov_bond_2y:
+    id: "BD.CDN.2YR.DQ.YLD"
+    description: "Government of Canada 2-year benchmark bond yield"
+    baseline: 3.0
+    weight: 0.08
+    direction: "negative"
+    
+  gov_bond_5y:
+    id: "BD.CDN.5YR.DQ.YLD"
+    description: "Government of Canada 5-year benchmark bond yield"
+    baseline: 3.2
+    weight: 0.08
+    direction: "negative"
+    
+  gov_bond_10y:
+    id: "BD.CDN.10YR.DQ.YLD"
+    description: "Government of Canada 10-year benchmark bond yield"
+    baseline: 3.4
+    weight: 0.09
+    direction: "negative"
+    
+  # Commodity Price Indices (critical for Alberta economy)
+  bcpi_total:
+    id: "A.BCPI"
+    description: "Annual Bank of Canada Commodity Price Index (Total)"
+    baseline: 130.0  # Index value (2017=100)
+    weight: 0.10
+    direction: "positive"  # Higher commodity prices = stronger Alberta economy
+    
+  bcpi_energy:
+    id: "A.ENER"
+    description: "Annual BCPI Energy component (oil, gas, coal)"
+    baseline: 130.0
+    weight: 0.25  # Energy is critical for Alberta
+    direction: "positive"
+    
+  bcpi_ex_energy:
+    id: "A.BCNE"
+    description: "Annual BCPI Excluding Energy"
+    baseline: 110.0
+    weight: 0.10
+    direction: "positive"
+    
+  # Inflation Indicators
+  cpi_core:
+    id: "ATOM_V41693242"
+    description: "CPIX - Core CPI excluding volatile components (% change YoY)"
+    baseline: 2.0  # BoC target inflation rate
+    weight: 0.10
+    direction: "negative"  # Higher inflation = eroded purchasing power
+
+# Sentiment calculation parameters
+sentiment_calculation:
+  # Clipping range for the final sentiment scalar
+  # Values are clamped to this range
+  min_factor: 0.85
+  max_factor: 1.15
+  
+  # Neutral value (returned when all inputs are at baseline)
+  neutral: 1.0
+  
+  # Sensitivity - how much a 1-standard-deviation move affects sentiment
+  # Higher = more sensitive to economic changes
+  sensitivity: 0.10
+  
+  # Historical reference values for standardization
+  # These are approximate means/stddevs from historical BoC data
+  # Used to convert raw values to z-scores before applying weights
+  historical_stats:
+    policy_rate:
+      mean: 2.5
+      std: 1.5
+    corra:
+      mean: 2.5
+      std: 1.5
+    gov_bond_2y:
+      mean: 2.5
+      std: 1.2
+    gov_bond_5y:
+      mean: 2.8
+      std: 1.2
+    gov_bond_10y:
+      mean: 3.0
+      std: 1.0
+    bcpi_total:
+      mean: 100.0
+      std: 30.0
+    bcpi_energy:
+      mean: 100.0
+      std: 40.0
+    bcpi_ex_energy:
+      mean: 100.0
+      std: 15.0
+    cpi_core:
+      mean: 2.0
+      std: 0.8
+
+# Display settings for Streamlit UI
+display:
+  # Which series to show in the UI indicator panel
+  show_indicators:
+    - policy_rate
+    - gov_bond_5y
+    - bcpi_energy
+    - cpi_core
+  
+  # Labels for display
+  labels:
+    policy_rate: "Policy Rate"
+    corra: "CORRA"
+    gov_bond_2y: "2Y Bond"
+    gov_bond_5y: "5Y Bond"
+    gov_bond_10y: "10Y Bond"
+    bcpi_total: "BCPI Total"
+    bcpi_energy: "BCPI Energy"
+    bcpi_ex_energy: "BCPI Ex-Energy"
+    cpi_core: "Core CPI"
+  
+  # Format strings for values
+  formats:
+    policy_rate: "{:.2f}%"
+    corra: "{:.2f}%"
+    gov_bond_2y: "{:.2f}%"
+    gov_bond_5y: "{:.2f}%"
+    gov_bond_10y: "{:.2f}%"
+    bcpi_total: "{:.1f}"
+    bcpi_energy: "{:.1f}"
+    bcpi_ex_energy: "{:.1f}"
+    cpi_core: "{:.1f}%"

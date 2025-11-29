@@ -228,3 +228,133 @@ Based on this foundation, potential improvements include:
 - Full backward compatibility maintained
 
 **Recommendation**: Deploy to production and monitor model performance metrics. Consider implementing model persistence in the next iteration for faster startup times.
+
+---
+
+# Bank of Canada Valet API Integration
+
+## Task Completed
+✅ Integrated live Bank of Canada economic data as a supplemental layer for economic sentiment adjustment.
+
+## Design Principles
+
+**Critical Constraint - Historical Data Preserved**:
+- The existing historical economic data (WCS oil prices, Alberta unemployment) remains **fully intact**
+- Historical analysis, backtests, and model training continue to use existing datasets
+- BoC integration is **supplemental only** - provides live/current values for today's conditions
+- When BoC unavailable, system falls back to historical-based sentiment
+
+## Files Added
+
+| File | Description |
+|------|-------------|
+| `utils/boc_client.py` | Bank of Canada Valet API client with caching |
+| `utils/economic_factors.py` | BoC sentiment calculation and integration |
+| `config/economic_boc.yaml` | BoC series configuration (weights, baselines) |
+| `tests/test_boc_client.py` | Unit tests for API client (25 tests) |
+| `tests/test_economic_factors.py` | Unit tests for sentiment calculation (24 tests) |
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `streamlit_app.py` | Added BoC imports, enhanced Economic Sentiment UI with tabs |
+| `ML_MODEL_DOCUMENTATION.md` | Added BoC integration documentation |
+| `IMPLEMENTATION_SUMMARY.md` | Added this section |
+
+## End-to-End Flow
+
+```
+Config (economic_boc.yaml)
+    ↓
+BoC Valet API (https://www.bankofcanada.ca/valet)
+    ↓ (GET /observations/{series}/json?recent=1)
+boc_client.py (fetch & cache)
+    ↓
+economic_factors.py (compute weighted z-scores)
+    ↓
+Combined with Historical Sentiment (70% hist, 30% BoC)
+    ↓
+boc_economic_sentiment scalar (0.85 to 1.15)
+    ↓
+Applied to ticket estimates in streamlit_app.py
+```
+
+## BoC Series Used
+
+1. **Interest Rates** (25% total weight):
+   - Policy Rate (B114039) - 15%
+   - CORRA (AVG.INTWO) - 5%
+   - Bond yields 2Y/5Y/10Y - 25% combined
+
+2. **Commodity Prices** (45% weight):
+   - BCPI Total (A.BCPI) - 10%
+   - BCPI Energy (A.ENER) - 25% (critical for Alberta)
+   - BCPI Ex-Energy (A.BCNE) - 10%
+
+3. **Inflation** (10% weight):
+   - Core CPI (ATOM_V41693242) - 10%
+
+## UI Enhancements
+
+The Economic Sentiment Adjustment expander now shows:
+
+1. **Combined Tab**: Blended historical + BoC sentiment
+2. **Historical Tab**: Original WCS oil + unemployment data
+3. **BoC Live Tab**: Current BoC indicators with formatted values
+
+When BoC is disabled or unavailable:
+- Graceful fallback to historical-only view
+- Warning message indicates fallback mode
+
+## Configuration Flags
+
+```yaml
+# In config/economic_boc.yaml
+use_boc_live_data: true   # Master toggle
+fallback_mode: "historical"  # Options: historical, neutral, last_cached
+```
+
+## Caching Strategy
+
+- Values cached for current day (24-hour TTL)
+- Automatic refresh after midnight UTC
+- Prevents excessive API calls during session
+- Thread-safe in-memory cache
+
+## Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| API timeout (10s) | Return None, use fallback |
+| 404 Not Found | Raise BocDataUnavailableError, skip series |
+| Invalid JSON | Raise BocApiError, skip series |
+| Empty observations | Return None for that series |
+| All series fail | Fall back to historical sentiment |
+
+## Testing
+
+- **49 new tests** covering BoC client and economic factors
+- All tests pass with no warnings
+- Mock HTTP layer for reliable unit tests
+- Integration tests validate end-to-end flow
+
+## Security
+
+- ✅ No API keys required (Valet is public)
+- ✅ No secrets added to codebase
+- ✅ Read-only API access
+- ✅ Graceful degradation on failures
+
+## Assumptions & TODOs
+
+**Assumptions**:
+- BoC Valet API remains publicly accessible
+- Series IDs remain stable
+- Historical baseline values are reasonable approximations
+
+**Future Refinements**:
+1. Calibrate baselines using actual historical BoC data
+2. Add more series (exchange rates, sector-specific indices)
+3. Consider time-varying weights based on Alberta economic structure
+4. Add caching to disk for persistence across sessions

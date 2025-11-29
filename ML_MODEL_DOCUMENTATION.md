@@ -294,6 +294,98 @@ When modifying training code:
 - [ ] Run `pytest tests/test_no_leakage_in_dataset.py tests/test_time_splits.py` before committing
 - [ ] Use `scripts/build_modelling_dataset.py` output, not raw history
 
+## Bank of Canada Valet API Integration
+
+### Overview
+
+The application now supports live economic data from the Bank of Canada Valet API as an **optional, supplemental** layer for the economic sentiment adjustment. This integration provides current market conditions from official BoC data sources.
+
+**IMPORTANT**: This is NOT a replacement for historical economic data. The existing historical datasets (WCS oil prices, Alberta unemployment) remain fully intact and continue to be used for:
+- Model training
+- Backtesting
+- Historical analysis
+
+The BoC integration is purely for fetching **live/current** values to supplement the economic sentiment adjustment at forecast time.
+
+### Configuration
+
+The BoC integration is controlled by `config/economic_boc.yaml`:
+
+```yaml
+# Master toggle
+use_boc_live_data: true
+
+# Fallback behavior when BoC unavailable
+fallback_mode: "historical"  # Options: historical, neutral, last_cached
+
+# Configured BoC series
+boc_series:
+  policy_rate:
+    id: "B114039"
+    weight: 0.15
+    direction: "negative"
+  bcpi_energy:
+    id: "A.ENER"
+    weight: 0.25
+    direction: "positive"
+  # ... additional series
+```
+
+### BoC Series Used
+
+| Key | Series ID | Description | Weight |
+|-----|-----------|-------------|--------|
+| policy_rate | B114039 | Bank of Canada Target Rate | 15% |
+| corra | AVG.INTWO | Canadian Overnight Repo Rate Average | 5% |
+| gov_bond_2y | BD.CDN.2YR.DQ.YLD | 2-year GoC bond yield | 8% |
+| gov_bond_5y | BD.CDN.5YR.DQ.YLD | 5-year GoC bond yield | 8% |
+| gov_bond_10y | BD.CDN.10YR.DQ.YLD | 10-year GoC bond yield | 9% |
+| bcpi_total | A.BCPI | Commodity Price Index Total | 10% |
+| bcpi_energy | A.ENER | Energy Commodity Index (critical for Alberta) | 25% |
+| bcpi_ex_energy | A.BCNE | Non-energy commodities | 10% |
+| cpi_core | ATOM_V41693242 | Core CPI excluding volatile items | 10% |
+
+### Sentiment Calculation
+
+The BoC sentiment factor is calculated as:
+
+1. **Fetch current values** for each configured series from the Valet API
+2. **Standardize** each value using z-scores relative to historical means
+3. **Apply direction**: For "negative" indicators (interest rates), flip the sign
+4. **Compute weighted average** of z-scores
+5. **Convert to factor**: `factor = 1.0 + (average_z × sensitivity)`
+6. **Clamp to bounds**: [0.85, 1.15]
+
+### Combined Sentiment
+
+When BoC live data is enabled, the UI offers a combined sentiment that blends:
+- **Historical data** (70% weight): WCS oil prices, Alberta unemployment
+- **BoC live data** (30% weight): Current market indicators
+
+This provides stability from historical patterns while incorporating current market conditions.
+
+### API Caching
+
+To minimize API calls:
+- Values are cached for the current day (24-hour TTL)
+- Cache refreshes automatically after midnight UTC
+- Cache can be manually cleared via `clear_cache()`
+
+### Error Handling
+
+When BoC API is unavailable:
+- Falls back to historical economic sentiment (default)
+- Alternatively can use neutral (1.0) or last cached values
+- Warnings are displayed in the UI when fallback is used
+
+### Files Added
+
+- `utils/boc_client.py`: BoC Valet API client with caching
+- `utils/economic_factors.py`: Sentiment calculation and integration
+- `config/economic_boc.yaml`: BoC series configuration
+- `tests/test_boc_client.py`: Unit tests for API client
+- `tests/test_economic_factors.py`: Unit tests for sentiment calculation
+
 ## Future Enhancements
 
 Potential improvements:
@@ -304,10 +396,12 @@ Potential improvements:
 5. **Uncertainty Quantification**: Add prediction intervals/confidence bounds
 6. **Online Learning**: Update models incrementally as new data arrives
 7. ~~**SHAP Explanations**: Feature importance visualization~~ ✓ Via --save-shap flag
+8. ~~**Live Economic Data**: Bank of Canada Valet API integration~~ ✓ Implemented
 
 ## References
 
 - scikit-learn documentation: https://scikit-learn.org/
 - XGBoost documentation: https://xgboost.readthedocs.io/
 - SHAP documentation: https://shap.readthedocs.io/
+- Bank of Canada Valet API: https://www.bankofcanada.ca/valet/docs
 - Test results: See ML_MODEL_TESTING.log (if available)

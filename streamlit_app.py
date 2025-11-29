@@ -32,6 +32,26 @@ except ImportError:
     def get_economic_sentiment_factor(*args, **kwargs):
         return 1.0
 
+# Import Bank of Canada Valet API integration for live economic data
+try:
+    from utils.economic_factors import (
+        compute_boc_economic_sentiment,
+        get_boc_indicator_display,
+        is_boc_live_enabled,
+        get_combined_economic_sentiment,
+    )
+    BOC_INTEGRATION_AVAILABLE = True
+except ImportError:
+    BOC_INTEGRATION_AVAILABLE = False
+    def compute_boc_economic_sentiment(*args, **kwargs):
+        return 1.0, {"source": "unavailable", "boc_available": False}
+    def get_boc_indicator_display():
+        return {"available": False, "message": "BoC integration not installed"}
+    def is_boc_live_enabled():
+        return False
+    def get_combined_economic_sentiment(*args, **kwargs):
+        return 1.0, {}
+
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -2089,54 +2109,181 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
         help="Adjusts ticket estimates based on Alberta's economic indicators (oil prices, unemployment)"
     )
     
+    # BoC Live Data toggle (only show if BoC integration is available)
+    use_boc_live = False
+    if BOC_INTEGRATION_AVAILABLE and is_boc_live_enabled():
+        use_boc_live = st.checkbox(
+            "Use Bank of Canada live data",
+            value=True,
+            help="Supplement with live data from Bank of Canada Valet API (interest rates, commodity prices, inflation)"
+        )
+    
     if use_econ_sentiment and ECONOMIC_DATA_AVAILABLE:
-        # Compute current economic sentiment
-        current_econ_factor = compute_economic_sentiment(None)
-        st.metric(
-            "Current Economic Sentiment",
-            f"×{current_econ_factor:.3f}",
-            delta=f"{(current_econ_factor - 1.0) * 100:+.1f}%" if current_econ_factor != 1.0 else "Neutral"
-        )
-        
-        st.caption(
-            "Economic sentiment is calculated from Alberta's oil prices and unemployment rates. "
-            "Higher oil prices and lower unemployment typically correlate with stronger discretionary spending."
-        )
-        
-        # Show underlying data if available
-        try:
-            oil_df = load_oil_prices()
-            unemp_df = load_unemployment_rates()
+        # Show tabs for different data sources when BoC is available
+        if use_boc_live and BOC_INTEGRATION_AVAILABLE:
+            tab_combined, tab_historical, tab_boc = st.tabs(["Combined", "Historical Data", "BoC Live Data"])
             
-            col1, col2 = st.columns(2)
-            with col1:
-                if not oil_df.empty:
-                    oil_df['date'] = pd.to_datetime(oil_df['date'], errors='coerce')
-                    wcs = oil_df[oil_df.get('oil_series', '') == 'WCS'].copy()
-                    if not wcs.empty:
-                        latest_oil = wcs.sort_values('date', ascending=False).head(1)
-                        if not latest_oil.empty:
-                            oil_price = latest_oil.iloc[0].get('wcs_oil_price')
-                            if oil_price is not None and pd.notna(oil_price):
-                                st.caption(f"Latest WCS oil price: ${float(oil_price):.2f} USD")
-                            else:
-                                st.caption("Latest WCS oil price: N/A")
-            with col2:
-                if not unemp_df.empty:
-                    unemp_df['date'] = pd.to_datetime(unemp_df['date'], errors='coerce')
-                    ab_unemp = unemp_df[unemp_df.get('region', '') == 'Alberta'].copy()
-                    if not ab_unemp.empty:
-                        latest_unemp = ab_unemp.sort_values('date', ascending=False).head(1)
-                        if not latest_unemp.empty:
-                            unemp_rate = latest_unemp.iloc[0].get('unemployment_rate')
-                            if unemp_rate is not None and pd.notna(unemp_rate):
-                                st.caption(f"Latest Alberta unemployment: {float(unemp_rate):.1f}%")
-                            else:
-                                st.caption("Latest Alberta unemployment: N/A")
-        except Exception:
-            pass
+            # Combined sentiment (weighted average)
+            with tab_combined:
+                combined_factor, combined_details = get_combined_economic_sentiment(
+                    run_date=None,
+                    city=None,
+                    boc_weight=0.3,  # 30% BoC, 70% historical
+                )
+                st.metric(
+                    "Combined Economic Sentiment",
+                    f"×{combined_factor:.3f}",
+                    delta=f"{(combined_factor - 1.0) * 100:+.1f}%" if combined_factor != 1.0 else "Neutral"
+                )
+                
+                # Show component breakdown
+                hist_f = combined_details.get("historical_factor")
+                boc_f = combined_details.get("boc_factor")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if hist_f is not None:
+                        st.caption(f"Historical component: ×{hist_f:.3f}")
+                    else:
+                        st.caption("Historical component: N/A")
+                with col2:
+                    if boc_f is not None:
+                        st.caption(f"BoC live component: ×{boc_f:.3f}")
+                    else:
+                        st.caption("BoC live component: N/A")
+                
+                st.caption(
+                    "Combined sentiment blends historical data (WCS oil, unemployment) with "
+                    "live BoC indicators (policy rate, bond yields, commodity prices)."
+                )
+                economic_sentiment_factor = combined_factor
             
-        economic_sentiment_factor = current_econ_factor
+            # Historical data tab
+            with tab_historical:
+                current_econ_factor = compute_economic_sentiment(None)
+                st.metric(
+                    "Historical Economic Sentiment",
+                    f"×{current_econ_factor:.3f}",
+                    delta=f"{(current_econ_factor - 1.0) * 100:+.1f}%" if current_econ_factor != 1.0 else "Neutral"
+                )
+                
+                st.caption(
+                    "Historical sentiment is calculated from Alberta's WCS oil prices and unemployment rates."
+                )
+                
+                # Show underlying data
+                try:
+                    oil_df = load_oil_prices()
+                    unemp_df = load_unemployment_rates()
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if not oil_df.empty:
+                            oil_df['date'] = pd.to_datetime(oil_df['date'], errors='coerce')
+                            wcs = oil_df[oil_df.get('oil_series', '') == 'WCS'].copy()
+                            if not wcs.empty:
+                                latest_oil = wcs.sort_values('date', ascending=False).head(1)
+                                if not latest_oil.empty:
+                                    oil_price = latest_oil.iloc[0].get('wcs_oil_price')
+                                    if oil_price is not None and pd.notna(oil_price):
+                                        st.caption(f"Latest WCS oil price: ${float(oil_price):.2f} USD")
+                                    else:
+                                        st.caption("Latest WCS oil price: N/A")
+                    with col2:
+                        if not unemp_df.empty:
+                            unemp_df['date'] = pd.to_datetime(unemp_df['date'], errors='coerce')
+                            ab_unemp = unemp_df[unemp_df.get('region', '') == 'Alberta'].copy()
+                            if not ab_unemp.empty:
+                                latest_unemp = ab_unemp.sort_values('date', ascending=False).head(1)
+                                if not latest_unemp.empty:
+                                    unemp_rate = latest_unemp.iloc[0].get('unemployment_rate')
+                                    if unemp_rate is not None and pd.notna(unemp_rate):
+                                        st.caption(f"Latest Alberta unemployment: {float(unemp_rate):.1f}%")
+                                    else:
+                                        st.caption("Latest Alberta unemployment: N/A")
+                except Exception:
+                    pass
+            
+            # BoC Live Data tab
+            with tab_boc:
+                boc_display = get_boc_indicator_display()
+                
+                if boc_display.get("available", False):
+                    boc_factor = boc_display.get("sentiment_factor", 1.0)
+                    boc_label = boc_display.get("sentiment_label", "")
+                    
+                    st.metric(
+                        "BoC Live Economic Sentiment",
+                        f"×{boc_factor:.3f}",
+                        delta=boc_label if boc_label else "Neutral"
+                    )
+                    
+                    st.caption("Live indicators from Bank of Canada Valet API:")
+                    
+                    # Display indicators in a grid
+                    indicators = boc_display.get("indicators", [])
+                    if indicators:
+                        cols = st.columns(min(len(indicators), 4))
+                        for i, ind in enumerate(indicators):
+                            with cols[i % 4]:
+                                st.caption(f"**{ind['label']}**: {ind['formatted_value']}")
+                    
+                    st.caption(
+                        "BoC data updates daily. Includes policy rate, bond yields, "
+                        "commodity price indices, and inflation measures."
+                    )
+                else:
+                    st.warning(boc_display.get("message", "BoC data temporarily unavailable"))
+                    if boc_display.get("fallback_used"):
+                        st.caption(f"Using fallback: {boc_display.get('fallback_mode', 'historical')}")
+        
+        else:
+            # Standard historical-only view (original behavior)
+            current_econ_factor = compute_economic_sentiment(None)
+            st.metric(
+                "Current Economic Sentiment",
+                f"×{current_econ_factor:.3f}",
+                delta=f"{(current_econ_factor - 1.0) * 100:+.1f}%" if current_econ_factor != 1.0 else "Neutral"
+            )
+            
+            st.caption(
+                "Economic sentiment is calculated from Alberta's oil prices and unemployment rates. "
+                "Higher oil prices and lower unemployment typically correlate with stronger discretionary spending."
+            )
+            
+            # Show underlying data if available
+            try:
+                oil_df = load_oil_prices()
+                unemp_df = load_unemployment_rates()
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if not oil_df.empty:
+                        oil_df['date'] = pd.to_datetime(oil_df['date'], errors='coerce')
+                        wcs = oil_df[oil_df.get('oil_series', '') == 'WCS'].copy()
+                        if not wcs.empty:
+                            latest_oil = wcs.sort_values('date', ascending=False).head(1)
+                            if not latest_oil.empty:
+                                oil_price = latest_oil.iloc[0].get('wcs_oil_price')
+                                if oil_price is not None and pd.notna(oil_price):
+                                    st.caption(f"Latest WCS oil price: ${float(oil_price):.2f} USD")
+                                else:
+                                    st.caption("Latest WCS oil price: N/A")
+                with col2:
+                    if not unemp_df.empty:
+                        unemp_df['date'] = pd.to_datetime(unemp_df['date'], errors='coerce')
+                        ab_unemp = unemp_df[unemp_df.get('region', '') == 'Alberta'].copy()
+                        if not ab_unemp.empty:
+                            latest_unemp = ab_unemp.sort_values('date', ascending=False).head(1)
+                            if not latest_unemp.empty:
+                                unemp_rate = latest_unemp.iloc[0].get('unemployment_rate')
+                                if unemp_rate is not None and pd.notna(unemp_rate):
+                                    st.caption(f"Latest Alberta unemployment: {float(unemp_rate):.1f}%")
+                                else:
+                                    st.caption("Latest Alberta unemployment: N/A")
+            except Exception:
+                pass
+                
+            economic_sentiment_factor = current_econ_factor
     elif use_econ_sentiment:
         st.warning("Economic data not available. Factor set to 1.0 (neutral).")
         economic_sentiment_factor = 1.0
