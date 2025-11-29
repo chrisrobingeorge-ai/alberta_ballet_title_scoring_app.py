@@ -183,18 +183,26 @@ def _parse_observation_value(observations: List[dict], series_name: str) -> Opti
     if raw_value is None:
         return None
     
+    # Handle nested object format: {"v": "value"} from BoC API
+    # This is the format returned by the Valet API for individual series
+    value_to_parse = raw_value
+    if isinstance(raw_value, dict):
+        value_to_parse = raw_value.get('v')
+        if value_to_parse is None:
+            return None
+    
     # Handle various value formats
     try:
-        if isinstance(raw_value, (int, float)):
-            return float(raw_value)
-        if isinstance(raw_value, str):
+        if isinstance(value_to_parse, (int, float)):
+            return float(value_to_parse)
+        if isinstance(value_to_parse, str):
             # Remove any whitespace and try to parse
-            cleaned = raw_value.strip()
+            cleaned = value_to_parse.strip()
             if not cleaned or cleaned.lower() in NULL_VALUE_STRINGS:
                 return None
             return float(cleaned)
     except (ValueError, TypeError) as e:
-        logger.warning(f"Could not parse value '{raw_value}' for series {series_name}: {e}")
+        logger.warning(f"Could not parse value '{value_to_parse}' for series {series_name}: {e}")
         return None
     
     return None

@@ -204,12 +204,16 @@ sentiment_calculation:
 # Display settings for Streamlit UI
 display:
   # Which indicators to show in the UI indicator panel
+  # Note: Some indicators may be unavailable due to API issues
   show_indicators:
     - ab_unemployment_rate
+    - ab_employment_rate
     - ab_wcs_oil_price
     - ab_avg_weekly_earnings
     - ab_retail_trade
     - ab_cpi
+    - ab_air_passengers
+    - ab_net_migration
   
   # Labels for display
   labels:
@@ -227,6 +231,7 @@ display:
     ab_population_quarterly: "Population"
   
   # Format strings for values
+  # Note: API returns raw values (e.g., retail trade in dollars, not millions)
   formats:
     ab_unemployment_rate: "{:.1f}%"
     ab_employment_rate: "{:.1f}%"
@@ -235,8 +240,8 @@ display:
     ab_avg_weekly_earnings: "${:,.0f}"
     ab_cpi: "{:.1f}"
     ab_wcs_oil_price: "${:.2f} USD"
-    ab_retail_trade: "${:,.0f}M"
-    ab_restaurant_sales: "${:,.0f}M"
+    ab_retail_trade: "${:,.0f}"
+    ab_restaurant_sales: "${:,.0f}"
     ab_air_passengers: "{:,.0f}"
     ab_net_migration: "{:+,.0f}"
     ab_population_quarterly: "{:,.0f}"

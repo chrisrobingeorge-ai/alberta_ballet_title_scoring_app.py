@@ -79,6 +79,20 @@ except ImportError:
     get_macro_context_display = None
     is_boc_group_context_enabled = None
 
+# Import Alberta live data functions
+try:
+    from utils.economic_factors import (
+        get_alberta_indicator_display,
+        is_alberta_live_enabled,
+        compute_alberta_economic_sentiment,
+    )
+    ALBERTA_LIVE_AVAILABLE = True
+except ImportError:
+    ALBERTA_LIVE_AVAILABLE = False
+    get_alberta_indicator_display = None
+    is_alberta_live_enabled = None
+    compute_alberta_economic_sentiment = None
+
 # =============================================================================
 # DATA FILE REGISTRY
 # =============================================================================
@@ -767,6 +781,84 @@ with tab_economic:
             (exchange rates, BCPI components, effective exchange rates).
             
             To enable, set `enable_boc_group_context: true` in `config/economic_boc.yaml`.
+            """)
+
+    st.divider()
+    
+    # =============================================================================
+    # ALBERTA LIVE DATA - Live context from Alberta Economic Dashboard
+    # =============================================================================
+    
+    st.subheader("🏔️ Alberta Live Economic Data")
+    
+    if ALBERTA_LIVE_AVAILABLE and is_alberta_live_enabled():
+        with st.expander("**Live Economic Indicators from Alberta Economic Dashboard**", expanded=True):
+            st.markdown("""
+            This panel shows live economic indicators fetched from the Alberta Economic Dashboard API.
+            These values are used in the economic sentiment calculation and directly impact ticket estimates.
+            """)
+            
+            try:
+                alberta_display = get_alberta_indicator_display()
+                
+                if alberta_display.get("available"):
+                    # Show sentiment factor metric
+                    sentiment_factor = alberta_display.get("sentiment_factor", 1.0)
+                    sentiment_label = alberta_display.get("sentiment_label", "Neutral")
+                    
+                    col1, col2 = st.columns([1, 3])
+                    
+                    with col1:
+                        delta_pct = (sentiment_factor - 1.0) * 100
+                        st.metric(
+                            "Alberta Economic Sentiment",
+                            f"×{sentiment_factor:.3f}",
+                            delta=f"{sentiment_label} ({delta_pct:+.1f}%)",
+                            delta_color="normal" if delta_pct >= 0 else "inverse",
+                        )
+                    
+                    with col2:
+                        st.markdown("**Live Indicators:**")
+                        indicators = alberta_display.get("indicators", [])
+                        if indicators:
+                            # Display indicators in a grid
+                            cols = st.columns(min(len(indicators), 4))
+                            for i, ind in enumerate(indicators):
+                                with cols[i % 4]:
+                                    st.metric(
+                                        label=ind.get("label", ind.get("key")),
+                                        value=ind.get("formatted_value", "N/A"),
+                                    )
+                        else:
+                            st.info("No indicators available to display")
+                    
+                    st.caption(
+                        "Alberta data updates daily. Includes unemployment rate, employment, "
+                        "WCS oil price, retail trade, and other key economic indicators. "
+                        "Source: Alberta Economic Dashboard (economicdashboard.alberta.ca)"
+                    )
+                else:
+                    message = alberta_display.get("message", "Alberta data temporarily unavailable")
+                    st.warning(f"⚠️ {message}")
+                    if alberta_display.get("fallback_used"):
+                        st.caption("Using neutral fallback (×1.000)")
+                        
+            except Exception as e:
+                st.warning(f"Could not load Alberta live data: {e}")
+    else:
+        with st.expander("**Alberta Live Economic Data**", expanded=False):
+            st.info("""
+            🏔️ **Alberta Live Data is disabled or unavailable.**
+            
+            This feature provides live economic indicators from the Alberta Economic Dashboard:
+            - Unemployment rate
+            - Employment rate and levels
+            - WCS oil prices
+            - Retail trade
+            - Consumer Price Index
+            - Population and migration data
+            
+            To enable, set `use_alberta_live_data: true` in `config/economic_alberta.yaml`.
             """)
 
 
