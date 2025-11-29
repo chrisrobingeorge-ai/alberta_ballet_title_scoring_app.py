@@ -403,8 +403,6 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         "YYC Marketing Spend",
         "YEG Marketing Spend",
         "Total Marketing Spend",
-        "Total Production Expenses",
-        "Total Expenses",
         "",
         "Net Income (Deficit)",
     ]
@@ -437,13 +435,7 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         out.at["YEG Marketing Spend", col_name] = yeg_mkt
         out.at["Total Marketing Spend", col_name] = tot_mkt
 
-        prod = float(r.get("Prod_Expense", 0) or 0)
-        out.at["Total Production Expenses", col_name] = prod
-
-        total_exp = tot_mkt + prod
-        out.at["Total Expenses", col_name] = total_exp
-
-        net = float(r.get("Total_Revenue", 0) or 0) - total_exp
+        net = float(r.get("Total_Revenue", 0) or 0) - tot_mkt
         out.at["Net Income (Deficit)", col_name] = net
 
     # --- Format all $ fields with dollar signs (for table + CSV) ---
@@ -456,8 +448,6 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         "YYC Marketing Spend",
         "YEG Marketing Spend",
         "Total Marketing Spend",
-        "Total Production Expenses",
-        "Total Expenses",
         "Net Income (Deficit)",
     ]
 
@@ -977,65 +967,6 @@ def infer_show_type(title: str, category: str) -> str:
 
     return "unknown"
 
-PROD_EXPENSE_TITLE: dict[str, float] = {}
-PROD_EXPENSE_SHOWTYPE: dict[str, float] = {}
-
-def learn_production_expenses(path: str = "data/productions/showtype_expense.csv") -> None:
-    """
-    Expects a CSV with columns:
-      fiscal_year, title, prod_expense
-    Uses all years, takes medians per title and per inferred show_type.
-    """
-    global PROD_EXPENSE_TITLE, PROD_EXPENSE_SHOWTYPE
-
-    try:
-        df = pd.read_csv(path)
-    except Exception:
-        PROD_EXPENSE_TITLE = {}
-        PROD_EXPENSE_SHOWTYPE = {}
-        return
-
-    # Clean
-    colmap = {c.lower().strip(): c for c in df.columns}
-    tcol = colmap.get("title", "title")
-    ecol = colmap.get("prod_expense", "prod_expense")
-
-    df[tcol] = df[tcol].astype(str).str.strip()
-
-    def _num(x):
-        try:
-            if pd.isna(x):
-                return None
-            s = str(x).strip().replace(",", "")
-            if not s:
-                return None
-            return float(s)
-        except Exception:
-            return None
-
-    df[ecol] = df[ecol].map(_num)
-    # drop blank/zero-ish rows
-    df = df[df[ecol].notna() & (df[ecol] > 0)]
-
-    # 1) per-title median
-    PROD_EXPENSE_TITLE = (
-        df.groupby(tcol)[ecol]
-          .median()
-          .to_dict()
-    )
-
-    # 2) per-show_type median as fallback
-    def _show_type_for(t: str) -> str:
-        return infer_show_type(t, infer_gender_and_category(t)[1])
-
-    df["show_type"] = df[tcol].map(_show_type_for)
-
-    PROD_EXPENSE_SHOWTYPE = (
-        df.groupby("show_type")[ecol]
-          .median()
-          .to_dict()
-    )
-
 # --- Marketing spend priors (per single-ticket, by title × city and category × city) ---
 MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
 MARKETING_SPT_CATEGORY_CITY: dict[str, dict[str, float]] = {}   # {"classic_romance": {"Calgary": 9.0, "Edmonton": 7.5}, ...}
@@ -1353,65 +1284,6 @@ st.caption(
     f"Marketing priors → title×city: {mkt_summary.get('title_city',0)}, "
     f"category×city: {mkt_summary.get('cat_city',0)}"
 )
-# --- Production expenses (per title / show type) ---
-learn_production_expenses("data/productions/showtype_expense.csv")
-# --- In-app production expense budgeting (optional overrides) ---
-with st.expander("💰 Production expense budgeting (optional overrides)"):
-    st.markdown(
-        "Use these to set *budgeted* per-run production expenses by show type "
-        "(and optionally by title). These override the history-based medians "
-        "when forecasting future seasons."
-    )
-
-    # Initialize session defaults from learned history (once)
-    if "budget_prod_expense_showtype" not in st.session_state:
-        st.session_state["budget_prod_expense_showtype"] = PROD_EXPENSE_SHOWTYPE.copy()
-    if "budget_prod_expense_title" not in st.session_state:
-        st.session_state["budget_prod_expense_title"] = {}
-
-    # --- Show-type level controls ---
-    if not PROD_EXPENSE_SHOWTYPE:
-        st.info("No production expense history loaded yet; overrides will apply once history is available.")
-    else:
-        st.subheader("By show type (category-level budgets)")
-        new_showtype_budgets: dict[str, float] = {}
-
-        for stype, hist_val in sorted(PROD_EXPENSE_SHOWTYPE.items()):
-            default_val = float(st.session_state["budget_prod_expense_showtype"].get(stype, hist_val))
-            budget_val = st.number_input(
-                f"{stype}",
-                min_value=0.0,
-                value=default_val,
-                step=10_000.0,
-                format="%.0f",
-                key=f"budget_stype_{stype}",
-            )
-            new_showtype_budgets[stype] = budget_val
-            st.caption(f"Historical median for {stype}: ${hist_val:,.0f}")
-
-        # save back to session
-        st.session_state["budget_prod_expense_showtype"] = new_showtype_budgets
-
-    # --- Optional: title-specific overrides ---
-    st.subheader("Optional: per-title overrides")
-    with st.form("prod_budget_title_form", clear_on_submit=True):
-        title_for_override = st.text_input("Title (exact match to the season builder title)")
-        title_budget = st.number_input(
-            "Budgeted production expense for this title",
-            min_value=0.0,
-            step=10_000.0,
-            format="%.0f",
-        )
-        submitted = st.form_submit_button("Add / update title override")
-        if submitted and title_for_override.strip():
-            st.session_state["budget_prod_expense_title"][title_for_override.strip()] = float(title_budget)
-            st.success(f"Override set for '{title_for_override.strip()}': ${title_budget:,.0f}")
-
-    # Show current title overrides
-    if st.session_state["budget_prod_expense_title"]:
-        st.markdown("**Current title-level overrides:**")
-        for t, v in st.session_state["budget_prod_expense_title"].items():
-            st.write(f"- {t}: ${v:,.0f}")
 
 # -------------------------
 # Optional APIs (used only if toggled ON)
@@ -2677,34 +2549,11 @@ def compute_scores_and_store(
         st.error("No titles to score — check the Titles box.")
         return
 
-    # Attach show type + production expense
+    # Attach show type
     df["ShowType"] = df.apply(
         lambda r: infer_show_type(r["Title"], r["Category"]),
         axis=1,
     )
-
-    def _prod_exp_for_row(r):
-        t = str(r["Title"]).strip()
-        stype = r["ShowType"]
-
-        # 1) In-app overrides
-        budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
-        budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
-
-        if t in budget_by_title:
-            return budget_by_title[t]
-        if stype in budget_by_showtype:
-            return budget_by_showtype[stype]
-
-        # 2) History-based medians
-        if t in PROD_EXPENSE_TITLE:
-            return PROD_EXPENSE_TITLE[t]
-        if stype in PROD_EXPENSE_SHOWTYPE:
-            return PROD_EXPENSE_SHOWTYPE[stype]
-
-        return np.nan
-
-    df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
@@ -3153,7 +3002,7 @@ def render_results():
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
     table_cols = [
-        "Title","Gender","Category","ShowType","Prod_Expense",
+        "Title","Gender","Category","ShowType",
         "PredictedPrimarySegment","PredictedSecondarySegment",
 
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
@@ -3221,7 +3070,6 @@ def render_results():
             "YYC_Mkt_Spend": "${:,.0f}",
             "YEG_Mkt_Spend": "${:,.0f}",
             "Total_Mkt_Spend": "${:,.0f}",
-            "Prod_Expense": "${:,.0f}",
         }),
         width='stretch',
         hide_index=True
@@ -3339,26 +3187,11 @@ def render_results():
         yeg_revenue = yeg_single_rev
         total_revenue = yyc_revenue + yeg_revenue
 
-        # Show type + production expense for budgeting
+        # Show type for context
         show_type = infer_show_type(title_sel, cat)
 
-        # Same priority order as in _prod_exp_for_row
-        budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
-        budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
-
-        if title_sel in budget_by_title:
-            prod_expense = float(budget_by_title[title_sel])
-        elif show_type in budget_by_showtype:
-            prod_expense = float(budget_by_showtype[show_type])
-        elif title_sel in PROD_EXPENSE_TITLE:
-            prod_expense = float(PROD_EXPENSE_TITLE[title_sel])
-        elif show_type in PROD_EXPENSE_SHOWTYPE:
-            prod_expense = float(PROD_EXPENSE_SHOWTYPE[show_type])
-        else:
-            prod_expense = float("nan")  # or 0.0 if you prefer
-
-        # Net contribution after production + marketing
-        net_contribution = float(total_revenue) - prod_expense - float(total_mkt)
+        # Net contribution after marketing
+        net_contribution = float(total_revenue) - float(total_mkt)
 
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
@@ -3397,8 +3230,7 @@ def render_results():
             "YEG_Revenue": float(yeg_revenue),
             "Total_Revenue": float(total_revenue),
 
-            # Production expense + marketing + net
-            "Prod_Expense": float(prod_expense),
+            # Marketing + net
             "YYC_Mkt_SPT":  float(spt_yyc),
             "YEG_Mkt_SPT":  float(spt_yeg),
             "YYC_Mkt_Spend": float(yyc_mkt),
@@ -3441,7 +3273,6 @@ def render_results():
         "YYC_Mkt_Spend",
         "YEG_Mkt_Spend",
         "Total_Mkt_Spend",
-        "Prod_Expense",
         "Net_Contribution",
     ]
     present_plan_cols = [c for c in desired_order if c in plan_df.columns]
@@ -3450,7 +3281,7 @@ def render_results():
     # --- Executive summary KPIs ---
     with st.container():
         st.markdown("### 📊 Season at a glance")
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1, c2, c3, c4, c5 = st.columns(5)
 
         yyc_tot = int(plan_df["YYC_Singles"].sum())
         yeg_tot = int(plan_df["YEG_Singles"].sum())
@@ -3462,7 +3293,6 @@ def render_results():
         yeg_rev    = float(plan_df["YEG_Revenue"].sum())
         total_mkt  = float(plan_df["Total_Mkt_Spend"].sum())
         total_single_tix = max(singles_tot, 1)
-        total_prod = float(plan_df["Prod_Expense"].sum())
         net_season = float(plan_df["Net_Contribution"].sum())
 
         with c1:
@@ -3478,9 +3308,7 @@ def render_results():
                 delta=f"${(total_mkt / total_single_tix):.0f} per single"
             )
         with c5:
-            st.metric("Season Production Expense", f"${total_prod:,.0f}")
-        with c6:
-            st.metric("Net Contribution (after prod + mkt)", f"${net_season:,.0f}")
+            st.metric("Net Contribution (after mkt)", f"${net_season:,.0f}")
 
         st.caption(
             f"Post-COVID adjustment applied: ×{postcovid_factor:.2f} "
@@ -3534,7 +3362,7 @@ def render_results():
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-            "Prod_Expense","Net_Contribution",
+            "Net_Contribution",
         ]
 
         # assemble wide DF: rows = metrics, columns = month labels
@@ -3553,7 +3381,7 @@ def render_results():
             "YEG_Single_Revenue",
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-            "Prod_Expense","Net_Contribution",
+            "Net_Contribution",
         ]
         sty = sty.format("{:,.0f}", subset=_S[int_like_rows, :])
 

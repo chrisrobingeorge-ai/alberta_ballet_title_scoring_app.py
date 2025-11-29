@@ -145,7 +145,6 @@ The app uses several CSV files in the `data/` directory:
 - `baselines.csv` - Familiarity and motivation scores for all titles (includes both historical and reference titles)
 - `marketing_spend_per_ticket.csv` - Historical marketing spend data
 - `past_runs.csv` - Performance dates for seasonality analysis
-- `showtype_expense.csv` - Production expense by show type
 - `segment_priors.csv` - Audience segment preferences
 - `title_id_map.csv` - Title canonicalization mapping
 - `modelling_dataset.csv` - Generated leak-free dataset (created by scripts)
