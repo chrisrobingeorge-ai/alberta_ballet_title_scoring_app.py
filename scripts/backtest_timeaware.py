@@ -48,6 +48,16 @@ from sklearn.model_selection import GroupKFold, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+# Time-aware splitting
+try:
+    from ml.time_splits import (
+        TimeSeriesCVSplitter,
+        assert_chronological_split,
+    )
+    TIME_SPLITS_AVAILABLE = True
+except ImportError:
+    TIME_SPLITS_AVAILABLE = False
+
 # XGBoost
 try:
     import xgboost as xgb
@@ -266,12 +276,33 @@ def run_backtest(
     if verbose:
         print("\n2. Running cross-validation...")
     
-    # Use GroupKFold by title if possible, else regular KFold
-    if "canonical_title" in df.columns:
+    # Detect date column for time-aware splitting
+    date_col = None
+    for col_name in ["end_date", "start_date", "date", "opening_date", "performance_date"]:
+        if col_name in df.columns:
+            date_col = col_name
+            break
+    
+    # Use time-aware CV if date column available, else fall back to GroupKFold/KFold
+    if date_col and TIME_SPLITS_AVAILABLE:
+        if verbose:
+            print(f"   Using time-aware CV with date column: {date_col}")
+        cv = TimeSeriesCVSplitter(n_splits=n_folds, date_column=date_col)
+        # Add date column to X temporarily for splitting
+        X_with_date = X.copy()
+        X_with_date[date_col] = df[date_col].values
+        cv_iter = cv.split(X_with_date)
+    elif "canonical_title" in df.columns:
+        if verbose:
+            print("   Using GroupKFold by title (no date column found)")
+            print("   WARNING: GroupKFold may allow future data to leak into training!")
         groups = df["canonical_title"].values
         cv = GroupKFold(n_splits=min(n_folds, len(df["canonical_title"].unique())))
         cv_iter = cv.split(X, y, groups)
     else:
+        if verbose:
+            print("   Using KFold with shuffle (no date or group column found)")
+            print("   WARNING: Random KFold may allow future data to leak into training!")
         cv = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
         cv_iter = cv.split(X, y)
     
