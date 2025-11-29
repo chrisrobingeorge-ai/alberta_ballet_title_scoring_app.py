@@ -174,8 +174,8 @@ class TestStreamlitPagesImport:
     """Test that Streamlit pages can be imported without errors."""
     
     def test_config_registry_loaders(self, mock_streamlit):
-        """Test config registry loaders work (used by various pages)."""
-        # This tests the underlying config module that was used by removed pages
+        """Test config registry loaders work (used by remaining pages and other modules)."""
+        # Validates that the config registry module still works correctly
         with patch.dict(sys.modules, {"streamlit": mock_streamlit}):
             from config import registry
             
