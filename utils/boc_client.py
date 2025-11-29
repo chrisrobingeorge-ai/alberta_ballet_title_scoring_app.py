@@ -526,7 +526,7 @@ def _parse_group_observations(observations: List[dict]) -> Dict[str, Optional[fl
             else:
                 result[key] = None
         except (ValueError, TypeError):
-            logger.debug(f"Could not parse group value '{raw_value}' for series {key}")
+            logger.debug(f"Could not parse group value '{value_to_parse}' for series {key}")
             result[key] = None
     
     return result
