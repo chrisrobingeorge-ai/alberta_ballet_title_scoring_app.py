@@ -25,12 +25,39 @@ try:
         get_economic_sentiment_factor,
         load_oil_prices,
         load_unemployment_rates,
+        # Weather data integration
+        load_weather_calgary,
+        load_weather_edmonton,
+        get_weather_impact_factor,
+        get_monthly_weather_summary,
+        # Live analytics integration
+        load_live_analytics_raw,
+        get_live_analytics_category_factors,
+        get_category_engagement_factor,
     )
     ECONOMIC_DATA_AVAILABLE = True
+    WEATHER_DATA_AVAILABLE = True
+    LIVE_ANALYTICS_AVAILABLE = True
 except ImportError:
     ECONOMIC_DATA_AVAILABLE = False
+    WEATHER_DATA_AVAILABLE = False
+    LIVE_ANALYTICS_AVAILABLE = False
     def get_economic_sentiment_factor(*args, **kwargs):
         return 1.0
+    def get_weather_impact_factor(*args, **kwargs):
+        return 1.0
+    def get_monthly_weather_summary(*args, **kwargs):
+        return {}
+    def get_category_engagement_factor(*args, **kwargs):
+        return 1.0
+    def get_live_analytics_category_factors(*args, **kwargs):
+        return {}
+    def load_weather_calgary(*args, **kwargs):
+        import pandas as pd
+        return pd.DataFrame()
+    def load_weather_edmonton(*args, **kwargs):
+        import pandas as pd
+        return pd.DataFrame()
 
 # Import Bank of Canada Valet API integration for live economic data
 try:
@@ -1558,6 +1585,80 @@ def compute_economic_sentiment(run_date: Optional[date] = None) -> float:
     except Exception:
         return 1.0
 
+
+def compute_weather_impact(run_date: Optional[date] = None, city: Optional[str] = None) -> float:
+    """Compute weather impact factor based on historical weather data.
+    
+    Returns a factor between 0.85 and 1.05 that adjusts ticket estimates
+    based on typical weather conditions for the planned run date.
+    """
+    if not WEATHER_DATA_AVAILABLE:
+        return 1.0
+    
+    try:
+        if run_date:
+            ts = pd.Timestamp(run_date)
+        else:
+            ts = pd.Timestamp.now()
+        
+        return get_weather_impact_factor(
+            run_date=ts,
+            city=city,
+            min_temp_threshold=-20.0,
+            extreme_cold_factor=0.92,
+            heavy_snow_threshold=10.0,
+            heavy_snow_factor=0.96,
+            min_factor=0.88,
+            max_factor=1.03
+        )
+    except Exception:
+        return 1.0
+
+
+def compute_engagement_factor(category: str) -> float:
+    """Compute engagement factor based on live analytics data.
+    
+    Returns a factor around 1.0 that adjusts ticket estimates
+    based on audience engagement patterns for the show category.
+    """
+    if not LIVE_ANALYTICS_AVAILABLE:
+        return 1.0
+    
+    try:
+        return get_category_engagement_factor(category)
+    except Exception:
+        return 1.0
+
+
+def get_external_factors_summary(
+    run_date: Optional[date] = None,
+    city: Optional[str] = None,
+    category: Optional[str] = None
+) -> dict:
+    """Get summary of all external adjustment factors.
+    
+    Returns:
+        Dictionary with all computed factors and their combined effect
+    """
+    econ = compute_economic_sentiment(run_date)
+    weather = compute_weather_impact(run_date, city)
+    engagement = compute_engagement_factor(category) if category else 1.0
+    
+    combined = econ * weather * engagement
+    
+    return {
+        'economic_factor': econ,
+        'weather_factor': weather,
+        'engagement_factor': engagement,
+        'combined_factor': combined,
+        'sources': {
+            'economic_available': ECONOMIC_DATA_AVAILABLE,
+            'weather_available': WEATHER_DATA_AVAILABLE,
+            'analytics_available': LIVE_ANALYTICS_AVAILABLE
+        }
+    }
+
+
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
@@ -2235,6 +2336,67 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
         economic_sentiment_factor = 1.0
         st.info("Economic sentiment adjustment disabled.")
 
+# Weather and Live Analytics factors (shown as info)
+with st.expander("🌤️ Weather & Audience Analytics Factors (from data files)", expanded=False):
+    col_weather, col_analytics = st.columns(2)
+    
+    with col_weather:
+        st.markdown("**Weather Data** (weatherstats_*.csv)")
+        if WEATHER_DATA_AVAILABLE:
+            try:
+                calgary_weather = load_weather_calgary()
+                edmonton_weather = load_weather_edmonton()
+                
+                yyc_rows = len(calgary_weather) if not calgary_weather.empty else 0
+                yeg_rows = len(edmonton_weather) if not edmonton_weather.empty else 0
+                
+                if yyc_rows > 0 or yeg_rows > 0:
+                    st.success(f"✓ Weather data loaded: Calgary ({yyc_rows} days), Edmonton ({yeg_rows} days)")
+                    
+                    # Show example weather factor for current date
+                    current_weather = compute_weather_impact(None, None)
+                    st.caption(f"Current weather factor: ×{current_weather:.3f}")
+                    
+                    # Show recent temperature summary
+                    if not calgary_weather.empty:
+                        recent_yyc = calgary_weather.head(7)
+                        if 'avg_temperature' in recent_yyc.columns:
+                            avg_temp = pd.to_numeric(recent_yyc['avg_temperature'], errors='coerce').mean()
+                            if pd.notna(avg_temp):
+                                st.caption(f"Calgary avg temp (7d): {avg_temp:.1f}°C")
+                else:
+                    st.info("Weather files exist but contain no data")
+            except Exception as e:
+                st.warning(f"Could not load weather data: {str(e)[:50]}")
+        else:
+            st.info("Weather data integration not available")
+    
+    with col_analytics:
+        st.markdown("**Live Analytics** (live_analytics.csv)")
+        if LIVE_ANALYTICS_AVAILABLE:
+            try:
+                analytics_factors = get_live_analytics_category_factors()
+                
+                if analytics_factors:
+                    st.success(f"✓ Analytics loaded for {len(analytics_factors)} categories")
+                    
+                    # Show factors for key categories
+                    for cat in ['pop_ip', 'classic_romance', 'family_classic', 'contemporary']:
+                        if cat in analytics_factors:
+                            factor = analytics_factors[cat].get('engagement_factor', 1.0)
+                            st.caption(f"{cat}: ×{factor:.3f}")
+                else:
+                    st.info("Live analytics file exists but could not parse factors")
+            except Exception as e:
+                st.warning(f"Could not load live analytics: {str(e)[:50]}")
+        else:
+            st.info("Live analytics integration not available")
+    
+    st.caption(
+        "Weather factors adjust for extreme conditions (cold/snow). "
+        "Engagement factors adjust for category-specific audience behavior patterns."
+    )
+
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
 proposed_run_date = None
 if apply_seasonality:
@@ -2752,14 +2914,20 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
-    # 11) Remount decay + post-COVID haircut + economic sentiment
-    # Combined adjustment = POSTCOVID_FACTOR × economic_sentiment_factor
-    combined_adjustment = float(postcovid_factor) * float(economic_sentiment_factor)
+    # 11) Remount decay + post-COVID haircut + economic sentiment + weather + engagement
+    # Combined adjustment = POSTCOVID_FACTOR × economic_sentiment_factor × weather × engagement
+    # Weather factor is computed once based on the proposed run date (same for all titles in this batch)
+    # Engagement factor is computed per-row based on each title's category
+    
+    # Weather factor applies to the show run date, not individual titles
+    weather_factor = compute_weather_impact(proposed_run_date, None) if proposed_run_date else 1.0
     
     decay_pcts, decay_factors, est_after_decay = [], [], []
+    weather_factors, engagement_factors = [], []
     today_year = datetime.utcnow().year
     for _, r in df.iterrows():
         title = r["Title"]
+        cat = r.get("Category", "dramatic")
         est_base = float(r.get("EstimatedTickets", 0.0) or 0.0)
         last_mid = TITLE_TO_MIDDATE.get(title)
         if isinstance(last_mid, date):
@@ -2780,10 +2948,23 @@ def compute_scores_and_store(
 
         factor = 1.0 - decay_pct
         est_after_remount = est_base * factor
+        
+        # Compute engagement factor for this category (from live_analytics.csv)
+        engagement = compute_engagement_factor(cat)
+        
+        # Combined adjustment with all factors
+        combined_adjustment = (
+            float(postcovid_factor) *
+            float(economic_sentiment_factor) *
+            float(weather_factor) *
+            float(engagement)
+        )
         est_final = round(est_after_remount * combined_adjustment)
 
         decay_pcts.append(decay_pct)
         decay_factors.append(factor)
+        weather_factors.append(weather_factor)
+        engagement_factors.append(engagement)
         est_after_decay.append(est_final)
 
     df["ReturnDecayPct"] = decay_pcts
@@ -2791,6 +2972,8 @@ def compute_scores_and_store(
     df["EstimatedTickets_Final"] = est_after_decay
     df["EconomicSentimentFactor"] = economic_sentiment_factor  # Track the factor used
     df["PostCovidFactor"] = postcovid_factor  # Track the post-COVID factor used
+    df["WeatherFactor"] = weather_factors  # Track weather impact
+    df["EngagementFactor"] = engagement_factors  # Track engagement from live analytics
 
     # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
@@ -3004,7 +3187,7 @@ def render_results():
         "Composite","Score",
         "EstimatedTickets",
         "ReturnDecayFactor","ReturnDecayPct",
-        "PostCovidFactor","EconomicSentimentFactor",
+        "PostCovidFactor","EconomicSentimentFactor","WeatherFactor","EngagementFactor",
         "EstimatedTickets_Final",
         "YYC_Singles","YEG_Singles",
         "CityShare_Calgary","CityShare_Edmonton",
@@ -3047,6 +3230,8 @@ def render_results():
             "ReturnDecayFactor": "{:.2f}",
             "PostCovidFactor": "{:.2f}",
             "EconomicSentimentFactor": "{:.3f}",
+            "WeatherFactor": "{:.3f}",
+            "EngagementFactor": "{:.3f}",
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
             "CityShare_Calgary": "{:.0%}",
@@ -3138,10 +3323,14 @@ def render_results():
         else:
             est_tix = np.nan
 
-        # remount decay + post-COVID haircut + economic sentiment
-        # Compute economic sentiment for the specific run date
+        # remount decay + post-COVID haircut + economic sentiment + weather + engagement
+        # Compute factors for the specific run date and category
         econ_factor = compute_economic_sentiment(run_date) if ECONOMIC_DATA_AVAILABLE else 1.0
-        combined_adj = POSTCOVID_FACTOR * econ_factor
+        weather_factor = compute_weather_impact(run_date, None) if WEATHER_DATA_AVAILABLE else 1.0
+        engagement_factor = compute_engagement_factor(cat) if LIVE_ANALYTICS_AVAILABLE else 1.0
+        
+        # Combined adjustment with all factors
+        combined_adj = POSTCOVID_FACTOR * econ_factor * weather_factor * engagement_factor
         
         decay_factor = remount_novelty_factor(title_sel, run_date)
         est_tix_raw = (est_tix if np.isfinite(est_tix) else 0) * decay_factor
@@ -3229,6 +3418,8 @@ def render_results():
             "Total_Mkt_Spend": float(total_mkt),
             "Net_Contribution": float(net_contribution),
             "EconomicSentiment": float(econ_factor),
+            "WeatherFactor": float(weather_factor),
+            "EngagementFactor": float(engagement_factor),
         })
 
     # Guard + render

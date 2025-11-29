@@ -1610,3 +1610,533 @@ def generate_data_registry_report(
     logger.info(f"Data registry report written to {output_path}")
     
     return report_df, md_report
+
+
+# =============================================================================
+# WEATHER DATA LOADERS
+# =============================================================================
+# These functions load daily weather data for Calgary and Edmonton.
+# Weather data can be used to adjust ticket estimates based on conditions
+# that may affect attendance (extreme cold, snowfall, etc.).
+
+
+def load_weather_calgary(
+    csv_name: str = "environment/weatherstats_calgary_daily.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load daily weather data for Calgary.
+    
+    This file contains historical weather observations from Calgary including
+    temperature, precipitation, wind, and other conditions that may affect
+    attendance at live events.
+    
+    Expected columns (key ones for scoring):
+    - date: Date of observation (YYYY-MM-DD)
+    - min_temperature: Minimum temperature (°C)
+    - avg_temperature: Average temperature (°C)
+    - max_temperature: Maximum temperature (°C)
+    - precipitation: Total precipitation (mm)
+    - snow: Snowfall (cm)
+    - snow_on_ground: Snow depth on ground (cm)
+    - max_wind_speed: Maximum wind speed (km/h)
+    - min_windchill: Minimum wind chill factor
+    
+    Args:
+        csv_name: Path to Calgary weather CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with Calgary daily weather data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Calgary weather file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Parse date column if present
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Add city identifier
+        df['city'] = 'Calgary'
+        
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading Calgary weather: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading Calgary weather from {path}: {e}")
+
+
+def load_weather_edmonton(
+    csv_name: str = "environment/weatherstats_edmonton_daily.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load daily weather data for Edmonton.
+    
+    This file contains historical weather observations from Edmonton including
+    temperature, precipitation, wind, and other conditions that may affect
+    attendance at live events.
+    
+    Expected columns (key ones for scoring):
+    - date: Date of observation (YYYY-MM-DD)
+    - min_temperature: Minimum temperature (°C)
+    - avg_temperature: Average temperature (°C)
+    - max_temperature: Maximum temperature (°C)
+    - precipitation: Total precipitation (mm)
+    - snow: Snowfall (cm)
+    - snow_on_ground: Snow depth on ground (cm)
+    - max_wind_speed: Maximum wind speed (km/h)
+    - min_windchill: Minimum wind chill factor
+    
+    Args:
+        csv_name: Path to Edmonton weather CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with Edmonton daily weather data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Edmonton weather file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Parse date column if present
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Add city identifier
+        df['city'] = 'Edmonton'
+        
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading Edmonton weather: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading Edmonton weather from {path}: {e}")
+
+
+def load_weather_all_cities(fallback_empty: bool = True) -> pd.DataFrame:
+    """Load and combine weather data for both Calgary and Edmonton.
+    
+    Returns:
+        Combined DataFrame with weather data for both cities, with 'city' column
+    """
+    calgary_df = load_weather_calgary(fallback_empty=fallback_empty)
+    edmonton_df = load_weather_edmonton(fallback_empty=fallback_empty)
+    
+    if calgary_df.empty and edmonton_df.empty:
+        return pd.DataFrame()
+    
+    if calgary_df.empty:
+        return edmonton_df
+    
+    if edmonton_df.empty:
+        return calgary_df
+    
+    return pd.concat([calgary_df, edmonton_df], ignore_index=True)
+
+
+def get_weather_impact_factor(
+    run_date: Optional[pd.Timestamp] = None,
+    city: Optional[str] = None,
+    min_temp_threshold: float = -20.0,
+    extreme_cold_factor: float = 0.90,
+    heavy_snow_threshold: float = 10.0,
+    heavy_snow_factor: float = 0.95,
+    min_factor: float = 0.85,
+    max_factor: float = 1.05
+) -> float:
+    """Calculate a weather impact factor for ticket estimation.
+    
+    This factor adjusts ticket estimates based on weather conditions
+    on or around the show date. Extreme cold or heavy snowfall may
+    reduce attendance, while mild conditions have neutral impact.
+    
+    Args:
+        run_date: Date of the planned show run (defaults to current date)
+        city: City name (Calgary, Edmonton, or None for average)
+        min_temp_threshold: Temperature below which cold penalty applies (°C)
+        extreme_cold_factor: Multiplier for extreme cold days
+        heavy_snow_threshold: Snowfall above which snow penalty applies (cm)
+        heavy_snow_factor: Multiplier for heavy snow days
+        min_factor: Minimum allowed factor (floor)
+        max_factor: Maximum allowed factor (ceiling)
+        
+    Returns:
+        Weather impact factor (1.0 = neutral, <1.0 = adverse conditions)
+    """
+    if run_date is None:
+        run_date = pd.Timestamp.now()
+    
+    # Load weather data for the appropriate city
+    if city and 'calg' in city.lower():
+        weather_df = load_weather_calgary()
+    elif city and 'edm' in city.lower():
+        weather_df = load_weather_edmonton()
+    else:
+        weather_df = load_weather_all_cities()
+    
+    if weather_df.empty or 'date' not in weather_df.columns:
+        return 1.0  # No weather data available, neutral factor
+    
+    # Filter to city if specified
+    if city and 'city' in weather_df.columns:
+        city_key = 'Calgary' if 'calg' in city.lower() else 'Edmonton' if 'edm' in city.lower() else None
+        if city_key:
+            weather_df = weather_df[weather_df['city'] == city_key]
+    
+    # Find weather data for the run date (or nearby dates)
+    weather_df = weather_df.sort_values('date', ascending=False)
+    
+    # Look for exact date match first
+    exact_match = weather_df[weather_df['date'] == run_date]
+    if exact_match.empty:
+        # Use most recent available data as proxy (for future dates)
+        if not weather_df.empty:
+            exact_match = weather_df.head(1)
+    
+    if exact_match.empty:
+        return 1.0  # No weather data available
+    
+    row = exact_match.iloc[0]
+    factor = 1.0
+    
+    # Check for extreme cold
+    min_temp = row.get('min_temperature', None)
+    if min_temp is not None and pd.notna(min_temp):
+        try:
+            min_temp = float(min_temp)
+            if min_temp < min_temp_threshold:
+                factor *= extreme_cold_factor
+        except (ValueError, TypeError):
+            pass
+    
+    # Check for heavy snowfall
+    snow = row.get('snow', None)
+    if snow is not None and pd.notna(snow):
+        try:
+            snow = float(snow)
+            if snow > heavy_snow_threshold:
+                factor *= heavy_snow_factor
+        except (ValueError, TypeError):
+            pass
+    
+    # Clip to min/max range
+    return float(max(min_factor, min(max_factor, factor)))
+
+
+def get_monthly_weather_summary(
+    month: int,
+    city: Optional[str] = None
+) -> dict:
+    """Get summary weather statistics for a given month.
+    
+    Useful for understanding typical weather conditions during a planned
+    show run month.
+    
+    Args:
+        month: Month number (1-12)
+        city: City name (Calgary, Edmonton, or None for combined)
+        
+    Returns:
+        Dictionary with summary statistics:
+        - avg_temp_mean: Average of average temperatures
+        - min_temp_mean: Average of minimum temperatures
+        - snow_mean: Average snowfall
+        - precipitation_mean: Average precipitation
+        - extreme_cold_days: Count of days below -20°C
+    """
+    if city and 'calg' in city.lower():
+        weather_df = load_weather_calgary()
+    elif city and 'edm' in city.lower():
+        weather_df = load_weather_edmonton()
+    else:
+        weather_df = load_weather_all_cities()
+    
+    if weather_df.empty or 'date' not in weather_df.columns:
+        return {}
+    
+    # Filter to the specified month
+    weather_df['month'] = weather_df['date'].dt.month
+    month_data = weather_df[weather_df['month'] == month]
+    
+    if month_data.empty:
+        return {}
+    
+    result = {}
+    
+    # Average temperature statistics
+    if 'avg_temperature' in month_data.columns:
+        avg_temps = pd.to_numeric(month_data['avg_temperature'], errors='coerce')
+        result['avg_temp_mean'] = float(avg_temps.mean()) if avg_temps.notna().any() else None
+    
+    if 'min_temperature' in month_data.columns:
+        min_temps = pd.to_numeric(month_data['min_temperature'], errors='coerce')
+        result['min_temp_mean'] = float(min_temps.mean()) if min_temps.notna().any() else None
+        result['extreme_cold_days'] = int((min_temps < -20).sum())
+    
+    if 'snow' in month_data.columns:
+        snow = pd.to_numeric(month_data['snow'], errors='coerce')
+        result['snow_mean'] = float(snow.mean()) if snow.notna().any() else None
+    
+    if 'precipitation' in month_data.columns:
+        precip = pd.to_numeric(month_data['precipitation'], errors='coerce')
+        result['precipitation_mean'] = float(precip.mean()) if precip.notna().any() else None
+    
+    return result
+
+
+# =============================================================================
+# LIVE ANALYTICS DATA LOADER
+# =============================================================================
+# Functions for loading and using audience analytics data for segment adjustments.
+
+
+def load_live_analytics_raw(
+    csv_name: str = "audiences/live_analytics.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load raw live analytics data.
+    
+    This data contains audience demographic and behavioral breakdowns by
+    show category, useful for understanding segment composition.
+    
+    Args:
+        csv_name: Path to live analytics CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with raw live analytics data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Live analytics file not found: {path}")
+        
+        # This file has a non-standard format, load with header on first row
+        df = pd.read_csv(str(path))
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading live analytics: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading live analytics from {path}: {e}")
+
+
+def get_live_analytics_category_factors() -> dict:
+    """Parse live analytics data to extract category-based adjustment factors.
+    
+    The live_analytics.csv contains audience metrics by show category.
+    The file has a complex structure with:
+    - Columns 2-7: CLIENT EVENT SUMMARY (percentages)
+    - Columns 9-15: INDEX REPORT (indices where 100 = average)
+    
+    This function extracts index values to compute engagement factors.
+    
+    Returns:
+        Dictionary mapping category names to adjustment factors:
+        {
+            'pop_ip': {'engagement_factor': 1.05, 'high_spender_index': 164, ...},
+            'classic_romance': {'engagement_factor': 1.02, 'high_spender_index': 145, ...},
+            ...
+        }
+    """
+    df = load_live_analytics_raw()
+    
+    if df.empty:
+        return {}
+    
+    # The INDEX REPORT section has indices in columns 9-14
+    # Column 9 = Pop Mus Bal (pop_ip)
+    # Column 10 = Classic Bal (classic_romance)
+    # Column 11 = CM Bill (contemporary)
+    # Column 12 = Family Bal (family_classic)
+    # Column 13 = CSNA (romantic_tragedy - we skip this)
+    # Column 14 = Contemp Narr (dramatic)
+    index_category_mapping = {
+        9: 'pop_ip',
+        10: 'classic_romance',
+        11: 'contemporary',
+        12: 'family_classic',
+        # 13 is CSNA - skip
+        14: 'dramatic',
+    }
+    
+    # Also map the CLIENT EVENT SUMMARY percentages (columns 2-7)
+    pct_category_mapping = {
+        2: 'pop_ip',
+        3: 'classic_romance',
+        4: 'contemporary',
+        5: 'family_classic',
+        6: 'romantic_tragedy',
+        7: 'dramatic'
+    }
+    
+    result = {}
+    
+    try:
+        for _, row in df.iterrows():
+            row_data = row.tolist()
+            if len(row_data) < 15:
+                continue
+            
+            # Check for key metrics in the first two columns
+            first_col = str(row_data[0]).lower() if pd.notna(row_data[0]) else ''
+            second_col = str(row_data[1]).lower() if len(row_data) > 1 and pd.notna(row_data[1]) else ''
+            
+            # Extract high spender index from INDEX REPORT section (column 9+)
+            if 'high spender' in second_col or 'high_spenders' in first_col:
+                for col_idx, category in index_category_mapping.items():
+                    if col_idx < len(row_data) and pd.notna(row_data[col_idx]):
+                        try:
+                            val = str(row_data[col_idx]).replace(',', '').replace('n/a', '')
+                            if val:
+                                index = float(val)
+                                if category not in result:
+                                    result[category] = {}
+                                result[category]['high_spender_index'] = index
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Extract active buyers index from INDEX REPORT section
+            if 'active buyer' in second_col:
+                for col_idx, category in index_category_mapping.items():
+                    if col_idx < len(row_data) and pd.notna(row_data[col_idx]):
+                        try:
+                            val = str(row_data[col_idx]).replace(',', '').replace('n/a', '')
+                            if val:
+                                index = float(val)
+                                if category not in result:
+                                    result[category] = {}
+                                result[category]['active_buyer_index'] = index
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Extract repeat buyers index from INDEX REPORT section
+            if 'repeat buyer' in second_col:
+                for col_idx, category in index_category_mapping.items():
+                    if col_idx < len(row_data) and pd.notna(row_data[col_idx]):
+                        try:
+                            val = str(row_data[col_idx]).replace(',', '').replace('n/a', '')
+                            if val:
+                                index = float(val)
+                                if category not in result:
+                                    result[category] = {}
+                                result[category]['repeat_buyer_index'] = index
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Extract arts attendance index (dim_13_pct Live: Major: Arts)
+            if 'major: arts' in second_col or 'major arts' in second_col:
+                for col_idx, category in index_category_mapping.items():
+                    if col_idx < len(row_data) and pd.notna(row_data[col_idx]):
+                        try:
+                            val = str(row_data[col_idx]).replace(',', '').replace('n/a', '')
+                            if val:
+                                index = float(val)
+                                if category not in result:
+                                    result[category] = {}
+                                result[category]['arts_attendance_index'] = index
+                        except (ValueError, TypeError):
+                            pass
+        
+        # Also add romantic_tragedy from the percentage columns (map from family_classic-ish)
+        if 'family_classic' in result and 'romantic_tragedy' not in result:
+            result['romantic_tragedy'] = result['family_classic'].copy()
+        
+        # Calculate engagement factor based on available indices
+        # Higher indices (>100) indicate stronger engagement relative to average
+        for category in result:
+            data = result[category]
+            active_idx = data.get('active_buyer_index', 100)
+            repeat_idx = data.get('repeat_buyer_index', 100)
+            high_spender_idx = data.get('high_spender_index', 100)
+            arts_idx = data.get('arts_attendance_index', 100)
+            
+            # Engagement factor: weighted average of indices, normalized to 1.0 = 100 index
+            # Active and repeat buyers are most relevant for ticket sales
+            weighted_index = (
+                0.30 * active_idx +
+                0.30 * repeat_idx +
+                0.25 * high_spender_idx +
+                0.15 * arts_idx
+            )
+            
+            # Convert index to factor (100 = 1.0, 120 = 1.05, 80 = 0.95)
+            # Apply dampening to avoid extreme adjustments
+            raw_factor = weighted_index / 100.0
+            engagement = 1.0 + (raw_factor - 1.0) * 0.25  # Dampen by 75%
+            engagement = max(0.92, min(1.08, engagement))  # Clip to reasonable range
+            
+            result[category]['engagement_factor'] = round(engagement, 3)
+        
+    except Exception as e:
+        logger.warning(f"Error parsing live analytics: {e}")
+        return {}
+    
+    return result
+
+
+def get_category_engagement_factor(category: str) -> float:
+    """Get the engagement adjustment factor for a show category.
+    
+    Based on live analytics data, returns a factor to adjust ticket
+    estimates based on the category's audience engagement patterns.
+    
+    Args:
+        category: Show category (e.g., 'pop_ip', 'classic_romance', 'family_classic')
+        
+    Returns:
+        Engagement factor (1.0 = neutral, >1.0 = higher engagement category)
+    """
+    factors = get_live_analytics_category_factors()
+    
+    if not factors:
+        return 1.0
+    
+    category_lower = category.lower().strip()
+    
+    # Direct match
+    if category_lower in factors:
+        return factors[category_lower].get('engagement_factor', 1.0)
+    
+    # Map related categories
+    category_aliases = {
+        'classic_comedy': 'classic_romance',
+        'romantic_comedy': 'classic_romance',
+        'adult_literary_drama': 'dramatic',
+        'contemporary_mixed_bill': 'contemporary',
+        'touring_contemporary_company': 'contemporary',
+    }
+    
+    if category_lower in category_aliases:
+        mapped = category_aliases[category_lower]
+        if mapped in factors:
+            return factors[mapped].get('engagement_factor', 1.0)
+    
+    return 1.0
