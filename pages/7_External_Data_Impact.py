@@ -821,14 +821,18 @@ with tab_economic:
                         st.markdown("**Live Indicators:**")
                         indicators = alberta_display.get("indicators", [])
                         if indicators:
-                            # Display indicators in a grid
-                            cols = st.columns(min(len(indicators), 4))
-                            for i, ind in enumerate(indicators):
-                                with cols[i % 4]:
-                                    st.metric(
-                                        label=ind.get("label", ind.get("key")),
-                                        value=ind.get("formatted_value", "N/A"),
-                                    )
+                            # Display indicators in a grid, 4 per row
+                            # Chunk indicators into rows of 4
+                            row_size = 4
+                            for row_start in range(0, len(indicators), row_size):
+                                row_indicators = indicators[row_start:row_start + row_size]
+                                cols = st.columns(len(row_indicators))
+                                for col_idx, ind in enumerate(row_indicators):
+                                    with cols[col_idx]:
+                                        st.metric(
+                                            label=ind.get("label", ind.get("key")),
+                                            value=ind.get("formatted_value", "N/A"),
+                                        )
                         else:
                             st.info("No indicators available to display")
                     

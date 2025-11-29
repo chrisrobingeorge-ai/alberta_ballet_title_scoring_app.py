@@ -109,7 +109,7 @@ alberta_indicators:
     dashboard_url: "https://economicdashboard.alberta.ca/dashboard/retail-trade/"
     description: "Retail Trade in Alberta"
     category: "consumer"
-    baseline: 8000  # Millions CAD
+    baseline: 8000000000  # CAD (API returns raw value, not millions)
     weight: 0.10
     direction: "positive"
     
@@ -118,7 +118,7 @@ alberta_indicators:
     dashboard_url: "https://economicdashboard.alberta.ca/dashboard/restaurant-sales/"
     description: "Restaurant Sales in Alberta"
     category: "consumer"
-    baseline: 700  # Millions CAD
+    baseline: 700000000  # CAD (API returns raw value, not millions)
     weight: 0.07
     direction: "positive"
     
@@ -186,11 +186,11 @@ sentiment_calculation:
       mean: 60.0
       std: 20.0
     ab_retail_trade:
-      mean: 8000
-      std: 1000
+      mean: 8000000000  # CAD (API returns raw value)
+      std: 1000000000
     ab_restaurant_sales:
-      mean: 700
-      std: 100
+      mean: 700000000  # CAD (API returns raw value)
+      std: 100000000
     ab_air_passengers:
       mean: 2000000
       std: 500000

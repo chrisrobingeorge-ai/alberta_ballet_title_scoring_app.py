@@ -184,11 +184,16 @@ def _parse_observation_value(observations: List[dict], series_name: str) -> Opti
         return None
     
     # Handle nested object format: {"v": "value"} from BoC API
-    # This is the format returned by the Valet API for individual series
+    # This is the standard format returned by the Valet API for individual series
     value_to_parse = raw_value
     if isinstance(raw_value, dict):
-        value_to_parse = raw_value.get('v')
-        if value_to_parse is None:
+        if 'v' in raw_value:
+            value_to_parse = raw_value.get('v')
+            if value_to_parse is None:
+                return None
+        else:
+            # Unexpected dict format - log and return None
+            logger.debug(f"Unexpected dict format for series {series_name}: {raw_value}")
             return None
     
     # Handle various value formats
