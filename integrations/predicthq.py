@@ -20,7 +20,7 @@ Key ML-Ready Features:
     - phq_attendance_sum: Total predicted attendance for events in a time window
     - phq_attendance_sports: Attendance for sports events
     - phq_attendance_concerts: Attendance for concerts/performing arts
-    - phq_event_count: Count of significant events (rank >= threshold)
+    - phq_event_count: Count of significant events (rank >= 30 by default)
     - phq_rank_max: Maximum event rank in the time window
     - phq_rank_avg: Average event rank in the time window
     - phq_holidays_flag: Whether holidays overlap the run window
