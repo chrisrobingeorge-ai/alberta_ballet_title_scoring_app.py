@@ -15,6 +15,12 @@
 # Set to false to disable all BoC API calls and use only historical data
 use_boc_live_data: true
 
+# Toggle for BoC group-based context fetching
+# When enabled, the app fetches macro context from BoC groups (FX rates, BCPI, CEER)
+# for diagnostics and display. This does NOT affect the main scoring pipeline.
+# Set to false to skip all group API calls.
+enable_boc_group_context: true
+
 # Fallback behavior when BoC data is unavailable
 # Options:
 #   - "historical": Fall back to existing historical-based factor (default)
@@ -182,3 +188,59 @@ display:
     bcpi_energy: "{:.1f}"
     bcpi_ex_energy: "{:.1f}"
     cpi_core: "{:.1f}%"
+
+# =============================================================================
+# BoC Groups Configuration (Macro Bundles)
+# =============================================================================
+# Groups are bundles of related series that can be fetched in a single API call.
+# This configuration defines which groups to use for macro context/diagnostics.
+# The local boc_groups_list.json is for discovery only; live values come from API.
+#
+# Note: Group data is currently used for diagnostics and UI display only.
+# It does NOT affect the main economic sentiment scoring pipeline.
+
+boc_groups:
+  # Exchange Rates (CAD vs other currencies)
+  exchange_rates_daily: "FX_RATES_DAILY"
+  exchange_rates_monthly: "FX_RATES_MONTHLY"
+  
+  # Bank of Canada Commodity Price Index (BCPI)
+  bcpi_monthly: "BCPI_MONTHLY"
+  bcpi_annual: "BCPI_ANNUAL"
+  
+  # Canadian Effective Exchange Rate (trade-weighted CAD)
+  ceer_daily: "CEER_DAILY"
+  ceer_monthly_nominal: "CEER_MONTHLY_NOMINAL"
+  ceer_monthly_real: "CEER_MONTHLY_REAL"
+
+# Which groups to fetch for the macro context snapshot
+# These are fetched when computing economic sentiment for diagnostics
+macro_context_groups:
+  - bcpi_monthly
+  - ceer_daily
+  - exchange_rates_daily
+
+# Display settings for group data in the UI
+group_display:
+  # Key series to extract and display from each group
+  highlight_series:
+    # From FX_RATES_DAILY - CAD exchange rates
+    FXUSDCAD: "CAD/USD"
+    FXEURCAD: "CAD/EUR"
+    FXGBPCAD: "CAD/GBP"
+    # From BCPI_MONTHLY - Commodity indices
+    M.BCPI: "BCPI Total (Monthly)"
+    M.ENER: "BCPI Energy (Monthly)"
+    M.BCNE: "BCPI Ex-Energy (Monthly)"
+    # From CEER_DAILY - Effective exchange rate
+    CEER: "CEER (Nominal)"
+  
+  # Format strings for group values
+  formats:
+    FXUSDCAD: "{:.4f}"
+    FXEURCAD: "{:.4f}"
+    FXGBPCAD: "{:.4f}"
+    M.BCPI: "{:.2f}"
+    M.ENER: "{:.2f}"
+    M.BCNE: "{:.2f}"
+    CEER: "{:.2f}"

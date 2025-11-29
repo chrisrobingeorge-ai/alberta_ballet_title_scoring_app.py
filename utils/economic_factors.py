@@ -38,12 +38,18 @@ try:
     from utils.boc_client import (
         get_latest_boc_values,
         get_cache_info,
+        get_latest_group_observation,
+        get_group_metadata,
         BocApiError,
     )
     BOC_CLIENT_AVAILABLE = True
+    BOC_GROUPS_AVAILABLE = True
 except ImportError:
     BOC_CLIENT_AVAILABLE = False
+    BOC_GROUPS_AVAILABLE = False
     get_latest_boc_values = None
+    get_latest_group_observation = None
+    get_group_metadata = None
     BocApiError = Exception
 
 # Import historical economic sentiment (the existing function)
@@ -133,6 +139,16 @@ def is_boc_live_enabled() -> bool:
     """Check if BoC live data integration is enabled."""
     config = get_boc_config()
     return config.get("use_boc_live_data", False) and BOC_CLIENT_AVAILABLE
+
+
+def is_boc_group_context_enabled() -> bool:
+    """Check if BoC group-based context fetching is enabled."""
+    config = get_boc_config()
+    return (
+        config.get("enable_boc_group_context", False) 
+        and BOC_GROUPS_AVAILABLE
+        and is_boc_live_enabled()
+    )
 
 
 # =============================================================================
@@ -560,3 +576,174 @@ def get_combined_economic_sentiment(
     details["combined_factor"] = combined
     
     return combined, details
+
+
+# =============================================================================
+# MACRO CONTEXT SNAPSHOT (GROUP-BASED DATA)
+# =============================================================================
+
+
+def get_macro_context_snapshot() -> Dict[str, Any]:
+    """
+    Get a snapshot of macro economic context from BoC groups.
+    
+    This function fetches data from configured BoC groups (FX rates, BCPI, CEER)
+    to provide additional context for diagnostics and display. This data is NOT
+    used in the main economic sentiment calculation - it's purely supplemental.
+    
+    When group calls fail, the function returns a partial result with available
+    data and does NOT impact the main scoring pipeline.
+    
+    Returns:
+        Dictionary with:
+        - "available": bool - whether any group data was fetched
+        - "groups": dict - mapping of group keys to their data
+        - "highlighted": list - key series values formatted for display
+        - "fetched_at": str - ISO timestamp of the fetch
+        
+    Example:
+        >>> snapshot = get_macro_context_snapshot()
+        >>> if snapshot["available"]:
+        ...     for item in snapshot["highlighted"]:
+        ...         print(f"{item['label']}: {item['formatted_value']}")
+    """
+    result = {
+        "available": False,
+        "groups": {},
+        "highlighted": [],
+        "fetched_at": None,
+        "errors": [],
+    }
+    
+    # Check if group context is enabled
+    if not is_boc_group_context_enabled():
+        logger.debug("BoC group context is disabled")
+        result["message"] = "BoC group context is disabled"
+        return result
+    
+    config = get_boc_config()
+    boc_groups_config = config.get("boc_groups", {})
+    macro_context_groups = config.get("macro_context_groups", [])
+    group_display = config.get("group_display", {})
+    highlight_series = group_display.get("highlight_series", {})
+    formats = group_display.get("formats", {})
+    
+    if not macro_context_groups:
+        logger.debug("No macro context groups configured")
+        result["message"] = "No macro context groups configured"
+        return result
+    
+    from datetime import datetime, timezone
+    result["fetched_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Fetch each configured group
+    for group_key in macro_context_groups:
+        group_id = boc_groups_config.get(group_key)
+        if not group_id:
+            logger.debug(f"Group key '{group_key}' not found in config")
+            continue
+        
+        try:
+            # Fetch group data
+            values = get_latest_group_observation(group_id)
+            
+            if values:
+                # Get metadata for the group
+                metadata = get_group_metadata(group_id)
+                
+                result["groups"][group_key] = {
+                    "group_id": group_id,
+                    "label": metadata.get("label", group_id) if metadata else group_id,
+                    "description": metadata.get("description", "") if metadata else "",
+                    "series": values,
+                    "series_count": len(values),
+                }
+                
+                # Extract highlighted series for display
+                for series_id, value in values.items():
+                    if series_id in highlight_series and value is not None:
+                        fmt = formats.get(series_id, "{:.4f}")
+                        try:
+                            formatted = fmt.format(value)
+                        except (ValueError, KeyError):
+                            formatted = str(value)
+                        
+                        result["highlighted"].append({
+                            "series_id": series_id,
+                            "label": highlight_series[series_id],
+                            "value": value,
+                            "formatted_value": formatted,
+                            "group_key": group_key,
+                            "group_id": group_id,
+                        })
+                
+                result["available"] = True
+                logger.debug(f"Fetched macro context from group {group_id}: {len(values)} series")
+                
+        except Exception as e:
+            # Log warning but continue - group failures should not impact scoring
+            error_msg = f"Failed to fetch group {group_id}: {str(e)}"
+            logger.warning(error_msg)
+            result["errors"].append(error_msg)
+    
+    if not result["available"]:
+        result["message"] = "No group data available"
+    
+    return result
+
+
+def get_macro_context_display() -> Dict[str, Any]:
+    """
+    Get macro context formatted for UI display.
+    
+    Returns a structure optimized for the Streamlit UI, with grouped
+    indicators and formatted values.
+    
+    Returns:
+        Dictionary with:
+        - "available": bool
+        - "sections": list of sections, each with label and items
+        - "last_updated": str - human-readable timestamp
+    """
+    snapshot = get_macro_context_snapshot()
+    
+    display = {
+        "available": snapshot.get("available", False),
+        "sections": [],
+        "last_updated": None,
+        "message": snapshot.get("message"),
+    }
+    
+    if not display["available"]:
+        return display
+    
+    # Format timestamp for display
+    fetched_at = snapshot.get("fetched_at")
+    if fetched_at:
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(fetched_at.replace('Z', '+00:00'))
+            display["last_updated"] = dt.strftime("%Y-%m-%d %H:%M UTC")
+        except Exception:
+            display["last_updated"] = fetched_at
+    
+    # Group highlighted items by group_key for display
+    highlighted = snapshot.get("highlighted", [])
+    groups = snapshot.get("groups", {})
+    
+    # Create sections based on groups that have data
+    for group_key, group_data in groups.items():
+        section_items = [
+            item for item in highlighted
+            if item.get("group_key") == group_key
+        ]
+        
+        if section_items:
+            display["sections"].append({
+                "group_key": group_key,
+                "group_id": group_data.get("group_id"),
+                "label": group_data.get("label", group_key),
+                "items": section_items,
+            })
+    
+    return display
