@@ -1210,17 +1210,23 @@ def get_current_economic_context(
             result["alberta_sentiment"] = ab_factor
             result["sources_available"].append("alberta")
     
-    # Compute combined sentiment
+    # Compute combined sentiment using configurable weights
     sentiments = []
     weights = []
     
+    # Get configurable weights from BOC config
+    boc_config = get_boc_config()
+    combined_weights = boc_config.get("combined_sentiment_weights", {})
+    boc_weight = combined_weights.get("boc", 0.4)
+    alberta_weight = combined_weights.get("alberta", 0.6)
+    
     if result["boc_sentiment"] is not None:
         sentiments.append(result["boc_sentiment"])
-        weights.append(0.4)  # 40% weight for BOC
+        weights.append(boc_weight)
     
     if result["alberta_sentiment"] is not None:
         sentiments.append(result["alberta_sentiment"])
-        weights.append(0.6)  # 60% weight for Alberta (more regional relevance)
+        weights.append(alberta_weight)
     
     if sentiments:
         total_weight = sum(weights)

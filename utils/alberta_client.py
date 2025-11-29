@@ -228,6 +228,42 @@ _cache = AlbertaCache()
 # =============================================================================
 
 
+def _parse_date(date_str: str) -> Optional[datetime]:
+    """
+    Parse a date string into a datetime object.
+    
+    Tries multiple date formats commonly used by the Alberta API.
+    
+    Args:
+        date_str: Date string to parse
+        
+    Returns:
+        datetime object or None if parsing fails
+    """
+    if not date_str:
+        return None
+    
+    # Common date formats used by Alberta Economic Dashboard API
+    date_formats = [
+        "%Y-%m-%d",       # 2024-01-15
+        "%Y-%m-%dT%H:%M:%S",  # 2024-01-15T00:00:00
+        "%Y-%m-%dT%H:%M:%SZ", # 2024-01-15T00:00:00Z
+        "%Y/%m/%d",       # 2024/01/15
+        "%d/%m/%Y",       # 15/01/2024
+        "%Y-%m",          # 2024-01 (monthly data)
+        "%Y",             # 2024 (annual data)
+    ]
+    
+    for fmt in date_formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    
+    logger.debug(f"Could not parse date '{date_str}' with any known format")
+    return None
+
+
 def _parse_alberta_response(data: List[dict]) -> Tuple[Optional[str], Optional[float]]:
     """
     Parse the Alberta Economic Dashboard API response and extract the latest observation.
@@ -244,7 +280,8 @@ def _parse_alberta_response(data: List[dict]) -> Tuple[Optional[str], Optional[f
     if not data:
         return None, None
     
-    latest_date = None
+    latest_date_str = None
+    latest_date_parsed = None
     latest_value = None
     
     # Find the observation with the most recent date
@@ -257,9 +294,30 @@ def _parse_alberta_response(data: List[dict]) -> Tuple[Optional[str], Optional[f
         if date_str is None or value is None:
             continue
         
+        # Parse the date for proper comparison
+        parsed_date = _parse_date(str(date_str))
+        if parsed_date is None:
+            # Fallback to string comparison if parsing fails
+            if latest_date_str is None or str(date_str) > latest_date_str:
+                latest_date_str = str(date_str)
+                latest_date_parsed = None
+                # Convert value to float
+                try:
+                    if isinstance(value, (int, float)):
+                        latest_value = float(value)
+                    elif isinstance(value, str):
+                        cleaned = value.strip().replace(",", "")
+                        if cleaned:
+                            latest_value = float(cleaned)
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Could not parse value '{value}': {e}")
+                    continue
+            continue
+        
         # Compare dates to find the latest
-        if latest_date is None or date_str > latest_date:
-            latest_date = date_str
+        if latest_date_parsed is None or parsed_date > latest_date_parsed:
+            latest_date_str = str(date_str)
+            latest_date_parsed = parsed_date
             # Convert value to float
             try:
                 if isinstance(value, (int, float)):
@@ -272,7 +330,7 @@ def _parse_alberta_response(data: List[dict]) -> Tuple[Optional[str], Optional[f
                 logger.debug(f"Could not parse value '{value}': {e}")
                 continue
     
-    return latest_date, latest_value
+    return latest_date_str, latest_value
 
 
 def _fetch_indicator(

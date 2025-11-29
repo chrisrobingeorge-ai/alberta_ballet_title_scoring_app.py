@@ -39,6 +39,11 @@ try:
         get_boc_indicator_display,
         is_boc_live_enabled,
         get_combined_economic_sentiment,
+        # Alberta integration
+        compute_alberta_economic_sentiment,
+        get_alberta_indicator_display,
+        is_alberta_live_enabled,
+        get_current_economic_context,
     )
     BOC_INTEGRATION_AVAILABLE = True
 except ImportError:
@@ -51,6 +56,14 @@ except ImportError:
         return False
     def get_combined_economic_sentiment(*args, **kwargs):
         return 1.0, {}
+    def compute_alberta_economic_sentiment(*args, **kwargs):
+        return 1.0, {"source": "unavailable", "alberta_available": False}
+    def get_alberta_indicator_display():
+        return {"available": False, "message": "Alberta integration not installed"}
+    def is_alberta_live_enabled():
+        return False
+    def get_current_economic_context(*args, **kwargs):
+        return {"boc": None, "alberta": None, "combined_sentiment": 1.0, "sources_available": []}
 
 from reportlab.lib.pagesizes import LETTER, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -2106,30 +2119,49 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
     use_econ_sentiment = st.checkbox(
         "Apply economic sentiment factor",
         value=True,
-        help="Adjusts ticket estimates based on Alberta's economic indicators (oil prices, unemployment)"
+        help="Adjusts ticket estimates based on Alberta's economic indicators (oil prices, unemployment, employment rates)"
     )
     
-    # BoC Live Data toggle (only show if BoC integration is available)
-    use_boc_live = False
-    if BOC_INTEGRATION_AVAILABLE and is_boc_live_enabled():
-        use_boc_live = st.checkbox(
-            "Use Bank of Canada live data",
+    # Live Data toggle (show if any integration is available)
+    use_live_data = False
+    boc_enabled = BOC_INTEGRATION_AVAILABLE and is_boc_live_enabled()
+    alberta_enabled = BOC_INTEGRATION_AVAILABLE and is_alberta_live_enabled()
+    
+    if BOC_INTEGRATION_AVAILABLE and (boc_enabled or alberta_enabled):
+        live_sources = []
+        if boc_enabled:
+            live_sources.append("Bank of Canada")
+        if alberta_enabled:
+            live_sources.append("Alberta Economic Dashboard")
+        
+        use_live_data = st.checkbox(
+            "Use live economic data",
             value=True,
-            help="Supplement with live data from Bank of Canada Valet API (interest rates, commodity prices, inflation)"
+            help=f"Supplement with live data from: {', '.join(live_sources)}"
         )
     
     if use_econ_sentiment and ECONOMIC_DATA_AVAILABLE:
-        # Show tabs for different data sources when BoC is available
-        if use_boc_live and BOC_INTEGRATION_AVAILABLE:
-            tab_combined, tab_historical, tab_boc = st.tabs(["Combined", "Historical Data", "BoC Live Data"])
+        # Show tabs for different data sources when live data is available
+        if use_live_data and BOC_INTEGRATION_AVAILABLE and (boc_enabled or alberta_enabled):
+            # Build tabs dynamically based on available sources
+            tab_names = ["Combined", "Historical Data"]
+            if boc_enabled:
+                tab_names.append("BoC Live Data")
+            if alberta_enabled:
+                tab_names.append("Alberta Live Data")
             
-            # Combined sentiment (weighted average)
-            with tab_combined:
-                combined_factor, combined_details = get_combined_economic_sentiment(
-                    run_date=None,
-                    city=None,
-                    boc_weight=0.3,  # 30% BoC, 70% historical
+            tabs = st.tabs(tab_names)
+            tab_idx = 0
+            
+            # Combined sentiment tab (using new get_current_economic_context)
+            with tabs[tab_idx]:
+                # Get combined economic context from all sources
+                econ_context = get_current_economic_context(
+                    include_boc=boc_enabled,
+                    include_alberta=alberta_enabled,
                 )
+                combined_factor = econ_context.get("combined_sentiment", 1.0)
+                
                 st.metric(
                     "Combined Economic Sentiment",
                     f"×{combined_factor:.3f}",
@@ -2137,28 +2169,37 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
                 )
                 
                 # Show component breakdown
-                hist_f = combined_details.get("historical_factor")
-                boc_f = combined_details.get("boc_factor")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if hist_f is not None:
-                        st.caption(f"Historical component: ×{hist_f:.3f}")
-                    else:
-                        st.caption("Historical component: N/A")
-                with col2:
-                    if boc_f is not None:
-                        st.caption(f"BoC live component: ×{boc_f:.3f}")
-                    else:
-                        st.caption("BoC live component: N/A")
+                sources = econ_context.get("sources_available", [])
+                boc_f = econ_context.get("boc_sentiment")
+                alberta_f = econ_context.get("alberta_sentiment")
+                
+                cols = st.columns(max(len(sources), 2))
+                col_idx = 0
+                
+                if boc_enabled:
+                    with cols[col_idx]:
+                        if boc_f is not None:
+                            st.caption(f"🇨🇦 BoC live: ×{boc_f:.3f}")
+                        else:
+                            st.caption("🇨🇦 BoC live: N/A")
+                    col_idx += 1
+                
+                if alberta_enabled:
+                    with cols[col_idx]:
+                        if alberta_f is not None:
+                            st.caption(f"🏔️ Alberta live: ×{alberta_f:.3f}")
+                        else:
+                            st.caption("🏔️ Alberta live: N/A")
                 
                 st.caption(
-                    "Combined sentiment blends historical data (WCS oil, unemployment) with "
-                    "live BoC indicators (policy rate, bond yields, commodity prices)."
+                    "Combined sentiment blends live data sources. "
+                    f"Sources active: {', '.join(sources) if sources else 'None (using neutral fallback)'}."
                 )
                 economic_sentiment_factor = combined_factor
+            tab_idx += 1
             
             # Historical data tab
-            with tab_historical:
+            with tabs[tab_idx]:
                 current_econ_factor = compute_economic_sentiment(None)
                 st.metric(
                     "Historical Economic Sentiment",
@@ -2202,39 +2243,76 @@ with st.expander("📊 Economic Sentiment Adjustment", expanded=False):
                                         st.caption("Latest Alberta unemployment: N/A")
                 except Exception:
                     pass
+            tab_idx += 1
             
-            # BoC Live Data tab
-            with tab_boc:
-                boc_display = get_boc_indicator_display()
-                
-                if boc_display.get("available", False):
-                    boc_factor = boc_display.get("sentiment_factor", 1.0)
-                    boc_label = boc_display.get("sentiment_label", "")
+            # BoC Live Data tab (if enabled)
+            if boc_enabled:
+                with tabs[tab_idx]:
+                    boc_display = get_boc_indicator_display()
                     
-                    st.metric(
-                        "BoC Live Economic Sentiment",
-                        f"×{boc_factor:.3f}",
-                        delta=boc_label if boc_label else "Neutral"
-                    )
+                    if boc_display.get("available", False):
+                        boc_factor_display = boc_display.get("sentiment_factor", 1.0)
+                        boc_label = boc_display.get("sentiment_label", "")
+                        
+                        st.metric(
+                            "BoC Live Economic Sentiment",
+                            f"×{boc_factor_display:.3f}",
+                            delta=boc_label if boc_label else "Neutral"
+                        )
                     
-                    st.caption("Live indicators from Bank of Canada Valet API:")
+                        st.caption("Live indicators from Bank of Canada Valet API:")
+                        
+                        # Display indicators in a grid
+                        indicators = boc_display.get("indicators", [])
+                        if indicators:
+                            cols = st.columns(min(len(indicators), 4))
+                            for i, ind in enumerate(indicators):
+                                with cols[i % 4]:
+                                    st.caption(f"**{ind['label']}**: {ind['formatted_value']}")
+                        
+                        st.caption(
+                            "BoC data updates daily. Includes policy rate, bond yields, "
+                            "commodity price indices, and inflation measures."
+                        )
+                    else:
+                        st.warning(boc_display.get("message", "BoC data temporarily unavailable"))
+                        if boc_display.get("fallback_used"):
+                            st.caption(f"Using fallback: {boc_display.get('fallback_mode', 'neutral')}")
+                tab_idx += 1
+            
+            # Alberta Live Data tab (if enabled)
+            if alberta_enabled:
+                with tabs[tab_idx]:
+                    alberta_display = get_alberta_indicator_display()
                     
-                    # Display indicators in a grid
-                    indicators = boc_display.get("indicators", [])
-                    if indicators:
-                        cols = st.columns(min(len(indicators), 4))
-                        for i, ind in enumerate(indicators):
-                            with cols[i % 4]:
-                                st.caption(f"**{ind['label']}**: {ind['formatted_value']}")
-                    
-                    st.caption(
-                        "BoC data updates daily. Includes policy rate, bond yields, "
-                        "commodity price indices, and inflation measures."
-                    )
-                else:
-                    st.warning(boc_display.get("message", "BoC data temporarily unavailable"))
-                    if boc_display.get("fallback_used"):
-                        st.caption(f"Using fallback: {boc_display.get('fallback_mode', 'historical')}")
+                    if alberta_display.get("available", False):
+                        alberta_factor_display = alberta_display.get("sentiment_factor", 1.0)
+                        alberta_label = alberta_display.get("sentiment_label", "")
+                        
+                        st.metric(
+                            "Alberta Live Economic Sentiment",
+                            f"×{alberta_factor_display:.3f}",
+                            delta=alberta_label if alberta_label else "Neutral"
+                        )
+                        
+                        st.caption("Live indicators from Alberta Economic Dashboard:")
+                        
+                        # Display indicators in a grid
+                        indicators = alberta_display.get("indicators", [])
+                        if indicators:
+                            cols = st.columns(min(len(indicators), 4))
+                            for i, ind in enumerate(indicators):
+                                with cols[i % 4]:
+                                    st.caption(f"**{ind['label']}**: {ind['formatted_value']}")
+                        
+                        st.caption(
+                            "Alberta data updates daily. Includes unemployment rate, employment, "
+                            "WCS oil price, retail trade, and population/migration indicators."
+                        )
+                    else:
+                        st.warning(alberta_display.get("message", "Alberta data temporarily unavailable"))
+                        if alberta_display.get("fallback_used"):
+                            st.caption("Using neutral fallback (×1.000)")
         
         else:
             # Standard historical-only view (original behavior)
