@@ -618,7 +618,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
     Estimates ticket demand from title familiarity & motivation, links to sales history, then applies seasonality, remount decay, and learned city/subscriber splits.
 
     ### Full User Guide (5 steps)
-    1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/productions/history_city_sales.csv`.
+    1. **History is loaded automatically** from `data/productions/history_city_sales.csv`.
     2. **Choose titles:** Add/modify the list in **Titles to score**. Unknown titles are estimated (or fetched live if you turn that on).
     3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
     4. **Pick a benchmark:** Select the **Benchmark Title** to normalize indices (benchmark = 100).
@@ -1248,21 +1248,13 @@ def subs_share_for(category: str | None, city: str) -> float:
     """
     return 0.0
 
-# --- Historicals (loads your wide CSV and learns) ---
-with st.expander("Historicals (optional): upload or use local CSV", expanded=False):
-    uploaded_hist = st.file_uploader("Upload historical ticket CSV", type=["csv"], key="hist_uploader_v9")
-    relearn = st.button("🔁 Force re-learn from history", width='content')
-
-# (Re)load the history df
-if ("hist_df" not in st.session_state) or relearn:
-    if uploaded_hist is not None:
-        st.session_state["hist_df"] = pd.read_csv(uploaded_hist)
-    else:
-        # Load from default location, or use empty DataFrame if not found
-        try:
-            st.session_state["hist_df"] = pd.read_csv("data/productions/history_city_sales.csv")
-        except Exception:
-            st.session_state["hist_df"] = pd.DataFrame()
+# --- Historicals (load from local CSV in data/ directory) ---
+# Load the history df from the default location
+if "hist_df" not in st.session_state:
+    try:
+        st.session_state["hist_df"] = pd.read_csv("data/productions/history_city_sales.csv")
+    except Exception:
+        st.session_state["hist_df"] = pd.DataFrame()
 
 # (Re)learn priors every time we (re)load history
 st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
