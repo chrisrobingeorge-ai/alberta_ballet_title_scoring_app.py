@@ -932,3 +932,169 @@ def get_all_segment_weights(region: str, category: str) -> dict:
         return {}
     
     return dict(zip(matches['segment'], matches['weight']))
+
+
+# =============================================================================
+# PREDICTHQ EVENT DATA LOADERS
+# =============================================================================
+# These functions load PredictHQ event data for demand forecasting.
+# The data provides ML-ready features like predicted attendance, event ranks,
+# and demand impact scores.
+
+def load_predicthq_events(
+    csv_name: str = "predicthq/predicthq_events.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load PredictHQ event data for demand intelligence.
+    
+    This file contains aggregated PredictHQ features for production run windows.
+    These features help predict demand by quantifying competing events.
+    
+    Expected columns:
+    - show_title: Show title (key for joining)
+    - city: City name (Calgary/Edmonton)
+    - phq_start_date: Start date of the run window
+    - phq_end_date: End date of the run window
+    - phq_attendance_sum: Total predicted attendance for all events
+    - phq_attendance_sports: Attendance for sports events
+    - phq_attendance_concerts: Attendance for concerts
+    - phq_event_count: Count of significant events (rank >= 30)
+    - phq_rank_max: Maximum event rank (0-100)
+    - phq_rank_avg: Average event rank
+    - phq_holidays_flag: Whether holidays overlap the run (0/1)
+    - phq_severe_weather_flag: Whether severe weather overlaps (0/1)
+    - phq_demand_impact_score: Composite demand impact score
+    
+    Args:
+        csv_name: Path to PredictHQ events CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with PredictHQ event features
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"PredictHQ events file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading PredictHQ events: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading PredictHQ events from {path}: {e}")
+
+
+def load_history_with_predicthq(
+    history_csv: str = "productions/history_city_sales.csv",
+    predicthq_csv: str = "predicthq/predicthq_events.csv",
+    join_on: Optional[list] = None
+) -> pd.DataFrame:
+    """Load history sales data merged with PredictHQ event features.
+    
+    This is a convenience function that combines historical sales data
+    with PredictHQ demand intelligence features for enhanced ML modeling.
+    
+    The merge is performed on common columns:
+    - If 'show_title' exists in both: merge on show_title
+    - If 'city' exists in both: additionally merge on city
+    
+    Args:
+        history_csv: Name of the history sales CSV
+        predicthq_csv: Name of the PredictHQ events CSV
+        join_on: Optional list of columns to join on. If None, auto-detects.
+        
+    Returns:
+        DataFrame with history data merged with PredictHQ features
+    """
+    history = load_history_sales(history_csv, fallback_empty=True)
+    predicthq = load_predicthq_events(predicthq_csv, fallback_empty=True)
+    
+    if history.empty:
+        return history
+    
+    if predicthq.empty:
+        logger.info("No PredictHQ events file found. Returning history only.")
+        return history
+    
+    # Suffix constant for consistency
+    _MERGE_SUFFIX = "_phq"
+    
+    # Auto-detect join keys if not specified
+    if join_on is None:
+        left_on = []
+        right_on = []
+        
+        # Check for show_title column
+        history_title_col = None
+        if "show_title" in history.columns:
+            history_title_col = "show_title"
+        elif "title" in history.columns:
+            history_title_col = "title"
+        
+        predicthq_title_col = None
+        if "show_title" in predicthq.columns:
+            predicthq_title_col = "show_title"
+        elif "title" in predicthq.columns:
+            predicthq_title_col = "title"
+        
+        if history_title_col and predicthq_title_col:
+            left_on.append(history_title_col)
+            right_on.append(predicthq_title_col)
+        
+        # Check for city column
+        if "city" in history.columns and "city" in predicthq.columns:
+            left_on.append("city")
+            right_on.append("city")
+        
+        if not left_on:
+            logger.warning("No common join keys found between history and PredictHQ data.")
+            return history
+        
+        # Perform merge with potentially different column names
+        try:
+            merged = history.merge(
+                predicthq,
+                left_on=left_on,
+                right_on=right_on,
+                how="left",
+                suffixes=("", _MERGE_SUFFIX)
+            )
+            
+            # Remove duplicate columns with the suffix
+            merged = merged.loc[:, ~merged.columns.str.endswith(_MERGE_SUFFIX)]
+            
+            logger.info(f"Merged history with PredictHQ data on {left_on}. "
+                       f"Result: {len(merged)} rows, {len(merged.columns)} columns.")
+            return merged
+            
+        except Exception as e:
+            logger.warning(f"Failed to merge PredictHQ data: {e}. Returning history only.")
+            return history
+    
+    # If join_on is explicitly provided, use it directly
+    try:
+        merged = history.merge(
+            predicthq,
+            on=join_on,
+            how="left",
+            suffixes=("", _MERGE_SUFFIX)
+        )
+        
+        # Remove duplicate columns with the suffix
+        merged = merged.loc[:, ~merged.columns.str.endswith(_MERGE_SUFFIX)]
+        
+        logger.info(f"Merged history with PredictHQ data on {join_on}. "
+                   f"Result: {len(merged)} rows, {len(merged.columns)} columns.")
+        return merged
+        
+    except Exception as e:
+        logger.warning(f"Failed to merge PredictHQ data: {e}. Returning history only.")
+        return history
