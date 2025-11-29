@@ -704,6 +704,113 @@ marketing_defaults:
 
 ---
 
+## PredictHQ Integration
+
+The app integrates with [PredictHQ](https://www.predicthq.com/) to fetch demand intelligence data for improved forecasting. PredictHQ provides ML-ready features about events, holidays, and other demand drivers.
+
+### Key Features
+
+PredictHQ provides these ML-ready features for demand forecasting:
+
+| Feature | Description |
+|---------|-------------|
+| `phq_attendance_sum` | Total predicted attendance for events during run window |
+| `phq_attendance_sports` | Predicted attendance for sports events (NHL, CFL, etc.) |
+| `phq_attendance_concerts` | Predicted attendance for concerts/performing arts |
+| `phq_event_count` | Count of significant events (rank >= 30) |
+| `phq_rank_max` | Maximum event rank (0-100) during run window |
+| `phq_rank_avg` | Average event rank for significant events |
+| `phq_holidays_flag` | Whether holidays overlap the run window |
+| `phq_severe_weather_flag` | Whether severe weather overlaps (for scenario planning) |
+| `phq_demand_impact_score` | Composite demand impact score |
+
+### Setup
+
+1. **Get API Key**: Sign up at [PredictHQ Control](https://control.predicthq.com/signup)
+
+2. **Set Environment Variable**:
+   ```bash
+   export PREDICTHQ_API_KEY=your_access_token_here
+   ```
+   
+   Or add to `.env` file:
+   ```
+   PREDICTHQ_API_KEY=your_access_token_here
+   ```
+
+### Usage
+
+#### Programmatic Usage
+
+```python
+from integrations import PredictHQClient, get_predicthq_features_dict
+
+# Initialize client
+client = PredictHQClient()  # Uses PREDICTHQ_API_KEY env var
+
+# Get features for a production run
+features = client.get_features_for_run(
+    city="Calgary",
+    start_date="2024-12-15",
+    end_date="2024-12-22"
+)
+
+print(f"Total event attendance: {features.phq_attendance_sum}")
+print(f"Significant events: {features.phq_event_count}")
+print(f"Demand impact score: {features.phq_demand_impact_score}")
+
+# Convert to dictionary for DataFrame
+feature_dict = get_predicthq_features_dict(features)
+```
+
+#### Loading Cached Data
+
+If you've exported PredictHQ data to CSV:
+
+```python
+from data.loader import load_predicthq_events, load_history_with_predicthq
+
+# Load PredictHQ features
+phq_data = load_predicthq_events("predicthq/predicthq_events.csv")
+
+# Load history merged with PredictHQ features
+merged = load_history_with_predicthq()
+```
+
+### Data Files
+
+Create `data/predicthq/predicthq_events.csv` with these columns:
+
+| Column | Description |
+|--------|-------------|
+| `show_title` | Show title (join key) |
+| `city` | Calgary or Edmonton |
+| `phq_start_date` | Run start date |
+| `phq_end_date` | Run end date |
+| `phq_attendance_sum` | Total predicted attendance |
+| `phq_attendance_sports` | Sports event attendance |
+| `phq_attendance_concerts` | Concert attendance |
+| `phq_event_count` | Count of significant events |
+| `phq_rank_max` | Maximum event rank |
+| `phq_rank_avg` | Average event rank |
+| `phq_holidays_flag` | 0 or 1 |
+| `phq_severe_weather_flag` | 0 or 1 |
+| `phq_demand_impact_score` | Composite score |
+
+### Leakage Considerations
+
+Most PredictHQ features are **safe for forecasting** because they represent scheduled events known in advance:
+
+| Feature | Leakage Risk | Notes |
+|---------|--------------|-------|
+| `phq_attendance_*` | No | Predicted attendance available before run |
+| `phq_event_count` | No | Scheduled events known in advance |
+| `phq_rank_*` | No | Ranks are pre-assigned by PredictHQ |
+| `phq_holidays_flag` | No | Holidays are fixed dates |
+| `phq_severe_weather_flag` | **Yes** | Unpredictable; use only for scenario planning |
+
+---
+
 ## Security & Deployment
 
 ### API Key Handling
@@ -715,6 +822,7 @@ The app uses optional external APIs for fetching title signals:
 | YouTube Data API | `YOUTUBE_API_KEY` or `st.secrets["youtube_api_key"]` | Fetch video view counts |
 | Spotify API | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Track popularity scores |
 | Google Trends | (No key required, uses pytrends) | Search interest data |
+| PredictHQ | `PREDICTHQ_API_KEY` | Event demand intelligence |
 
 **Best Practices:**
 - Store API keys in Streamlit secrets (`~/.streamlit/secrets.toml`) or environment variables
