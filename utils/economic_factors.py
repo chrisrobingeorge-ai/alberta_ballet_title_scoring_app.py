@@ -1,25 +1,39 @@
 """
-Economic Factors Module - BoC Live Data Integration
+Economic Factors Module - BoC and Alberta Live Data Integration
 
 This module provides functions to compute economic sentiment adjustments using
-live data from the Bank of Canada Valet API. It integrates with the existing
-historical economic adjustment pipeline as a SUPPLEMENTAL layer.
+live data from:
+- Bank of Canada Valet API (https://www.bankofcanada.ca/valet/)
+- Alberta Economic Dashboard API (https://economicdashboard.alberta.ca/)
+
+It integrates with the existing historical economic adjustment pipeline as a
+SUPPLEMENTAL layer.
 
 IMPORTANT DESIGN PRINCIPLE:
 - The existing historical economic data (WCS oil prices, Alberta unemployment)
   remains fully intact and is NOT replaced.
-- This BoC integration provides ADDITIONAL "live" or "latest" values for
+- This BoC/Alberta integration provides ADDITIONAL "live" or "latest" values for
   today's macro conditions.
 - Historical analysis, backtests, and model training continue to rely on
   the existing historical datasets.
-- When BoC data is unavailable, the system falls back to the historical-based
+- When live data is unavailable, the system falls back to the historical-based
   economic sentiment factor.
 
 Usage:
-    from utils.economic_factors import compute_boc_economic_sentiment
+    from utils.economic_factors import (
+        compute_boc_economic_sentiment,
+        get_alberta_economic_indicators,
+        get_current_economic_context,
+    )
     
     # Get BoC-based sentiment factor for today
     factor, details = compute_boc_economic_sentiment()
+    
+    # Get Alberta indicators
+    ab_indicators = get_alberta_economic_indicators()
+    
+    # Get combined economic context (all sources)
+    context = get_current_economic_context()
     
     # factor is typically in range [0.85, 1.15] where 1.0 = neutral
     # details contains the individual indicator values
@@ -51,6 +65,32 @@ except ImportError:
     get_latest_group_observation = None
     get_group_metadata = None
     BocApiError = Exception
+
+# Import the Alberta client
+try:
+    from utils.alberta_client import (
+        get_alberta_economic_indicators as _get_alberta_indicators,
+        get_alberta_indicator,
+        get_indicator_metadata as get_alberta_indicator_metadata,
+        get_all_indicator_keys as get_all_alberta_indicator_keys,
+        get_indicators_by_category_grouped as get_alberta_indicators_by_category,
+        clear_cache as clear_alberta_cache,
+        get_cache_info as get_alberta_cache_info,
+        AlbertaApiError,
+        ALBERTA_INDICATORS,
+    )
+    ALBERTA_CLIENT_AVAILABLE = True
+except ImportError:
+    ALBERTA_CLIENT_AVAILABLE = False
+    _get_alberta_indicators = None
+    get_alberta_indicator = None
+    get_alberta_indicator_metadata = None
+    get_all_alberta_indicator_keys = None
+    get_alberta_indicators_by_category = None
+    clear_alberta_cache = None
+    get_alberta_cache_info = None
+    AlbertaApiError = Exception
+    ALBERTA_INDICATORS = {}
 
 # Import historical economic sentiment (the existing function)
 try:
@@ -747,3 +787,477 @@ def get_macro_context_display() -> Dict[str, Any]:
             })
     
     return display
+
+
+# =============================================================================
+# ALBERTA ECONOMIC INDICATORS INTEGRATION
+# =============================================================================
+
+_alberta_config: Optional[dict] = None
+
+
+def _get_alberta_config_path() -> Path:
+    """Get path to the Alberta economic config file."""
+    return Path(__file__).parent.parent / "config" / "economic_alberta.yaml"
+
+
+def load_alberta_config(config_path: Optional[str] = None) -> dict:
+    """
+    Load Alberta economic configuration from YAML file.
+    
+    Args:
+        config_path: Optional path to config file. Uses default if not provided.
+        
+    Returns:
+        Dictionary with configuration settings
+    """
+    global _alberta_config
+    
+    if config_path is None:
+        path = _get_alberta_config_path()
+    else:
+        path = Path(config_path)
+    
+    if not path.exists():
+        logger.warning(f"Alberta config file not found at {path}. Using defaults.")
+        return _get_default_alberta_config()
+    
+    try:
+        with open(path) as f:
+            config = yaml.safe_load(f)
+        logger.info(f"Loaded Alberta config from {path}")
+        _alberta_config = config
+        return config
+    except yaml.YAMLError as e:
+        logger.warning(f"YAML parsing error in Alberta config {path}: {e}. Using defaults.")
+        return _get_default_alberta_config()
+    except PermissionError as e:
+        logger.warning(f"Permission denied reading Alberta config {path}: {e}. Using defaults.")
+        return _get_default_alberta_config()
+    except Exception as e:
+        logger.warning(f"Unexpected error loading Alberta config from {path}: {e}. Using defaults.")
+        return _get_default_alberta_config()
+
+
+def _get_default_alberta_config() -> dict:
+    """Return default configuration when config file is unavailable."""
+    return {
+        "use_alberta_live_data": False,  # Disabled by default when no config
+        "fallback_mode": "neutral",
+        "alberta_indicators": {},
+        "sentiment_calculation": {
+            "min_factor": 0.85,
+            "max_factor": 1.15,
+            "neutral": 1.0,
+            "sensitivity": 0.08,
+        },
+    }
+
+
+def get_alberta_config() -> dict:
+    """Get the loaded Alberta config, loading it if necessary."""
+    global _alberta_config
+    if _alberta_config is None:
+        _alberta_config = load_alberta_config()
+    return _alberta_config
+
+
+def is_alberta_live_enabled() -> bool:
+    """Check if Alberta live data integration is enabled."""
+    config = get_alberta_config()
+    return config.get("use_alberta_live_data", False) and ALBERTA_CLIENT_AVAILABLE
+
+
+def get_alberta_economic_indicators(
+    use_cache: bool = True
+) -> Dict[str, Optional[float]]:
+    """
+    Get the latest values for all Alberta economic indicators.
+    
+    This is a wrapper around the Alberta client that provides the same
+    interface as the BoC indicator fetching functions.
+    
+    Args:
+        use_cache: Whether to use cached values (default True)
+        
+    Returns:
+        Dictionary mapping indicator keys (ab_*) to their values (or None if unavailable)
+        
+    Example:
+        >>> indicators = get_alberta_economic_indicators()
+        >>> unemployment = indicators.get("ab_unemployment_rate")
+        >>> wcs_price = indicators.get("ab_wcs_oil_price")
+    """
+    if not ALBERTA_CLIENT_AVAILABLE:
+        logger.warning("Alberta client not available")
+        return {}
+    
+    if not is_alberta_live_enabled():
+        logger.debug("Alberta live data is disabled")
+        return {}
+    
+    return _get_alberta_indicators(use_cache=use_cache)
+
+
+def fetch_alberta_indicators() -> Tuple[Dict[str, Optional[float]], bool]:
+    """
+    Fetch current values for all configured Alberta indicators.
+    
+    This function mirrors the interface of fetch_boc_indicators() for
+    consistency with the existing codebase.
+    
+    Returns:
+        Tuple of (values_dict, success_flag)
+        - values_dict: Maps indicator keys to their current values (or None if failed)
+        - success_flag: True if at least some values were fetched
+    """
+    if not ALBERTA_CLIENT_AVAILABLE:
+        logger.warning("Alberta client not available")
+        return {}, False
+    
+    if not is_alberta_live_enabled():
+        logger.info("Alberta live data is disabled")
+        return {}, False
+    
+    try:
+        values = _get_alberta_indicators(use_cache=True)
+    except Exception as e:
+        logger.warning(f"Error fetching Alberta values: {e}")
+        return {}, False
+    
+    # Check if we got at least some values
+    success = any(v is not None for v in values.values())
+    
+    if success:
+        logger.info(f"Fetched {sum(1 for v in values.values() if v is not None)} Alberta indicators")
+    else:
+        logger.warning("Failed to fetch any Alberta indicators")
+    
+    return values, success
+
+
+def compute_alberta_economic_sentiment(
+    run_date: Optional[date] = None,
+    city: Optional[str] = None,
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    Compute economic sentiment scalar using live Alberta data.
+    
+    This function:
+    1. Fetches latest values for configured Alberta indicators
+    2. Standardizes each value relative to historical norms
+    3. Combines them into a weighted sentiment scalar
+    4. Falls back to neutral if Alberta data is unavailable
+    
+    The result is a scalar typically in range [0.85, 1.15] where:
+    - 1.0 = neutral economic conditions
+    - > 1.0 = favorable conditions (may boost ticket sales)
+    - < 1.0 = unfavorable conditions (may reduce ticket sales)
+    
+    Args:
+        run_date: Date for the forecast (currently unused, for API consistency)
+        city: City for regional adjustments (currently unused)
+        
+    Returns:
+        Tuple of (sentiment_factor, details_dict)
+        - sentiment_factor: Float typically in [0.85, 1.15]
+        - details_dict: Dictionary with indicator values, source info, etc.
+    """
+    config = get_alberta_config()
+    calc_config = config.get("sentiment_calculation", {})
+    
+    min_factor = calc_config.get("min_factor", 0.85)
+    max_factor = calc_config.get("max_factor", 1.15)
+    neutral = calc_config.get("neutral", 1.0)
+    sensitivity = calc_config.get("sensitivity", 0.08)
+    historical_stats = calc_config.get("historical_stats", {})
+    
+    details = {
+        "source": None,
+        "indicators": {},
+        "factor": neutral,
+        "alberta_available": False,
+        "fallback_used": False,
+    }
+    
+    # Check if Alberta live data is enabled
+    if not is_alberta_live_enabled():
+        logger.debug("Alberta live data is disabled, using neutral fallback")
+        details["fallback_used"] = True
+        details["source"] = "neutral_fallback"
+        return neutral, details
+    
+    # Fetch Alberta indicators
+    values, success = fetch_alberta_indicators()
+    
+    if not success:
+        logger.info("Alberta data unavailable, using neutral fallback")
+        details["fallback_used"] = True
+        details["source"] = "neutral_fallback"
+        return neutral, details
+    
+    details["alberta_available"] = True
+    details["source"] = "alberta_live"
+    
+    # Calculate weighted z-score
+    alberta_indicators = config.get("alberta_indicators", {})
+    weighted_z_sum = 0.0
+    total_weight = 0.0
+    
+    for key, indicator_config in alberta_indicators.items():
+        value = values.get(key)
+        
+        if value is None:
+            continue
+        
+        weight = indicator_config.get("weight", 0.0)
+        direction = indicator_config.get("direction", "positive")
+        baseline = indicator_config.get("baseline", 0.0)
+        
+        # Get historical stats for standardization
+        stats = historical_stats.get(key, {})
+        mean = stats.get("mean", baseline)
+        std = stats.get("std", 1.0)
+        
+        # Compute z-score (reusing the existing function)
+        z = _compute_z_score(value, mean, std, direction)
+        
+        weighted_z_sum += weight * z
+        total_weight += weight
+        
+        details["indicators"][key] = {
+            "value": value,
+            "baseline": baseline,
+            "z_score": z,
+            "weight": weight,
+            "direction": direction,
+        }
+    
+    if total_weight == 0:
+        logger.warning("No valid Alberta indicators (total_weight=0), using neutral")
+        details["fallback_used"] = True
+        details["source"] = "neutral_fallback"
+        return neutral, details
+    
+    if total_weight < 0:
+        logger.error(f"Negative total_weight ({total_weight}) - check weight configuration")
+        details["fallback_used"] = True
+        details["source"] = "neutral_fallback"
+        return neutral, details
+    
+    # Normalize and convert to factor
+    average_z = weighted_z_sum / total_weight
+    
+    # Apply sensitivity to convert z-score to factor
+    factor = neutral + (average_z * sensitivity)
+    
+    # Clip to allowed range
+    factor = float(np.clip(factor, min_factor, max_factor))
+    
+    details["factor"] = factor
+    details["weighted_z"] = average_z
+    
+    logger.info(f"Alberta economic sentiment factor: {factor:.3f} (z={average_z:.2f})")
+    
+    return factor, details
+
+
+def get_alberta_indicator_display() -> Dict[str, Any]:
+    """
+    Get Alberta indicator values formatted for UI display.
+    
+    Returns:
+        Dictionary with:
+        - "available": bool - whether Alberta data is available
+        - "indicators": list of dicts with label, value, formatted_value
+        - "sentiment_factor": float - the computed sentiment
+        - "sentiment_label": str - human-readable label
+    """
+    config = get_alberta_config()
+    display_config = config.get("display", {})
+    
+    if not is_alberta_live_enabled():
+        return {
+            "available": False,
+            "message": "Alberta live data is disabled",
+        }
+    
+    # Fetch indicators and compute sentiment
+    factor, details = compute_alberta_economic_sentiment()
+    
+    if not details.get("alberta_available", False):
+        return {
+            "available": False,
+            "message": "Alberta data temporarily unavailable",
+            "fallback_used": details.get("fallback_used", True),
+            "sentiment_factor": factor,
+        }
+    
+    # Format indicators for display
+    show_indicators = display_config.get("show_indicators", [])
+    labels = display_config.get("labels", {})
+    formats = display_config.get("formats", {})
+    
+    indicator_list = []
+    for key in show_indicators:
+        ind_data = details.get("indicators", {}).get(key, {})
+        value = ind_data.get("value")
+        
+        if value is None:
+            continue
+        
+        label = labels.get(key, key)
+        fmt = formats.get(key, "{:.2f}")
+        
+        try:
+            formatted = fmt.format(value)
+        except Exception:
+            formatted = str(value)
+        
+        indicator_list.append({
+            "key": key,
+            "label": label,
+            "value": value,
+            "formatted_value": formatted,
+            "z_score": ind_data.get("z_score", 0),
+        })
+    
+    # Generate sentiment label
+    if factor > 1.05:
+        sentiment_label = "Favorable"
+    elif factor > 1.0:
+        sentiment_label = "Slightly Favorable"
+    elif factor > 0.95:
+        sentiment_label = "Neutral"
+    elif factor > 0.90:
+        sentiment_label = "Slightly Unfavorable"
+    else:
+        sentiment_label = "Unfavorable"
+    
+    return {
+        "available": True,
+        "indicators": indicator_list,
+        "sentiment_factor": factor,
+        "sentiment_label": sentiment_label,
+        "source": details.get("source", "alberta_live"),
+    }
+
+
+# =============================================================================
+# COMBINED ECONOMIC CONTEXT (BOC + ALBERTA)
+# =============================================================================
+
+
+def get_current_economic_context(
+    include_boc: bool = True,
+    include_alberta: bool = True,
+    use_cache: bool = True,
+) -> Dict[str, Any]:
+    """
+    Get a comprehensive snapshot of current economic context from all sources.
+    
+    This function combines indicators from:
+    - Bank of Canada (BOC): Interest rates, bond yields, commodity indices
+    - Alberta Economic Dashboard: Employment, oil prices, consumer spending
+    
+    The result provides a unified view of economic conditions that can be
+    used by the title scoring application.
+    
+    Args:
+        include_boc: Whether to include BOC indicators (default True)
+        include_alberta: Whether to include Alberta indicators (default True)
+        use_cache: Whether to use cached values (default True)
+        
+    Returns:
+        Dictionary with:
+        - "boc": Dict of BOC indicator values (or None if disabled/unavailable)
+        - "alberta": Dict of Alberta indicator values (or None if disabled/unavailable)
+        - "combined_sentiment": Float - weighted combination of sentiments
+        - "fetched_at": ISO timestamp of the fetch
+        - "sources_available": List of sources that provided data
+    """
+    from datetime import datetime, timezone
+    
+    result = {
+        "boc": None,
+        "alberta": None,
+        "boc_sentiment": None,
+        "alberta_sentiment": None,
+        "combined_sentiment": 1.0,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "sources_available": [],
+    }
+    
+    # Fetch BOC data
+    if include_boc and is_boc_live_enabled():
+        boc_factor, boc_details = compute_boc_economic_sentiment()
+        if boc_details.get("boc_available", False):
+            result["boc"] = {
+                key: ind.get("value") 
+                for key, ind in boc_details.get("indicators", {}).items()
+            }
+            result["boc_sentiment"] = boc_factor
+            result["sources_available"].append("boc")
+    
+    # Fetch Alberta data
+    if include_alberta and is_alberta_live_enabled():
+        ab_factor, ab_details = compute_alberta_economic_sentiment()
+        if ab_details.get("alberta_available", False):
+            result["alberta"] = {
+                key: ind.get("value")
+                for key, ind in ab_details.get("indicators", {}).items()
+            }
+            result["alberta_sentiment"] = ab_factor
+            result["sources_available"].append("alberta")
+    
+    # Compute combined sentiment
+    sentiments = []
+    weights = []
+    
+    if result["boc_sentiment"] is not None:
+        sentiments.append(result["boc_sentiment"])
+        weights.append(0.4)  # 40% weight for BOC
+    
+    if result["alberta_sentiment"] is not None:
+        sentiments.append(result["alberta_sentiment"])
+        weights.append(0.6)  # 60% weight for Alberta (more regional relevance)
+    
+    if sentiments:
+        total_weight = sum(weights)
+        result["combined_sentiment"] = sum(
+            s * w for s, w in zip(sentiments, weights)
+        ) / total_weight
+    
+    return result
+
+
+def get_all_economic_indicators(use_cache: bool = True) -> Dict[str, Optional[float]]:
+    """
+    Get all available economic indicators from all sources.
+    
+    This function fetches indicators from both BOC and Alberta sources
+    and returns them in a single dictionary with their respective keys.
+    
+    BOC indicators use their series IDs or config keys.
+    Alberta indicators use their ab_* keys.
+    
+    Args:
+        use_cache: Whether to use cached values (default True)
+        
+    Returns:
+        Dictionary mapping indicator keys to values (or None if unavailable)
+    """
+    all_indicators: Dict[str, Optional[float]] = {}
+    
+    # Fetch BOC indicators
+    if is_boc_live_enabled():
+        boc_values, _ = fetch_boc_indicators()
+        for key, value in boc_values.items():
+            all_indicators[f"boc_{key}"] = value
+    
+    # Fetch Alberta indicators
+    if is_alberta_live_enabled():
+        alberta_values = get_alberta_economic_indicators(use_cache=use_cache)
+        all_indicators.update(alberta_values)
+    
+    return all_indicators
