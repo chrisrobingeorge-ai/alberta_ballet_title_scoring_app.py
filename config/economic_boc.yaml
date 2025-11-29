@@ -244,3 +244,14 @@ group_display:
     M.ENER: "{:.2f}"
     M.BCNE: "{:.2f}"
     CEER: "{:.2f}"
+
+# =============================================================================
+# Combined Sentiment Weights (BOC + Alberta)
+# =============================================================================
+# When both BOC and Alberta data are available, these weights determine
+# how they are combined into a single economic sentiment factor.
+# Values should sum to 1.0.
+
+combined_sentiment_weights:
+  boc: 0.4      # National macroeconomic conditions (BOC)
+  alberta: 0.6  # Regional economic conditions (Alberta) - more directly relevant for local arts

@@ -358,3 +358,165 @@ fallback_mode: "historical"  # Options: historical, neutral, last_cached
 2. Add more series (exchange rates, sector-specific indices)
 3. Consider time-varying weights based on Alberta economic structure
 4. Add caching to disk for persistence across sessions
+
+---
+
+# Alberta Economic Dashboard API Integration
+
+## Task Completed
+✅ Integrated live Alberta Economic Dashboard data as a supplemental layer for economic sentiment adjustment.
+
+## Design Principles
+
+**Critical Constraint - Historical Data Preserved**:
+- The existing historical economic data (WCS oil prices, Alberta unemployment) remains **fully intact**
+- Historical analysis, backtests, and model training continue to use existing datasets
+- Alberta integration is **supplemental only** - provides live/current values for today's conditions
+- When Alberta data unavailable, system falls back to neutral sentiment (1.0)
+
+## Files Added
+
+| File | Description |
+|------|-------------|
+| `utils/alberta_client.py` | Alberta Economic Dashboard API client with caching |
+| `config/economic_alberta.yaml` | Alberta indicator configuration (weights, baselines) |
+| `tests/test_alberta_client.py` | Unit tests for API client (33 tests) |
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `utils/economic_factors.py` | Added Alberta integration alongside BOC |
+| `tests/test_economic_factors.py` | Added Alberta integration tests (18 new tests) |
+| `ML_MODEL_DOCUMENTATION.md` | Added Alberta integration documentation |
+| `IMPLEMENTATION_SUMMARY.md` | Added this section |
+
+## End-to-End Flow
+
+```
+Config (economic_alberta.yaml)
+    ↓
+Alberta Economic Dashboard API (https://api.economicdata.alberta.ca/api/data)
+    ↓ (GET /api/data?code={uuid})
+alberta_client.py (fetch & cache)
+    ↓
+economic_factors.py (compute weighted z-scores)
+    ↓
+Combined with BOC Sentiment (40% BOC, 60% Alberta)
+    ↓
+combined_economic_sentiment scalar (0.85 to 1.15)
+    ↓
+Available for use in title scoring
+```
+
+## Alberta Indicators (12 Total)
+
+### Labour & Income (5 indicators, 40% total weight)
+- **ab_unemployment_rate** (12%): Unemployment rate in Alberta
+- **ab_employment_rate** (8%): Employment rate in Alberta
+- **ab_employment_level** (5%): Employment in Alberta (level)
+- **ab_participation_rate** (5%): Participation rate in Alberta
+- **ab_avg_weekly_earnings** (10%): Average Weekly Earnings
+
+### Prices (1 indicator, 8% weight)
+- **ab_cpi** (8%): Consumer Price Index for Alberta
+
+### Energy Sector (1 indicator, 15% weight)
+- **ab_wcs_oil_price** (15%): WCS (Western Canadian Select) Oil Price - *critical for Alberta economy*
+
+### Consumer Spending (3 indicators, 22% total weight)
+- **ab_retail_trade** (10%): Retail Trade in Alberta
+- **ab_restaurant_sales** (7%): Restaurant Sales in Alberta
+- **ab_air_passengers** (5%): Air Passengers (YEG + YYC total)
+
+### Population & Migration (2 indicators, 15% total weight)
+- **ab_net_migration** (8%): Net Migration into Alberta
+- **ab_population_quarterly** (7%): Population (Quarterly) in Alberta
+
+## Configuration Flags
+
+```yaml
+# In config/economic_alberta.yaml
+use_alberta_live_data: true   # Master toggle
+fallback_mode: "neutral"      # Options: neutral, skip
+```
+
+## Caching Strategy
+
+- Values cached for current day (24-hour TTL)
+- Automatic refresh after midnight UTC
+- Prevents excessive API calls during session
+- Thread-safe in-memory cache
+- Separate cache instances for BOC and Alberta
+
+## Error Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| API timeout (15s) | Return None, use fallback |
+| 404 Not Found | Raise AlbertaDataUnavailableError, skip indicator |
+| Invalid JSON | Raise AlbertaApiError, skip indicator |
+| Empty response | Return None for that indicator |
+| All indicators fail | Fall back to neutral sentiment (1.0) |
+
+## Testing
+
+- **33 new tests** for Alberta client
+- **18 new tests** for Alberta integration in economic_factors.py
+- All tests pass with mocked HTTP layer
+- Integration tests validate end-to-end flow
+
+## Security
+
+- ✅ No API keys required (Alberta Economic Dashboard is public)
+- ✅ No secrets added to codebase
+- ✅ Read-only API access
+- ✅ Graceful degradation on failures
+- ✅ Input validation on API codes (UUID format)
+
+## Usage Example
+
+```python
+from utils.economic_factors import (
+    get_alberta_economic_indicators,
+    compute_alberta_economic_sentiment,
+    get_current_economic_context,
+)
+
+# Fetch all 12 Alberta indicators
+indicators = get_alberta_economic_indicators()
+# {
+#     "ab_unemployment_rate": 8.0,
+#     "ab_employment_rate": 65.2,
+#     "ab_wcs_oil_price": 48.62,
+#     ...
+# }
+
+# Compute Alberta-specific sentiment
+factor, details = compute_alberta_economic_sentiment()
+# factor is in range [0.85, 1.15], where 1.0 = neutral
+
+# Get combined context from all sources
+context = get_current_economic_context()
+# {
+#     "boc": {...},
+#     "alberta": {...},
+#     "boc_sentiment": 1.05,
+#     "alberta_sentiment": 1.08,
+#     "combined_sentiment": 1.07,
+#     ...
+# }
+```
+
+## Assumptions & TODOs
+
+**Assumptions**:
+- Alberta Economic Dashboard API remains publicly accessible
+- API codes (UUIDs) remain stable
+- Historical baseline values are reasonable approximations
+
+**Future Refinements**:
+1. Calibrate baselines using actual historical Alberta data
+2. Add city-specific indicators (Calgary/Edmonton specific data)
+3. Consider seasonal patterns in indicator weights
+4. Add time-series analysis for trend detection

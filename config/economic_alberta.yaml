@@ -1,0 +1,277 @@
+# Alberta Economic Dashboard API Configuration
+#
+# This file configures the integration with the Alberta Economic Dashboard API
+# for fetching live economic indicators as supplemental context for the
+# economic sentiment adjustment.
+#
+# IMPORTANT: This is an OPTIONAL, SUPPLEMENTAL layer alongside the existing
+# Bank of Canada integration. Historical analysis, backtests, and model training
+# continue to rely on the existing historical economic datasets.
+#
+# Data source: https://economicdashboard.alberta.ca/
+# API: https://api.economicdata.alberta.ca/api/data
+
+# Master toggle for Alberta live data integration
+# Set to false to disable all Alberta API calls
+use_alberta_live_data: true
+
+# Fallback behavior when Alberta data is unavailable
+# Options:
+#   - "neutral": Use neutral factor of 1.0 (default)
+#   - "skip": Skip Alberta indicators entirely
+fallback_mode: "neutral"
+
+# API settings
+api:
+  base_url: "https://api.economicdata.alberta.ca/api/data"
+  timeout_seconds: 15
+  # Cache duration in hours (values refresh after this period)
+  cache_ttl_hours: 24
+
+# Alberta economic indicators configuration
+# Each indicator has:
+#   - api_code: The unique code for the API endpoint
+#   - description: What this indicator measures
+#   - category: Category for grouping (labour, prices, energy, consumer, population)
+#   - baseline: Reference value for "normal" conditions (used for sentiment)
+#   - weight: Contribution to overall sentiment (optional, weights should sum to 1.0)
+#   - direction: "positive" (higher = better) or "negative" (lower = better)
+alberta_indicators:
+  # Labour & Income (core drivers)
+  ab_unemployment_rate:
+    api_code: "c1fe936a-324a-4a37-bfde-eeb3bb3d7c8c"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/unemployment-rate/"
+    description: "Unemployment rate in Alberta"
+    category: "labour"
+    baseline: 7.0  # Historical average %
+    weight: 0.12
+    direction: "negative"  # Lower unemployment = better
+    
+  ab_employment_rate:
+    api_code: "cc63aded-d078-46be-a033-f3b5b81b97ab"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/employment-rate/"
+    description: "Employment rate in Alberta"
+    category: "labour"
+    baseline: 64.0  # Historical average %
+    weight: 0.08
+    direction: "positive"  # Higher employment = better
+    
+  ab_employment_level:
+    api_code: "fb0ee090-7984-48cb-838d-57201ab7ae8f"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/employment/"
+    description: "Employment in Alberta (level, thousands)"
+    category: "labour"
+    baseline: 2400  # Historical average (thousands)
+    weight: 0.05
+    direction: "positive"
+    
+  ab_participation_rate:
+    api_code: "cd92ac03-ef03-414f-8530-b5db01f288bc"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/participation-rate"
+    description: "Participation rate in Alberta"
+    category: "labour"
+    baseline: 70.0  # Historical average %
+    weight: 0.05
+    direction: "positive"
+    
+  ab_avg_weekly_earnings:
+    api_code: "9814f9e0-6a0d-45a5-b2df-a29af0262fb7"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/average-weekly-earnings/"
+    description: "Average Weekly Earnings in Alberta"
+    category: "labour"
+    baseline: 1200  # Historical average CAD
+    weight: 0.10
+    direction: "positive"
+
+  # Prices / Real Income
+  ab_cpi:
+    api_code: "38524b3e-56ce-4d65-bea6-723497919ac2"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/consumer-price-index/"
+    description: "Consumer Price Index for Alberta"
+    category: "prices"
+    baseline: 150.0  # Index value
+    weight: 0.08
+    direction: "negative"  # Higher CPI = inflation = reduced purchasing power
+
+  # Energy Sector Activity
+  ab_wcs_oil_price:
+    api_code: "1da37895-ed56-405e-81de-26231ffc6472"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/wcs-oil-price/"
+    description: "WCS (Western Canadian Select) Oil Price"
+    category: "energy"
+    baseline: 60.0  # USD per barrel
+    weight: 0.15  # Critical for Alberta economy
+    direction: "positive"  # Higher oil prices = stronger Alberta economy
+
+  # Consumer Spending / Behaviour
+  ab_retail_trade:
+    api_code: "e2940527-8d0e-4279-b0d9-84e2e8be53b9"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/retail-trade/"
+    description: "Retail Trade in Alberta"
+    category: "consumer"
+    baseline: 8000  # Millions CAD
+    weight: 0.10
+    direction: "positive"
+    
+  ab_restaurant_sales:
+    api_code: "b5992517-5ef3-410a-8c69-7adee7ddfe58"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/restaurant-sales/"
+    description: "Restaurant Sales in Alberta"
+    category: "consumer"
+    baseline: 700  # Millions CAD
+    weight: 0.07
+    direction: "positive"
+    
+  ab_air_passengers:
+    api_code: "1c22431c-ad90-4614-a973-9c39f309d9c7"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/air-passengers"
+    description: "Air Passengers (YEG + YYC total)"
+    category: "consumer"
+    baseline: 2000000  # Monthly passengers
+    weight: 0.05
+    direction: "positive"
+
+  # Population & Migration
+  ab_net_migration:
+    api_code: "1216c72b-887b-47cc-a143-77c7dcac8948"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/net-migration/"
+    description: "Net Migration into Alberta"
+    category: "population"
+    baseline: 15000  # Quarterly net migration
+    weight: 0.08
+    direction: "positive"  # Positive migration = growing economy
+    
+  ab_population_quarterly:
+    api_code: "04bcf4ae-9975-49bf-9993-8243edd7ef67"
+    dashboard_url: "https://economicdashboard.alberta.ca/dashboard/population-quarterly/"
+    description: "Population (Quarterly) in Alberta"
+    category: "population"
+    baseline: 4500000  # Population count
+    weight: 0.07
+    direction: "positive"
+
+# Sentiment calculation parameters (mirroring BOC config structure)
+sentiment_calculation:
+  # Clipping range for the final sentiment scalar
+  min_factor: 0.85
+  max_factor: 1.15
+  
+  # Neutral value (returned when all inputs are at baseline)
+  neutral: 1.0
+  
+  # Sensitivity - how much a 1-standard-deviation move affects sentiment
+  sensitivity: 0.08
+  
+  # Historical reference values for standardization (approximate)
+  historical_stats:
+    ab_unemployment_rate:
+      mean: 7.0
+      std: 2.0
+    ab_employment_rate:
+      mean: 64.0
+      std: 3.0
+    ab_employment_level:
+      mean: 2400
+      std: 150
+    ab_participation_rate:
+      mean: 70.0
+      std: 2.0
+    ab_avg_weekly_earnings:
+      mean: 1200
+      std: 100
+    ab_cpi:
+      mean: 150.0
+      std: 10.0
+    ab_wcs_oil_price:
+      mean: 60.0
+      std: 20.0
+    ab_retail_trade:
+      mean: 8000
+      std: 1000
+    ab_restaurant_sales:
+      mean: 700
+      std: 100
+    ab_air_passengers:
+      mean: 2000000
+      std: 500000
+    ab_net_migration:
+      mean: 15000
+      std: 10000
+    ab_population_quarterly:
+      mean: 4500000
+      std: 100000
+
+# Display settings for Streamlit UI
+display:
+  # Which indicators to show in the UI indicator panel
+  show_indicators:
+    - ab_unemployment_rate
+    - ab_wcs_oil_price
+    - ab_avg_weekly_earnings
+    - ab_retail_trade
+    - ab_cpi
+  
+  # Labels for display
+  labels:
+    ab_unemployment_rate: "Unemployment Rate"
+    ab_employment_rate: "Employment Rate"
+    ab_employment_level: "Employment Level"
+    ab_participation_rate: "Participation Rate"
+    ab_avg_weekly_earnings: "Avg Weekly Earnings"
+    ab_cpi: "Consumer Price Index"
+    ab_wcs_oil_price: "WCS Oil Price"
+    ab_retail_trade: "Retail Trade"
+    ab_restaurant_sales: "Restaurant Sales"
+    ab_air_passengers: "Air Passengers"
+    ab_net_migration: "Net Migration"
+    ab_population_quarterly: "Population"
+  
+  # Format strings for values
+  formats:
+    ab_unemployment_rate: "{:.1f}%"
+    ab_employment_rate: "{:.1f}%"
+    ab_employment_level: "{:,.0f}K"
+    ab_participation_rate: "{:.1f}%"
+    ab_avg_weekly_earnings: "${:,.0f}"
+    ab_cpi: "{:.1f}"
+    ab_wcs_oil_price: "${:.2f} USD"
+    ab_retail_trade: "${:,.0f}M"
+    ab_restaurant_sales: "${:,.0f}M"
+    ab_air_passengers: "{:,.0f}"
+    ab_net_migration: "{:+,.0f}"
+    ab_population_quarterly: "{:,.0f}"
+
+# Category definitions for grouping in UI
+categories:
+  labour:
+    label: "Labour & Income"
+    description: "Employment and wage indicators"
+    indicators:
+      - ab_unemployment_rate
+      - ab_employment_rate
+      - ab_employment_level
+      - ab_participation_rate
+      - ab_avg_weekly_earnings
+  prices:
+    label: "Prices / Real Income"
+    description: "Consumer price and inflation indicators"
+    indicators:
+      - ab_cpi
+  energy:
+    label: "Energy Sector"
+    description: "Oil and energy sector activity"
+    indicators:
+      - ab_wcs_oil_price
+  consumer:
+    label: "Consumer Spending"
+    description: "Retail, restaurant, and travel indicators"
+    indicators:
+      - ab_retail_trade
+      - ab_restaurant_sales
+      - ab_air_passengers
+  population:
+    label: "Population & Migration"
+    description: "Population growth and migration patterns"
+    indicators:
+      - ab_net_migration
+      - ab_population_quarterly

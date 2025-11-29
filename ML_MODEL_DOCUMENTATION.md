@@ -386,6 +386,105 @@ When BoC API is unavailable:
 - `tests/test_boc_client.py`: Unit tests for API client
 - `tests/test_economic_factors.py`: Unit tests for sentiment calculation
 
+## Alberta Economic Dashboard API Integration
+
+### Overview
+
+In addition to the Bank of Canada data, the application now supports live economic data from the **Alberta Economic Dashboard** (https://economicdashboard.alberta.ca/). This provides Alberta-specific economic indicators that are more directly relevant for predicting local arts attendance.
+
+**IMPORTANT**: Like the BoC integration, this is NOT a replacement for historical economic data. The existing historical datasets remain fully intact and continue to be used for model training and backtesting.
+
+### Alberta Indicators
+
+The integration fetches 12 key Alberta economic indicators:
+
+| Key | Description | Category | Weight |
+|-----|-------------|----------|--------|
+| ab_unemployment_rate | Unemployment rate in Alberta | Labour | 12% |
+| ab_employment_rate | Employment rate in Alberta | Labour | 8% |
+| ab_employment_level | Employment in Alberta (level) | Labour | 5% |
+| ab_participation_rate | Participation rate in Alberta | Labour | 5% |
+| ab_avg_weekly_earnings | Average Weekly Earnings | Labour | 10% |
+| ab_cpi | Consumer Price Index for Alberta | Prices | 8% |
+| ab_wcs_oil_price | WCS (Western Canadian Select) Oil Price | Energy | 15% |
+| ab_retail_trade | Retail Trade in Alberta | Consumer | 10% |
+| ab_restaurant_sales | Restaurant Sales in Alberta | Consumer | 7% |
+| ab_air_passengers | Air Passengers (YEG + YYC total) | Consumer | 5% |
+| ab_net_migration | Net Migration into Alberta | Population | 8% |
+| ab_population_quarterly | Population (Quarterly) in Alberta | Population | 7% |
+
+### Configuration
+
+The Alberta integration is controlled by `config/economic_alberta.yaml`:
+
+```yaml
+# Master toggle
+use_alberta_live_data: true
+
+# Fallback behavior when Alberta data unavailable
+fallback_mode: "neutral"  # Options: neutral, skip
+
+# Indicator configuration
+alberta_indicators:
+  ab_unemployment_rate:
+    api_code: "c1fe936a-324a-4a37-bfde-eeb3bb3d7c8c"
+    baseline: 7.0
+    weight: 0.12
+    direction: "negative"
+  # ... additional indicators
+```
+
+### Usage
+
+```python
+from utils.economic_factors import (
+    get_alberta_economic_indicators,
+    compute_alberta_economic_sentiment,
+    get_current_economic_context,
+)
+
+# Fetch all Alberta indicators
+indicators = get_alberta_economic_indicators()
+unemployment = indicators.get("ab_unemployment_rate")
+wcs_price = indicators.get("ab_wcs_oil_price")
+
+# Compute Alberta-specific sentiment factor
+factor, details = compute_alberta_economic_sentiment()
+# factor is in range [0.85, 1.15] where 1.0 = neutral
+
+# Get combined context (BOC + Alberta)
+context = get_current_economic_context()
+# Returns {boc: {...}, alberta: {...}, combined_sentiment: 1.05, ...}
+```
+
+### Combined Sentiment Calculation
+
+When both BOC and Alberta data are available, the combined sentiment is calculated as:
+- **BOC weight**: 40% (national macroeconomic conditions)
+- **Alberta weight**: 60% (regional economic conditions - more directly relevant)
+
+### Files Added/Modified
+
+- `utils/alberta_client.py`: Alberta Economic Dashboard API client with caching
+- `config/economic_alberta.yaml`: Alberta indicator configuration
+- `utils/economic_factors.py`: Updated to integrate Alberta indicators
+- `tests/test_alberta_client.py`: Unit tests for Alberta API client (33 tests)
+- `tests/test_economic_factors.py`: Extended with Alberta integration tests
+
+### API Caching
+
+Like the BOC integration:
+- Values are cached for the current day (24-hour TTL)
+- Cache refreshes automatically after midnight UTC
+- Separate cache instances for BOC and Alberta data
+
+### Error Handling
+
+When Alberta API is unavailable:
+- Falls back to neutral sentiment factor (1.0)
+- Does not crash the scoring flow
+- Warnings are logged for debugging
+
 ## Future Enhancements
 
 Potential improvements:
@@ -397,6 +496,7 @@ Potential improvements:
 6. **Online Learning**: Update models incrementally as new data arrives
 7. ~~**SHAP Explanations**: Feature importance visualization~~ ✓ Via --save-shap flag
 8. ~~**Live Economic Data**: Bank of Canada Valet API integration~~ ✓ Implemented
+9. ~~**Alberta Economic Data**: Alberta Economic Dashboard integration~~ ✓ Implemented
 
 ## References
 
@@ -404,4 +504,6 @@ Potential improvements:
 - XGBoost documentation: https://xgboost.readthedocs.io/
 - SHAP documentation: https://shap.readthedocs.io/
 - Bank of Canada Valet API: https://www.bankofcanada.ca/valet/docs
+- Alberta Economic Dashboard: https://economicdashboard.alberta.ca/
+- Alberta Economic Data API: https://api.economicdata.alberta.ca/
 - Test results: See ML_MODEL_TESTING.log (if available)
