@@ -479,6 +479,9 @@ def _parse_group_observations(observations: List[dict]) -> Dict[str, Optional[fl
     """
     Parse observations from a group API response.
     
+    The BoC API returns group observations in a nested format where each
+    series value is wrapped in an object like {"v": "1.2345"}.
+    
     Args:
         observations: List of observation dictionaries from group API response
         
@@ -503,11 +506,19 @@ def _parse_group_observations(observations: List[dict]) -> Dict[str, Optional[fl
             result[key] = None
             continue
         
+        # Handle nested object format: {"v": "value"} from BoC API
+        value_to_parse = raw_value
+        if isinstance(raw_value, dict):
+            value_to_parse = raw_value.get('v')
+            if value_to_parse is None:
+                result[key] = None
+                continue
+        
         try:
-            if isinstance(raw_value, (int, float)):
-                result[key] = float(raw_value)
-            elif isinstance(raw_value, str):
-                cleaned = raw_value.strip()
+            if isinstance(value_to_parse, (int, float)):
+                result[key] = float(value_to_parse)
+            elif isinstance(value_to_parse, str):
+                cleaned = value_to_parse.strip()
                 if not cleaned or cleaned.lower() in NULL_VALUE_STRINGS:
                     result[key] = None
                 else:
@@ -515,7 +526,7 @@ def _parse_group_observations(observations: List[dict]) -> Dict[str, Optional[fl
             else:
                 result[key] = None
         except (ValueError, TypeError):
-            logger.debug(f"Could not parse group value '{raw_value}' for series {key}")
+            logger.debug(f"Could not parse group value '{value_to_parse}' for series {key}")
             result[key] = None
     
     return result
