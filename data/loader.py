@@ -1,6 +1,7 @@
 from pathlib import Path
 from functools import lru_cache
 from typing import Optional
+from dataclasses import dataclass
 import logging
 import os
 import warnings
@@ -1098,3 +1099,515 @@ def load_history_with_predicthq(
     except Exception as e:
         logger.warning(f"Failed to merge PredictHQ data: {e}. Returning history only.")
         return history
+
+
+# =============================================================================
+# NEW ECONOMIC DATA LOADERS
+# =============================================================================
+# Loaders for Nanos Consumer Confidence, Commodity Prices, and CPI data
+
+
+def load_nanos_consumer_confidence(
+    csv_name: str = "economics/nanos_consumer_confidence.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load Nanos Consumer Confidence Index data.
+    
+    The Bloomberg Nanos Canadian Consumer Confidence Index (BNCCI) provides
+    weekly tracking of consumer sentiment across Canada with demographic
+    breakdowns by region, age, income, and home ownership.
+    
+    Expected columns:
+    - category: Main category (BNCCI, Demographics, Expectations Index, etc.)
+    - subcategory: Sub-grouping within category
+    - metric: Specific metric name
+    - year_or_period: Date or period identifier (YYYY-MM-DD or descriptive)
+    - value: Numeric value
+    - unit: Unit of measurement (index, percent, count)
+    
+    Args:
+        csv_name: Path to Nanos CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with Nanos consumer confidence data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Nanos consumer confidence file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading Nanos consumer confidence: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading Nanos consumer confidence from {path}: {e}")
+
+
+def load_nanos_better_off(
+    csv_name: str = "economics/nanos_better_off.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load Nanos Better Off survey data.
+    
+    Survey data on consumer financial outlook, cost of living impacts,
+    and housing worry - useful for understanding consumer spending patterns.
+    
+    Expected columns:
+    - category: Main category (Cost of living, Future standard of living, etc.)
+    - subcategory: Regional or demographic breakdown
+    - metric: Specific metric name
+    - period: Survey period (e.g., Sep-25)
+    - value: Numeric value
+    - unit: Unit of measurement
+    
+    Args:
+        csv_name: Path to Nanos Better Off CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with Nanos Better Off survey data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Nanos Better Off file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        return _load_csv_cached(str(path), mtime).copy()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading Nanos Better Off data: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading Nanos Better Off data from {path}: {e}")
+
+
+def load_commodity_price_index(
+    csv_name: str = "economics/commodity_price_index.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load Bank of Canada Commodity Price Index data.
+    
+    Contains commodity price indices including Energy (A.ENER) which is
+    particularly relevant for Alberta's economy and consumer sentiment.
+    
+    Expected columns:
+    - date: Date of observation (YYYY-MM-DD)
+    - A.BCPI: Total commodity price index
+    - A.BCNE: Non-energy commodities
+    - A.ENER: Energy commodities (key for Alberta)
+    - A.MTLS: Metals
+    - A.FOPR: Forestry products
+    - A.AGRI: Agriculture
+    - A.FISH: Fisheries
+    
+    Args:
+        csv_name: Path to commodity price CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with commodity price indices
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Commodity price index file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Parse date column if present
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading commodity price index: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading commodity price index from {path}: {e}")
+
+
+def load_boc_cpi_monthly(
+    csv_name: str = "economics/boc_cpi_monthly.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load Bank of Canada monthly CPI data.
+    
+    Consumer Price Index data for calculating inflation adjustment factors.
+    
+    Expected columns:
+    - date: Date of observation (YYYY-MM-DD)
+    - V41690973: CPI All-items (Canada)
+    - V41690914: CPI All-items seasonally adjusted
+    - STATIC_TOTALCPICHANGE: Year-over-year CPI change percentage
+    - CPI_TRIM, CPI_MEDIAN, CPI_COMMON: Core inflation measures
+    
+    Args:
+        csv_name: Path to CPI CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with monthly CPI data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"BOC CPI monthly file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Parse date column if present
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading BOC CPI monthly: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading BOC CPI monthly from {path}: {e}")
+
+
+def load_census_data(
+    city: str,
+    csv_name: Optional[str] = None,
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load census data for a specific city.
+    
+    2021 Census data including population, demographics, income, housing.
+    
+    Args:
+        city: City name ('Calgary' or 'Edmonton')
+        csv_name: Optional override for CSV path
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with census data for the specified city
+    """
+    city_lower = city.lower()
+    if csv_name is None:
+        csv_name = f"demographics/{city_lower}_census_2021.csv"
+    
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Census file not found for {city}: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = pd.read_csv(str(path))
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading census data for {city}: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading census data for {city} from {path}: {e}")
+
+
+# =============================================================================
+# DATA REGISTRY VALIDATION
+# =============================================================================
+
+
+@dataclass
+class DataRegistryReport:
+    """Report from data registry validation."""
+    source_name: str
+    path: str
+    exists: bool
+    row_count: int
+    column_count: int
+    date_coverage_start: Optional[str]
+    date_coverage_end: Optional[str]
+    null_counts: dict
+    outlier_flags: dict
+    validation_errors: list
+    validation_warnings: list
+
+
+def validate_data_source(
+    path: str,
+    expected_columns: Optional[list] = None,
+    date_column: Optional[str] = None,
+    required_columns: Optional[list] = None
+) -> DataRegistryReport:
+    """Validate a data source file and return a report.
+    
+    Checks:
+    - File existence
+    - Schema validation (columns, dtypes)
+    - Date coverage
+    - Null value counts
+    - Basic outlier detection
+    
+    Args:
+        path: Path to the data file
+        expected_columns: List of expected column names
+        date_column: Name of the date column for coverage analysis
+        required_columns: Columns that must not be null
+        
+    Returns:
+        DataRegistryReport with validation results
+    """
+    source_name = Path(path).name
+    full_path = DATA_DIR / path if not Path(path).is_absolute() else Path(path)
+    
+    report = DataRegistryReport(
+        source_name=source_name,
+        path=str(full_path),
+        exists=False,
+        row_count=0,
+        column_count=0,
+        date_coverage_start=None,
+        date_coverage_end=None,
+        null_counts={},
+        outlier_flags={},
+        validation_errors=[],
+        validation_warnings=[]
+    )
+    
+    # Check file existence
+    if not full_path.exists():
+        report.validation_errors.append(f"File not found: {full_path}")
+        return report
+    
+    report.exists = True
+    
+    try:
+        df = pd.read_csv(str(full_path))
+        report.row_count = len(df)
+        report.column_count = len(df.columns)
+        
+        # Normalize column names for checking
+        df.columns = [c.strip().lower().replace(' ', '_').replace('-', '_') for c in df.columns]
+        
+        # Check expected columns
+        if expected_columns:
+            expected_lower = [c.lower().replace(' ', '_').replace('-', '_') for c in expected_columns]
+            missing = set(expected_lower) - set(df.columns)
+            if missing:
+                report.validation_warnings.append(f"Missing expected columns: {missing}")
+        
+        # Check required columns for nulls
+        if required_columns:
+            required_lower = [c.lower().replace(' ', '_').replace('-', '_') for c in required_columns]
+            for col in required_lower:
+                if col in df.columns:
+                    null_count = df[col].isna().sum()
+                    if null_count > 0:
+                        report.validation_errors.append(f"Required column '{col}' has {null_count} null values")
+        
+        # Calculate null counts for all columns
+        for col in df.columns:
+            null_count = df[col].isna().sum()
+            if null_count > 0:
+                report.null_counts[col] = int(null_count)
+        
+        # Check date coverage if date column specified
+        if date_column:
+            date_col_lower = date_column.lower().replace(' ', '_').replace('-', '_')
+            if date_col_lower in df.columns:
+                try:
+                    dates = pd.to_datetime(df[date_col_lower], errors='coerce')
+                    valid_dates = dates.dropna()
+                    if len(valid_dates) > 0:
+                        report.date_coverage_start = str(valid_dates.min().date())
+                        report.date_coverage_end = str(valid_dates.max().date())
+                except Exception:
+                    report.validation_warnings.append(f"Could not parse dates in column '{date_column}'")
+        
+        # Basic outlier detection for numeric columns
+        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+        for col in numeric_cols[:10]:  # Limit to first 10 numeric columns
+            try:
+                values = df[col].dropna()
+                if len(values) > 10:
+                    q1, q3 = values.quantile([0.25, 0.75])
+                    iqr = q3 - q1
+                    lower_bound = q1 - 3 * iqr
+                    upper_bound = q3 + 3 * iqr
+                    outliers = ((values < lower_bound) | (values > upper_bound)).sum()
+                    if outliers > 0:
+                        report.outlier_flags[col] = int(outliers)
+            except Exception:
+                pass
+                
+    except Exception as e:
+        report.validation_errors.append(f"Error reading file: {str(e)}")
+    
+    return report
+
+
+def generate_data_registry_report(
+    output_dir: str = "artifacts/data_registry",
+    sources_config: Optional[str] = None
+) -> tuple:
+    """Generate a comprehensive data registry validation report.
+    
+    Args:
+        output_dir: Directory to write report files
+        sources_config: Optional path to data sources CSV config
+        
+    Returns:
+        Tuple of (DataFrame with report data, Markdown report string)
+    """
+    from datetime import datetime
+    from config.registry import load_data_sources
+    
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Load data sources registry
+    sources_df = load_data_sources()
+    
+    reports = []
+    
+    # Define validation configs for each source type
+    validation_configs = {
+        'nanos_consumer_confidence.csv': {
+            'expected_columns': ['category', 'subcategory', 'metric', 'year_or_period', 'value', 'unit'],
+            'date_column': 'year_or_period'
+        },
+        'nanos_better_off.csv': {
+            'expected_columns': ['category', 'subcategory', 'metric', 'period', 'value', 'unit'],
+            'date_column': 'period'
+        },
+        'commodity_price_index.csv': {
+            'expected_columns': ['date', 'A.BCPI', 'A.ENER'],
+            'date_column': 'date',
+            'required_columns': ['date', 'A.ENER']
+        },
+        'boc_cpi_monthly.csv': {
+            'expected_columns': ['date', 'V41690973', 'STATIC_TOTALCPICHANGE'],
+            'date_column': 'date',
+            'required_columns': ['date']
+        },
+        'calgary_census_2021.csv': {
+            'date_column': None
+        },
+        'edmonton_census_2021.csv': {
+            'date_column': None
+        }
+    }
+    
+    # Validate each source that has a Path defined
+    for _, row in sources_df.iterrows():
+        path = row.get('Path', '')
+        if pd.isna(path) or not path:
+            continue
+            
+        source_file = Path(path).name
+        config = validation_configs.get(source_file, {})
+        
+        report = validate_data_source(
+            path=path,
+            expected_columns=config.get('expected_columns'),
+            date_column=config.get('date_column'),
+            required_columns=config.get('required_columns')
+        )
+        
+        reports.append({
+            'source_name': report.source_name,
+            'path': report.path,
+            'exists': report.exists,
+            'row_count': report.row_count,
+            'column_count': report.column_count,
+            'date_start': report.date_coverage_start,
+            'date_end': report.date_coverage_end,
+            'null_columns': len(report.null_counts),
+            'outlier_columns': len(report.outlier_flags),
+            'errors': len(report.validation_errors),
+            'warnings': len(report.validation_warnings),
+            'error_details': '; '.join(report.validation_errors),
+            'warning_details': '; '.join(report.validation_warnings)
+        })
+    
+    # Create DataFrame report
+    report_df = pd.DataFrame(reports)
+    
+    # Generate Markdown report
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    md_lines = [
+        f"# Data Registry Validation Report",
+        f"",
+        f"Generated: {timestamp}",
+        f"",
+        f"## Summary",
+        f"",
+        f"- Total sources validated: {len(reports)}",
+        f"- Sources found: {sum(1 for r in reports if r['exists'])}",
+        f"- Sources with errors: {sum(1 for r in reports if r['errors'] > 0)}",
+        f"- Sources with warnings: {sum(1 for r in reports if r['warnings'] > 0)}",
+        f"",
+        f"## Source Details",
+        f""
+    ]
+    
+    for r in reports:
+        status = "✅" if r['exists'] and r['errors'] == 0 else "⚠️" if r['exists'] else "❌"
+        md_lines.extend([
+            f"### {status} {r['source_name']}",
+            f"",
+            f"- **Path**: `{r['path']}`",
+            f"- **Exists**: {r['exists']}",
+            f"- **Rows**: {r['row_count']:,}",
+            f"- **Columns**: {r['column_count']}",
+            f"- **Date Range**: {r['date_start']} to {r['date_end']}" if r['date_start'] else "- **Date Range**: N/A",
+            f"- **Columns with Nulls**: {r['null_columns']}",
+            f"- **Columns with Outliers**: {r['outlier_columns']}",
+        ])
+        
+        if r['error_details']:
+            md_lines.append(f"- **Errors**: {r['error_details']}")
+        if r['warning_details']:
+            md_lines.append(f"- **Warnings**: {r['warning_details']}")
+        
+        md_lines.append("")
+    
+    md_report = "\n".join(md_lines)
+    
+    # Write outputs
+    csv_path = output_path / "data_registry_report.csv"
+    md_path = output_path / "data_registry_report.md"
+    
+    report_df.to_csv(csv_path, index=False)
+    with open(md_path, 'w') as f:
+        f.write(md_report)
+    
+    logger.info(f"Data registry report written to {output_path}")
+    
+    return report_df, md_report

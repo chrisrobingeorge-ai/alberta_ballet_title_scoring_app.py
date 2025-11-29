@@ -1,0 +1,40 @@
+# Economic Baselines Configuration
+# Used for computing Economic Impact Scores for Alberta Ballet ticket sales forecasting
+#
+# These baselines represent "normal" economic conditions against which current
+# conditions are compared to assess impact on consumer spending behavior.
+
+consumer_confidence:
+  baseline: 55.0  # Bloomberg Nanos Consumer Confidence Index average (2008-2025)
+  description: "Consumer Confidence Index baseline - higher values indicate optimism"
+  good_threshold: 60.0  # Above this = positive economic sentiment
+  poor_threshold: 45.0  # Below this = negative economic sentiment
+  source: "Bloomberg Nanos Canadian Consumer Confidence Index (BNCCI)"
+
+energy_index:
+  baseline: 800.0  # Bank of Canada Energy Commodity Price Index reference
+  description: "Energy commodity price index - critical for Alberta economy"
+  good_threshold: 1200.0  # High energy prices = strong Alberta economy
+  poor_threshold: 500.0  # Low energy prices = economic headwinds
+  source: "Bank of Canada Commodity Price Index (A.ENER)"
+
+cpi_base:
+  baseline: 137.5  # CPI All-items around 2020
+  description: "Consumer Price Index baseline for inflation adjustment"
+  reference_date: "2020-01-01"
+  source: "Statistics Canada / Bank of Canada CPI data"
+
+# Weights for combining component scores into overall Economic Impact Score
+component_weights:
+  consumer_confidence: 0.40  # Consumer sentiment drives discretionary spending
+  energy_index: 0.35  # Energy sector employment and wealth effects
+  inflation: 0.25  # Cost of living and real income effects
+
+# Score interpretation
+score_interpretation:
+  very_positive: 50  # Score above this indicates very favorable conditions
+  positive: 20  # Score above this indicates favorable conditions
+  neutral_high: 10  # Upper bound of neutral zone
+  neutral_low: -10  # Lower bound of neutral zone
+  negative: -20  # Score below this indicates unfavorable conditions
+  very_negative: -50  # Score below this indicates very unfavorable conditions
