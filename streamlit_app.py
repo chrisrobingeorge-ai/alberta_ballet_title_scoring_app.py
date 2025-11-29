@@ -31,7 +31,7 @@ try:
         get_weather_impact_factor,
         get_monthly_weather_summary,
         # Live analytics integration
-        load_audience_analytics,
+        load_live_analytics_raw,
         get_live_analytics_category_factors,
         get_category_engagement_factor,
     )
@@ -52,6 +52,12 @@ except ImportError:
         return 1.0
     def get_live_analytics_category_factors(*args, **kwargs):
         return {}
+    def load_weather_calgary(*args, **kwargs):
+        import pandas as pd
+        return pd.DataFrame()
+    def load_weather_edmonton(*args, **kwargs):
+        import pandas as pd
+        return pd.DataFrame()
 
 # Import Bank of Canada Valet API integration for live economic data
 try:
@@ -2910,9 +2916,10 @@ def compute_scores_and_store(
 
     # 11) Remount decay + post-COVID haircut + economic sentiment + weather + engagement
     # Combined adjustment = POSTCOVID_FACTOR × economic_sentiment_factor × weather × engagement
-    # Weather factor is computed per-row based on proposed run date
-    # Engagement factor is computed per-row based on category
+    # Weather factor is computed once based on the proposed run date (same for all titles in this batch)
+    # Engagement factor is computed per-row based on each title's category
     
+    # Weather factor applies to the show run date, not individual titles
     weather_factor = compute_weather_impact(proposed_run_date, None) if proposed_run_date else 1.0
     
     decay_pcts, decay_factors, est_after_decay = [], [], []

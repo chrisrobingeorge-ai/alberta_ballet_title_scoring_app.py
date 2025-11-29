@@ -140,8 +140,8 @@ class TestLiveAnalyticsLoaders:
         
         for cat in test_categories:
             factor = get_category_engagement_factor(cat)
-            assert 0.90 <= factor <= 1.15, \
-                f"Engagement factor for {cat} ({factor}) should be 0.90-1.15"
+            assert 0.92 <= factor <= 1.08, \
+                f"Engagement factor for {cat} ({factor}) should be 0.92-1.08"
     
     def test_unknown_category_returns_neutral(self):
         """Test that unknown categories return neutral factor."""
@@ -169,9 +169,10 @@ class TestIntegrationWithScoring:
         
         combined = weather * engagement
         
-        # Combined factor should be reasonable
-        assert 0.80 <= combined <= 1.25, \
-            f"Combined factor {combined} should be between 0.80 and 1.25"
+        # Combined factor should be reasonable (weather 0.85-1.05, engagement 0.92-1.08)
+        # Combined range is roughly 0.78-1.13
+        assert 0.78 <= combined <= 1.15, \
+            f"Combined factor {combined} should be between 0.78 and 1.15"
     
     def test_weather_and_engagement_affect_different_categories(self):
         """Test that different categories get different engagement factors."""
