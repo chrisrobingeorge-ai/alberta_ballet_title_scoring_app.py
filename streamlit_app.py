@@ -1253,11 +1253,12 @@ def subs_share_for(category: str | None, city: str) -> float:
 if "hist_df" not in st.session_state:
     try:
         st.session_state["hist_df"] = pd.read_csv("data/productions/history_city_sales.csv")
-    except Exception:
+    except FileNotFoundError:
         st.session_state["hist_df"] = pd.DataFrame()
-
-# (Re)learn priors every time we (re)load history
-st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
+    except pd.errors.EmptyDataError:
+        st.session_state["hist_df"] = pd.DataFrame()
+    # Learn priors when data is first loaded
+    st.session_state["priors_summary"] = learn_priors_from_history(st.session_state["hist_df"])
 
 s = st.session_state.get("priors_summary", {}) or {}
 st.caption(
