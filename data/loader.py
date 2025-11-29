@@ -335,7 +335,7 @@ def load_all_baselines(
 # =============================================================================
 # EXTERNAL FACTORS LOADER FUNCTIONS
 # =============================================================================
-# These functions load external factor files created by the Data Helper app.
+# These functions load external factor files for enhancing ML model predictions.
 # The merged external factors file can be used to enhance ML model predictions.
 
 @lru_cache(maxsize=8)
@@ -364,8 +364,7 @@ def load_external_factors(
 ) -> pd.DataFrame:
     """Load merged external factors data (economic, demographic, tourism, etc.).
     
-    This file is typically created by the Data Helper app (pages/6_Data_Helper.py).
-    It contains external factors that can enhance ML model predictions.
+    This file contains external factors that can enhance ML model predictions.
     
     Expected columns may include:
     - year: Calendar year (key for joining)
