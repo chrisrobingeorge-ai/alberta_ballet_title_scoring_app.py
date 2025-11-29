@@ -225,6 +225,59 @@ The backtest script (`scripts/backtest_timeaware.py`) evaluates:
 
 Outputs include MAE/RMSE/R² per method and visualizations.
 
+### Time-Aware Train/Test Splitting (CRITICAL)
+
+**Problem**: Random train/test splits (e.g., sklearn's `train_test_split`) can allow future data to leak into training. For example, 2018 and 2020 data could be in the training set while predicting 2019 tickets.
+
+**Solution**: The `ml/time_splits.py` module provides utilities that guarantee strictly chronological splitting:
+
+#### Core Functions
+
+1. **`assert_chronological_split(train_df, test_df, date_column)`**
+   - Raises `AssertionError` if train max date >= test min date
+   - Also checks for index overlap between train and test
+
+2. **`chronological_train_test_split(df, date_column, test_ratio=0.2)`**
+   - Splits data so all training rows come before all test rows in time
+   - Returns `(train_df, test_df)` tuple with chronological guarantee
+
+3. **`TimeSeriesCVSplitter(n_splits, date_column)`**
+   - sklearn-compatible cross-validator
+   - Uses expanding window: fold 1 trains on earliest data, fold N trains on most data
+   - Each fold guarantees train dates < test dates
+
+4. **`rolling_origin_cv_splits(df, date_column, initial_train_period, horizon, step)`**
+   - Walk-forward validation generator
+   - Training window expands (or slides) forward over time
+   - Test window always comes strictly after training window
+
+5. **`assert_group_chronological_split(df, train_mask, date_column, group_column)`**
+   - For grouped time series (multiple shows/titles)
+   - Ensures within each group, train dates precede test dates
+
+#### Example Usage
+
+```python
+from ml.time_splits import chronological_train_test_split, TimeSeriesCVSplitter
+
+# Simple chronological split
+train, test = chronological_train_test_split(df, "end_date", test_ratio=0.2)
+# Guarantees: train.end_date.max() < test.end_date.min()
+
+# Time-aware cross-validation
+cv = TimeSeriesCVSplitter(n_splits=5, date_column="end_date")
+for train_idx, test_idx in cv.split(X):
+    # train_idx dates always before test_idx dates
+    model.fit(X.iloc[train_idx], y.iloc[train_idx])
+    score = model.score(X.iloc[test_idx], y.iloc[test_idx])
+```
+
+#### Implementation in Training Scripts
+
+- **`ml/training.py`**: Uses `chronological_train_test_split()` when date column available
+- **`scripts/train_safe_model.py`**: Uses `TimeSeriesCVSplitter` for CV
+- **`scripts/backtest_timeaware.py`**: Uses `TimeSeriesCVSplitter` for backtesting
+
 ### Calibration
 
 Linear calibration (`scripts/calibrate_predictions.py`) supports:
@@ -237,7 +290,8 @@ Linear calibration (`scripts/calibrate_predictions.py`) supports:
 When modifying training code:
 - [ ] Check that no columns matching "ticket" patterns are features (except allowed priors)
 - [ ] Verify lagged features use only prior-season data
-- [ ] Run `pytest tests/test_no_leakage_in_dataset.py` before committing
+- [ ] **Ensure train/test splits are strictly chronological** (use `ml/time_splits.py`)
+- [ ] Run `pytest tests/test_no_leakage_in_dataset.py tests/test_time_splits.py` before committing
 - [ ] Use `scripts/build_modelling_dataset.py` output, not raw history
 
 ## Future Enhancements
