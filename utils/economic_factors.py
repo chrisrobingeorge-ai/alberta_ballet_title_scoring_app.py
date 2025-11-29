@@ -29,8 +29,8 @@ import logging
 from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
-import numpy as np
 
+import numpy as np
 import yaml
 
 # Import the BoC client
@@ -95,8 +95,14 @@ def load_boc_config(config_path: Optional[str] = None) -> dict:
         logger.info(f"Loaded BoC config from {path}")
         _boc_config = config
         return config
+    except yaml.YAMLError as e:
+        logger.warning(f"YAML parsing error in BoC config {path}: {e}. Using defaults.")
+        return _get_default_config()
+    except PermissionError as e:
+        logger.warning(f"Permission denied reading BoC config {path}: {e}. Using defaults.")
+        return _get_default_config()
     except Exception as e:
-        logger.warning(f"Error loading BoC config from {path}: {e}. Using defaults.")
+        logger.warning(f"Unexpected error loading BoC config from {path}: {e}. Using defaults.")
         return _get_default_config()
 
 
@@ -152,8 +158,15 @@ def _compute_z_score(
     Returns:
         Z-score adjusted for direction (positive = favorable)
     """
+    # Default std if not provided or invalid
+    DEFAULT_STD = 1.0
+    
     if std <= 0:
-        std = 1.0  # Avoid division by zero
+        logger.warning(
+            f"Invalid std ({std}) for z-score calculation, using default={DEFAULT_STD}. "
+            "Check historical_stats configuration."
+        )
+        std = DEFAULT_STD
     
     z = (value - baseline) / std
     
@@ -311,8 +324,12 @@ def compute_boc_economic_sentiment(
             "direction": direction,
         }
     
-    if total_weight <= 0:
-        logger.warning("No valid BoC indicators, using fallback")
+    if total_weight == 0:
+        logger.warning("No valid BoC indicators (total_weight=0), using fallback")
+        return _get_fallback_sentiment(run_date, city, config, details)
+    
+    if total_weight < 0:
+        logger.error(f"Negative total_weight ({total_weight}) - check weight configuration")
         return _get_fallback_sentiment(run_date, city, config, details)
     
     # Normalize and convert to factor

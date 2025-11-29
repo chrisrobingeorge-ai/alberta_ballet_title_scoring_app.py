@@ -25,6 +25,7 @@ Usage:
 """
 
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
@@ -48,6 +49,12 @@ DEFAULT_TIMEOUT = 10
 # Cache TTL - values are cached for the current day (refreshed after midnight UTC)
 # This prevents excessive API calls during a single session
 CACHE_TTL_HOURS = 24
+
+# Values considered as null/missing in BoC API responses
+NULL_VALUE_STRINGS = frozenset({'', 'na', 'n/a', 'null', 'none'})
+
+# Valid characters for BoC series names (alphanumeric, dots, underscores, dashes)
+VALID_SERIES_NAME_PATTERN = r'^[A-Za-z0-9._-]+$'
 
 
 # =============================================================================
@@ -183,7 +190,7 @@ def _parse_observation_value(observations: List[dict], series_name: str) -> Opti
         if isinstance(raw_value, str):
             # Remove any whitespace and try to parse
             cleaned = raw_value.strip()
-            if not cleaned or cleaned.lower() in ('', 'na', 'n/a', 'null', 'none'):
+            if not cleaned or cleaned.lower() in NULL_VALUE_STRINGS:
                 return None
             return float(cleaned)
     except (ValueError, TypeError) as e:
@@ -191,6 +198,21 @@ def _parse_observation_value(observations: List[dict], series_name: str) -> Opti
         return None
     
     return None
+
+
+def _validate_series_name(series_name: str) -> bool:
+    """
+    Validate that a series name contains only safe characters.
+    
+    Args:
+        series_name: The BoC series identifier to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    if not series_name or not isinstance(series_name, str):
+        return False
+    return bool(re.match(VALID_SERIES_NAME_PATTERN, series_name))
 
 
 def _fetch_from_api(series_name: str, timeout: int = DEFAULT_TIMEOUT) -> Optional[float]:
@@ -208,6 +230,11 @@ def _fetch_from_api(series_name: str, timeout: int = DEFAULT_TIMEOUT) -> Optiona
         BocApiError: If API request fails
         BocDataUnavailableError: If series has no data
     """
+    # Validate series name to prevent injection attacks
+    if not _validate_series_name(series_name):
+        logger.warning(f"Invalid series name: {series_name}")
+        raise BocApiError(f"Invalid series name: {series_name}")
+    
     url = BOC_OBSERVATIONS_URL.format(series_name=series_name)
     params = {"recent": "1"}  # Get only the most recent observation
     
