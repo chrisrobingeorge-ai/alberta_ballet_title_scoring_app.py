@@ -67,6 +67,18 @@ except ImportError as e:
     DATA_LOADERS_AVAILABLE = False
     st.error(f"Could not import data loaders: {e}")
 
+# Import BoC macro context functions
+try:
+    from utils.economic_factors import (
+        get_macro_context_display,
+        is_boc_group_context_enabled,
+    )
+    BOC_MACRO_CONTEXT_AVAILABLE = True
+except ImportError:
+    BOC_MACRO_CONTEXT_AVAILABLE = False
+    get_macro_context_display = None
+    is_boc_group_context_enabled = None
+
 # =============================================================================
 # DATA FILE REGISTRY
 # =============================================================================
@@ -701,6 +713,61 @@ with tab_economic:
             """)
     else:
         st.info("Commodity price data not available")
+    
+    st.divider()
+    
+    # =============================================================================
+    # MACRO SNAPSHOT (BoC Groups) - Live context data
+    # =============================================================================
+    
+    st.subheader("📊 Macro Snapshot (BoC Groups)")
+    
+    if BOC_MACRO_CONTEXT_AVAILABLE and is_boc_group_context_enabled():
+        with st.expander("**Live Economic Context from Bank of Canada**", expanded=False):
+            st.markdown("""
+            This panel shows live macro economic indicators fetched from the Bank of Canada
+            Valet API using group-based observations. These values provide context but do 
+            **not** affect the main economic sentiment calculation.
+            """)
+            
+            try:
+                macro_display = get_macro_context_display()
+                
+                if macro_display.get("available"):
+                    # Show last updated timestamp
+                    if macro_display.get("last_updated"):
+                        st.caption(f"Last updated: {macro_display['last_updated']}")
+                    
+                    # Display each section
+                    for section in macro_display.get("sections", []):
+                        st.markdown(f"**{section.get('label', section.get('group_key'))}**")
+                        
+                        # Create a small table for the items
+                        items = section.get("items", [])
+                        if items:
+                            cols = st.columns(min(len(items), 4))
+                            for i, item in enumerate(items):
+                                with cols[i % 4]:
+                                    st.metric(
+                                        label=item.get("label", item.get("series_id")),
+                                        value=item.get("formatted_value", "N/A"),
+                                    )
+                else:
+                    message = macro_display.get("message", "Macro context data not available")
+                    st.info(f"ℹ️ {message}")
+                    
+            except Exception as e:
+                st.warning(f"Could not load macro context: {e}")
+    else:
+        with st.expander("**Macro Snapshot (BoC Groups)**", expanded=False):
+            st.info("""
+            📊 **Live Macro Context is disabled or unavailable.**
+            
+            This feature provides additional context from Bank of Canada group-based data 
+            (exchange rates, BCPI components, effective exchange rates).
+            
+            To enable, set `enable_boc_group_context: true` in `config/economic_boc.yaml`.
+            """)
 
 
 # =============================================================================

@@ -441,3 +441,286 @@ def get_commodity_indices(use_cache: bool = True) -> Dict[str, Optional[float]]:
         "energy": values.get(SERIES_BCPI_ENERGY),
         "ex_energy": values.get(SERIES_BCPI_EX_ENERGY),
     }
+
+
+# =============================================================================
+# GROUP-BASED API FUNCTIONS
+# =============================================================================
+
+# URL template for group observations
+BOC_GROUP_OBSERVATIONS_URL = f"{BOC_VALET_BASE_URL}/observations/group/{{group_name}}/json"
+
+# Path to local groups list for metadata lookup
+BOC_GROUPS_LIST_PATH = "data/economics/boc_groups_list.json"
+
+# Valid pattern for group names (more permissive than series names)
+VALID_GROUP_NAME_PATTERN = r'^[A-Za-z0-9._-]+$'
+
+# Global cache for group observations (separate from series cache)
+_group_cache = BocCache()
+
+
+def _validate_group_name(group_name: str) -> bool:
+    """
+    Validate that a group name contains only safe characters.
+    
+    Args:
+        group_name: The BoC group identifier to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    if not group_name or not isinstance(group_name, str):
+        return False
+    return bool(re.match(VALID_GROUP_NAME_PATTERN, group_name))
+
+
+def _parse_group_observations(observations: List[dict]) -> Dict[str, Optional[float]]:
+    """
+    Parse observations from a group API response.
+    
+    Args:
+        observations: List of observation dictionaries from group API response
+        
+    Returns:
+        Dictionary mapping series IDs to their latest numeric values (or None)
+    """
+    if not observations:
+        return {}
+    
+    # Get the most recent observation (last in list since BoC API returns ascending)
+    latest = observations[-1] if observations else {}
+    
+    result: Dict[str, Optional[float]] = {}
+    
+    for key, raw_value in latest.items():
+        # Skip the date field
+        if key.lower() == 'd' or key.lower() == 'date':
+            continue
+        
+        # Try to parse numeric value
+        if raw_value is None:
+            result[key] = None
+            continue
+        
+        try:
+            if isinstance(raw_value, (int, float)):
+                result[key] = float(raw_value)
+            elif isinstance(raw_value, str):
+                cleaned = raw_value.strip()
+                if not cleaned or cleaned.lower() in NULL_VALUE_STRINGS:
+                    result[key] = None
+                else:
+                    result[key] = float(cleaned)
+            else:
+                result[key] = None
+        except (ValueError, TypeError):
+            logger.debug(f"Could not parse group value '{raw_value}' for series {key}")
+            result[key] = None
+    
+    return result
+
+
+def _fetch_group_from_api(
+    group_name: str,
+    timeout: int = DEFAULT_TIMEOUT
+) -> Dict[str, Optional[float]]:
+    """
+    Fetch the latest observations for a group directly from the BoC Valet API.
+    
+    Args:
+        group_name: The BoC group identifier (e.g., "FX_RATES_DAILY")
+        timeout: Request timeout in seconds
+        
+    Returns:
+        Dictionary mapping series IDs to their latest values
+        
+    Raises:
+        BocApiError: If API request fails
+        BocDataUnavailableError: If group has no data
+    """
+    # Validate group name to prevent injection attacks
+    if not _validate_group_name(group_name):
+        logger.warning(f"Invalid group name: {group_name}")
+        raise BocApiError(f"Invalid group name: {group_name}")
+    
+    url = BOC_GROUP_OBSERVATIONS_URL.format(group_name=group_name)
+    params = {"recent": "1"}  # Get only the most recent observation
+    
+    logger.debug(f"Fetching BoC group {group_name} from {url}")
+    
+    try:
+        response = requests.get(url, params=params, timeout=timeout)
+        response.raise_for_status()
+        
+    except requests.exceptions.Timeout:
+        logger.warning(f"Timeout fetching BoC group {group_name}")
+        raise BocApiError(f"Timeout fetching group {group_name}")
+        
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response else None
+        if status_code == 404:
+            logger.warning(f"BoC group {group_name} not found (404)")
+            raise BocDataUnavailableError(f"Group {group_name} not found")
+        logger.warning(f"HTTP error fetching BoC group {group_name}: {e}")
+        raise BocApiError(f"HTTP error for group {group_name}: {e}")
+        
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Request error fetching BoC group {group_name}: {e}")
+        raise BocApiError(f"Request error for group {group_name}: {e}")
+    
+    try:
+        data = response.json()
+    except ValueError as e:
+        logger.warning(f"Invalid JSON response for BoC group {group_name}: {e}")
+        raise BocApiError(f"Invalid JSON response for group {group_name}")
+    
+    # Extract observations from response
+    observations = data.get("observations", [])
+    
+    if not observations:
+        logger.info(f"No observations available for BoC group {group_name}")
+        return {}
+    
+    values = _parse_group_observations(observations)
+    
+    logger.debug(f"Fetched BoC group {group_name}: {len(values)} series")
+    
+    return values
+
+
+def get_latest_group_observation(
+    group_name: str,
+    use_cache: bool = True,
+    timeout: int = DEFAULT_TIMEOUT
+) -> Dict[str, Optional[float]]:
+    """
+    Get the latest observation values for all series in a Bank of Canada group.
+    
+    This function fetches the most recent observations for all series within
+    a BoC group, using an in-memory cache to avoid excessive API calls.
+    Values are cached for the current day.
+    
+    Args:
+        group_name: The BoC group identifier (e.g., "FX_RATES_DAILY", "BCPI_MONTHLY")
+        use_cache: Whether to use cached values (default True)
+        timeout: Request timeout in seconds (default 10)
+        
+    Returns:
+        Dictionary mapping series IDs to their latest float values (or None if missing)
+        Empty dict if fetch failed or group not found
+        
+    Example:
+        >>> values = get_latest_group_observation("BCPI_MONTHLY")
+        >>> for series_id, value in values.items():
+        ...     if value is not None:
+        ...         print(f"{series_id}: {value}")
+    """
+    cache_key = f"group:{group_name}"
+    
+    # Check cache first - cache stores tuple of (values_dict, timestamp)
+    if use_cache:
+        with _group_cache._lock:
+            if cache_key in _group_cache._cache:
+                cached_data, cached_at = _group_cache._cache[cache_key]
+                now = datetime.now(timezone.utc)
+                cache_date = cached_at.date()
+                current_date = now.date()
+                hours_elapsed = (now - cached_at).total_seconds() / 3600
+                
+                if cache_date == current_date and hours_elapsed <= CACHE_TTL_HOURS:
+                    logger.debug(f"Using cached values for BoC group {group_name}")
+                    return cached_data
+                else:
+                    del _group_cache._cache[cache_key]
+    
+    # Fetch from API
+    try:
+        values = _fetch_group_from_api(group_name, timeout=timeout)
+        
+        if values and use_cache:
+            with _group_cache._lock:
+                _group_cache._cache[cache_key] = (values, datetime.now(timezone.utc))
+        
+        return values
+        
+    except BocApiError as e:
+        logger.warning(f"Failed to fetch BoC group {group_name}: {e}")
+        return {}
+
+
+def get_group_metadata(group_name: str) -> Optional[Dict[str, str]]:
+    """
+    Get metadata for a BoC group from the local groups list.
+    
+    Uses the local boc_groups_list.json file for discovery/documentation.
+    This does not make an API call.
+    
+    Args:
+        group_name: The BoC group identifier
+        
+    Returns:
+        Dictionary with 'label', 'link', 'description' keys, or None if not found
+        
+    Example:
+        >>> metadata = get_group_metadata("FX_RATES_DAILY")
+        >>> if metadata:
+        ...     print(f"{metadata['label']}: {metadata['description']}")
+    """
+    import json
+    from pathlib import Path
+    
+    # Find the groups list file relative to this module or project root
+    possible_paths = [
+        Path(__file__).parent.parent / BOC_GROUPS_LIST_PATH,
+        Path(BOC_GROUPS_LIST_PATH),
+    ]
+    
+    groups_file = None
+    for path in possible_paths:
+        if path.exists():
+            groups_file = path
+            break
+    
+    if not groups_file:
+        logger.debug(f"Groups list file not found: {BOC_GROUPS_LIST_PATH}")
+        return None
+    
+    try:
+        with open(groups_file, 'r') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        logger.warning(f"Error reading groups list file: {e}")
+        return None
+    
+    groups = data.get("groups", {})
+    group_data = groups.get(group_name)
+    
+    if not group_data:
+        return None
+    
+    return {
+        "label": group_data.get("label", group_name),
+        "link": group_data.get("link", ""),
+        "description": group_data.get("description", ""),
+    }
+
+
+def clear_group_cache() -> None:
+    """
+    Clear the BoC group data cache.
+    
+    This forces fresh API calls on the next group request.
+    """
+    _group_cache.clear()
+    logger.info("BoC group cache cleared")
+
+
+def get_group_cache_info() -> Dict[str, Any]:
+    """
+    Get information about the current group cache state.
+    
+    Returns:
+        Dictionary with cache size and cached group keys
+    """
+    return _group_cache.get_cache_info()
