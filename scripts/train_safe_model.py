@@ -63,6 +63,9 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 # Import version metadata utilities from ml.training
 from ml.training import get_git_commit_hash, get_file_hash, get_dataset_shape
 
+# Import data quality utilities
+from data.quality import check_feature_ranges, DataQualityWarning
+
 # XGBoost (required)
 try:
     import xgboost as xgb
@@ -403,6 +406,25 @@ def train_model(
     
     if len(df) < 10:
         raise ValueError(f"Not enough training data: {len(df)} rows (need at least 10)")
+    
+    # 1b. Data quality check - validate feature ranges before training
+    if verbose:
+        print("\n   Running data quality checks...")
+    
+    violations = check_feature_ranges(df)
+    if violations:
+        if verbose:
+            print(f"   Warning: Found {len(violations)} features with out-of-range values")
+            for feature_name, details in list(violations.items())[:5]:
+                print(f"     - {feature_name}: {details['total_violations']} violations "
+                      f"({details['violation_rate']:.1%})")
+            if len(violations) > 5:
+                print(f"     ... and {len(violations) - 5} more")
+        results["data_quality_violations"] = violations
+    else:
+        if verbose:
+            print("   Data quality check passed: all features within expected ranges")
+        results["data_quality_violations"] = {}
     
     # 2. Prepare features
     if verbose:
