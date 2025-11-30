@@ -1,3 +1,25 @@
+"""
+Legacy/Prototype Dataset Builder Module
+
+.. deprecated::
+    This module is part of the **legacy baseline pipeline** and is NOT recommended
+    for production use. It has known data leakage risks and limitations.
+
+    **Use the safe modelling dataset pipeline instead:**
+
+    1. Build dataset: ``python scripts/build_modelling_dataset.py``
+    2. Train model:   ``python scripts/train_safe_model.py --tune``
+    3. Backtest:      ``python scripts/backtest_timeaware.py``
+
+    The safe pipeline (scripts/build_modelling_dataset.py) provides:
+    - Explicit leakage prevention with forbidden column assertions
+    - Only forecast-time-available features are used
+    - Prior-season aggregates computed correctly
+    - Comprehensive diagnostics and data quality reports
+
+    This legacy module is retained for backward compatibility and prototyping only.
+"""
+
 import pandas as pd
 from data.loader import load_history_sales, load_past_runs
 from data.features import derive_basic_features, get_feature_list, apply_registry_renames

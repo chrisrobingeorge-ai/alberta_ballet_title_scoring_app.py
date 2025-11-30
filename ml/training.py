@@ -1,7 +1,26 @@
 """
-Model training module with statistical rigor enhancements.
+Legacy/Prototype Model Training Module
 
-Features:
+.. deprecated::
+    This module is part of the **legacy baseline pipeline** and is NOT recommended
+    for production use. It has known data leakage risks and limitations.
+
+    **Use the safe modelling dataset pipeline instead:**
+
+    1. Build dataset: ``python scripts/build_modelling_dataset.py``
+    2. Train model:   ``python scripts/train_safe_model.py --tune``
+    3. Backtest:      ``python scripts/backtest_timeaware.py``
+
+    The safe pipeline provides:
+    - Explicit leakage prevention with forbidden column assertions
+    - Only forecast-time-available features are used
+    - Prior-season aggregates computed correctly
+    - Comprehensive diagnostics and data quality reports
+    - SHAP explanations for model interpretability
+
+    This legacy module is retained for backward compatibility and prototyping only.
+
+Features (legacy):
 - Time-based cross-validation (TimeSeriesSplit)
 - Hyperparameter tuning (RandomizedSearchCV)
 - Ensemble models (Gradient Boosting)
@@ -491,6 +510,14 @@ def train_baseline_model(
 ) -> dict:
     """Train a baseline model for title demand forecasting.
     
+    .. deprecated::
+        This function is part of the legacy baseline pipeline. Use the safe
+        modelling dataset pipeline instead:
+        
+        1. Build dataset: ``python scripts/build_modelling_dataset.py``
+        2. Train model:   ``python scripts/train_safe_model.py --tune``
+        3. Backtest:      ``python scripts/backtest_timeaware.py``
+    
     Uses chronological train/test split to prevent future data from leaking
     into predictions. A date column is required for forecasting tasks.
     
@@ -515,6 +542,18 @@ def train_baseline_model(
             require a date column for time-aware cross-validation to prevent
             future data leakage.
     """
+    # Emit deprecation warning
+    warnings.warn(
+        "train_baseline_model() is deprecated and part of the legacy baseline pipeline. "
+        "Use the safe modelling dataset pipeline instead:\n"
+        "  1. python scripts/build_modelling_dataset.py\n"
+        "  2. python scripts/train_safe_model.py --tune\n"
+        "  3. python scripts/backtest_timeaware.py\n"
+        "See README.md for details.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     # Load configuration
     config = load_ml_config(config_path)
     model_config = config.get("model", {})
@@ -673,6 +712,14 @@ def train_with_cross_validation(
 ) -> Dict[str, Any]:
     """Train model with time-series cross-validation for robust evaluation.
     
+    .. deprecated::
+        This function is part of the legacy baseline pipeline. Use the safe
+        modelling dataset pipeline instead:
+        
+        1. Build dataset: ``python scripts/build_modelling_dataset.py``
+        2. Train model:   ``python scripts/train_safe_model.py --tune``
+        3. Backtest:      ``python scripts/backtest_timeaware.py``
+    
     Uses walk-forward validation to ensure no future data leakage.
     A date column is required for time-aware cross-validation.
     
@@ -689,6 +736,18 @@ def train_with_cross_validation(
             require a date column for time-aware cross-validation to prevent
             future data leakage.
     """
+    # Emit deprecation warning
+    warnings.warn(
+        "train_with_cross_validation() is deprecated and part of the legacy baseline pipeline. "
+        "Use the safe modelling dataset pipeline instead:\n"
+        "  1. python scripts/build_modelling_dataset.py\n"
+        "  2. python scripts/train_safe_model.py --tune\n"
+        "  3. python scripts/backtest_timeaware.py\n"
+        "See README.md for details.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     config = load_ml_config(config_path)
     cv_config = config.get("cross_validation", {})
     model_config = config.get("model", {})

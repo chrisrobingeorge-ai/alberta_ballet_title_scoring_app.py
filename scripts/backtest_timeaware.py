@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Time-Aware Backtesting Script
+Time-Aware Backtesting Script - PRIMARY RECOMMENDED PIPELINE
 
 This script performs rolling/seasonal holdout evaluation to compare different
 prediction methods:
@@ -8,6 +8,16 @@ prediction methods:
 2. k-NN similarity fallback
 3. Baseline-only supervised model
 4. Full supervised model with all features
+
+**This is the canonical, recommended ML path for Alberta Ballet ticket prediction.**
+
+The safe modelling dataset pipeline consists of:
+1. ``python scripts/build_modelling_dataset.py`` - Build leak-free dataset
+2. ``python scripts/train_safe_model.py --tune`` - Train model with time-aware CV
+3. ``python scripts/backtest_timeaware.py`` (this script) - Evaluate prediction methods
+
+**Note:** The legacy baseline pipeline (ml/dataset.py + ml/training.py) is deprecated
+and should not be used for production. It has known leakage risks.
 
 Usage:
     python scripts/backtest_timeaware.py [options]

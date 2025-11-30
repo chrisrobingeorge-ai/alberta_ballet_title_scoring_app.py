@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Train Safe Model Script
+Train Safe Model Script - PRIMARY RECOMMENDED PIPELINE
 
 This script trains a leak-free XGBoost/LightGBM model on the modelling dataset.
 It includes:
@@ -8,6 +8,16 @@ It includes:
 - Time-aware cross-validation
 - Feature importance (permutation and SHAP if available)
 - Model artifact saving with metadata
+
+**This is the canonical, recommended ML path for Alberta Ballet ticket prediction.**
+
+The safe modelling dataset pipeline consists of:
+1. ``python scripts/build_modelling_dataset.py`` - Build leak-free dataset
+2. ``python scripts/train_safe_model.py --tune`` (this script) - Train model with time-aware CV
+3. ``python scripts/backtest_timeaware.py`` - Evaluate prediction methods
+
+**Note:** The legacy baseline pipeline (ml/dataset.py + ml/training.py) is deprecated
+and should not be used for production. It has known leakage risks.
 
 Usage:
     python scripts/train_safe_model.py [options]

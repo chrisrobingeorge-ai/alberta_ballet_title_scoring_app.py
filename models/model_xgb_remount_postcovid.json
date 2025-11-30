@@ -1,5 +1,5 @@
 {
-  "training_date": "2025-11-30T05:05:55.514284",
+  "training_date": "2025-11-30T05:52:56.818095",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
@@ -21,21 +21,21 @@
     "total": 9
   },
   "cv_metrics": {
-    "mae_mean": 2395.7206054687504,
-    "mae_std": 530.0894154322153,
-    "rmse_mean": 3087.9733203220067,
-    "rmse_std": 630.4924463042331,
-    "r2_mean": -1.009240673672791,
-    "r2_std": 1.1987392712427085,
+    "mae_mean": 2395.720654296875,
+    "mae_std": 530.0894438834547,
+    "rmse_mean": 3087.9733719139876,
+    "rmse_std": 630.4924698021001,
+    "r2_mean": -1.009240709516183,
+    "r2_std": 1.1987392462213977,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 13.898388671876273,
-    "rmse": 21.895996640364466,
-    "r2": 0.9999310850546868,
+    "mae": 13.898437500001364,
+    "rmse": 21.89602659620142,
+    "r2": 0.9999310848661219,
     "mae_log": 0.0010591654040508658,
     "rmse_log": 0.0015212796901788615
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/tmp_36f1l72/test_dataset.csv"
+  "dataset_path": "/tmp/tmprg2o11aw/test_dataset.csv"
 }
