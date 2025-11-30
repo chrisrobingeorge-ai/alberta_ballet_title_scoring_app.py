@@ -43,11 +43,11 @@ def _merge_with_past_runs(df: pd.DataFrame) -> pd.DataFrame:
     past_runs["_canonical_title"] = past_runs["title"].apply(canonicalize_title)
 
     # Build a lookup dict from canonical title to (start_date, end_date)
-    past_runs_lookup = {}
-    for _, row in past_runs.iterrows():
-        key = row["_canonical_title"]
-        if key not in past_runs_lookup:
-            past_runs_lookup[key] = (row["start_date"], row["end_date"])
+    # Use first occurrence for each canonical title
+    past_runs_lookup = {
+        row["_canonical_title"]: (row["start_date"], row["end_date"])
+        for row in past_runs.iloc[::-1].to_dict("records")
+    }
 
     # Match each history row to past_runs
     start_dates = []
