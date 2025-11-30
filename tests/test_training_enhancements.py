@@ -370,3 +370,132 @@ def test_score_with_uncertainty():
     # Lower should be less than prediction, upper should be greater
     assert all(result["lower_bound"] <= result["prediction"])
     assert all(result["prediction"] <= result["upper_bound"])
+
+
+# =============================================================================
+# Tests for time-aware CV enforcement (no random fallback for forecasting)
+# =============================================================================
+
+def test_train_baseline_model_raises_without_date_column(sample_features_and_target, monkeypatch):
+    """Test that train_baseline_model raises MissingDateColumnError without date column."""
+    from ml.training import MissingDateColumnError
+    import ml.training as training_module
+    
+    X, y = sample_features_and_target
+    # Mock build_dataset to return data without date column
+    def mock_build_dataset(**kwargs):
+        return X, y
+    
+    monkeypatch.setattr(training_module, "build_dataset", mock_build_dataset)
+    
+    with pytest.raises(MissingDateColumnError) as exc_info:
+        training_module.train_baseline_model()
+    
+    # Verify error message is informative
+    assert "date column" in str(exc_info.value).lower()
+    assert "time-aware" in str(exc_info.value).lower()
+    # Verify it contains searched columns info
+    assert exc_info.value.searched_columns is not None
+    assert len(exc_info.value.searched_columns) > 0
+
+
+def test_train_with_cross_validation_raises_without_date_column(sample_features_and_target, monkeypatch):
+    """Test that train_with_cross_validation raises MissingDateColumnError without date column."""
+    from ml.training import MissingDateColumnError
+    import ml.training as training_module
+    
+    X, y = sample_features_and_target
+    # Mock build_dataset to return data without date column
+    def mock_build_dataset(**kwargs):
+        return X, y
+    
+    monkeypatch.setattr(training_module, "build_dataset", mock_build_dataset)
+    
+    with pytest.raises(MissingDateColumnError) as exc_info:
+        training_module.train_with_cross_validation()
+    
+    # Verify error message is informative
+    assert "date column" in str(exc_info.value).lower()
+    # Verify it contains available columns info
+    assert exc_info.value.available_columns is not None
+
+
+def test_train_baseline_model_succeeds_with_date_column(sample_features_and_target, monkeypatch, tmp_path):
+    """Test that train_baseline_model succeeds when date column is present."""
+    import ml.training as training_module
+    
+    X, y = sample_features_and_target
+    # Add a date column to the features
+    X_with_dates = X.copy()
+    X_with_dates["end_date"] = pd.date_range("2018-01-01", periods=len(X), freq="7D")
+    
+    # Mock build_dataset to return data with date column
+    def mock_build_dataset(**kwargs):
+        return X_with_dates, y
+    
+    monkeypatch.setattr(training_module, "build_dataset", mock_build_dataset)
+    
+    # Should not raise - provide a temp path for model saving
+    model_path = tmp_path / "test_model.pkl"
+    result = training_module.train_baseline_model(save_path=model_path)
+    
+    assert result is not None
+    assert "metrics" in result
+    assert result["metrics"]["time_aware_split"] is True
+
+
+def test_train_with_cv_succeeds_with_date_column(sample_features_and_target, monkeypatch):
+    """Test that train_with_cross_validation succeeds when date column is present."""
+    import ml.training as training_module
+    
+    X, y = sample_features_and_target
+    # Add a date column to the features
+    X_with_dates = X.copy()
+    X_with_dates["end_date"] = pd.date_range("2018-01-01", periods=len(X), freq="7D")
+    
+    # Mock build_dataset to return data with date column
+    def mock_build_dataset(**kwargs):
+        return X_with_dates, y
+    
+    monkeypatch.setattr(training_module, "build_dataset", mock_build_dataset)
+    
+    # Should not raise
+    result = training_module.train_with_cross_validation()
+    
+    assert result is not None
+    assert "folds" in result
+    assert "cv_type" in result
+
+
+def test_no_silent_random_cv_fallback(sample_features_and_target, monkeypatch):
+    """Test that forecasting training never silently falls back to random CV.
+    
+    This is a key acceptance criterion: attempting to run forecasting training 
+    without a date column should result in a clear error, not a silent fallback.
+    """
+    from ml.training import MissingDateColumnError
+    import ml.training as training_module
+    import warnings
+    
+    X, y = sample_features_and_target
+    # Mock build_dataset to return data without date column
+    def mock_build_dataset(**kwargs):
+        return X, y
+    
+    monkeypatch.setattr(training_module, "build_dataset", mock_build_dataset)
+    
+    # Verify that the old warning-based fallback is no longer used
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        
+        # This should raise MissingDateColumnError, not just a warning
+        with pytest.raises(MissingDateColumnError):
+            training_module.train_baseline_model()
+        
+        # Verify no UserWarning about random split was issued
+        random_split_warnings = [
+            warning for warning in w 
+            if "random split" in str(warning.message).lower()
+        ]
+        assert len(random_split_warnings) == 0, \
+            "Should not issue warning about random split - should raise error instead"
