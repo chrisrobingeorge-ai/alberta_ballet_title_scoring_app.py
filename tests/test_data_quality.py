@@ -217,78 +217,61 @@ class TestCheckFeatureRanges:
 class TestValidateDataQuality:
     """Tests for validate_data_quality function."""
     
-    def test_returns_valid_true_for_clean_data(self):
-        """Should return is_valid=True when no violations exist."""
+    @pytest.fixture
+    def mock_inventory_clean(self, monkeypatch):
+        """Mock load_feature_ranges to return a clean inventory."""
         inventory = pd.DataFrame({
             'Feature Name': ['value_a', 'value_b'],
             'expected_min': [0.0, 0.0],
             'expected_max': [100.0, 100.0],
             'unit': ['count', 'count']
         })
-        
+        import data.quality as quality_module
+        monkeypatch.setattr(quality_module, 'load_feature_ranges', lambda: inventory)
+        return inventory
+    
+    @pytest.fixture
+    def mock_inventory_single(self, monkeypatch):
+        """Mock load_feature_ranges to return a single-feature inventory."""
+        inventory = pd.DataFrame({
+            'Feature Name': ['value_a'],
+            'expected_min': [0.0],
+            'expected_max': [100.0],
+            'unit': ['count']
+        })
+        import data.quality as quality_module
+        monkeypatch.setattr(quality_module, 'load_feature_ranges', lambda: inventory)
+        return inventory
+    
+    def test_returns_valid_true_for_clean_data(self, mock_inventory_clean):
+        """Should return is_valid=True when no violations exist."""
         df = pd.DataFrame({
             'value_a': [10, 20, 30],
             'value_b': [50, 60, 70]
         })
         
-        # Temporarily patch the load_feature_ranges function
-        import data.quality as quality_module
-        original_load = quality_module.load_feature_ranges
-        quality_module.load_feature_ranges = lambda: inventory
-        
-        try:
-            is_valid, violations = validate_data_quality(df)
-            assert is_valid is True
-            assert len(violations) == 0
-        finally:
-            quality_module.load_feature_ranges = original_load
+        is_valid, violations = validate_data_quality(df)
+        assert is_valid is True
+        assert len(violations) == 0
     
-    def test_returns_valid_false_for_violations(self):
+    def test_returns_valid_false_for_violations(self, mock_inventory_single):
         """Should return is_valid=False when violations exist."""
-        inventory = pd.DataFrame({
-            'Feature Name': ['value_a'],
-            'expected_min': [0.0],
-            'expected_max': [100.0],
-            'unit': ['count']
-        })
-        
         df = pd.DataFrame({
             'value_a': [10, 200, 30]  # 200 is out of range
         })
         
-        import data.quality as quality_module
-        original_load = quality_module.load_feature_ranges
-        quality_module.load_feature_ranges = lambda: inventory
-        
-        try:
-            is_valid, violations = validate_data_quality(df)
-            assert is_valid is False
-            assert 'value_a' in violations
-        finally:
-            quality_module.load_feature_ranges = original_load
+        is_valid, violations = validate_data_quality(df)
+        assert is_valid is False
+        assert 'value_a' in violations
     
-    def test_raise_on_violations_raises_error(self):
+    def test_raise_on_violations_raises_error(self, mock_inventory_single):
         """Should raise DataQualityError when raise_on_violations=True and violations exist."""
-        inventory = pd.DataFrame({
-            'Feature Name': ['value_a'],
-            'expected_min': [0.0],
-            'expected_max': [100.0],
-            'unit': ['count']
-        })
-        
         df = pd.DataFrame({
             'value_a': [10, 200, 30]  # 200 is out of range - 33% violation
         })
         
-        import data.quality as quality_module
-        original_load = quality_module.load_feature_ranges
-        quality_module.load_feature_ranges = lambda: inventory
-        
-        try:
-            with pytest.raises(DataQualityError):
-                validate_data_quality(df, raise_on_violations=True)
-        finally:
-            quality_module.load_feature_ranges = original_load
+        with pytest.raises(DataQualityError):
+            validate_data_quality(df, raise_on_violations=True)
 
 
 class TestGetFeatureRange:
