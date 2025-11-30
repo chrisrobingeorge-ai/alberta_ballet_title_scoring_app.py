@@ -1,47 +1,41 @@
 {
-  "training_date": "2025-11-30T06:12:18.522901",
+  "training_date": "2025-11-30T06:13:38.755439",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
-  "n_samples": 25,
+  "n_samples": 20,
   "features": {
     "numeric": [
       "wiki",
       "trends",
       "youtube",
       "spotify",
-      "prior_total_tickets",
-      "prior_run_count",
-      "ticket_median_prior",
       "years_since_last_run",
       "is_remount_recent",
-      "is_remount_medium",
-      "run_count_prior",
-      "month_of_opening",
-      "holiday_flag"
+      "prior_total_tickets"
     ],
     "categorical": [
       "category",
       "gender"
     ],
-    "total": 15
+    "total": 9
   },
   "cv_metrics": {
-    "mae_mean": 328.4173046875003,
-    "mae_std": 211.0656421174163,
-    "rmse_mean": 401.60753769596306,
-    "rmse_std": 279.43786277490767,
-    "r2_mean": 0.07242009110095586,
-    "r2_std": 1.7858256275964426,
+    "mae_mean": 2395.7206054687504,
+    "mae_std": 530.0894154322153,
+    "rmse_mean": 3087.9733203220067,
+    "rmse_std": 630.4924463042331,
+    "r2_mean": -1.009240673672791,
+    "r2_std": 1.1987392712427085,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 2.5440429687499635,
-    "rmse": 4.996300088469924,
-    "r2": 0.9999909693624723,
-    "mae_log": 0.00026291412857183617,
-    "rmse_log": 0.000524482717240677
+    "mae": 13.898388671876273,
+    "rmse": 21.895996640364466,
+    "r2": 0.9999310850546868,
+    "mae_log": 0.0010591654040508658,
+    "rmse_log": 0.0015212796901788615
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/pytest-of-runner/pytest-2/test_pipeline_reports_step_sta0/test_results/20251130_061218/modelling_dataset.csv"
+  "dataset_path": "/tmp/tmpwh1_zyf2/test_dataset.csv"
 }
