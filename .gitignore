@@ -14,6 +14,8 @@ results/*.parquet
 results/plots/*.png
 results/shap/*.png
 results/shap/*.parquet
+# Timestamped pipeline run directories
+results/[0-9]*/
 !results/.gitkeep
 !results/plots/.gitkeep
 !results/shap/.gitkeep
