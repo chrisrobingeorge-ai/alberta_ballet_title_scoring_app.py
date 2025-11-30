@@ -90,22 +90,146 @@ def load_modelling_dataset(path: str = "data/modelling_dataset.csv") -> pd.DataF
     return pd.read_csv(path)
 
 
-def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-    """Compute evaluation metrics."""
+def bootstrap_confidence_intervals(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    n_bootstrap: int = 1000,
+    confidence_level: float = 0.95,
+    random_state: int = 42
+) -> Dict[str, Dict[str, float]]:
+    """
+    Compute bootstrap confidence intervals for evaluation metrics.
+    
+    Re-samples (with replacement) the evaluation rows, computes MAE/RMSE
+    per bootstrap sample, and returns mean and 95% CI for each metric.
+    
+    Args:
+        y_true: True target values
+        y_pred: Predicted values
+        n_bootstrap: Number of bootstrap samples (default: 1000)
+        confidence_level: Confidence level for interval (default: 0.95)
+        random_state: Random seed for reproducibility
+    
+    Returns:
+        Dictionary with bootstrap statistics for each metric:
+        {
+            'mae': {'mean': ..., 'ci_lower': ..., 'ci_upper': ...},
+            'rmse': {'mean': ..., 'ci_lower': ..., 'ci_upper': ...},
+            'r2': {'mean': ..., 'ci_lower': ..., 'ci_upper': ...}
+        }
+    """
+    n_samples = len(y_true)
+    
+    # Handle edge cases
+    if n_samples < 2:
+        nan_stats = {"mean": np.nan, "ci_lower": np.nan, "ci_upper": np.nan}
+        return {"mae": nan_stats.copy(), "rmse": nan_stats.copy(), "r2": nan_stats.copy()}
+    
+    rng = np.random.RandomState(random_state)
+    alpha = 1 - confidence_level
+    
+    mae_samples = []
+    rmse_samples = []
+    r2_samples = []
+    
+    for _ in range(n_bootstrap):
+        # Resample with replacement
+        indices = rng.randint(0, n_samples, size=n_samples)
+        y_true_boot = y_true[indices]
+        y_pred_boot = y_pred[indices]
+        
+        # Compute metrics for this bootstrap sample
+        mae_samples.append(mean_absolute_error(y_true_boot, y_pred_boot))
+        rmse_samples.append(np.sqrt(mean_squared_error(y_true_boot, y_pred_boot)))
+        
+        # R2 requires variance in y_true, which may not exist in small samples
+        if len(np.unique(y_true_boot)) > 1:
+            r2_samples.append(r2_score(y_true_boot, y_pred_boot))
+        else:
+            r2_samples.append(np.nan)
+    
+    mae_samples = np.array(mae_samples)
+    rmse_samples = np.array(rmse_samples)
+    r2_samples = np.array(r2_samples)
+    
+    def compute_stats(samples: np.ndarray) -> Dict[str, float]:
+        """Compute mean and percentile-based CI from bootstrap samples."""
+        valid_samples = samples[~np.isnan(samples)]
+        if len(valid_samples) == 0:
+            return {"mean": np.nan, "ci_lower": np.nan, "ci_upper": np.nan}
+        return {
+            "mean": float(np.mean(valid_samples)),
+            "ci_lower": float(np.percentile(valid_samples, alpha / 2 * 100)),
+            "ci_upper": float(np.percentile(valid_samples, (1 - alpha / 2) * 100))
+        }
+    
+    return {
+        "mae": compute_stats(mae_samples),
+        "rmse": compute_stats(rmse_samples),
+        "r2": compute_stats(r2_samples)
+    }
+
+
+def compute_metrics(
+    y_true: np.ndarray, 
+    y_pred: np.ndarray,
+    compute_ci: bool = False,
+    n_bootstrap: int = 1000,
+    random_state: int = 42
+) -> Dict[str, Any]:
+    """
+    Compute evaluation metrics with optional bootstrap confidence intervals.
+    
+    Args:
+        y_true: True target values
+        y_pred: Predicted values
+        compute_ci: Whether to compute bootstrap confidence intervals
+        n_bootstrap: Number of bootstrap samples for CI
+        random_state: Random seed for bootstrap sampling
+    
+    Returns:
+        Dictionary with metrics. If compute_ci=True, includes CI fields:
+        {
+            'mae': point estimate,
+            'mae_ci_lower': lower bound of 95% CI,
+            'mae_ci_upper': upper bound of 95% CI,
+            'rmse': point estimate,
+            'rmse_ci_lower': lower bound,
+            'rmse_ci_upper': upper bound,
+            ...
+        }
+    """
     # Handle NaN predictions
     mask = ~(np.isnan(y_true) | np.isnan(y_pred))
     y_true = y_true[mask]
     y_pred = y_pred[mask]
     
     if len(y_true) == 0:
-        return {"mae": np.nan, "rmse": np.nan, "r2": np.nan, "n_samples": 0}
+        base_result = {"mae": np.nan, "rmse": np.nan, "r2": np.nan, "n_samples": 0}
+        if compute_ci:
+            for metric in ["mae", "rmse", "r2"]:
+                base_result[f"{metric}_ci_lower"] = np.nan
+                base_result[f"{metric}_ci_upper"] = np.nan
+        return base_result
     
-    return {
+    result: Dict[str, Any] = {
         "mae": float(mean_absolute_error(y_true, y_pred)),
         "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
         "r2": float(r2_score(y_true, y_pred)) if len(y_true) > 1 else np.nan,
         "n_samples": int(len(y_true))
     }
+    
+    if compute_ci:
+        ci_stats = bootstrap_confidence_intervals(
+            y_true, y_pred, 
+            n_bootstrap=n_bootstrap, 
+            random_state=random_state
+        )
+        for metric in ["mae", "rmse", "r2"]:
+            result[f"{metric}_ci_lower"] = ci_stats[metric]["ci_lower"]
+            result[f"{metric}_ci_upper"] = ci_stats[metric]["ci_upper"]
+    
+    return result
 
 
 def heuristic_prediction(row: pd.Series) -> float:
@@ -223,18 +347,32 @@ def run_backtest(
     n_folds: int = 5,
     output_dir: str = "results",
     seed: int = 42,
-    verbose: bool = True
+    verbose: bool = True,
+    compute_ci: bool = True,
+    n_bootstrap: int = 1000
 ) -> Dict[str, Any]:
     """
-    Run time-aware backtesting.
+    Run time-aware backtesting with optional bootstrap confidence intervals.
+    
+    Args:
+        dataset_path: Path to the modelling dataset CSV
+        target_col: Name of the target column
+        n_folds: Number of cross-validation folds
+        output_dir: Directory for output files
+        seed: Random seed for reproducibility
+        verbose: Print progress messages
+        compute_ci: Whether to compute bootstrap confidence intervals (default: True)
+        n_bootstrap: Number of bootstrap samples for CI (default: 1000)
     
     Returns:
-        Dictionary with backtest results
+        Dictionary with backtest results including CI fields if compute_ci=True
     """
     results = {
         "created_at": datetime.now().isoformat(),
         "seed": seed,
         "n_folds": n_folds,
+        "compute_ci": compute_ci,
+        "n_bootstrap": n_bootstrap if compute_ci else None,
         "methods": {},
         "by_category": {},
     }
@@ -385,6 +523,8 @@ def run_backtest(
     # 5. Compute overall metrics
     if verbose:
         print("\n3. Computing overall metrics...")
+        if compute_ci:
+            print(f"   (Computing 95% bootstrap CI with {n_bootstrap} samples)")
     
     pred_df = pd.DataFrame(all_predictions)
     
@@ -403,11 +543,19 @@ def run_backtest(
         y_true = pred_df.loc[mask, "actual"].values
         y_pred = pred_df.loc[mask, method].values.astype(float)
         
-        metrics = compute_metrics(y_true, y_pred)
+        metrics = compute_metrics(
+            y_true, y_pred, 
+            compute_ci=compute_ci, 
+            n_bootstrap=n_bootstrap,
+            random_state=seed
+        )
         method_metrics[method] = metrics
         
         if verbose:
-            print(f"   {method}: MAE={metrics['mae']:.0f}, "
+            ci_str = ""
+            if compute_ci and "mae_ci_lower" in metrics:
+                ci_str = f" (95% CI: [{metrics['mae_ci_lower']:.0f}, {metrics['mae_ci_upper']:.0f}])"
+            print(f"   {method}: MAE={metrics['mae']:.0f}{ci_str}, "
                   f"RMSE={metrics['rmse']:.0f}, R²={metrics['r2']:.3f}")
     
     results["methods"] = method_metrics
@@ -433,7 +581,12 @@ def run_backtest(
                 y_true = pred_df.loc[valid_mask, "actual"].values
                 y_pred = pred_df.loc[valid_mask, method].values.astype(float)
                 
-                cat_metrics[method] = compute_metrics(y_true, y_pred)
+                cat_metrics[method] = compute_metrics(
+                    y_true, y_pred,
+                    compute_ci=compute_ci,
+                    n_bootstrap=n_bootstrap,
+                    random_state=seed
+                )
             
             if cat_metrics:
                 by_category[cat] = cat_metrics
@@ -577,6 +730,17 @@ def main():
         action="store_true",
         help="Suppress output"
     )
+    parser.add_argument(
+        "--no-ci",
+        action="store_true",
+        help="Disable bootstrap confidence intervals"
+    )
+    parser.add_argument(
+        "--n-bootstrap",
+        type=int,
+        default=1000,
+        help="Number of bootstrap samples for CI (default: 1000)"
+    )
     
     args = parser.parse_args()
     
@@ -587,7 +751,9 @@ def main():
             n_folds=args.folds,
             output_dir=args.output_dir,
             seed=args.seed,
-            verbose=not args.quiet
+            verbose=not args.quiet,
+            compute_ci=not args.no_ci,
+            n_bootstrap=args.n_bootstrap
         )
     except Exception as e:
         print(f"\nERROR: {e}")
