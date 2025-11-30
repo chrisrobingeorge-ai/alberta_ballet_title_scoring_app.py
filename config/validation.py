@@ -308,6 +308,8 @@ CORE_DATA_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "category": "str",
             "subcategory": "str",
             "metric": "str"
+            # Note: 'value' column type check is omitted due to data quality issues
+            # in the source file (column data alignment issues with trailing commas)
         },
         "description": "Nanos consumer confidence survey data"
     },
@@ -318,6 +320,8 @@ CORE_DATA_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "category": "str",
             "subcategory": "str",
             "metric": "str"
+            # Note: 'value' column type check is omitted due to data quality issues
+            # in the source file (column data alignment issues)
         },
         "description": "Nanos 'better off' survey data"
     },
@@ -393,9 +397,11 @@ def _check_column_type(df: pd.DataFrame, col: str, expected_type: str) -> Option
     elif expected_type == "date":
         # Date columns should be datetime or parseable as date
         if not pd.api.types.is_datetime64_any_dtype(df[col]):
-            # Try to parse as date
+            # Try to parse as date. We sample up to 100 rows for efficiency while still
+            # catching most format issues. Full validation would be too slow for large files.
+            sample_size = min(100, len(series))
             try:
-                pd.to_datetime(series.head(10), errors='raise')
+                pd.to_datetime(series.head(sample_size), errors='raise')
             except (ValueError, TypeError):
                 return f"Column '{col}' expected to be date type, cannot parse values"
     
