@@ -352,7 +352,7 @@ def test_save_model_metadata_with_version_info():
         # So we just check it exists as a key
 
 
-
+def test_save_feature_importances():
     """Test feature importance saving."""
     from ml.training import save_feature_importances
     
