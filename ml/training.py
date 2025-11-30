@@ -52,7 +52,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from ml.dataset import build_dataset
-from ml.time_splits import TimeSeriesCVSplitter, chronological_train_test_split, assert_chronological_split
+from ml.time_splits import TimeSeriesCVSplitter, GroupedCVSplitter, chronological_train_test_split, assert_chronological_split
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +167,9 @@ METRICS_DIR = Path(__file__).parent.parent / "metrics"
 # Common date column names to search for when inferring the date column
 DATE_COLUMN_CANDIDATES = ["end_date", "start_date", "date", "opening_date", "performance_date"]
 
+# Common title column names to search for when using grouped CV by title
+TITLE_COLUMN_CANDIDATES = ["show_title", "title", "canonical_title"]
+
 
 def load_ml_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
     """Load ML configuration from YAML file.
@@ -207,7 +210,8 @@ def load_ml_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
         },
         "cross_validation": {
             "type": "time_series",
-            "n_splits": 5
+            "n_splits": 5,
+            "group_cv_by": None  # Options: None, "title", "season"
         },
         "explainability": {
             "export_importances": True,
@@ -817,6 +821,14 @@ def train_with_cross_validation(
     Uses walk-forward validation to ensure no future data leakage.
     A date column is required for time-aware cross-validation.
     
+    Supports grouped cross-validation via the ``group_cv_by`` config option:
+    - ``null``: Standard time-series CV (default)
+    - ``"title"``: Group by production title (show_title column)
+    - ``"season"``: Group by season column
+    
+    When grouped CV is enabled, all runs of the same title/season will be
+    placed in either train or test, never both, reducing optimistic bias.
+    
     Args:
         config_path: Optional path to ML config YAML file
         date_column: Name of date column for chronological splits.
@@ -881,9 +893,46 @@ def train_with_cross_validation(
     num_cols = [c for c in num_cols if c != date_col]
     X_features = X.drop(columns=[date_col])
     
-    # Create CV splitter with time-based splitting
+    # Create CV splitter based on configuration
     n_splits = cv_config.get("n_splits", 5)
-    cv = TimeSeriesCVSplitter(n_splits=n_splits, date_column=date_col)
+    group_cv_by = cv_config.get("group_cv_by", None)
+    
+    # Determine the group column based on config
+    group_column = None
+    use_grouped_cv = False
+    
+    if group_cv_by == "title":
+        # Map "title" to the actual column name in the dataset
+        for candidate in TITLE_COLUMN_CANDIDATES:
+            if candidate in X.columns:
+                group_column = candidate
+                break
+        if group_column:
+            use_grouped_cv = True
+            logger.info(f"Using grouped CV by title (column: {group_column})")
+        else:
+            logger.warning(
+                f"group_cv_by='title' requested but no title column found. "
+                f"Falling back to time-series CV. Available columns: {list(X.columns)}"
+            )
+    elif group_cv_by == "season":
+        if "season" in X.columns:
+            group_column = "season"
+            use_grouped_cv = True
+            logger.info("Using grouped CV by season")
+        else:
+            logger.warning(
+                f"group_cv_by='season' requested but 'season' column not found. "
+                f"Falling back to time-series CV. Available columns: {list(X.columns)}"
+            )
+    
+    # Select appropriate CV splitter
+    if use_grouped_cv and group_column:
+        cv = GroupedCVSplitter(n_splits=n_splits, group_column=group_column)
+        cv_type = f"grouped_by_{group_cv_by}"
+    else:
+        cv = TimeSeriesCVSplitter(n_splits=n_splits, date_column=date_col)
+        cv_type = cv_config.get("type", "time_series")
     
     # Cross-validation loop
     fold_scores = []
@@ -891,6 +940,10 @@ def train_with_cross_validation(
     random_state = model_config.get("random_state", 42)
     
     for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X)):
+        # Validate no group leakage when using grouped CV
+        if use_grouped_cv and group_column:
+            GroupedCVSplitter.assert_no_group_leakage(X, train_idx, test_idx, group_column)
+        
         # Use X_features (without date column) for model training/prediction
         Xtr = X_features.iloc[train_idx] if hasattr(X_features, "iloc") else X_features[train_idx]
         Xte = X_features.iloc[test_idx] if hasattr(X_features, "iloc") else X_features[test_idx]
@@ -925,7 +978,8 @@ def train_with_cross_validation(
         "mean_r2": float(np.mean([f["r2"] for f in fold_scores])),
         "std_r2": float(np.std([f["r2"] for f in fold_scores])),
         "n_folds": n_splits,
-        "cv_type": cv_config.get("type", "time_series")
+        "cv_type": cv_type,
+        "group_cv_by": group_cv_by,
     }
     
     # Save CV results
