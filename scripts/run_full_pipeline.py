@@ -142,6 +142,9 @@ def run_full_pipeline(
 
         # Also copy to standard location for other tools
         standard_dataset_path = "data/modelling_dataset.csv"
+        standard_dataset_dir = os.path.dirname(standard_dataset_path)
+        if standard_dataset_dir:
+            os.makedirs(standard_dataset_dir, exist_ok=True)
         shutil.copy2(dataset_output_path, standard_dataset_path)
 
         results["steps"]["build_dataset"] = {
@@ -239,11 +242,13 @@ def run_full_pipeline(
         )
 
         # Move SHAP outputs to run directory if generated
-        if save_shap and os.path.exists("results/shap"):
+        # The train_safe_model.py script outputs SHAP to results/shap by default
+        shap_source_path = train_results.get("shap_outputs", "results/shap")
+        if save_shap and os.path.exists(shap_source_path):
             shap_dest = os.path.join(run_output_dir, "shap")
             if os.path.exists(shap_dest):
                 shutil.rmtree(shap_dest)
-            shutil.move("results/shap", shap_dest)
+            shutil.move(shap_source_path, shap_dest)
 
         results["steps"]["train_model"] = {
             "success": train_results.get("success", False),

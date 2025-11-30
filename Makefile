@@ -108,11 +108,11 @@ run:
 # Cleanup
 # ==============================================================================
 
-## Clean generated artifacts (keeps models and important results)
+## Clean generated artifacts (removes timestamped run directories, keeps models)
 clean:
 	rm -f data/modelling_dataset.csv
 	rm -f diagnostics/modelling_dataset_report.json
-	rm -rf results/*/
+	rm -rf results/[0-9]*/
 	rm -rf __pycache__/
 	rm -rf tests/__pycache__/
 	rm -rf scripts/__pycache__/
