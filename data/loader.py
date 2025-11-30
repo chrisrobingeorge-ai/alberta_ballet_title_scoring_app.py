@@ -27,6 +27,50 @@ def _get_file_mtime(path: Path) -> float:
         return 0.0
 
 
+def _clean_dataframe(
+    df: pd.DataFrame,
+    drop_unnamed: bool = True,
+    drop_empty_unnamed_only: bool = False,
+    numeric_columns: Optional[list] = None
+) -> pd.DataFrame:
+    """Clean a DataFrame by dropping unnamed columns and converting numeric strings.
+    
+    Args:
+        df: DataFrame to clean
+        drop_unnamed: If True, drop columns matching 'unnamed:' pattern (case-insensitive)
+        drop_empty_unnamed_only: If True, only drop unnamed columns that are entirely empty/NaN
+        numeric_columns: List of column names to convert to numeric using pd.to_numeric
+        
+    Returns:
+        Cleaned DataFrame (copy of input, original is not modified)
+    """
+    if df.empty:
+        return df
+    
+    # Create a copy to avoid mutating the input DataFrame
+    df = df.copy()
+    
+    # Drop unnamed columns (e.g., 'Unnamed: 0', 'unnamed:_0')
+    if drop_unnamed:
+        unnamed_cols = [c for c in df.columns if 'unnamed' in str(c).lower()]
+        if unnamed_cols:
+            if drop_empty_unnamed_only:
+                # Only drop unnamed columns that are entirely empty/NaN
+                cols_to_drop = [c for c in unnamed_cols if df[c].isna().all()]
+            else:
+                cols_to_drop = unnamed_cols
+            if cols_to_drop:
+                df = df.drop(columns=cols_to_drop)
+    
+    # Convert specified columns to numeric
+    if numeric_columns:
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    return df
+
+
 @lru_cache(maxsize=16)
 def _load_history_sales_cached(path: str, mtime: float) -> pd.DataFrame:
     """
@@ -666,7 +710,7 @@ def load_audience_analytics(
         fallback_empty: If True, return empty DataFrame on error
         
     Returns:
-        DataFrame with audience analytics data
+        DataFrame with audience analytics data (empty unnamed columns dropped)
     """
     path = DATA_DIR / csv_name
     
@@ -677,7 +721,12 @@ def load_audience_analytics(
             raise DataLoadError(f"Audience analytics file not found: {path}")
         
         mtime = _get_file_mtime(path)
-        return _load_csv_cached(str(path), mtime).copy()
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Clean the DataFrame: drop only empty unnamed columns (preserve structure)
+        df = _clean_dataframe(df, drop_unnamed=True, drop_empty_unnamed_only=True)
+        
+        return df
         
     except DataLoadError:
         raise
@@ -1129,7 +1178,8 @@ def load_nanos_consumer_confidence(
         fallback_empty: If True, return empty DataFrame on error
         
     Returns:
-        DataFrame with Nanos consumer confidence data
+        DataFrame with Nanos consumer confidence data (unnamed columns dropped,
+        value column converted to numeric)
     """
     path = DATA_DIR / csv_name
     
@@ -1140,7 +1190,12 @@ def load_nanos_consumer_confidence(
             raise DataLoadError(f"Nanos consumer confidence file not found: {path}")
         
         mtime = _get_file_mtime(path)
-        return _load_csv_cached(str(path), mtime).copy()
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Clean the DataFrame: drop unnamed columns and convert value to numeric
+        df = _clean_dataframe(df, drop_unnamed=True, numeric_columns=['value'])
+        
+        return df
         
     except DataLoadError:
         raise
@@ -1173,7 +1228,8 @@ def load_nanos_better_off(
         fallback_empty: If True, return empty DataFrame on error
         
     Returns:
-        DataFrame with Nanos Better Off survey data
+        DataFrame with Nanos Better Off survey data (unnamed columns dropped,
+        value column converted to numeric)
     """
     path = DATA_DIR / csv_name
     
@@ -1184,7 +1240,12 @@ def load_nanos_better_off(
             raise DataLoadError(f"Nanos Better Off file not found: {path}")
         
         mtime = _get_file_mtime(path)
-        return _load_csv_cached(str(path), mtime).copy()
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Clean the DataFrame: drop unnamed columns and convert value to numeric
+        df = _clean_dataframe(df, drop_unnamed=True, numeric_columns=['value'])
+        
+        return df
         
     except DataLoadError:
         raise
@@ -1925,7 +1986,7 @@ def load_live_analytics_raw(
         fallback_empty: If True, return empty DataFrame on error
         
     Returns:
-        DataFrame with raw live analytics data
+        DataFrame with raw live analytics data (empty unnamed columns dropped)
     """
     path = DATA_DIR / csv_name
     
@@ -1937,6 +1998,10 @@ def load_live_analytics_raw(
         
         # This file has a non-standard format, load with header on first row
         df = pd.read_csv(str(path))
+        
+        # Clean the DataFrame: drop only empty unnamed columns (preserve structure)
+        df = _clean_dataframe(df, drop_unnamed=True, drop_empty_unnamed_only=True)
+        
         return df
         
     except DataLoadError:

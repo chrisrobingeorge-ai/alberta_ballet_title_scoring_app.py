@@ -11,7 +11,53 @@ from data.loader import (
     load_census_data,
     validate_data_source,
     DataRegistryReport,
+    load_audience_analytics,
+    load_live_analytics_raw,
+    _clean_dataframe,
 )
+
+
+class TestDataFrameCleaning:
+    """Tests for DataFrame cleaning helper function."""
+    
+    def test_clean_dataframe_drops_unnamed_columns(self):
+        """_clean_dataframe should drop columns matching 'unnamed:' pattern."""
+        df = pd.DataFrame({
+            'good_col': [1, 2, 3],
+            'Unnamed: 0': [4, 5, 6],
+            'unnamed:_1': [7, 8, 9],
+        })
+        result = _clean_dataframe(df, drop_unnamed=True)
+        
+        assert 'good_col' in result.columns
+        assert 'Unnamed: 0' not in result.columns
+        assert 'unnamed:_1' not in result.columns
+    
+    def test_clean_dataframe_converts_numeric_columns(self):
+        """_clean_dataframe should convert string columns to numeric."""
+        df = pd.DataFrame({
+            'value': ['1.5', '2.5', 'invalid'],
+            'other': ['a', 'b', 'c'],
+        })
+        result = _clean_dataframe(df, drop_unnamed=False, numeric_columns=['value'])
+        
+        assert pd.api.types.is_numeric_dtype(result['value'])
+        assert result['value'].iloc[0] == 1.5
+        assert result['value'].iloc[1] == 2.5
+        assert pd.isna(result['value'].iloc[2])  # 'invalid' should become NaN
+    
+    def test_clean_dataframe_drop_empty_unnamed_only(self):
+        """_clean_dataframe should drop only empty unnamed columns when flag is set."""
+        df = pd.DataFrame({
+            'Unnamed: 0': [1, 2, 3],  # Has data
+            'Unnamed: 1': [None, None, None],  # Empty
+            'good_col': [4, 5, 6],
+        })
+        result = _clean_dataframe(df, drop_unnamed=True, drop_empty_unnamed_only=True)
+        
+        assert 'good_col' in result.columns
+        assert 'Unnamed: 0' in result.columns  # Should remain (has data)
+        assert 'Unnamed: 1' not in result.columns  # Should be dropped (empty)
 
 
 class TestNanosConsumerConfidenceLoader:
@@ -29,6 +75,20 @@ class TestNanosConsumerConfidenceLoader:
             expected_cols = ['category', 'subcategory', 'metric', 'value']
             for col in expected_cols:
                 assert col in result.columns, f"Missing expected column: {col}"
+    
+    def test_no_unnamed_columns(self):
+        """Loader should not return unnamed columns."""
+        result = load_nanos_consumer_confidence()
+        if not result.empty:
+            unnamed = [c for c in result.columns if 'unnamed' in str(c).lower()]
+            assert len(unnamed) == 0, f"Found unnamed columns: {unnamed}"
+    
+    def test_value_column_is_numeric(self):
+        """Value column should be numeric dtype."""
+        result = load_nanos_consumer_confidence()
+        if not result.empty and 'value' in result.columns:
+            assert pd.api.types.is_numeric_dtype(result['value']), \
+                f"Expected numeric dtype, got {result['value'].dtype}"
     
     def test_fallback_on_missing_file(self):
         """Should return empty DataFrame when file is missing and fallback is True."""
@@ -48,6 +108,20 @@ class TestNanosBetterOffLoader:
         result = load_nanos_better_off()
         assert isinstance(result, pd.DataFrame)
     
+    def test_no_unnamed_columns(self):
+        """Loader should not return unnamed columns."""
+        result = load_nanos_better_off()
+        if not result.empty:
+            unnamed = [c for c in result.columns if 'unnamed' in str(c).lower()]
+            assert len(unnamed) == 0, f"Found unnamed columns: {unnamed}"
+    
+    def test_value_column_is_numeric(self):
+        """Value column should be numeric dtype."""
+        result = load_nanos_better_off()
+        if not result.empty and 'value' in result.columns:
+            assert pd.api.types.is_numeric_dtype(result['value']), \
+                f"Expected numeric dtype, got {result['value'].dtype}"
+    
     def test_fallback_on_missing_file(self):
         """Should return empty DataFrame when file is missing and fallback is True."""
         result = load_nanos_better_off(
@@ -56,6 +130,44 @@ class TestNanosBetterOffLoader:
         )
         assert isinstance(result, pd.DataFrame)
         assert result.empty
+
+
+class TestAudienceAnalyticsLoader:
+    """Tests for audience analytics data loading."""
+    
+    def test_load_audience_analytics_returns_dataframe(self):
+        """load_audience_analytics should return a DataFrame."""
+        result = load_audience_analytics()
+        assert isinstance(result, pd.DataFrame)
+    
+    def test_no_empty_unnamed_columns(self):
+        """Loader should not return empty unnamed columns."""
+        result = load_audience_analytics()
+        if not result.empty:
+            for col in result.columns:
+                if 'unnamed' in str(col).lower():
+                    # If an unnamed column exists, it should have data
+                    assert result[col].notna().any(), \
+                        f"Found empty unnamed column: {col}"
+
+
+class TestLiveAnalyticsLoader:
+    """Tests for live analytics data loading."""
+    
+    def test_load_live_analytics_raw_returns_dataframe(self):
+        """load_live_analytics_raw should return a DataFrame."""
+        result = load_live_analytics_raw()
+        assert isinstance(result, pd.DataFrame)
+    
+    def test_no_empty_unnamed_columns(self):
+        """Loader should not return empty unnamed columns."""
+        result = load_live_analytics_raw()
+        if not result.empty:
+            for col in result.columns:
+                if 'unnamed' in str(col).lower():
+                    # If an unnamed column exists, it should have data
+                    assert result[col].notna().any(), \
+                        f"Found empty unnamed column: {col}"
 
 
 class TestCommodityPriceIndexLoader:
