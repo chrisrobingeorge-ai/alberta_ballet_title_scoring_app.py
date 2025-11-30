@@ -199,9 +199,10 @@ def run_full_pipeline(
             methods = backtest_results.get("methods", {})
             if "full_model" in methods:
                 fm = methods["full_model"]
-                print(
-                    f"    Full model: MAE={fm['mae']:.0f}, R²={fm['r2']:.3f}"
-                )
+                mae_str = f"MAE={fm['mae']:.0f}"
+                if "mae_ci_lower" in fm and "mae_ci_upper" in fm:
+                    mae_str += f" (95% CI: [{fm['mae_ci_lower']:.0f}, {fm['mae_ci_upper']:.0f}])"
+                print(f"    Full model: {mae_str}, R²={fm['r2']:.3f}")
 
     except Exception as e:
         error_msg = f"Step 2 (Backtest) failed: {e}"
