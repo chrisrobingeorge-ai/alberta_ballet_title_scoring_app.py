@@ -42,10 +42,13 @@ def _clean_dataframe(
         numeric_columns: List of column names to convert to numeric using pd.to_numeric
         
     Returns:
-        Cleaned DataFrame
+        Cleaned DataFrame (copy of input, original is not modified)
     """
     if df.empty:
         return df
+    
+    # Create a copy to avoid mutating the input DataFrame
+    df = df.copy()
     
     # Drop unnamed columns (e.g., 'Unnamed: 0', 'unnamed:_0')
     if drop_unnamed:
