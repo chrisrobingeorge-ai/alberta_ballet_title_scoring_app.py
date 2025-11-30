@@ -43,7 +43,67 @@ The app includes a complete, leak-free training workflow:
 > The legacy baseline pipeline (`ml/dataset.py` + `ml/training.py`) is deprecated
 > and has known data leakage risks.
 
-### Step 1: Build Modelling Dataset
+### Quick Start: Run Full Pipeline
+
+The easiest way to reproduce the complete modelling pipeline is with a single command:
+
+```bash
+# Using the Python script directly
+python scripts/run_full_pipeline.py
+
+# Or using Make (if you have GNU Make installed)
+make full-pipeline
+```
+
+This will:
+1. Build the leak-free modelling dataset
+2. Run time-aware backtesting to evaluate prediction methods
+3. Train the final XGBoost model
+
+All outputs are organized in a timestamped directory under `results/<timestamp>/`.
+
+**Options:**
+
+```bash
+# Enable hyperparameter tuning
+python scripts/run_full_pipeline.py --tune
+# or: make full-pipeline-tune
+
+# Include SHAP explanations
+python scripts/run_full_pipeline.py --save-shap
+# or: make full-pipeline-shap
+
+# Both tuning and SHAP
+python scripts/run_full_pipeline.py --tune --save-shap
+# or: make full-pipeline-all
+
+# Quiet mode (less output)
+python scripts/run_full_pipeline.py --quiet
+```
+
+**Output Structure:**
+
+```
+results/<timestamp>/
+├── modelling_dataset.csv          # Leak-free training data
+├── modelling_dataset_report.json  # Dataset diagnostics
+├── backtest_summary.json          # Method comparison metrics
+├── backtest_comparison.csv        # Row-level predictions
+├── feature_importances.csv        # Feature importance scores
+├── pipeline_summary.json          # Overall run summary
+├── plots/
+│   ├── mae_by_method.png          # MAE comparison chart
+│   └── mae_by_category.png        # Category breakdown
+└── shap/ (if --save-shap)
+    ├── shap_summary.png           # SHAP summary plot
+    └── shap_values.parquet        # Raw SHAP values
+```
+
+### Individual Pipeline Steps
+
+If you need to run individual steps, use the scripts directly:
+
+#### Step 1: Build Modelling Dataset
 
 Creates a safe feature set with only forecast-time predictors:
 
@@ -55,7 +115,7 @@ This produces:
 - `data/modelling_dataset.csv` - Leak-free training data
 - `diagnostics/modelling_dataset_report.json` - Data quality report
 
-### Step 2: Train Model
+#### Step 2: Train Model
 
 Trains XGBoost with time-aware cross-validation:
 
@@ -69,7 +129,7 @@ Outputs:
 - `results/feature_importances.csv` - Feature importance scores
 - `results/shap/` - SHAP analysis outputs (if --save-shap)
 
-### Step 3: Run Backtesting
+#### Step 3: Run Backtesting
 
 Evaluate different prediction methods:
 
@@ -82,7 +142,7 @@ Outputs:
 - `results/backtest_comparison.csv` - Row-level predictions
 - `results/plots/mae_by_method.png` - Visual comparison
 
-### Step 4: Calibrate Predictions (Optional)
+#### Step 4: Calibrate Predictions (Optional)
 
 Fit linear calibration to adjust predictions:
 
@@ -591,27 +651,27 @@ Additionally, these config files should exist in `config/`:
 
 1. **Prepare your data files** (see [Data Files](#data-files) section above)
 
-2. **Build the modelling dataset** (creates leak-free features):
+2. **Run the full pipeline** (recommended - single command):
+   ```bash
+   python scripts/run_full_pipeline.py
+   # or: make full-pipeline
+   ```
+
+   This automatically builds the dataset, runs backtesting, and trains the model.
+
+   Alternatively, run individual steps:
    ```bash
    python scripts/build_modelling_dataset.py
-   ```
-
-3. **Train the safe model** with cross-validation:
-   ```bash
    python scripts/train_safe_model.py --tune
-   ```
-
-4. **Run backtests** to evaluate prediction methods:
-   ```bash
    python scripts/backtest_timeaware.py
    ```
 
-5. **Calibrate predictions** (optional, for fine-tuning):
+3. **Calibrate predictions** (optional, for fine-tuning):
    ```bash
    python scripts/calibrate_predictions.py fit --mode global
    ```
 
-6. **Launch the app**:
+4. **Launch the app**:
    ```bash
    streamlit run streamlit_app.py
    ```
