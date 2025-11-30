@@ -6,6 +6,21 @@ from data.leakage import filter_leakage
 TARGET_COL = "total_single_tickets"  # simple baseline target
 
 
+def ensure_no_target_in_features(X: pd.DataFrame, target_col: str) -> pd.DataFrame:
+    """Remove the target column from features to prevent target leakage.
+
+    Args:
+        X: Feature DataFrame.
+        target_col: Name of the target column to exclude.
+
+    Returns:
+        DataFrame with the target column removed if present.
+    """
+    if target_col in X.columns:
+        return X.drop(columns=[target_col])
+    return X
+
+
 def build_dataset(theme_filters=None, status=None, forecast_time_only=True) -> tuple[pd.DataFrame, pd.Series]:
     """Build a dataset for training or scoring."""
     raw = load_history_sales()
@@ -19,6 +34,9 @@ def build_dataset(theme_filters=None, status=None, forecast_time_only=True) -> t
 
     # Enforce leakage policy
     X = filter_leakage(X, forecast_time_only=forecast_time_only)
+
+    # Ensure target column is not used as a feature (prevents target leakage)
+    X = ensure_no_target_in_features(X, TARGET_COL)
 
     # Basic target for a baseline model (city-agnostic total single tickets)
     if TARGET_COL not in fe.columns:
