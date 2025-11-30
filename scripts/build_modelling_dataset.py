@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
 """
-Build Modelling Dataset Script
+Build Modelling Dataset Script - PRIMARY RECOMMENDED PIPELINE
 
 This script produces a leak-free modelling dataset for training ticket demand models.
 It combines baseline signals, historical sales, and contextual features while ensuring
 no current-run ticket information is used as a predictor.
 
+**This is the canonical, recommended ML path for Alberta Ballet ticket prediction.**
+
+The safe modelling dataset pipeline consists of:
+1. ``python scripts/build_modelling_dataset.py`` (this script) - Build leak-free dataset
+2. ``python scripts/train_safe_model.py --tune`` - Train model with time-aware CV
+3. ``python scripts/backtest_timeaware.py`` - Evaluate prediction methods
+
 IMPORTANT: This script is designed to prevent data leakage. Only forecast-time features
 are included as predictors. Current-run ticket columns are only allowed as targets or
 for computing lagged historical features from PRIOR seasons.
+
+**Note:** The legacy baseline pipeline (ml/dataset.py + ml/training.py) is deprecated
+and should not be used for production. It has known leakage risks.
 
 Usage:
     python scripts/build_modelling_dataset.py [options]

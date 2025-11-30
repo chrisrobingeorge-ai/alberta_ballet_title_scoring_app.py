@@ -37,6 +37,12 @@ streamlit run streamlit_app.py
 
 The app includes a complete, leak-free training workflow:
 
+> **⚠️ IMPORTANT: This is the PRIMARY, RECOMMENDED ML pipeline.**
+>
+> Always use the safe modelling dataset pipeline (below) for production training.
+> The legacy baseline pipeline (`ml/dataset.py` + `ml/training.py`) is deprecated
+> and has known data leakage risks.
+
 ### Step 1: Build Modelling Dataset
 
 Creates a safe feature set with only forecast-time predictors:
@@ -115,9 +121,19 @@ The app uses a **config-driven approach** with CSV files as the single source of
 
 ### Training a Model
 
-From the **Model Training** page in the UI, or programmatically:
+> **⚠️ DEPRECATED: The code below uses the legacy baseline pipeline.**
+>
+> For production use, prefer the safe modelling dataset pipeline instead:
+> ```bash
+> python scripts/build_modelling_dataset.py
+> python scripts/train_safe_model.py --tune
+> python scripts/backtest_timeaware.py
+> ```
+
+From the **Model Training** page in the UI, or programmatically (deprecated):
 
 ```python
+# DEPRECATED: Use scripts/train_safe_model.py instead
 from ml.training import train_baseline_model
 result = train_baseline_model()
 print(result)

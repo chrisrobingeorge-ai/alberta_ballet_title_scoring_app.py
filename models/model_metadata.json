@@ -1,39 +1,33 @@
 {
-  "model_path": "/tmp/pytest-of-runner/pytest-0/test_train_baseline_model_succ0/test_model.pkl",
-  "training_date": "2025-11-30T05:19:45.680033",
+  "model_path": "/home/runner/work/alberta_ballet_title_scoring_app.py/alberta_ballet_title_scoring_app.py/models/title_demand_rf.pkl",
+  "training_date": "2025-11-30T05:50:37.582187",
   "metrics": {
-    "mae": 589.6879028986433,
-    "rmse": 716.5402429509364,
-    "r2": 0.7912733914437515,
-    "n_train": 80,
-    "n_test": 20,
+    "mae": 304.3670563193565,
+    "rmse": 443.0524712566212,
+    "r2": 0.928297610001234,
+    "n_train": 34,
+    "n_test": 8,
     "features_used": [
-      "wiki",
-      "trends",
-      "youtube",
-      "spotify",
-      "genre",
-      "season"
+      "show_title",
+      "single_tickets_calgary",
+      "single_tickets_edmonton"
     ],
     "time_aware_split": true,
     "log_transformed": true,
     "model_type": "random_forest"
   },
-  "n_features": 6,
+  "n_features": 3,
   "features": [
-    "wiki",
-    "trends",
-    "youtube",
-    "spotify",
-    "genre",
-    "season"
+    "show_title",
+    "single_tickets_calgary",
+    "single_tickets_edmonton"
   ],
   "hyperparameters": {
-    "rf__n_estimators": 300,
+    "rf__n_estimators": 100,
     "rf__min_samples_split": 2,
-    "rf__min_samples_leaf": 2,
+    "rf__min_samples_leaf": 1,
     "rf__max_features": null,
-    "rf__max_depth": 15
+    "rf__max_depth": 5
   },
-  "config_hash": 98362608
+  "config_hash": 15126056
 }
