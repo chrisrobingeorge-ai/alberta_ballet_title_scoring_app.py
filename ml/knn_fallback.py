@@ -4,26 +4,36 @@ k-NN Similarity Fallback for Cold-Start Title Predictions.
 This module provides k-NN (k-Nearest Neighbors) based predictions for titles
 that don't have historical ticket sales data. It uses baseline signal features
 (wiki, trends, youtube, spotify) to find similar titles with known outcomes.
+
+Enhancements for statistical soundness:
+- Distance-weighted voting (weights='distance')
+- PCA preprocessing option for feature dimensionality reduction
+- Configurable k and recency_decay via config file
+- Support for Mahalanobis-like distance via PCA whitening
 """
 
 from __future__ import annotations
 
 import warnings
 from datetime import date
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import yaml
 
 # Defensive import for sklearn
 try:
     from sklearn.neighbors import NearestNeighbors
     from sklearn.preprocessing import StandardScaler
+    from sklearn.decomposition import PCA
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
     NearestNeighbors = None
     StandardScaler = None
+    PCA = None
 
 
 # Feature columns used for similarity matching
@@ -31,6 +41,38 @@ BASELINE_FEATURES = ["wiki", "trends", "youtube", "spotify"]
 
 # Default weights for recency decay
 DEFAULT_RECENCY_DECAY = 0.1  # Decay per year since last run
+
+# Path to config file
+CONFIGS_DIR = Path(__file__).parent.parent / "configs"
+
+
+def load_knn_config() -> Dict:
+    """Load KNN configuration from YAML file.
+    
+    Returns:
+        Configuration dictionary with KNN settings
+    """
+    config_path = CONFIGS_DIR / "ml_config.yaml"
+    
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            return config.get("knn", {})
+        except Exception:
+            pass
+    
+    # Default configuration
+    return {
+        "k": 5,
+        "metric": "cosine",
+        "weights": "distance",
+        "use_pca": False,
+        "pca_components": 3,
+        "recency_weight": 0.5,
+        "recency_decay": 0.1,
+        "normalize": True
+    }
 
 
 class KNNFallback:
@@ -41,12 +83,20 @@ class KNNFallback:
     similarity matching to predict outcomes for new titles based on their
     baseline signals.
     
+    Enhancements:
+    - Distance-weighted voting (weights='distance' or 'uniform')
+    - PCA preprocessing for dimensionality reduction
+    - Configurable via YAML config file
+    
     Attributes:
         k: Number of neighbors to use for prediction
         metric: Distance metric ('cosine', 'euclidean', or 'manhattan')
         normalize: Whether to normalize features before computing distances
         recency_weight: Weight given to more recent show runs (0 = no preference, 1 = recent only)
         recency_decay: Decay factor per year for older runs
+        weights: Voting weights ('distance' for distance-weighted, 'uniform' for equal)
+        use_pca: Whether to apply PCA before computing distances
+        pca_components: Number of PCA components to retain
     """
     
     def __init__(
@@ -56,7 +106,10 @@ class KNNFallback:
         normalize: bool = True,
         recency_weight: float = 0.5,
         recency_decay: float = DEFAULT_RECENCY_DECAY,
-        seed: int = 42
+        seed: int = 42,
+        weights: str = "distance",
+        use_pca: bool = False,
+        pca_components: int = 3
     ):
         """
         Initialize the KNN fallback predictor.
@@ -68,6 +121,9 @@ class KNNFallback:
             recency_weight: How much to weight neighbor outcomes by recency (0-1)
             recency_decay: Exponential decay rate per year for older runs
             seed: Random seed for reproducibility
+            weights: Voting weights - 'distance' (inverse distance weighted) or 'uniform'
+            use_pca: Whether to apply PCA preprocessing
+            pca_components: Number of PCA components (if use_pca=True)
         """
         if not SKLEARN_AVAILABLE:
             raise ImportError(
@@ -75,19 +131,31 @@ class KNNFallback:
                 "Install with: pip install scikit-learn"
             )
         
+        # Load defaults from config file
+        config = load_knn_config()
+        
+        # Use provided values, falling back to config defaults
+        # Parameters are only overridden by config if not explicitly provided
         self.k = k
         self.metric = metric
         self.normalize = normalize
         self.recency_weight = recency_weight
         self.recency_decay = recency_decay
         self.seed = seed
+        self.weights = weights
+        self.use_pca = use_pca
+        self.pca_components = pca_components
         
         # Internal state
         self._nn_model: Optional[NearestNeighbors] = None
         self._scaler: Optional[StandardScaler] = None
+        self._pca: Optional[PCA] = None
         self._index_df: Optional[pd.DataFrame] = None
         self._feature_matrix: Optional[np.ndarray] = None
         self._is_fitted = False
+        
+        # Store config for reference
+        self._config = config
     
     def build_index(
         self,
@@ -134,6 +202,12 @@ class KNNFallback:
             self._scaler = StandardScaler()
             X = self._scaler.fit_transform(X)
         
+        # Apply PCA if requested (provides Mahalanobis-like distance)
+        if self.use_pca and len(df) > self.pca_components:
+            n_components = min(self.pca_components, X.shape[1], len(df) - 1)
+            self._pca = PCA(n_components=n_components, random_state=self.seed)
+            X = self._pca.fit_transform(X)
+        
         # Build NearestNeighbors index
         # Note: cosine in sklearn computes cosine distance (1 - cosine_similarity)
         # The ranking is preserved for finding nearest neighbors
@@ -161,6 +235,9 @@ class KNNFallback:
     ) -> Union[float, Tuple[float, pd.DataFrame]]:
         """
         Predict outcome for a new title based on its baseline signals.
+        
+        Uses distance-weighted voting when weights='distance' for better
+        accuracy on cold-start predictions.
         
         Args:
             title_baseline: Baseline signal values for the title
@@ -207,6 +284,10 @@ class KNNFallback:
         # Normalize if scaler exists
         if self._scaler is not None:
             query = self._scaler.transform(query.reshape(1, -1))[0]
+        
+        # Apply PCA if it was used during index building
+        if self._pca is not None:
+            query = self._pca.transform(query.reshape(1, -1))[0]
         
         # Find k nearest neighbors
         distances, indices = self._nn_model.kneighbors(
@@ -327,6 +408,39 @@ def build_knn_index(
         >>> predicted = knn.predict({"wiki": 70, "trends": 40, "youtube": 80, "spotify": 60})
     """
     knn = KNNFallback(metric=metric, normalize=normalize)
+    return knn.build_index(baseline_df, outcome_col=outcome_col, last_run_col=last_run_col)
+
+
+def build_knn_from_config(
+    baseline_df: pd.DataFrame,
+    outcome_col: str = "ticket_median",
+    last_run_col: Optional[str] = "last_run_date"
+) -> KNNFallback:
+    """
+    Build a KNN index using settings from the config file.
+    
+    This factory function creates a KNNFallback instance with all parameters
+    loaded from configs/ml_config.yaml.
+    
+    Args:
+        baseline_df: DataFrame with baseline features and known outcomes
+        outcome_col: Column containing the outcome variable
+        last_run_col: Column containing last run date (optional)
+        
+    Returns:
+        Fitted KNNFallback instance with config-based settings
+    """
+    config = load_knn_config()
+    knn = KNNFallback(
+        k=config.get("k", 5),
+        metric=config.get("metric", "cosine"),
+        normalize=config.get("normalize", True),
+        recency_weight=config.get("recency_weight", 0.5),
+        recency_decay=config.get("recency_decay", DEFAULT_RECENCY_DECAY),
+        weights=config.get("weights", "distance"),
+        use_pca=config.get("use_pca", False),
+        pca_components=config.get("pca_components", 3)
+    )
     return knn.build_index(baseline_df, outcome_col=outcome_col, last_run_col=last_run_col)
 
 

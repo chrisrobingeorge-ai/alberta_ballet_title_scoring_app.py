@@ -1,0 +1,190 @@
+# ML Configuration for Title Scoring Model
+# This file contains hyperparameters and settings for model training and scoring
+
+# =============================================================================
+# Model Training Settings
+# =============================================================================
+
+model:
+  # Primary model type: "random_forest", "gradient_boosting", "xgboost"
+  type: "random_forest"
+  
+  # Enable hyperparameter tuning (uses RandomizedSearchCV)
+  enable_tuning: true
+  
+  # Number of CV folds for tuning and evaluation
+  cv_folds: 5
+  
+  # Random seed for reproducibility
+  random_state: 42
+  
+  # Number of hyperparameter combinations to try in RandomizedSearchCV
+  n_iter_search: 30
+
+# Random Forest hyperparameter search space
+random_forest:
+  n_estimators: [100, 200, 300, 400, 500]
+  max_depth: [5, 10, 15, 20, null]  # null means no limit
+  min_samples_split: [2, 5, 10]
+  min_samples_leaf: [1, 2, 4]
+  max_features: ["sqrt", "log2", null]  # null means all features
+  
+  # Default values (used when tuning is disabled)
+  defaults:
+    n_estimators: 300
+    max_depth: null
+    min_samples_split: 2
+    min_samples_leaf: 1
+    max_features: "sqrt"
+
+# Gradient Boosting hyperparameter search space
+gradient_boosting:
+  n_estimators: [100, 200, 300]
+  max_depth: [3, 5, 7, 10]
+  learning_rate: [0.01, 0.05, 0.1, 0.2]
+  min_samples_split: [2, 5, 10]
+  min_samples_leaf: [1, 2, 4]
+  subsample: [0.8, 0.9, 1.0]
+  
+  defaults:
+    n_estimators: 200
+    max_depth: 5
+    learning_rate: 0.1
+    min_samples_split: 2
+    min_samples_leaf: 1
+    subsample: 0.9
+
+# =============================================================================
+# Target Variable Configuration
+# =============================================================================
+
+target:
+  # Column name for the target variable
+  column: "total_single_tickets"
+  
+  # Apply log1p transform to reduce skew (recommended for ticket counts)
+  use_log_transform: true
+  
+  # Normalize by number of shows (creates tickets_per_show target)
+  normalize_by_shows: false
+  
+  # Normalize by venue capacity (creates tickets_per_capacity target)
+  normalize_by_capacity: false
+
+# =============================================================================
+# KNN Fallback Configuration
+# =============================================================================
+
+knn:
+  # Number of neighbors
+  k: 5
+  
+  # Distance metric: "cosine", "euclidean", "manhattan"
+  # Note: PCA preprocessing provides Mahalanobis-like distance when enabled
+  metric: "cosine"
+  
+  # Use distance-weighted voting
+  weights: "distance"
+  
+  # Enable PCA preprocessing for similarity search (provides Mahalanobis-like distance)
+  use_pca: false
+  pca_components: 3
+  
+  # Recency settings
+  recency_weight: 0.5
+  recency_decay: 0.1
+  
+  # Normalize features before distance computation
+  normalize: true
+
+# =============================================================================
+# Cross-Validation Settings
+# =============================================================================
+
+cross_validation:
+  # Type: "time_series", "rolling_origin", "stratified"
+  type: "time_series"
+  
+  # Number of splits for TimeSeriesSplit
+  n_splits: 5
+  
+  # For rolling_origin CV
+  initial_train_period_days: 730  # 2 years
+  horizon_days: 180  # 6 months
+  step_days: 180  # 6 months
+
+# =============================================================================
+# Evaluation & Reporting
+# =============================================================================
+
+evaluation:
+  # Metrics to compute
+  metrics:
+    - mae
+    - rmse
+    - r2
+    - mape
+  
+  # Subgroups for disaggregated reporting
+  subgroups:
+    - genre
+    - season
+    - city
+    - capacity_bin
+  
+  # Capacity bins for subgroup analysis
+  capacity_bins:
+    small: [0, 1000]
+    medium: [1000, 5000]
+    large: [5000, 15000]
+
+# =============================================================================
+# Feature Importance & Explainability
+# =============================================================================
+
+explainability:
+  # Export feature importances
+  export_importances: true
+  
+  # Output path for feature importance JSON
+  importance_output_path: "outputs/feature_importance.json"
+  
+  # Number of top features to report
+  top_n_features: 20
+  
+  # Enable SHAP explanations (requires shap package)
+  use_shap: false
+
+# =============================================================================
+# Uncertainty Quantification
+# =============================================================================
+
+uncertainty:
+  # Enable prediction intervals
+  enable_intervals: true
+  
+  # Confidence level for prediction intervals (0.9 = 90% CI)
+  confidence_level: 0.9
+  
+  # Method: "quantile_forest", "bootstrap", "conformal"
+  method: "quantile_forest"
+  
+  # Number of bootstrap samples (for bootstrap method)
+  n_bootstrap: 100
+
+# =============================================================================
+# Model Versioning
+# =============================================================================
+
+versioning:
+  # Enable model metadata tracking
+  enabled: true
+  
+  # Output path for model metadata
+  metadata_path: "models/model_metadata.json"
+  
+  # Include in metadata
+  track_features: true
+  track_metrics: true
+  track_hyperparams: true
+  track_training_date: true

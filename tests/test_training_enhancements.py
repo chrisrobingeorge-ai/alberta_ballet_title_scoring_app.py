@@ -1,0 +1,372 @@
+"""
+Tests for enhanced training module features.
+
+Tests cover:
+- Configuration loading
+- Target transformation
+- Model pipeline creation
+- Feature importance extraction
+- Subgroup metrics computation
+"""
+
+import pytest
+import numpy as np
+import pandas as pd
+from pathlib import Path
+import tempfile
+import json
+
+
+@pytest.fixture
+def sample_features_and_target():
+    """Create sample features and target for testing."""
+    np.random.seed(42)
+    n_samples = 100
+    
+    df = pd.DataFrame({
+        "wiki": np.random.randint(20, 100, n_samples),
+        "trends": np.random.randint(10, 60, n_samples),
+        "youtube": np.random.randint(30, 90, n_samples),
+        "spotify": np.random.randint(40, 80, n_samples),
+        "genre": np.random.choice(["classic", "contemporary", "family"], n_samples),
+        "season": np.random.choice(["fall", "winter", "spring"], n_samples),
+    })
+    
+    # Simulate target as function of features
+    target = (
+        df["wiki"] * 50 +
+        df["trends"] * 30 +
+        df["youtube"] * 20 +
+        np.random.normal(0, 500, n_samples)
+    )
+    
+    return df, pd.Series(target, name="total_single_tickets")
+
+
+def test_load_ml_config_defaults():
+    """Test that config loading returns defaults when no file exists."""
+    from ml.training import load_ml_config
+    
+    # Load from non-existent path
+    config = load_ml_config(Path("/nonexistent/path.yaml"))
+    
+    assert "model" in config
+    assert config["model"]["type"] == "random_forest"
+    assert config["model"]["random_state"] == 42
+
+
+def test_load_ml_config_from_file():
+    """Test loading config from actual YAML file."""
+    from ml.training import load_ml_config, CONFIGS_DIR
+    
+    config_path = CONFIGS_DIR / "ml_config.yaml"
+    if config_path.exists():
+        config = load_ml_config(config_path)
+        assert "model" in config
+        assert "knn" in config
+        assert "target" in config
+
+
+def test_apply_target_transform():
+    """Test log1p target transformation."""
+    from ml.training import apply_target_transform, inverse_target_transform
+    
+    y = pd.Series([0, 100, 1000, 10000])
+    
+    # Test with log transform
+    y_log, was_log = apply_target_transform(y, use_log=True)
+    assert was_log is True
+    assert y_log.iloc[0] == 0  # log1p(0) = 0
+    assert y_log.iloc[1] > 0
+    
+    # Test inverse transform
+    y_back = inverse_target_transform(y_log.values, was_log_transformed=True)
+    np.testing.assert_array_almost_equal(y.values, y_back, decimal=5)
+    
+    # Test without log transform
+    y_no_log, was_log = apply_target_transform(y, use_log=False)
+    assert was_log is False
+    np.testing.assert_array_equal(y.values, y_no_log.values)
+
+
+def test_create_model_pipeline_random_forest(sample_features_and_target):
+    """Test creating Random Forest pipeline."""
+    from ml.training import create_model_pipeline
+    
+    X, y = sample_features_and_target
+    cat_cols = X.select_dtypes(include=["object"]).columns.tolist()
+    num_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
+    
+    pipe = create_model_pipeline(cat_cols, num_cols, model_type="random_forest")
+    
+    assert "pre" in pipe.named_steps
+    assert "rf" in pipe.named_steps
+    
+    # Should be able to fit
+    pipe.fit(X, y)
+    preds = pipe.predict(X)
+    assert len(preds) == len(y)
+
+
+def test_create_model_pipeline_gradient_boosting(sample_features_and_target):
+    """Test creating Gradient Boosting pipeline."""
+    from ml.training import create_model_pipeline
+    
+    X, y = sample_features_and_target
+    cat_cols = X.select_dtypes(include=["object"]).columns.tolist()
+    num_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
+    
+    pipe = create_model_pipeline(cat_cols, num_cols, model_type="gradient_boosting")
+    
+    assert "pre" in pipe.named_steps
+    assert "gb" in pipe.named_steps
+    
+    # Should be able to fit
+    pipe.fit(X, y)
+    preds = pipe.predict(X)
+    assert len(preds) == len(y)
+
+
+def test_get_hyperparam_grid():
+    """Test hyperparameter grid generation."""
+    from ml.training import get_hyperparam_grid, load_ml_config
+    
+    config = load_ml_config()
+    
+    rf_grid = get_hyperparam_grid("random_forest", config)
+    assert "rf__n_estimators" in rf_grid
+    assert "rf__max_depth" in rf_grid
+    
+    gb_grid = get_hyperparam_grid("gradient_boosting", config)
+    assert "gb__n_estimators" in gb_grid
+    assert "gb__learning_rate" in gb_grid
+
+
+def test_extract_feature_importances(sample_features_and_target):
+    """Test feature importance extraction."""
+    from ml.training import create_model_pipeline, extract_feature_importances
+    
+    X, y = sample_features_and_target
+    cat_cols = X.select_dtypes(include=["object"]).columns.tolist()
+    num_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
+    
+    pipe = create_model_pipeline(cat_cols, num_cols, model_type="random_forest")
+    pipe.fit(X, y)
+    
+    importances = extract_feature_importances(
+        pipe, 
+        feature_names=X.columns.tolist(),
+        cat_cols=cat_cols,
+        model_type="random_forest"
+    )
+    
+    assert isinstance(importances, dict)
+    assert len(importances) > 0
+    # All values should be non-negative
+    assert all(v >= 0 for v in importances.values())
+
+
+def test_compute_subgroup_metrics(sample_features_and_target):
+    """Test subgroup metrics computation."""
+    from ml.training import compute_subgroup_metrics, create_model_pipeline
+    
+    X, y = sample_features_and_target
+    cat_cols = X.select_dtypes(include=["object"]).columns.tolist()
+    num_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
+    
+    pipe = create_model_pipeline(cat_cols, num_cols, model_type="random_forest")
+    pipe.fit(X, y)
+    preds = pipe.predict(X)
+    
+    metrics = compute_subgroup_metrics(
+        y_true=y,
+        y_pred=preds,
+        df_features=X,
+        subgroups=["genre", "season"]
+    )
+    
+    assert "genre" in metrics
+    assert "season" in metrics
+    
+    # Each subgroup should have MAE, RMSE, R2
+    for subgroup, values in metrics.items():
+        for value, group_metrics in values.items():
+            assert "mae" in group_metrics
+            assert "rmse" in group_metrics
+            assert "r2" in group_metrics
+            assert "n_samples" in group_metrics
+
+
+def test_save_and_load_model_metadata():
+    """Test model metadata saving."""
+    from ml.training import save_model_metadata
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_path = Path(tmpdir) / "test_model.pkl"
+        metadata_path = Path(tmpdir) / "model_metadata.json"
+        
+        config = {
+            "versioning": {
+                "enabled": True,
+                "metadata_path": str(metadata_path),
+                "track_features": True,
+                "track_hyperparams": True
+            }
+        }
+        
+        metrics = {"mae": 100.0, "r2": 0.8}
+        features = ["wiki", "trends", "youtube"]
+        hyperparams = {"n_estimators": 300}
+        
+        save_model_metadata(model_path, metrics, features, hyperparams, config)
+        
+        assert metadata_path.exists()
+        
+        with open(metadata_path) as f:
+            saved = json.load(f)
+        
+        assert saved["metrics"] == metrics
+        assert saved["features"] == features
+        assert saved["hyperparameters"] == hyperparams
+        assert "training_date" in saved
+
+
+def test_save_feature_importances():
+    """Test feature importance saving."""
+    from ml.training import save_feature_importances
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "feature_importance.json"
+        
+        config = {
+            "explainability": {
+                "export_importances": True,
+                "importance_output_path": str(output_path),
+                "top_n_features": 3
+            }
+        }
+        
+        importances = {
+            "wiki": 0.4,
+            "trends": 0.3,
+            "youtube": 0.2,
+            "spotify": 0.1
+        }
+        
+        save_feature_importances(importances, config)
+        
+        assert output_path.exists()
+        
+        with open(output_path) as f:
+            saved = json.load(f)
+        
+        assert "feature_importances" in saved
+        assert "top_features" in saved
+        assert len(saved["top_features"]) == 3
+
+
+def test_knn_fallback_with_pca():
+    """Test KNN fallback with PCA preprocessing."""
+    from ml.knn_fallback import KNNFallback
+    
+    test_data = pd.DataFrame({
+        "title": ["Swan Lake", "Nutcracker", "Romeo and Juliet", "Giselle", "Sleeping Beauty"],
+        "wiki": [80, 95, 86, 74, 77],
+        "trends": [18, 45, 32, 14, 30],
+        "youtube": [71, 88, 80, 62, 70],
+        "spotify": [71, 75, 80, 62, 70],
+        "ticket_median": [9000, 12000, 8500, 6000, 7500],
+    })
+    
+    # Test with PCA enabled
+    knn = KNNFallback(k=3, use_pca=True, pca_components=2)
+    knn.build_index(test_data, outcome_col="ticket_median")
+    
+    assert knn._pca is not None
+    assert knn._is_fitted
+    
+    # Should still predict correctly
+    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "spotify": 65}
+    prediction = knn.predict(new_show)
+    
+    assert isinstance(prediction, float)
+    assert 5000 <= prediction <= 13000
+
+
+def test_knn_fallback_distance_weighting():
+    """Test KNN fallback with distance weighting."""
+    from ml.knn_fallback import KNNFallback
+    
+    test_data = pd.DataFrame({
+        "wiki": [80, 90, 70],
+        "trends": [20, 40, 10],
+        "youtube": [70, 80, 60],
+        "spotify": [70, 80, 60],
+        "ticket_median": [8000, 12000, 4000],
+    })
+    
+    # Test with distance weighting
+    knn = KNNFallback(k=3, weights="distance")
+    knn.build_index(test_data, outcome_col="ticket_median")
+    
+    # Query exactly matching first row should heavily weight that neighbor
+    new_show = {"wiki": 80, "trends": 20, "youtube": 70, "spotify": 70}
+    prediction = knn.predict(new_show)
+    
+    # Should be closer to 8000 than the average
+    assert isinstance(prediction, float)
+    assert not np.isnan(prediction)
+
+
+def test_schema_validation():
+    """Test input schema validation."""
+    from ml.scoring import validate_input_schema
+    
+    df = pd.DataFrame({
+        "wiki": [80, 90],
+        "trends": [20, 40],
+    })
+    
+    # With no schema file, should return valid with warning
+    is_valid, warnings = validate_input_schema(df)
+    assert len(warnings) > 0  # Should have "no schema" warning
+
+
+def test_score_with_uncertainty():
+    """Test scoring with uncertainty intervals."""
+    from ml.scoring import score_with_uncertainty
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    import joblib
+    
+    # Create a simple trained model
+    np.random.seed(42)
+    X_train = pd.DataFrame({
+        "wiki": np.random.randint(20, 100, 50),
+        "trends": np.random.randint(10, 60, 50),
+    })
+    y_train = X_train["wiki"] * 50 + X_train["trends"] * 30
+    
+    pipe = Pipeline([
+        ("pre", StandardScaler()),
+        ("rf", RandomForestRegressor(n_estimators=10, random_state=42))
+    ])
+    pipe.fit(X_train, y_train)
+    
+    # Test prediction
+    X_test = pd.DataFrame({
+        "wiki": [75, 85],
+        "trends": [35, 45],
+    })
+    
+    result = score_with_uncertainty(X_test, model=pipe, confidence_level=0.9)
+    
+    assert "prediction" in result.columns
+    assert "lower_bound" in result.columns
+    assert "upper_bound" in result.columns
+    assert len(result) == 2
+    
+    # Lower should be less than prediction, upper should be greater
+    assert all(result["lower_bound"] <= result["prediction"])
+    assert all(result["prediction"] <= result["upper_bound"])
