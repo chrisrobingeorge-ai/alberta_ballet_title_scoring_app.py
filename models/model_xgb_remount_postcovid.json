@@ -1,47 +1,41 @@
 {
-  "training_date": "2025-11-30T05:49:28.714594",
+  "training_date": "2025-11-30T05:52:56.818095",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
-  "n_samples": 35,
+  "n_samples": 20,
   "features": {
     "numeric": [
       "wiki",
       "trends",
       "youtube",
       "spotify",
-      "prior_total_tickets",
-      "prior_run_count",
-      "ticket_median_prior",
       "years_since_last_run",
       "is_remount_recent",
-      "is_remount_medium",
-      "run_count_prior",
-      "month_of_opening",
-      "holiday_flag"
+      "prior_total_tickets"
     ],
     "categorical": [
       "category",
       "gender"
     ],
-    "total": 15
+    "total": 9
   },
   "cv_metrics": {
-    "mae_mean": 345.2394444056921,
-    "mae_std": 177.91328968365872,
-    "rmse_mean": 516.2006719579272,
-    "rmse_std": 286.7772624932161,
-    "r2_mean": 0.8560795175489035,
-    "r2_std": 0.12663961589760855,
+    "mae_mean": 2395.720654296875,
+    "mae_std": 530.0894438834547,
+    "rmse_mean": 3087.9733719139876,
+    "rmse_std": 630.4924698021001,
+    "r2_mean": -1.009240709516183,
+    "r2_std": 1.1987392462213977,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 2.45947963169619,
-    "rmse": 5.76811146090125,
-    "r2": 0.9999863402353806,
-    "mae_log": 0.0008620691791854287,
-    "rmse_log": 0.002172997733286409
+    "mae": 13.898437500001364,
+    "rmse": 21.89602659620142,
+    "r2": 0.9999310848661219,
+    "mae_log": 0.0010591654040508658,
+    "rmse_log": 0.0015212796901788615
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "data/modelling_dataset.csv"
+  "dataset_path": "/tmp/tmprg2o11aw/test_dataset.csv"
 }
