@@ -75,6 +75,9 @@ CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 OUTPUTS_DIR = Path(__file__).parent.parent / "outputs"
 METRICS_DIR = Path(__file__).parent.parent / "metrics"
 
+# Common date column names to search for when inferring the date column
+DATE_COLUMN_CANDIDATES = ["end_date", "start_date", "date", "opening_date", "performance_date"]
+
 
 def load_ml_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
     """Load ML configuration from YAML file.
@@ -488,8 +491,8 @@ def train_baseline_model(
 ) -> dict:
     """Train a baseline model for title demand forecasting.
     
-    Uses chronological train/test split when a date column is available
-    to prevent future data from leaking into predictions.
+    Uses chronological train/test split to prevent future data from leaking
+    into predictions. A date column is required for forecasting tasks.
     
     Supports:
     - Time-based cross-validation
@@ -501,12 +504,16 @@ def train_baseline_model(
     Args:
         save_path: Optional path to save the trained model
         date_column: Name of date column for chronological split (e.g., 'end_date').
-                    If None and data has date column, will try to find it.
-                    Falls back to random split if no date available.
+                    If None, will try to find a date column from common candidates.
         config_path: Optional path to ML config YAML file
     
     Returns:
         Dictionary with model path, training metrics, and feature importances
+    
+    Raises:
+        MissingDateColumnError: If no date column is found. Forecasting models
+            require a date column for time-aware cross-validation to prevent
+            future data leakage.
     """
     # Load configuration
     config = load_ml_config(config_path)
@@ -531,9 +538,6 @@ def train_baseline_model(
     y_transformed, was_log_transformed = apply_target_transform(y, use_log_transform)
     
     # Find date column for chronological splitting
-    # List of common date column names to search for
-    DATE_COLUMN_CANDIDATES = ["end_date", "start_date", "date", "opening_date", "performance_date"]
-    
     date_col = date_column
     if date_col is None:
         for col_name in DATE_COLUMN_CANDIDATES:
@@ -544,7 +548,7 @@ def train_baseline_model(
     # Enforce time-aware CV for forecasting: raise error if no date column found
     if not date_col or date_col not in X.columns:
         raise MissingDateColumnError(
-            searched_columns=DATE_COLUMN_CANDIDATES,
+            searched_columns=list(DATE_COLUMN_CANDIDATES),
             available_columns=X.columns.tolist()
         )
     
@@ -670,13 +674,20 @@ def train_with_cross_validation(
     """Train model with time-series cross-validation for robust evaluation.
     
     Uses walk-forward validation to ensure no future data leakage.
+    A date column is required for time-aware cross-validation.
     
     Args:
         config_path: Optional path to ML config YAML file
-        date_column: Name of date column for chronological splits
+        date_column: Name of date column for chronological splits.
+                    If None, will try to find a date column from common candidates.
         
     Returns:
         Dictionary with CV scores and final model metrics
+    
+    Raises:
+        MissingDateColumnError: If no date column is found. Forecasting models
+            require a date column for time-aware cross-validation to prevent
+            future data leakage.
     """
     config = load_ml_config(config_path)
     cv_config = config.get("cross_validation", {})
@@ -698,9 +709,6 @@ def train_with_cross_validation(
     y_transformed, was_log_transformed = apply_target_transform(y, use_log_transform)
     
     # Find date column
-    # List of common date column names to search for
-    DATE_COLUMN_CANDIDATES = ["end_date", "start_date", "date", "opening_date", "performance_date"]
-    
     date_col = date_column
     if date_col is None:
         for col_name in DATE_COLUMN_CANDIDATES:
@@ -711,7 +719,7 @@ def train_with_cross_validation(
     # Enforce time-aware CV for forecasting: raise error if no date column found
     if not date_col or date_col not in X.columns:
         raise MissingDateColumnError(
-            searched_columns=DATE_COLUMN_CANDIDATES,
+            searched_columns=list(DATE_COLUMN_CANDIDATES),
             available_columns=X.columns.tolist()
         )
     
