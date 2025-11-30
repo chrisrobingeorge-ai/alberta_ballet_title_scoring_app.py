@@ -60,6 +60,9 @@ from sklearn.model_selection import (
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+# Import version metadata utilities from ml.training
+from ml.training import get_git_commit_hash, get_file_hash, get_dataset_shape
+
 # XGBoost (required)
 try:
     import xgboost as xgb
@@ -592,6 +595,10 @@ def train_model(
         "train_metrics": train_metrics,
         "target_column": target_col,
         "dataset_path": dataset_path,
+        # Version metadata
+        "git_commit_hash": get_git_commit_hash(),
+        "data_file_hash": get_file_hash(dataset_path),
+        "dataset_shape": get_dataset_shape(df),
     }
     
     with open(metadata_output_path, "w") as f:

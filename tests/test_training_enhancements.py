@@ -231,6 +231,127 @@ def test_save_and_load_model_metadata():
         assert "training_date" in saved
 
 
+def test_get_git_commit_hash():
+    """Test git commit hash retrieval."""
+    from ml.training import get_git_commit_hash
+    
+    # Should return a string or None (if not in git repo or git unavailable)
+    result = get_git_commit_hash()
+    
+    # Either None or a short hash string (7 chars)
+    assert result is None or (isinstance(result, str) and len(result) >= 7)
+
+
+def test_get_file_hash():
+    """Test file hash computation."""
+    from ml.training import get_file_hash
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Test with existing file
+        test_file = Path(tmpdir) / "test_data.csv"
+        test_file.write_text("col1,col2\n1,2\n3,4\n")
+        
+        file_hash = get_file_hash(test_file)
+        
+        assert file_hash is not None
+        assert isinstance(file_hash, str)
+        assert len(file_hash) == 16  # SHA-256 truncated to 16 chars
+        
+        # Same file should produce same hash
+        file_hash_2 = get_file_hash(test_file)
+        assert file_hash == file_hash_2
+        
+        # Different content should produce different hash
+        test_file_2 = Path(tmpdir) / "test_data_2.csv"
+        test_file_2.write_text("col1,col2\n5,6\n7,8\n")
+        file_hash_3 = get_file_hash(test_file_2)
+        assert file_hash != file_hash_3
+        
+        # Non-existent file should return None
+        non_existent = Path(tmpdir) / "non_existent.csv"
+        assert get_file_hash(non_existent) is None
+
+
+def test_get_dataset_shape():
+    """Test dataset shape extraction."""
+    from ml.training import get_dataset_shape
+    
+    # Test with DataFrame
+    df = pd.DataFrame({
+        "col1": [1, 2, 3, 4],
+        "col2": [5, 6, 7, 8],
+        "col3": [9, 10, 11, 12],
+    })
+    
+    shape = get_dataset_shape(df)
+    
+    assert shape is not None
+    assert shape["n_rows"] == 4
+    assert shape["n_columns"] == 3
+    
+    # Test with None
+    assert get_dataset_shape(None) is None
+
+
+def test_save_model_metadata_with_version_info():
+    """Test that model metadata includes version information."""
+    from ml.training import save_model_metadata
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_path = Path(tmpdir) / "test_model.pkl"
+        metadata_path = Path(tmpdir) / "model_metadata.json"
+        data_file = Path(tmpdir) / "test_data.csv"
+        
+        # Create a test data file
+        data_file.write_text("col1,col2\n1,2\n3,4\n5,6\n")
+        
+        config = {
+            "versioning": {
+                "enabled": True,
+                "metadata_path": str(metadata_path),
+                "track_features": True,
+                "track_hyperparams": True
+            }
+        }
+        
+        metrics = {"mae": 100.0, "r2": 0.8}
+        features = ["wiki", "trends", "youtube"]
+        hyperparams = {"n_estimators": 300}
+        dataset_shape = {"n_rows": 100, "n_columns": 10}
+        
+        save_model_metadata(
+            model_path, 
+            metrics, 
+            features, 
+            hyperparams, 
+            config,
+            data_file_path=data_file,
+            dataset_shape=dataset_shape,
+        )
+        
+        assert metadata_path.exists()
+        
+        with open(metadata_path) as f:
+            saved = json.load(f)
+        
+        # Verify required version metadata keys exist
+        assert "git_commit_hash" in saved
+        assert "data_file_hash" in saved
+        assert "dataset_shape" in saved
+        
+        # Verify data file hash is computed
+        assert saved["data_file_hash"] is not None
+        assert isinstance(saved["data_file_hash"], str)
+        assert len(saved["data_file_hash"]) == 16
+        
+        # Verify dataset shape
+        assert saved["dataset_shape"]["n_rows"] == 100
+        assert saved["dataset_shape"]["n_columns"] == 10
+        
+        # git_commit_hash may be None if not in a git repo
+        # So we just check it exists as a key
+
+
 def test_save_feature_importances():
     """Test feature importance saving."""
     from ml.training import save_feature_importances

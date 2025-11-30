@@ -31,8 +31,10 @@ Features (legacy):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import subprocess
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +55,74 @@ from ml.dataset import build_dataset
 from ml.time_splits import TimeSeriesCVSplitter, chronological_train_test_split, assert_chronological_split
 
 logger = logging.getLogger(__name__)
+
+
+def get_git_commit_hash() -> Optional[str]:
+    """Get the current git commit hash.
+    
+    Returns:
+        The short git commit hash (7 characters), or None if not in a git repo
+        or git is not available.
+    """
+    # Check if git is available using shutil.which
+    import shutil
+    if shutil.which("git") is None:
+        return None
+    
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def get_file_hash(file_path: Union[str, Path]) -> Optional[str]:
+    """Compute SHA-256 hash of a file.
+    
+    Args:
+        file_path: Path to the file to hash.
+        
+    Returns:
+        SHA-256 hash of the file contents (first 16 chars), or None if file
+        doesn't exist or cannot be read.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return None
+    
+    try:
+        sha256 = hashlib.sha256()
+        with open(path, "rb") as f:
+            # Read in chunks for memory efficiency with large files
+            for chunk in iter(lambda: f.read(8192), b""):
+                sha256.update(chunk)
+        # Return first 16 chars for brevity
+        return sha256.hexdigest()[:16]
+    except (IOError, OSError):
+        return None
+
+
+def get_dataset_shape(df: Optional[pd.DataFrame] = None) -> Optional[Dict[str, int]]:
+    """Get the shape of a dataset.
+    
+    Args:
+        df: DataFrame to get shape from.
+        
+    Returns:
+        Dictionary with 'n_rows' and 'n_columns', or None if df is None.
+    """
+    if df is None:
+        return None
+    return {
+        "n_rows": int(df.shape[0]),
+        "n_columns": int(df.shape[1]),
+    }
 
 
 class MissingDateColumnError(ValueError):
@@ -393,7 +463,9 @@ def save_model_metadata(
     metrics: Dict[str, Any],
     feature_names: List[str],
     hyperparams: Dict[str, Any],
-    config: Dict[str, Any]
+    config: Dict[str, Any],
+    data_file_path: Optional[Union[str, Path]] = None,
+    dataset_shape: Optional[Dict[str, int]] = None,
 ) -> None:
     """Save model metadata for versioning and reproducibility.
     
@@ -403,6 +475,8 @@ def save_model_metadata(
         feature_names: List of feature names used
         hyperparams: Final hyperparameters used
         config: ML configuration dictionary
+        data_file_path: Optional path to data file for hash computation
+        dataset_shape: Optional dict with 'n_rows' and 'n_columns' of training data
     """
     versioning_config = config.get("versioning", {})
     if not versioning_config.get("enabled", True):
@@ -414,6 +488,10 @@ def save_model_metadata(
     
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     
+    # Get version metadata
+    git_commit = get_git_commit_hash()
+    data_hash = get_file_hash(data_file_path) if data_file_path else None
+    
     metadata = {
         "model_path": str(model_path),
         "training_date": datetime.now().isoformat(),
@@ -422,6 +500,10 @@ def save_model_metadata(
         "features": feature_names if versioning_config.get("track_features", True) else None,
         "hyperparameters": hyperparams if versioning_config.get("track_hyperparams", True) else None,
         "config_hash": hash(str(config)) % 10**8,  # Simple hash for config tracking
+        # Version metadata
+        "git_commit_hash": git_commit,
+        "data_file_hash": data_hash,
+        "dataset_shape": dataset_shape,
     }
     
     with open(metadata_path, "w") as f:
@@ -694,8 +776,20 @@ def train_baseline_model(
     out_path = save_path or (MODELS_DIR / "title_demand_rf.pkl")
     joblib.dump(pipe, out_path)
     
-    # Save model metadata
-    save_model_metadata(out_path, metrics, feature_names, best_params, config)
+    # Save model metadata with version info
+    # Calculate dataset shape directly instead of concatenating DataFrames
+    total_dataset_shape = {
+        "n_rows": int(Xtr.shape[0] + Xte.shape[0]),
+        "n_columns": int(Xtr.shape[1]),
+    }
+    save_model_metadata(
+        out_path, 
+        metrics, 
+        feature_names, 
+        best_params, 
+        config,
+        dataset_shape=total_dataset_shape,
+    )
     
     return {
         "model_path": str(out_path),
