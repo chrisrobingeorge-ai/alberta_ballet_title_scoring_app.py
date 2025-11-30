@@ -693,6 +693,25 @@ def test_grouped_cv_splitter_missing_column():
     assert "not found" in str(exc_info.value).lower()
 
 
+def test_grouped_cv_splitter_insufficient_groups():
+    """Test that GroupedCVSplitter raises ValueError when there are too few unique groups."""
+    from ml.time_splits import GroupedCVSplitter
+    
+    # Create dataset with only 2 unique groups, but request 5 splits
+    df = pd.DataFrame({
+        "show_title": ["A", "A", "B", "B"],
+        "value": [1, 2, 3, 4],
+    })
+    
+    splitter = GroupedCVSplitter(n_splits=5, group_column="show_title")
+    
+    with pytest.raises(ValueError) as exc_info:
+        list(splitter.split(df))
+    
+    assert "2 unique groups" in str(exc_info.value)
+    assert "5-fold" in str(exc_info.value)
+
+
 def test_grouped_cv_config_loading():
     """Test that group_cv_by config option is loaded correctly."""
     from ml.training import load_ml_config

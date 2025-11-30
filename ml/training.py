@@ -167,6 +167,9 @@ METRICS_DIR = Path(__file__).parent.parent / "metrics"
 # Common date column names to search for when inferring the date column
 DATE_COLUMN_CANDIDATES = ["end_date", "start_date", "date", "opening_date", "performance_date"]
 
+# Common title column names to search for when using grouped CV by title
+TITLE_COLUMN_CANDIDATES = ["show_title", "title", "canonical_title"]
+
 
 def load_ml_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
     """Load ML configuration from YAML file.
@@ -900,7 +903,7 @@ def train_with_cross_validation(
     
     if group_cv_by == "title":
         # Map "title" to the actual column name in the dataset
-        for candidate in ["show_title", "title", "canonical_title"]:
+        for candidate in TITLE_COLUMN_CANDIDATES:
             if candidate in X.columns:
                 group_column = candidate
                 break

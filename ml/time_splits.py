@@ -389,7 +389,8 @@ class GroupedCVSplitter:
             Tuples of (train_indices, test_indices)
             
         Raises:
-            ValueError: If group_column not found in X and groups not provided
+            ValueError: If group_column not found in X and groups not provided,
+                       or if there are fewer unique groups than n_splits.
         """
         if groups is None:
             if self.group_column not in X.columns:
@@ -398,6 +399,15 @@ class GroupedCVSplitter:
                     f"Available columns: {list(X.columns)}"
                 )
             groups = X[self.group_column].values
+        
+        # Validate sufficient unique groups for the number of splits
+        n_unique_groups = len(np.unique(groups))
+        if n_unique_groups < self.n_splits:
+            raise ValueError(
+                f"Cannot perform {self.n_splits}-fold grouped CV with only "
+                f"{n_unique_groups} unique groups in column '{self.group_column}'. "
+                f"Reduce n_splits or ensure more unique groups exist."
+            )
         
         # Use positional indices (0 to len-1) rather than DataFrame index
         # to match sklearn's expected behavior
