@@ -1,9 +1,9 @@
 {
-  "training_date": "2025-11-30T07:38:00.175762",
+  "training_date": "2025-11-30T18:43:26.746321",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
-  "n_samples": 25,
+  "n_samples": 35,
   "features": {
     "numeric": [
       "wiki",
@@ -27,27 +27,27 @@
     "total": 15
   },
   "cv_metrics": {
-    "mae_mean": 328.4173046875003,
-    "mae_std": 211.0656421174163,
-    "rmse_mean": 401.60753769596306,
-    "rmse_std": 279.43786277490767,
-    "r2_mean": 0.07242009110095586,
-    "r2_std": 1.7858256275964426,
+    "mae_mean": 345.2394444056921,
+    "mae_std": 177.91328968365872,
+    "rmse_mean": 516.2006719579272,
+    "rmse_std": 286.7772624932161,
+    "r2_mean": 0.8560795175489035,
+    "r2_std": 0.12663961589760855,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 2.5440429687499635,
-    "rmse": 4.996300088469924,
-    "r2": 0.9999909693624723,
-    "mae_log": 0.00026291412857183617,
-    "rmse_log": 0.000524482717240677
+    "mae": 2.45947963169619,
+    "rmse": 5.76811146090125,
+    "r2": 0.9999863402353806,
+    "mae_log": 0.0008620691791854287,
+    "rmse_log": 0.002172997733286409
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/pytest-of-runner/pytest-2/test_pipeline_reports_step_sta0/test_results/20251130_073749/modelling_dataset.csv",
-  "git_commit_hash": "25e9822",
-  "data_file_hash": "91311c739eb32dd7",
+  "dataset_path": "data/modelling_dataset.csv",
+  "git_commit_hash": "f247106",
+  "data_file_hash": "06dcd16d5432e548",
   "dataset_shape": {
-    "n_rows": 25,
+    "n_rows": 35,
     "n_columns": 18
   }
 }

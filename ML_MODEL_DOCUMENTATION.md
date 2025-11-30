@@ -485,6 +485,51 @@ When Alberta API is unavailable:
 - Does not crash the scoring flow
 - Warnings are logged for debugging
 
+## Model Interpretability & Analysis
+
+The script `scripts/analyze_safe_model.py` provides tools to understand what drives the safe model's predictions.
+
+### Running the Analysis
+
+```bash
+python scripts/analyze_safe_model.py
+```
+
+This command loads the trained model and produces:
+
+### Output Artifacts
+
+| File | Description |
+|------|-------------|
+| `results/feature_importances.csv` | Basic feature importance from training |
+| `results/feature_importances_detailed.csv` | Tree and permutation importances with importance type |
+| `results/model_recipe_linear.csv` | Linear surrogate model coefficients (Ridge regression) |
+| `results/model_recipe_summary.md` | Human-readable summary of model behavior |
+| `results/plots/feature_importances_bar.png` | Bar chart of top features by permutation importance |
+| `results/plots/surrogate_vs_model_scatter.png` | Scatter plot: surrogate predictions vs XGBoost |
+
+### Key Insights
+
+The linear surrogate model approximates the XGBoost behavior with a simple equation:
+- R² typically > 0.99 (excellent approximation)
+- Top positive drivers: `prior_total_tickets`, `ticket_median_prior`
+- Top negative drivers: `prior_run_count`, `is_remount_recent`
+
+### Regenerating Artifacts
+
+To refresh the analysis after retraining:
+
+```bash
+# 1. Build dataset
+python scripts/build_modelling_dataset.py --output data/modelling_dataset.csv
+
+# 2. Train model
+python scripts/train_safe_model.py --dataset data/modelling_dataset.csv
+
+# 3. Analyze model
+python scripts/analyze_safe_model.py
+```
+
 ## Future Enhancements
 
 Potential improvements:
@@ -497,6 +542,7 @@ Potential improvements:
 7. ~~**SHAP Explanations**: Feature importance visualization~~ ✓ Via --save-shap flag
 8. ~~**Live Economic Data**: Bank of Canada Valet API integration~~ ✓ Implemented
 9. ~~**Alberta Economic Data**: Alberta Economic Dashboard integration~~ ✓ Implemented
+10. ~~**Model Analysis Script**: Interpretability artifacts and surrogate model~~ ✓ Implemented
 
 ## References
 
