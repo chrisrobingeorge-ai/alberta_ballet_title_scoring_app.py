@@ -45,9 +45,9 @@ def test_target_col_is_in_y():
     """Confirm the target column values are properly returned in y."""
     X, y = build_dataset()
     assert len(y) > 0, "y should contain target values"
-    assert y.name is None or y.name == TARGET_COL or True  # Series may not have name preserved
+    assert isinstance(y, pd.Series), "y should be a pandas Series"
     # y should be a Series with numeric values
-    assert y.dtype in ['int64', 'float64', 'int32', 'float32'], (
+    assert pd.api.types.is_numeric_dtype(y.dtype), (
         f"y should contain numeric target values, got dtype {y.dtype}"
     )
 
