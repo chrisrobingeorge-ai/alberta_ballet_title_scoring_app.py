@@ -64,6 +64,11 @@ def get_git_commit_hash() -> Optional[str]:
         The short git commit hash (7 characters), or None if not in a git repo
         or git is not available.
     """
+    # Check if git is available using shutil.which
+    import shutil
+    if shutil.which("git") is None:
+        return None
+    
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -772,8 +777,11 @@ def train_baseline_model(
     joblib.dump(pipe, out_path)
     
     # Save model metadata with version info
-    # Combine train and test to get total dataset shape used
-    total_dataset_shape = get_dataset_shape(pd.concat([Xtr, Xte], ignore_index=True))
+    # Calculate dataset shape directly instead of concatenating DataFrames
+    total_dataset_shape = {
+        "n_rows": int(Xtr.shape[0] + Xte.shape[0]),
+        "n_columns": int(Xtr.shape[1]),
+    }
     save_model_metadata(
         out_path, 
         metrics, 
