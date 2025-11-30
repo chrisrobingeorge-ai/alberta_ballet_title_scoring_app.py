@@ -113,8 +113,8 @@ def get_feature_names_after_transform(
     """Get feature names after preprocessing transformation."""
     try:
         return list(pipeline.named_steps["preprocessor"].get_feature_names_out())
-    except Exception:
-        # Fallback: construct names manually
+    except AttributeError:
+        # Fallback: construct names manually (for older sklearn versions)
         names = [f"num__{c}" for c in numeric_cols]
         # For categorical, we don't know the exact categories so return base names
         names.extend([f"cat__{c}" for c in categorical_cols])
@@ -192,6 +192,9 @@ def fit_surrogate_linear_model(
     X_numeric = X[numeric_cols].copy()
     
     # Categorical features: one-hot encode
+    # Note: Using the same data for fitting and prediction ensures consistent encoding
+    # Since the surrogate is fit on the same X used for XGBoost predictions,
+    # we don't need to worry about unseen categories.
     X_categorical = pd.get_dummies(X[categorical_cols], drop_first=True)
     
     # Combine
@@ -501,8 +504,11 @@ def analyze_model(
     
     # Tree importances
     tree_imp = compute_tree_importances(pipeline, feature_names)
-    if verbose and not tree_imp.empty:
-        print(f"   Tree importances: {len(tree_imp)} features")
+    if verbose:
+        if not tree_imp.empty:
+            print(f"   Tree importances: {len(tree_imp)} features")
+        else:
+            print("   Tree importances: Not available (model may not expose feature_importances_)")
     
     # Permutation importances
     if verbose:
