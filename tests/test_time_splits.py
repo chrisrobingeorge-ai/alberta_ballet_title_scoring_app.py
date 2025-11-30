@@ -373,3 +373,44 @@ def test_cv_splitter_with_sklearn_interface(sample_df):
         scores.append(score)
     
     assert len(scores) == 3
+
+
+# =============================================================================
+# Tests for MissingDateColumnError (Enforce time-aware CV for forecasting)
+# =============================================================================
+
+def test_missing_date_column_error_attributes():
+    """Test that MissingDateColumnError contains useful attributes."""
+    from ml.training import MissingDateColumnError
+    
+    searched = ["end_date", "start_date"]
+    available = ["wiki", "trends", "sales"]
+    
+    error = MissingDateColumnError(
+        searched_columns=searched,
+        available_columns=available
+    )
+    
+    assert error.searched_columns == searched
+    assert error.available_columns == available
+    assert "end_date" in str(error)
+    assert "wiki" in str(error)
+    assert "time-aware cross-validation" in str(error)
+
+
+def test_missing_date_column_error_custom_message():
+    """Test that MissingDateColumnError accepts custom message."""
+    from ml.training import MissingDateColumnError
+    
+    custom_msg = "Custom error message for testing"
+    error = MissingDateColumnError(message=custom_msg)
+    
+    assert str(error) == custom_msg
+
+
+def test_missing_date_column_error_is_value_error():
+    """Test that MissingDateColumnError is a ValueError subclass."""
+    from ml.training import MissingDateColumnError
+    
+    error = MissingDateColumnError()
+    assert isinstance(error, ValueError)

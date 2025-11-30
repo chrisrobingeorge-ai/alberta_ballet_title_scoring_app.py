@@ -35,10 +35,48 @@ from ml.time_splits import TimeSeriesCVSplitter, chronological_train_test_split,
 
 logger = logging.getLogger(__name__)
 
+
+class MissingDateColumnError(ValueError):
+    """Raised when a date column is required for time-aware CV but not found.
+    
+    Forecasting models require temporal ordering to prevent future data leakage.
+    This error is raised when attempting to train a forecasting model without
+    a valid date column available for chronological splitting.
+    
+    Attributes:
+        searched_columns: List of column names that were searched for.
+        available_columns: List of columns available in the dataset.
+    """
+    
+    def __init__(
+        self,
+        message: str = None,
+        searched_columns: List[str] = None,
+        available_columns: List[str] = None
+    ):
+        self.searched_columns = searched_columns or []
+        self.available_columns = available_columns or []
+        
+        if message is None:
+            message = (
+                "No date column found for time-aware cross-validation. "
+                "Forecasting models require a date column to ensure chronological "
+                "train/test splits and prevent future data leakage. "
+                f"Searched for columns: {self.searched_columns}. "
+                f"Available columns: {self.available_columns[:20]}{'...' if len(self.available_columns) > 20 else ''}. "
+                "Provide a valid date_column argument or ensure your dataset includes "
+                "one of the expected date columns (e.g., 'end_date', 'start_date')."
+            )
+        super().__init__(message)
+
+
 MODELS_DIR = Path(__file__).parent.parent / "models"
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 OUTPUTS_DIR = Path(__file__).parent.parent / "outputs"
 METRICS_DIR = Path(__file__).parent.parent / "metrics"
+
+# Common date column names to search for when inferring the date column
+DATE_COLUMN_CANDIDATES = ["end_date", "start_date", "date", "opening_date", "performance_date"]
 
 
 def load_ml_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -453,8 +491,8 @@ def train_baseline_model(
 ) -> dict:
     """Train a baseline model for title demand forecasting.
     
-    Uses chronological train/test split when a date column is available
-    to prevent future data from leaking into predictions.
+    Uses chronological train/test split to prevent future data from leaking
+    into predictions. A date column is required for forecasting tasks.
     
     Supports:
     - Time-based cross-validation
@@ -466,12 +504,16 @@ def train_baseline_model(
     Args:
         save_path: Optional path to save the trained model
         date_column: Name of date column for chronological split (e.g., 'end_date').
-                    If None and data has date column, will try to find it.
-                    Falls back to random split if no date available.
+                    If None, will try to find a date column from common candidates.
         config_path: Optional path to ML config YAML file
     
     Returns:
         Dictionary with model path, training metrics, and feature importances
+    
+    Raises:
+        MissingDateColumnError: If no date column is found. Forecasting models
+            require a date column for time-aware cross-validation to prevent
+            future data leakage.
     """
     # Load configuration
     config = load_ml_config(config_path)
@@ -498,41 +540,44 @@ def train_baseline_model(
     # Find date column for chronological splitting
     date_col = date_column
     if date_col is None:
-        for col_name in ["end_date", "start_date", "date", "opening_date", "performance_date"]:
+        for col_name in DATE_COLUMN_CANDIDATES:
             if col_name in X.columns:
                 date_col = col_name
                 break
     
-    # Create model pipeline
+    # Enforce time-aware CV for forecasting: raise error if no date column found
+    if not date_col or date_col not in X.columns:
+        raise MissingDateColumnError(
+            searched_columns=list(DATE_COLUMN_CANDIDATES),
+            available_columns=X.columns.tolist()
+        )
+    
+    # Use chronological split to prevent future leakage
+    combined = X.copy()
+    combined["_target"] = y_transformed.values
+    
+    train_df, test_df = chronological_train_test_split(combined, date_col, test_ratio=0.2)
+    
+    # Drop the target and date column (date column is only used for splitting, not as a feature)
+    Xtr = train_df.drop(columns=["_target", date_col])
+    ytr = train_df["_target"]
+    Xte = test_df.drop(columns=["_target", date_col])
+    yte = test_df["_target"]
+    
+    # Update feature_names and column lists to exclude date column
+    feature_names = [c for c in feature_names if c != date_col]
+    cat_cols = [c for c in cat_cols if c != date_col]
+    num_cols = [c for c in num_cols if c != date_col]
+    
+    # Verify chronological ordering
+    assert_chronological_split(train_df, test_df, date_col)
+    
+    time_aware_split = True
+    
+    # Create model pipeline (after updating column lists to exclude date column)
     model_type = model_config.get("type", "random_forest")
     random_state = model_config.get("random_state", 42)
     pipe = create_model_pipeline(cat_cols, num_cols, model_type, config, random_state)
-    
-    # Chronological or random split
-    if date_col and date_col in X.columns:
-        # Use chronological split to prevent future leakage
-        combined = X.copy()
-        combined["_target"] = y_transformed.values
-        
-        train_df, test_df = chronological_train_test_split(combined, date_col, test_ratio=0.2)
-        
-        Xtr = train_df.drop(columns=["_target"])
-        ytr = train_df["_target"]
-        Xte = test_df.drop(columns=["_target"])
-        yte = test_df["_target"]
-        
-        # Verify chronological ordering
-        assert_chronological_split(train_df, test_df, date_col)
-        
-        time_aware_split = True
-    else:
-        warnings.warn(
-            "No date column found for chronological split. "
-            "Using random split which may allow future data leakage.",
-            UserWarning
-        )
-        Xtr, Xte, ytr, yte = train_test_split(X, y_transformed, test_size=0.2, random_state=random_state)
-        time_aware_split = False
     
     # Hyperparameter tuning if enabled
     best_params = {}
@@ -629,13 +674,20 @@ def train_with_cross_validation(
     """Train model with time-series cross-validation for robust evaluation.
     
     Uses walk-forward validation to ensure no future data leakage.
+    A date column is required for time-aware cross-validation.
     
     Args:
         config_path: Optional path to ML config YAML file
-        date_column: Name of date column for chronological splits
+        date_column: Name of date column for chronological splits.
+                    If None, will try to find a date column from common candidates.
         
     Returns:
         Dictionary with CV scores and final model metrics
+    
+    Raises:
+        MissingDateColumnError: If no date column is found. Forecasting models
+            require a date column for time-aware cross-validation to prevent
+            future data leakage.
     """
     config = load_ml_config(config_path)
     cv_config = config.get("cross_validation", {})
@@ -659,17 +711,26 @@ def train_with_cross_validation(
     # Find date column
     date_col = date_column
     if date_col is None:
-        for col_name in ["end_date", "start_date", "date", "opening_date", "performance_date"]:
+        for col_name in DATE_COLUMN_CANDIDATES:
             if col_name in X.columns:
                 date_col = col_name
                 break
     
-    # Create CV splitter
+    # Enforce time-aware CV for forecasting: raise error if no date column found
+    if not date_col or date_col not in X.columns:
+        raise MissingDateColumnError(
+            searched_columns=list(DATE_COLUMN_CANDIDATES),
+            available_columns=X.columns.tolist()
+        )
+    
+    # Exclude date column from features (it's only used for CV splitting)
+    cat_cols = [c for c in cat_cols if c != date_col]
+    num_cols = [c for c in num_cols if c != date_col]
+    X_features = X.drop(columns=[date_col])
+    
+    # Create CV splitter with time-based splitting
     n_splits = cv_config.get("n_splits", 5)
-    if date_col and date_col in X.columns:
-        cv = TimeSeriesCVSplitter(n_splits=n_splits, date_column=date_col)
-    else:
-        cv = TimeSeriesSplit(n_splits=n_splits)
+    cv = TimeSeriesCVSplitter(n_splits=n_splits, date_column=date_col)
     
     # Cross-validation loop
     fold_scores = []
@@ -677,8 +738,9 @@ def train_with_cross_validation(
     random_state = model_config.get("random_state", 42)
     
     for fold_idx, (train_idx, test_idx) in enumerate(cv.split(X)):
-        Xtr = X.iloc[train_idx] if hasattr(X, "iloc") else X[train_idx]
-        Xte = X.iloc[test_idx] if hasattr(X, "iloc") else X[test_idx]
+        # Use X_features (without date column) for model training/prediction
+        Xtr = X_features.iloc[train_idx] if hasattr(X_features, "iloc") else X_features[train_idx]
+        Xte = X_features.iloc[test_idx] if hasattr(X_features, "iloc") else X_features[test_idx]
         ytr = y_transformed.iloc[train_idx] if hasattr(y_transformed, "iloc") else y_transformed[train_idx]
         yte = y_transformed.iloc[test_idx] if hasattr(y_transformed, "iloc") else y_transformed[test_idx]
         
