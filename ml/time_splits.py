@@ -13,10 +13,11 @@ Key guarantees:
 from __future__ import annotations
 
 from datetime import date
-from typing import Generator, List, Optional, Tuple
+from typing import Generator, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import GroupKFold
 
 
 def assert_chronological_split(
@@ -333,3 +334,116 @@ def assert_group_chronological_split(
             f"TIME LEAKAGE within groups! {len(violations)} groups have train dates >= test dates:\n"
             + "\n".join(violations[:10])  # Show first 10
         )
+
+
+class GroupedCVSplitter:
+    """
+    Grouped cross-validation splitter using GroupKFold.
+    
+    This splitter ensures that groups (e.g., productions with the same title
+    or from the same season) are never split across train and test sets within
+    the same fold. This prevents optimistic bias from repeated titles.
+    
+    When a group_column is specified, all rows with the same group value will
+    be placed in either train or test, never both.
+    
+    Compatible with sklearn's cross-validation interface.
+    """
+    
+    def __init__(
+        self,
+        n_splits: int = 5,
+        group_column: str = "show_title"
+    ):
+        """
+        Initialize grouped CV splitter.
+        
+        Args:
+            n_splits: Number of cross-validation folds
+            group_column: Name of the column to use for grouping
+                         (e.g., 'show_title', 'season', 'canonical_title')
+        """
+        self.n_splits = n_splits
+        self.group_column = group_column
+        self._gkf = GroupKFold(n_splits=n_splits)
+    
+    def split(
+        self,
+        X: pd.DataFrame,
+        y: Optional[pd.Series] = None,
+        groups: Optional[Union[pd.Series, np.ndarray]] = None
+    ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+        """
+        Generate train/test indices for each fold.
+        
+        All rows with the same group value will be in either train or test,
+        never both.
+        
+        Args:
+            X: Features DataFrame (must have the group column)
+            y: Target (ignored, for sklearn compatibility)
+            groups: Optional pre-computed groups. If None, extracted from
+                   X[group_column].
+            
+        Yields:
+            Tuples of (train_indices, test_indices)
+            
+        Raises:
+            ValueError: If group_column not found in X and groups not provided
+        """
+        if groups is None:
+            if self.group_column not in X.columns:
+                raise ValueError(
+                    f"Group column '{self.group_column}' not found in DataFrame. "
+                    f"Available columns: {list(X.columns)}"
+                )
+            groups = X[self.group_column].values
+        
+        # Use positional indices (0 to len-1) rather than DataFrame index
+        # to match sklearn's expected behavior
+        indices = np.arange(len(X))
+        
+        for train_idx, test_idx in self._gkf.split(indices, y, groups):
+            yield train_idx, test_idx
+    
+    def get_n_splits(
+        self,
+        X: Optional[pd.DataFrame] = None,
+        y: Optional[pd.Series] = None,
+        groups: Optional[pd.Series] = None
+    ) -> int:
+        """Return the number of splits."""
+        return self.n_splits
+    
+    @staticmethod
+    def assert_no_group_leakage(
+        X: pd.DataFrame,
+        train_idx: np.ndarray,
+        test_idx: np.ndarray,
+        group_column: str
+    ) -> None:
+        """
+        Assert that no group appears in both train and test sets.
+        
+        Args:
+            X: Features DataFrame with group column
+            train_idx: Training indices
+            test_idx: Test indices
+            group_column: Name of the group column
+            
+        Raises:
+            AssertionError: If any group appears in both train and test
+        """
+        if group_column not in X.columns:
+            raise ValueError(f"Group column '{group_column}' not found in DataFrame")
+        
+        train_groups = set(X.iloc[train_idx][group_column].unique())
+        test_groups = set(X.iloc[test_idx][group_column].unique())
+        
+        overlap = train_groups & test_groups
+        
+        if overlap:
+            raise AssertionError(
+                f"GROUP LEAKAGE DETECTED: {len(overlap)} groups appear in both "
+                f"train and test sets. Overlapping groups: {list(overlap)[:10]}"
+            )

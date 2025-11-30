@@ -620,3 +620,145 @@ def test_no_silent_random_cv_fallback(sample_features_and_target, monkeypatch):
         ]
         assert len(random_split_warnings) == 0, \
             "Should not issue warning about random split - should raise error instead"
+
+
+# =============================================================================
+# Tests for grouped cross-validation by title/season
+# =============================================================================
+
+def test_grouped_cv_splitter_basic():
+    """Test that GroupedCVSplitter correctly groups rows by a column."""
+    from ml.time_splits import GroupedCVSplitter
+    
+    # Create a small dataset with repeated titles
+    df = pd.DataFrame({
+        "show_title": ["Swan Lake", "Swan Lake", "Nutcracker", "Nutcracker", 
+                       "Romeo", "Romeo", "Giselle", "Giselle", 
+                       "Cinderella", "Cinderella"],
+        "wiki": [80, 82, 95, 93, 86, 88, 74, 76, 77, 79],
+        "trends": [18, 20, 45, 43, 32, 34, 14, 16, 30, 32],
+    })
+    
+    splitter = GroupedCVSplitter(n_splits=2, group_column="show_title")
+    
+    # Verify that no title appears in both train and test for any fold
+    for fold_idx, (train_idx, test_idx) in enumerate(splitter.split(df)):
+        train_titles = set(df.iloc[train_idx]["show_title"].unique())
+        test_titles = set(df.iloc[test_idx]["show_title"].unique())
+        
+        overlap = train_titles & test_titles
+        assert len(overlap) == 0, \
+            f"Fold {fold_idx}: titles {overlap} appear in both train and test"
+
+
+def test_grouped_cv_splitter_assert_no_group_leakage():
+    """Test that assert_no_group_leakage correctly detects group leakage."""
+    from ml.time_splits import GroupedCVSplitter
+    
+    df = pd.DataFrame({
+        "show_title": ["A", "A", "B", "B", "C", "C"],
+        "value": [1, 2, 3, 4, 5, 6],
+    })
+    
+    # This should pass - no overlap
+    train_idx = np.array([0, 1, 2, 3])  # A, A, B, B
+    test_idx = np.array([4, 5])          # C, C
+    GroupedCVSplitter.assert_no_group_leakage(df, train_idx, test_idx, "show_title")
+    
+    # This should fail - A appears in both
+    train_idx_bad = np.array([0, 2, 3])  # A, B, B
+    test_idx_bad = np.array([1, 4, 5])   # A, C, C
+    with pytest.raises(AssertionError) as exc_info:
+        GroupedCVSplitter.assert_no_group_leakage(df, train_idx_bad, test_idx_bad, "show_title")
+    
+    assert "GROUP LEAKAGE" in str(exc_info.value)
+    assert "A" in str(exc_info.value)
+
+
+def test_grouped_cv_splitter_missing_column():
+    """Test that GroupedCVSplitter raises ValueError for missing group column."""
+    from ml.time_splits import GroupedCVSplitter
+    
+    df = pd.DataFrame({
+        "other_column": [1, 2, 3, 4],
+        "value": [10, 20, 30, 40],
+    })
+    
+    splitter = GroupedCVSplitter(n_splits=2, group_column="show_title")
+    
+    with pytest.raises(ValueError) as exc_info:
+        list(splitter.split(df))
+    
+    assert "show_title" in str(exc_info.value)
+    assert "not found" in str(exc_info.value).lower()
+
+
+def test_grouped_cv_config_loading():
+    """Test that group_cv_by config option is loaded correctly."""
+    from ml.training import load_ml_config
+    
+    # Test default config includes group_cv_by
+    config = load_ml_config(Path("/nonexistent/path.yaml"))
+    cv_config = config.get("cross_validation", {})
+    
+    assert "group_cv_by" in cv_config
+    assert cv_config["group_cv_by"] is None  # Default is disabled
+
+
+def test_grouped_cv_no_title_overlap_in_folds():
+    """Test that when using grouped CV, no fold includes the same title in both train and test.
+    
+    This is a key acceptance criterion: builds a tiny dataset with repeated titles
+    and verifies that no fold includes the same title in both train and test.
+    """
+    from ml.time_splits import GroupedCVSplitter
+    
+    # Create dataset with repeated titles (simulating productions with same title)
+    np.random.seed(42)
+    titles = ["The Nutcracker"] * 5 + ["Swan Lake"] * 4 + ["Romeo and Juliet"] * 3 + \
+             ["Giselle"] * 3 + ["Sleeping Beauty"] * 2 + ["Cinderella"] * 2 + ["Coppelia"] * 1
+    
+    df = pd.DataFrame({
+        "show_title": titles,
+        "wiki": np.random.randint(50, 100, len(titles)),
+        "trends": np.random.randint(10, 50, len(titles)),
+        "youtube": np.random.randint(30, 80, len(titles)),
+        "tickets": np.random.randint(5000, 15000, len(titles)),
+    })
+    
+    splitter = GroupedCVSplitter(n_splits=3, group_column="show_title")
+    
+    for fold_idx, (train_idx, test_idx) in enumerate(splitter.split(df)):
+        train_titles = set(df.iloc[train_idx]["show_title"].unique())
+        test_titles = set(df.iloc[test_idx]["show_title"].unique())
+        
+        overlap = train_titles & test_titles
+        assert len(overlap) == 0, \
+            f"FAILED: Fold {fold_idx+1} has titles {overlap} in both train and test!"
+        
+        # Verify assertion helper also passes
+        GroupedCVSplitter.assert_no_group_leakage(df, train_idx, test_idx, "show_title")
+
+
+def test_grouped_cv_by_season():
+    """Test that grouped CV works with season column."""
+    from ml.time_splits import GroupedCVSplitter
+    
+    # Create dataset with season column
+    df = pd.DataFrame({
+        "show_title": ["Show A", "Show B", "Show C", "Show D", 
+                       "Show E", "Show F", "Show G", "Show H"],
+        "season": ["2019-2020", "2019-2020", "2020-2021", "2020-2021",
+                   "2021-2022", "2021-2022", "2022-2023", "2022-2023"],
+        "value": [1, 2, 3, 4, 5, 6, 7, 8],
+    })
+    
+    splitter = GroupedCVSplitter(n_splits=2, group_column="season")
+    
+    for fold_idx, (train_idx, test_idx) in enumerate(splitter.split(df)):
+        train_seasons = set(df.iloc[train_idx]["season"].unique())
+        test_seasons = set(df.iloc[test_idx]["season"].unique())
+        
+        overlap = train_seasons & test_seasons
+        assert len(overlap) == 0, \
+            f"Fold {fold_idx}: seasons {overlap} appear in both train and test"

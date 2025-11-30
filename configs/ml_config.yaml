@@ -108,6 +108,12 @@ cross_validation:
   # Number of splits for TimeSeriesSplit
   n_splits: 5
   
+  # Grouped cross-validation by production title or season.
+  # This prevents the same title/season from appearing in both train and test,
+  # reducing optimistic bias from repeated titles.
+  # Options: null (disabled), "title" (group by show_title), "season" (group by season)
+  group_cv_by: null
+  
   # For rolling_origin CV
   initial_train_period_days: 730  # 2 years
   horizon_days: 180  # 6 months
