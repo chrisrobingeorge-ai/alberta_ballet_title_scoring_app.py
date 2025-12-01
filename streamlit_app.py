@@ -349,7 +349,7 @@ def main():
 def load_baselines_cached():
     """Load pre-baked title scores from baselines.csv (instruction_files)."""
     possible_paths = [
-        "data/productions/instruction_files/baselines.csv",
+        "data/productions/baselines.csv",
         "data/baselines.csv",
         "baselines.csv",
     ]
