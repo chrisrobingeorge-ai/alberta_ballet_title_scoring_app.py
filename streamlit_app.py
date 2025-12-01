@@ -211,6 +211,93 @@ def main():
             }
         )
 
+# --- Julius patch: helper loader functions for internal CSVs ---
+import pandas as _pd
+import os as _os
+
+HISTORY_DEFAULT_PATH = "data/productions/history_city_sales.csv"
+PRODUCTIONS_DEFAULT_PATH = "data/productions/productions_history.csv"
+
+@st.cache_data(show_spinner=False)
+def load_default_history():
+    if _os.path.exists(HISTORY_DEFAULT_PATH):
+        try:
+            return _pd.read_csv(HISTORY_DEFAULT_PATH)
+        except Exception as e:
+            st.warning("Could not read " + HISTORY_DEFAULT_PATH + ": " + str(e))
+            return None
+    return None
+
+@st.cache_data(show_spinner=False)
+def load_default_productions():
+    if _os.path.exists(PRODUCTIONS_DEFAULT_PATH):
+        try:
+            return _pd.read_csv(PRODUCTIONS_DEFAULT_PATH)
+        except Exception as e:
+            st.warning("Could not read " + PRODUCTIONS_DEFAULT_PATH + ": " + str(e))
+            return None
+    return None
+
+
+def overview_page():
+    st.subheader("Overview")
+    st.write(
+        "History and productions are loaded automatically from the repo. "
+        "You can optionally upload CSVs to override them for what-if analysis."
+    )
+
+    default_hist = load_default_history()
+    default_prods = load_default_productions()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        hist_file = st.file_uploader(
+            "Upload history CSV (optional)",
+            type=["csv"],
+            key="hist_upload",
+            help="If provided, overrides data/productions/history_city_sales.csv",
+        )
+    with col2:
+        prods_file = st.file_uploader(
+            "Upload productions CSV (optional)",
+            type=["csv"],
+            key="prods_upload",
+            help="If provided, overrides data/productions/productions_history.csv",
+        )
+
+    if hist_file is not None:
+        history_df = _pd.read_csv(hist_file)
+    else:
+        history_df = default_hist
+
+    if prods_file is not None:
+        prods_df = _pd.read_csv(prods_file)
+    else:
+        prods_df = default_prods
+
+    if history_df is None and prods_df is None:
+        st.warning(
+            "No internal CSVs found yet. Add them under data/productions/ or upload here."
+        )
+        return
+
+    if history_df is not None:
+        st.markdown("**History sample**")
+        st.dataframe(history_df.head())
+
+    if prods_df is not None:
+        st.markdown("**Productions sample**")
+        st.dataframe(prods_df.head())
+
+    st.info(
+        "Downstream pages can now reuse these dataframes from st.session_state "
+        "instead of forcing new uploads."
+    )
+    st.session_state["history_df"] = history_df
+    st.session_state["productions_df"] = prods_df
+
+
+
 def main():
     # Load configuration and set page meta
     load_config("config.yaml")
@@ -501,89 +588,4 @@ def _page_diagnostics():
 if __name__ == "__main__":
     main()
 
-
-# --- Julius patch: helper loader functions for internal CSVs ---
-import pandas as _pd
-import os as _os
-
-HISTORY_DEFAULT_PATH = "data/productions/history_city_sales.csv"
-PRODUCTIONS_DEFAULT_PATH = "data/productions/productions_history.csv"
-
-@st.cache_data(show_spinner=False)
-def load_default_history():
-    if _os.path.exists(HISTORY_DEFAULT_PATH):
-        try:
-            return _pd.read_csv(HISTORY_DEFAULT_PATH)
-        except Exception as e:
-            st.warning("Could not read " + HISTORY_DEFAULT_PATH + ": " + str(e))
-            return None
-    return None
-
-@st.cache_data(show_spinner=False)
-def load_default_productions():
-    if _os.path.exists(PRODUCTIONS_DEFAULT_PATH):
-        try:
-            return _pd.read_csv(PRODUCTIONS_DEFAULT_PATH)
-        except Exception as e:
-            st.warning("Could not read " + PRODUCTIONS_DEFAULT_PATH + ": " + str(e))
-            return None
-    return None
-
-
-def overview_page():
-    st.subheader("Overview")
-    st.write(
-        "History and productions are loaded automatically from the repo. "
-        "You can optionally upload CSVs to override them for what-if analysis."
-    )
-
-    default_hist = load_default_history()
-    default_prods = load_default_productions()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        hist_file = st.file_uploader(
-            "Upload history CSV (optional)",
-            type=["csv"],
-            key="hist_upload",
-            help="If provided, overrides data/productions/history_city_sales.csv",
-        )
-    with col2:
-        prods_file = st.file_uploader(
-            "Upload productions CSV (optional)",
-            type=["csv"],
-            key="prods_upload",
-            help="If provided, overrides data/productions/productions_history.csv",
-        )
-
-    if hist_file is not None:
-        history_df = _pd.read_csv(hist_file)
-    else:
-        history_df = default_hist
-
-    if prods_file is not None:
-        prods_df = _pd.read_csv(prods_file)
-    else:
-        prods_df = default_prods
-
-    if history_df is None and prods_df is None:
-        st.warning(
-            "No internal CSVs found yet. Add them under data/productions/ or upload here."
-        )
-        return
-
-    if history_df is not None:
-        st.markdown("**History sample**")
-        st.dataframe(history_df.head())
-
-    if prods_df is not None:
-        st.markdown("**Productions sample**")
-        st.dataframe(prods_df.head())
-
-    st.info(
-        "Downstream pages can now reuse these dataframes from st.session_state "
-        "instead of forcing new uploads."
-    )
-    st.session_state["history_df"] = history_df
-    st.session_state["productions_df"] = prods_df
 
