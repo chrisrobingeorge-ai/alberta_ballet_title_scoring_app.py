@@ -216,6 +216,18 @@ import pandas as _pd
 import os as _os
 
 HISTORY_DEFAULT_PATH = "data/productions/history_city_sales.csv"
+TITLE_SCORES_DEFAULT_PATH = "data/productions/title_scores_history.csv"
+
+@st.cache_data(show_spinner=False)
+def load_title_scores_history():
+    if os.path.exists(TITLE_SCORES_DEFAULT_PATH):
+        try:
+            return pd.read_csv(TITLE_SCORES_DEFAULT_PATH)
+        except Exception as e:
+            st.warning("Could not read " + TITLE_SCORES_DEFAULT_PATH + ": " + str(e))
+            return None
+    return None
+
 PRODUCTIONS_DEFAULT_PATH = "data/productions/productions_history.csv"
 
 @st.cache_data(show_spinner=False)
@@ -338,6 +350,13 @@ def main():
 # -------------------------------------------------------------------------
 def _page_overview():
     st.subheader("Overview")
+    # Optional: pre-baked title demand scores history
+    title_scores_hist = load_title_scores_history()
+    if title_scores_hist is not None and not title_scores_hist.empty:
+        st.markdown("**Title scores history (sample)**")
+        st.dataframe(title_scores_hist.head())
+        st.session_state["title_scores_history_df"] = title_scores_hist
+
 
     col1, col2 = st.columns([2, 1])
 
@@ -394,62 +413,90 @@ def _page_title_scoring():
         st.info("No valid titles found after cleaning the input.")
         return
 
-    with st.spinner("Fetching signals from Wikipedia / Google / YouTube / Spotify..."):
-        rows = []
-        wiki_vals = []
-        gtrends_vals = []
-        yt_vals = []
-        sp_vals = []
+    # Try to use pre-baked title scores first, then fall back to live API calls
+    title_hist = st.session_state.get("title_scores_history_df")
+    hist_lut = None
+    if title_hist is not None and "title" in title_hist.columns:
+        title_hist = title_hist.copy()
+        title_hist["_title_key"] = title_hist["title"].astype(str).str.strip().str.lower()
+        hist_lut = title_hist.set_index("_title_key").to_dict(orient="index")
 
-        for t in titles:
-            # Wikipedia pageviews (rough)
-            wiki_val = fetch_wikipedia_views(t)
-            # Google Trends search interest (worldwide, last 12 months)
-            gtrend_val = fetch_google_trends_score(t)
-            # YouTube view count proxy
-            yt_val = fetch_youtube_views(t)
-            # Spotify popularity score proxy
-            sp_val = fetch_spotify_metric(t)
-
-            wiki_vals.append(wiki_val)
-            gtrends_vals.append(gtrend_val)
-            yt_vals.append(yt_val)
-            sp_vals.append(sp_val)
-
-        wiki_norm = normalize_0_100(wiki_vals)
-        gtrends_norm = normalize_0_100(gtrends_vals)
-        yt_norm = normalize_0_100(yt_vals)
-        sp_norm = normalize_0_100(sp_vals)
-
-        for i, t in enumerate(titles):
-            row = {
-                "title": t,
-                "wiki_raw": wiki_vals[i],
-                "gtrends_raw": gtrends_vals[i],
-                "youtube_raw": yt_vals[i],
-                "spotify_raw": sp_vals[i],
-                "wiki_score_0_100": wiki_norm[i],
-                "gtrends_score_0_100": gtrends_norm[i],
-                "youtube_score_0_100": yt_norm[i],
-                "spotify_score_0_100": sp_norm[i],
-            }
-            # Simple aggregate (mean of the 4 normalized scores)
-            valid_scores = [
-                s for s in [
-                    wiki_norm[i],
-                    gtrends_norm[i],
-                    yt_norm[i],
-                    sp_norm[i]
-                ]
-                if not math.isnan(s)
-            ]
-            if valid_scores:
-                row["aggregate_score_0_100"] = float(sum(valid_scores)) / len(valid_scores)
-            else:
-                row["aggregate_score_0_100"] = np.nan
+    rows = []
+    live_titles = []
+    for t in titles:
+        key = t.strip().lower()
+        if hist_lut is not None and key in hist_lut:
+            hrow = hist_lut[key]
+            row = {"title": t}
+            for col in [
+                "wiki_raw",
+                "trends_raw",
+                "youtube_raw",
+                "spotify_raw",
+                "wiki_score_0_100",
+                "trends_score_0_100",
+                "youtube_score_0_100",
+                "spotify_score_0_100",
+                "aggregate_score_0_100",
+            ]:
+                if col in hrow:
+                    row[col] = hrow[col]
             rows.append(row)
+        else:
+            live_titles.append(t)
 
-        df_scores = pd.DataFrame(rows)
+    # For any titles not covered by history, hit the APIs
+    if live_titles:
+        with st.spinner("Fetching signals from Wikipedia / Google / YouTube / Spotify for new titles..."):
+            wiki_vals = []
+            trends_vals = []
+            yt_vals = []
+            sp_vals = []
+
+            for t in live_titles:
+                wiki_val = fetch_wikipedia_views(t)
+                trend_val = fetch_google_trends_score(t)
+                yt_val = fetch_youtube_views(t)
+                sp_val = fetch_spotify_metric(t)
+
+                wiki_vals.append(wiki_val)
+                trends_vals.append(trend_val)
+                yt_vals.append(yt_val)
+                sp_vals.append(sp_val)
+
+            wiki_norm = normalize_0_100(wiki_vals)
+            trends_norm = normalize_0_100(trends_vals)
+            yt_norm = normalize_0_100(yt_vals)
+            sp_norm = normalize_0_100(sp_vals)
+
+            for i, t in enumerate(live_titles):
+                row = {
+                    "title": t,
+                    "wiki_raw": wiki_vals[i],
+                    "trends_raw": trends_vals[i],
+                    "youtube_raw": yt_vals[i],
+                    "spotify_raw": sp_vals[i],
+                    "wiki_score_0_100": wiki_norm[i],
+                    "trends_score_0_100": trends_norm[i],
+                    "youtube_score_0_100": yt_norm[i],
+                    "spotify_score_0_100": sp_norm[i],
+                }
+                valid_scores = [
+                    s for s in [
+                        wiki_norm[i],
+                        trends_norm[i],
+                        yt_norm[i],
+                        sp_norm[i]
+                    ]
+                    if not math.isnan(s)
+                ]
+                if valid_scores:
+                    row["aggregate_score_0_100"] = float(sum(valid_scores)) / len(valid_scores)
+                else:
+                    row["aggregate_score_0_100"] = np.nan
+                rows.append(row)
+
+    df_scores = pd.DataFrame(rows)
 
     st.markdown("**Title demand scores (0–100)**")
     st.dataframe(df_scores[[
