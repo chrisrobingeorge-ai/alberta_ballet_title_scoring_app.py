@@ -345,6 +345,24 @@ def main():
         _page_diagnostics()
 
 
+@st.cache_data(show_spinner=False)
+def load_baselines_cached():
+    """Load pre-baked title scores from baselines.csv (instruction_files)."""
+    possible_paths = [
+        "data/productions/instruction_files/baselines.csv",
+        "data/baselines.csv",
+        "baselines.csv",
+    ]
+    for p in possible_paths:
+        try:
+            df = pd.read_csv(p)
+            if not df.empty:
+                return df
+        except Exception:
+            continue
+    return None
+
+
 # -------------------------------------------------------------------------
 # PAGE: Overview
 # -------------------------------------------------------------------------
@@ -394,7 +412,7 @@ def _page_title_scoring():
     st.subheader("Title Scoring Helper")
 
     st.markdown(
-        "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, YouTube, "
+        "Fetch and normalize 00 scores from Wikipedia, Google Trends, YouTube, "
         "and Spotify for title demand scoring."
     )
 
@@ -413,39 +431,76 @@ def _page_title_scoring():
         st.info("No valid titles found after cleaning the input.")
         return
 
-    # Try to use pre-baked title scores first, then fall back to live API calls
-    title_hist = st.session_state.get("title_scores_history_df")
-    hist_lut = None
-    if title_hist is not None and "title" in title_hist.columns:
-        title_hist = title_hist.copy()
-        title_hist["_title_key"] = title_hist["title"].astype(str).str.strip().str.lower()
-        hist_lut = title_hist.set_index("_title_key").to_dict(orient="index")
+    # Prefer existing baseline scores from baselines.csv when available,
+    # then fall back to live API calls for unknown titles.
+    baselines_df = load_baselines_cached()
+    baseline_lut = None
+    if baselines_df is not None and not baselines_df.empty and "title" in baselines_df.columns:
+        baselines_df = baselines_df.copy()
+        baselines_df["_title_key"] = baselines_df["title"].astype(str).str.strip().str.lower()
+        baseline_lut = baselines_df.set_index("_title_key").to_dict(orient="index")
 
     rows = []
     live_titles = []
+
     for t in titles:
         key = t.strip().lower()
-        if hist_lut is not None and key in hist_lut:
-            hrow = hist_lut[key]
+        if baseline_lut is not None and key in baseline_lut:
+            b = baseline_lut[key]
             row = {"title": t}
-            for col in [
-                "wiki_raw",
-                "trends_raw",
-                "youtube_raw",
-                "spotify_raw",
-                "wiki_score_0_100",
-                "trends_score_0_100",
-                "youtube_score_0_100",
-                "spotify_score_0_100",
-                "aggregate_score_0_100",
-            ]:
-                if col in hrow:
-                    row[col] = hrow[col]
+
+            # Raw metrics from baselines (these column names match your baselines.csv)
+            raw_map = {
+                "wiki": "wiki_raw",
+                "trends": "trends_raw",
+                "youtube": "youtube_raw",
+                "spotify": "spotify_raw",
+            }
+            for src_col, dst_col in raw_map.items():
+                if src_col in b:
+                    row[dst_col] = b[src_col]
+
+            # If baselines already store normalized 00 scores, map them;
+            # otherwise we treat the stored values as scores directly.
+            score_map = {
+                "wiki": "wiki_score_0_100",
+                "trends": "trends_score_0_100",
+                "youtube": "youtube_score_0_100",
+                "spotify": "spotify_score_0_100",
+            }
+            for src_col, dst_col in score_map.items():
+                if src_col in b and (dst_col not in row or pd.isna(row.get(dst_col))):
+                    try:
+                        row[dst_col] = float(b[src_col])
+                    except Exception:
+                        pass
+
+            # Aggregate if not explicitly provided
+            if "aggregate_score_0_100" in b:
+                try:
+                    row["aggregate_score_0_100"] = float(b["aggregate_score_0_100"])
+                except Exception:
+                    row["aggregate_score_0_100"] = np.nan
+            else:
+                valid_scores = [
+                    s for s in [
+                        row.get("wiki_score_0_100"),
+                        row.get("trends_score_0_100"),
+                        row.get("youtube_score_0_100"),
+                        row.get("spotify_score_0_100"),
+                    ]
+                    if s is not None and not pd.isna(s)
+                ]
+                if valid_scores:
+                    row["aggregate_score_0_100"] = float(sum(valid_scores)) / len(valid_scores)
+                else:
+                    row["aggregate_score_0_100"] = np.nan
+
             rows.append(row)
         else:
             live_titles.append(t)
 
-    # For any titles not covered by history, hit the APIs
+    # For titles not in baselines, use live API calls
     if live_titles:
         with st.spinner("Fetching signals from Wikipedia / Google / YouTube / Spotify for new titles..."):
             wiki_vals = []
@@ -486,7 +541,7 @@ def _page_title_scoring():
                         wiki_norm[i],
                         trends_norm[i],
                         yt_norm[i],
-                        sp_norm[i]
+                        sp_norm[i],
                     ]
                     if not math.isnan(s)
                 ]
@@ -498,30 +553,23 @@ def _page_title_scoring():
 
     df_scores = pd.DataFrame(rows)
 
-    st.markdown("**Title demand scores (0–100)**")
+    st.markdown("**Title demand scores (00)**")
     st.dataframe(df_scores[[
         "title",
         "aggregate_score_0_100",
         "wiki_score_0_100",
-        "gtrends_score_0_100",
+        "trends_score_0_100",
         "youtube_score_0_100",
         "spotify_score_0_100",
     ]])
 
-    # Simple bar chart of aggregate scores
-    if not df_scores.empty:
-        st.markdown("**Aggregate score comparison**")
-        fig, ax = plt.subplots(figsize=(8, 4))
-        df_plot = df_scores.sort_values("aggregate_score_0_100", ascending=False)
-        ax.barh(df_plot["title"], df_plot["aggregate_score_0_100"], color="tab:blue")
-        ax.invert_yaxis()
-        ax.set_xlabel("Aggregate Score (0–100)")
-        ax.set_ylabel("Title")
-        st.pyplot(fig)
-
-    # Optionally stash into session_state for use on Forecasts & Planning
-    st.session_state["title_scores_df"] = df_scores
-
+    csv_bytes = df_scores.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download scores as CSV",
+        data=csv_bytes,
+        file_name="title_scores_export.csv",
+        mime="text/csv",
+    )
 
 # -------------------------------------------------------------------------
 # PAGE: Forecasts & Planning
