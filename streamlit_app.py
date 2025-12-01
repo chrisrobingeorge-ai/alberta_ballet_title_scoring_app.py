@@ -1390,7 +1390,7 @@ except Exception:
 
 BASELINES: dict[str, dict] = {}
 
-def load_baselines(path: str = "data/baselines.csv") -> None:
+def load_baselines(path: str = "data/productions/baselines.csv") -> None:
     """
     Load baseline familiarity/motivation inputs from CSV.
 
