@@ -140,4 +140,4 @@ def load_config(path: str = "config.yaml") -> None:
 
     demand_cfg = cfg.get("demand", {})
     POSTCOVID_FACTOR = demand_cfg.get("postcovid_factor", POSTCOVID_FACTOR)
-    TICKET_BLEND_WEIGHT = demand_cfg.get("ticket_blend_weight", TICKET_BLEND
+    TICKET_BLEND_WEIGHT = demand_cfg.get("ticket_blend_weight", TICKET_BLEND_WEIGHT)
