@@ -141,3 +141,74 @@ def load_config(path: str = "config.yaml") -> None:
     demand_cfg = cfg.get("demand", {})
     POSTCOVID_FACTOR = demand_cfg.get("postcovid_factor", POSTCOVID_FACTOR)
     TICKET_BLEND_WEIGHT = demand_cfg.get("ticket_blend_weight", TICKET_BLEND_WEIGHT)
+
+def main():
+    load_config("config.yaml")
+
+    st.set_page_config(page_title="Alberta Ballet: Title Scoring and Forecasts", layout="wide")
+
+    st.title("Alberta Ballet: Title Scoring and Ticket Forecasts")
+    st.caption(
+        "Plan productions by estimating single-ticket demand and exploring driver signals "
+        "like title popularity, economics, weather, and marketing."
+    )
+
+    with st.sidebar:
+        st.header("Navigation")
+        page = st.radio(
+            "Choose a view",
+            ["Overview", "Model training (legacy)", "Diagnostics"],
+            index=0,
+        )
+
+    if page == "Overview":
+        st.subheader("Overview")
+        st.write(
+            "This is a placeholder overview page. "
+            "Once the full logic is wired back in, you'll see title scoring, "
+            "ticket forecasts, and uncertainty bands here."
+        )
+
+        uploaded = st.file_uploader(
+            "Upload a productions CSV (optional)",
+            type=["csv"],
+            help="Upload the same structure as productions_history.csv",
+        )
+        if uploaded is not None:
+            df = pd.read_csv(uploaded)
+            st.write("Preview of uploaded data:")
+            st.dataframe(df.head())
+
+    elif page == "Model training (legacy)":
+        st.subheader("Legacy baseline training")
+        st.warning(
+            "This page runs the old baseline training pipeline. "
+            "It is deprecated in favour of the safe modelling dataset pipeline."
+        )
+        if st.button("Run legacy baseline training (slow)"):
+            with st.spinner("Training baseline model (this can take several minutes)..."):
+                try:
+                    from ml.training import train_baseline_model
+                    result = train_baseline_model()
+                    st.success("Baseline training finished.")
+                    st.json(result)
+                except Exception as exc:
+                    st.error("Training failed: " + str(exc))
+
+    elif page == "Diagnostics":
+        st.subheader("Diagnostics")
+        st.write("Configuration loaded from config.yaml:")
+        st.json(
+            {
+                "SEGMENT_MULT": SEGMENT_MULT,
+                "REGION_MULT": REGION_MULT,
+                "DEFAULT_BASE_CITY_SPLIT": DEFAULT_BASE_CITY_SPLIT,
+                "CITY_CLIP_RANGE": _CITY_CLIP_RANGE,
+                "POSTCOVID_FACTOR": POSTCOVID_FACTOR,
+                "TICKET_BLEND_WEIGHT": TICKET_BLEND_WEIGHT,
+            }
+        )
+
+
+if __name__ == "__main__":
+    main()
