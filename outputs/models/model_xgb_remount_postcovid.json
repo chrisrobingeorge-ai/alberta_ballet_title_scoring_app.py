@@ -1,0 +1,53 @@
+{
+  "training_date": "2025-12-01T00:58:42.163151",
+  "model_type": "xgboost",
+  "seed": 42,
+  "tuned": false,
+  "n_samples": 35,
+  "features": {
+    "numeric": [
+      "wiki",
+      "trends",
+      "youtube",
+      "spotify",
+      "prior_total_tickets",
+      "prior_run_count",
+      "ticket_median_prior",
+      "years_since_last_run",
+      "is_remount_recent",
+      "is_remount_medium",
+      "run_count_prior",
+      "month_of_opening",
+      "holiday_flag"
+    ],
+    "categorical": [
+      "category",
+      "gender"
+    ],
+    "total": 15
+  },
+  "cv_metrics": {
+    "mae_mean": 345.23946184430827,
+    "mae_std": 177.9132946441839,
+    "rmse_mean": 516.2006441214525,
+    "rmse_std": 286.7772646189349,
+    "r2_mean": 0.8560795336631257,
+    "r2_std": 0.12663961770819515,
+    "n_folds": 5
+  },
+  "train_metrics": {
+    "mae": 2.459493582588982,
+    "rmse": 5.768115515460797,
+    "r2": 0.9999863402161769,
+    "mae_log": 0.0008620691791854032,
+    "rmse_log": 0.0021729977332864085
+  },
+  "target_column": "target_ticket_median",
+  "dataset_path": "data/modelling_dataset.csv",
+  "git_commit_hash": "fd517d2",
+  "data_file_hash": "3646189b486e56c3",
+  "dataset_shape": {
+    "n_rows": 35,
+    "n_columns": 18
+  }
+}
