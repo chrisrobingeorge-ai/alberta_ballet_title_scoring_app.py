@@ -18,272 +18,165 @@ st.set_page_config(page_title="Title Scoring Helper", layout="wide")
 
 st.title("Title Scoring Helper")
 st.caption(
-    "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, YouTube, and Spotify for title demand scoring."
+    "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, YouTube, and Spotify "
+    "for title demand scoring, then estimate ticket demand with uncertainty bands."
 )
 
+# -----------------------------------------------------------------------------
+# CONFIG / KEYS
+# -----------------------------------------------------------------------------
 
-# =============================================================================
-# API HELPERS
-# =============================================================================
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", None)
+SPOTIFY_CLIENT_ID = st.secrets.get("SPOTIFY_CLIENT_ID", None)
+SPOTIFY_CLIENT_SECRET = st.secrets.get("SPOTIFY_CLIENT_SECRET", None)
 
+if YOUTUBE_API_KEY:
+    youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+else:
+    youtube = None
 
-def _safe_get_env(name: str) -> str | None:
-    import os
-    value = os.getenv(name)
-    if value is None or value.strip() == "":
-        return None
-    return value
-
-
-def _build_youtube_client():
-    api_key = _safe_get_env("YOUTUBE_API_KEY")
-    if not api_key:
-        return None
-    return build("youtube", "v3", developerKey=api_key)
-
-
-def _build_spotify_client():
-    client_id = _safe_get_env("SPOTIFY_CLIENT_ID")
-    client_secret = _safe_get_env("SPOTIFY_CLIENT_SECRET")
-    if not client_id or not client_secret:
-        return None
-    auth_manager = SpotifyClientCredentials(
-        client_id=client_id,
-        client_secret=client_secret,
+if SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET:
+    spotify_auth = SpotifyClientCredentials(
+        client_id=SPOTIFY_CLIENT_ID, client_secret=SPOTIFY_CLIENT_SECRET
     )
-    return spotipy.Spotify(auth_manager=auth_manager)
+    sp = spotipy.Spotify(auth_manager=spotify_auth)
+else:
+    sp = None
 
 
-def fetch_wikipedia_pageviews(title: str) -> float:
-    url = (
-        "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-        "en.wikipedia.org/all-access/all-agents/"
-        + requests.utils.quote(title.replace(" ", "_"))
-        + "/daily/20240101/20241231"
-    )
-    resp = requests.get(url, timeout=10)
-    if resp.status_code != 200:
+# -----------------------------------------------------------------------------
+# HELPERS
+# -----------------------------------------------------------------------------
+
+def fetch_wikipedia_views(title: str) -> float:
+    """Fetch simple Wikipedia pageview metric as a proxy for awareness."""
+    try:
+        url = (
+            "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+            "en.wikipedia.org/all-access/all-agents/"
+            f"{requests.utils.quote(title)}/daily/20230101/20231231"
+        )
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        views = [item["views"] for item in data.get("items", [])]
+        if not views:
+            return 0.0
+        return float(sum(views))
+    except Exception:
         return 0.0
-    data = resp.json()
-    views = [item.get("views", 0) for item in data.get("items", [])]
-    if not views:
-        return 0.0
-    return float(sum(views)) / float(len(views))
 
 
 def fetch_google_trends_score(title: str) -> float:
+    """Fetch Google Trends 0–100 score for the last 12 months."""
     try:
-        pytrends.build_payload([title], cat=0, timeframe="today 12-m", geo="", gprop="")
+        kw_list = [title]
+        pytrends.build_payload(kw_list, timeframe="today 12-m")
         data = pytrends.interest_over_time()
         if data.empty:
             return 0.0
-        series = data[title]
-        return float(series.mean())
+        return float(data[title].mean())
     except Exception:
         return 0.0
 
 
-def fetch_youtube_score(title: str, yt_client) -> float:
-    if yt_client is None:
+def fetch_youtube_metric(title: str) -> float:
+    """Fetch a simple YouTube relevance metric."""
+    if youtube is None:
         return 0.0
     try:
-        resp = yt_client.search().list(
+        req = youtube.search().list(
             q=title,
             part="snippet",
-            maxResults=5,
+            maxResults=10,
             type="video",
-        ).execute()
-        items = resp.get("items", [])
-        if not items:
-            return 0.0
-        score = len(items)
-        return float(score)
+        )
+        resp = req.execute()
+        return float(len(resp.get("items", [])))
     except Exception:
         return 0.0
 
 
-def fetch_spotify_score(title: str, sp_client) -> float:
-    if sp_client is None:
+def fetch_spotify_metric(title: str) -> float:
+    """Fetch a simple Spotify search hit count metric."""
+    if sp is None:
         return 0.0
     try:
-        results = sp_client.search(q=title, limit=5, type="track")
+        results = sp.search(q=title, limit=10, type="track")
         items = results.get("tracks", {}).get("items", [])
-        if not items:
-            return 0.0
-        popularity_vals = [track.get("popularity", 0) for track in items]
-        if not popularity_vals:
-            return 0.0
-        return float(sum(popularity_vals)) / float(len(popularity_vals))
+        return float(len(items))
     except Exception:
         return 0.0
 
 
-def normalize_0_100(vals: List[float]) -> List[float]:
-    if not vals:
+def normalize_0_100(values: List[float]) -> List[float]:
+    """Normalize a list of raw values to the 0–100 range."""
+    if not values:
         return []
-    vmin = min(vals)
-    vmax = max(vals)
-    if math.isclose(vmin, vmax):
-        return [50.0 for _ in vals]
-    return [
-        100.0 * (val - vmin) / float(vmax - vmin)
-        for val in vals
-    ]
+    v = [0.0 if (x is None or math.isnan(x)) else float(x) for x in values]
+    v_min = min(v)
+    v_max = max(v)
+    if v_max == v_min:
+        # all equal or single item → all 50
+        return [50.0 for _ in v]
+    return [100.0 * (x - v_min) / (v_max - v_min) for x in v]
 
 
-# =============================================================================
-# MODEL SCORING WRAPPER FOR SINGLE TITLE
-# =============================================================================
+# -----------------------------------------------------------------------------
+# UI
+# -----------------------------------------------------------------------------
 
+st.subheader("Step 1 – Enter Titles")
 
-def score_single_run(
-    features: Dict[str, Any],
-    confidence_level: float = 0.8,
-) -> Dict[str, float]:
-    """
-    Score a single hypothetical run from a dict of features.
+titles_raw = st.text_area(
+    "Paste one title per line:",
+    height=150,
+    placeholder="The Nutcracker\nSwan Lake\nCinderella",
+)
 
-    This expects `features` to use the same feature names as the training
-    dataset (e.g. wiki, trends, youtube, spotify, genre, season, etc.).
-    """
-    df = pd.DataFrame([features])
-    df_scored = score_runs_for_planning(
-        df,
-        confidence_level=confidence_level,
-        n_bootstrap=200,
-        model=None,
-        attach_context=False,
-        economic_context=None,
-    )
-    row = df_scored.iloc[0]
-
-    pct = int(confidence_level * 100.0)
-    lower_col = "lower_tickets_" + str(pct)
-    upper_col = "upper_tickets_" + str(pct)
-
-    return {
-        "pred_tickets": float(row.get("forecast_single_tickets", 0.0)),
-        "lower_tickets": float(row.get(lower_col, 0.0)),
-        "upper_tickets": float(row.get(upper_col, 0.0)),
-    }
-
-
-# =============================================================================
-# STREAMLIT UI
-# =============================================================================
-
-
-def main() -> None:
-    st.subheader("Step 1 – Enter Titles")
-
-    titles_raw = st.text_area(
-        "Enter one title per line",
-        value="The Nutcracker\nSwan Lake\nNew Contemporary Work",
-        height=120,
-    )
-
-    if not titles_raw.strip():
-        st.stop()
-
-    titles = [t.strip() for t in titles_raw.split("\n") if t.strip()]
-    if not titles:
-        st.stop()
-
-    st.subheader("Step 2 – Fetch Signals")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        run_fetch = st.button("Fetch Scores", type="primary")
-    with col2:
-        confidence_level = st.slider(
-            "Prediction interval confidence",
-            min_value=0.5,
-            max_value=0.95,
-            value=0.8,
-            step=0.05,
-        )
-
-    if not run_fetch:
-        st.info("Enter titles and click Fetch Scores to continue.")
-        st.stop()
-
-    yt_client = _build_youtube_client()
-    sp_client = _build_spotify_client()
-
-    rows: List[Dict[str, Any]] = []
-
-    for title in titles:
-        wiki_val = fetch_wikipedia_pageviews(title)
-        trends_val = fetch_google_trends_score(title)
-        yt_val = fetch_youtube_score(title, yt_client)
-        sp_val = fetch_spotify_score(title, sp_client)
-
-        rows.append(
-            {
-                "title": title,
-                "wiki_raw": wiki_val,
-                "trends_raw": trends_val,
-                "youtube_raw": yt_val,
-                "spotify_raw": sp_val,
-            }
-        )
-
-    df_raw = pd.DataFrame(rows)
-
-    wiki_norm = normalize_0_100(df_raw["wiki_raw"].tolist())
-    trends_norm = normalize_0_100(df_raw["trends_raw"].tolist())
-    youtube_norm = normalize_0_100(df_raw["youtube_raw"].tolist())
-    spotify_norm = normalize_0_100(df_raw["spotify_raw"].tolist())
-
-    df_raw["wiki"] = wiki_norm
-    df_raw["trends"] = trends_norm
-    df_raw["youtube"] = youtube_norm
-    df_raw["spotify"] = spotify_norm
-
-    st.subheader("Step 3 – Normalized Scores (0–100)")
-
-    st.dataframe(
-        df_raw[["title", "wiki", "trends", "youtube", "spotify"]],
-        use_container_width=True,
-    )
-
-    st.subheader("Step 4 – Ticket Forecasts")
-
-    default_genre = st.selectbox(
-        "Default genre for all titles (can override later offline)",
-        options=["classical", "contemporary", "family", "mixed"],
+col_a, col_b = st.columns(2)
+with col_a:
+    fetch_button = st.button("Fetch & Normalize Scores", type="primary")
+with col_b:
+    confidence_level = st.selectbox(
+        "Forecast interval confidence",
+        options=[0.8, 0.9, 0.95],
+        format_func=lambda x: f"{int(x*100)}%",
         index=0,
     )
-    default_season = st.selectbox(
-        "Season label (for model feature)",
-        options=["2024-25", "2025-26", "2026-27"],
-        index=1,
-    )
 
-    feature_rows: List[Dict[str, Any]] = []
-    for _, row in df_raw.iterrows():
-        feature_rows.append(
-            {
-                "title": row["title"],
-                "wiki": row["wiki"],
-                "trends": row["trends"],
-                "youtube": row["youtube"],
-                "spotify": row["spotify"],
-                "genre": default_genre,
-                "season": default_season,
-            }
-        )
+titles: List[str] = [
+    t.strip() for t in titles_raw.splitlines() if t.strip()
+]
 
-    df_features = pd.DataFrame(feature_rows)
+if fetch_button and titles:
+    with st.spinner("Fetching external signals and building title features…"):
+        rows: List[Dict[str, Any]] = []
+        for title in titles:
+            wiki_val = fetch_wikipedia_views(title)
+            trends_val = fetch_google_trends_score(title)
+            yt_val = fetch_youtube_metric(title)
+            sp_val = fetch_spotify_metric(title)
 
-    df_scored = score_runs_for_planning(
-        df_features.drop(columns=["title"]),
-        confidence_level=confidence_level,
-        n_bootstrap=200,
-        model=None,
-        attach_context=False,
-        economic_context=None,
-    )
+            rows.append(
+                {
+                    "title": title,
+                    "wiki_raw": wiki_val,
+                    "trends_raw": trends_val,
+                    "youtube_raw": yt_val,
+                    "spotify_raw": sp_val,
+                }
+            )
 
-    pct = int
+        df_raw = pd.DataFrame(rows)
+
+        # Normalize each channel to 0–100
+        wiki_norm = normalize_0_100(df_raw["wiki_raw"].tolist())
+        trends_norm = normalize_0_100(df_raw["trends_raw"].tolist())
+        youtube_norm = normalize_0_100(df_raw["youtube_raw"].tolist())
+        spotify_norm = normalize_0_100(df_raw["spotify_raw"].tolist())
+
+        df_raw["wiki"] = wiki_norm
+        df_raw["trends"] = trends_norm
+        df_raw["youtube"] = youtube_norm
+        df_raw["spotify"] = spotify_norm
