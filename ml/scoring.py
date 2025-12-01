@@ -1,6 +1,5 @@
 """
 Model scoring module with schema validation and uncertainty quantification.
-
 Features:
 - Schema validation against training features
 - Column drift detection
@@ -12,17 +11,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 import json
 import warnings
+import logging
+
 import pandas as pd
 import numpy as np
 import joblib
 import yaml
-import logging
 
 logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).parent.parent / "models"
 OUTPUTS_DIR = Path(__file__).parent.parent / "outputs"
-
 
 # =============================================================================
 # SCHEMA VALIDATION
@@ -35,311 +34,500 @@ class SchemaValidationWarning(UserWarning):
 
 
 def load_training_schema() -> Optional[Dict[str, Any]]:
-    """Load the training schema from model metadata.
+    """
+    Load the training schema from model metadata.
 
-    Returns:
-        Dictionary with feature names and metadata, or None if not available
+    Returns
+    -------
+    dict or None
+        Dictionary with feature names and metadata, or None if not available.
     """
     metadata_path = MODELS_DIR / "model_metadata.json"
-
     if metadata_path.exists():
         try:
-            with open(metadata_path) as f:
+            with open(metadata_path, encoding="utf-8") as f:
                 metadata = json.load(f)
             return {
                 "features": metadata.get("features", []),
                 "n_features": metadata.get("n_features", 0),
-                "training_date": metadata.get("training_date")
+                "training_date": metadata.get("training_date"),
             }
-        except Exception as e:
-            logger.warning("Could not load training schema: " + str(e))
-
+        except Exception as exc:
+            logger.warning("Could not load training schema: " + str(exc))
     return None
 
 
 def validate_input_schema(
     df: pd.DataFrame,
     training_schema: Optional[Dict[str, Any]] = None,
-    raise_on_error: bool = False
+    raise_on_error: bool = False,
 ) -> Tuple[bool, List[str]]:
-    """Validate input DataFrame schema against training schema.
-
-    Args:
-        df: Input DataFrame to validate
-        training_schema: Optional training schema dictionary
-        raise_on_error: Whether to raise ValueError on validation failure
-
-    Returns:
-        Tuple of (is_valid, list_of_warnings)
     """
+    Validate input DataFrame schema against training schema.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame to validate.
+    training_schema : dict, optional
+        Training schema dictionary.
+    raise_on_error : bool, default False
+        Whether to raise on schema mismatch.
+
+    Returns
+    -------
+    (ok, messages) : (bool, list of str)
+        ok is True if schema is acceptable, messages contains warnings.
+    """
+    messages: List[str] = []
+
     if training_schema is None:
         training_schema = load_training_schema()
 
-    warnings_list: List[str] = []
+    if training_schema is None:
+        messages.append("No training schema found; skipping strict validation.")
+        return True, messages
 
-    if not training_schema:
-        # No schema to validate against
-        warnings_list.append("No training schema available for validation")
-        for warning_msg in warnings_list:
-            warnings.warn(warning_msg, SchemaValidationWarning)
-        return True, warnings_list
+    expected_features = list(training_schema.get("features", []))
+    if not expected_features:
+        messages.append("Training schema has empty feature list; skipping validation.")
+        return True, messages
 
-    training_features = training_schema.get("features", [])
-    n_features = training_schema.get("n_features", len(training_features))
+    input_cols = list(df.columns)
 
-    # Check number of features
-    if df.shape[1] != n_features:
-        msg = (
-            "Input has " + str(df.shape[1]) +
-            " features but training used " + str(n_features)
+    missing = [c for c in expected_features if c not in input_cols]
+    extra = [c for c in input_cols if c not in expected_features]
+
+    if missing:
+        msg = "Missing expected features in input: " + ", ".join(missing)
+        messages.append(msg)
+    if extra:
+        msg = "Extra columns in input that were not used in training: " + ", ".join(extra)
+        messages.append(msg)
+
+    ok = len(missing) == 0
+    if not ok:
+        text = (
+            "Input DataFrame is missing one or more features that were present "
+            "during training. This can degrade predictions or cause failure."
         )
-        warnings_list.append(msg)
+        messages.append(text)
 
-    # Check for missing and extra columns
-    input_cols = set(df.columns.tolist())
-    training_cols = set(training_features)
+    if (not ok) and raise_on_error:
+        raise SchemaValidationWarning("; ".join(messages))
 
-    missing_cols = training_cols - input_cols
-    extra_cols = input_cols - training_cols
-
-    if missing_cols:
-        warnings_list.append(
-            "Missing expected columns: " + ", ".join(sorted(missing_cols))
-        )
-    if extra_cols:
-        warnings_list.append(
-            "Unexpected extra columns: " + ", ".join(sorted(extra_cols))
-        )
-
-    # Check column order if we have exact feature list
-    if training_features:
-        training_order = list(training_features)
-        actual_order = list(df.columns)
-        if training_order != actual_order:
-            warnings_list.append("Column order differs from training schema")
-
-    is_valid = len(warnings_list) == 0
-
-    # Emit warnings
-    for warning_msg in warnings_list:
-        warnings.warn(warning_msg, SchemaValidationWarning)
-
-    if not is_valid and raise_on_error:
-        raise ValueError("Schema validation failed: " + "; ".join(warnings_list))
-
-    return is_valid, warnings_list
+    return ok, messages
 
 
-# =============================================================================
-# MODEL LOADING AND SCORING
-# =============================================================================
-
-
-def load_model(model_path: str | None = None):
-    """Load a trained model from disk."""
-    path = Path(model_path or (MODELS_DIR / "title_demand_rf.pkl"))
-    return joblib.load(path)
-
-
-def score_dataframe(
-    df_features: pd.DataFrame,
-    model=None,
-    validate_schema: bool = True
-) -> pd.Series:
-    """Score a DataFrame using the trained model.
-
-    Args:
-        df_features: DataFrame with features for scoring
-        model: Trained model (loads default if None)
-        validate_schema: Whether to validate input schema
-
-    Returns:
-        Series of predictions
+def detect_column_drift(
+    df_input: pd.DataFrame,
+    df_training_sample: Optional[pd.DataFrame] = None,
+    threshold: float = 0.2,
+) -> Dict[str, Dict[str, float]]:
     """
-    model = model or load_model()
+    Simple column-level drift detection based on differences in means/stds.
 
-    # Validate schema if requested
-    if validate_schema:
-        validate_input_schema(df_features)
+    Parameters
+    ----------
+    df_input : pd.DataFrame
+        Current scoring data.
+    df_training_sample : pd.DataFrame, optional
+        Sample of training data with same columns.
+    threshold : float, default 0.2
+        Relative change threshold to flag drift.
 
-    return pd.Series(
-        model.predict(df_features),
-        index=df_features.index,
-        name="forecast_single_tickets"
-    )
+    Returns
+    -------
+    drift_report : dict
+        Per-column drift metrics: mean_change, std_change, drift_flag.
+    """
+    if df_training_sample is None:
+        return {}
+
+    common = [c for c in df_input.columns if c in df_training_sample.columns]
+    report: Dict[str, Dict[str, float]] = {}
+
+    for col in common:
+        s_now = pd.to_numeric(df_input[col], errors="coerce")
+        s_train = pd.to_numeric(df_training_sample[col], errors="coerce")
+        if s_now.notna().sum() == 0 or s_train.notna().sum() == 0:
+            continue
+
+        mean_now = float(s_now.mean())
+        mean_train = float(s_train.mean())
+        std_now = float(s_now.std(ddof=1))
+        std_train = float(s_train.std(ddof=1))
+
+        mean_change = abs(mean_now - mean_train) / (abs(mean_train) + 1e-8)
+        std_change = abs(std_now - std_train) / (abs(std_train) + 1e-8)
+        drift_flag = 1.0 if (mean_change > threshold or std_change > threshold) else 0.0
+
+        report[col] = {
+            "mean_change": mean_change,
+            "std_change": std_change,
+            "drift_flag": drift_flag,
+        }
+
+    return report
 
 
-def _get_rf_tree_predictions(model, df_features: pd.DataFrame) -> np.ndarray:
-    """Get per-tree predictions for RandomForest-like models."""
-    # Support sklearn RandomForest-style API
-    if hasattr(model, "estimators_"):
-        tree_preds = []
-        for est in model.estimators_:
-            tree_preds.append(est.predict(df_features))
-        return np.vstack(tree_preds).T
-    raise ValueError("Model does not have estimators_ attribute for RF-style trees.")
+# =============================================================================
+# MODEL LOADING
+# =============================================================================
 
 
-def _bootstrap_predictions(
-    model,
+def _safe_load_yaml(path: Path) -> Dict[str, Any]:
+    if (not path.exists()) or (not path.is_file()):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = yaml.safe_load(f)
+        return content or {}
+    except Exception as exc:
+        logger.warning("Could not read YAML at " + str(path) + ": " + str(exc))
+        return {}
+
+
+def load_model(model_name: str = "model_xgb_remount_postcovid") -> Any:
+    """
+    Load a trained model by name from the models directory.
+
+    Parameters
+    ----------
+    model_name : str
+        Base model name without extension.
+
+    Returns
+    -------
+    model : Any
+        Deserialized model object.
+    """
+    json_path = MODELS_DIR / (model_name + ".json")
+    pkl_path = MODELS_DIR / (model_name + ".pkl")
+
+    if json_path.exists():
+        try:
+            import xgboost as xgb
+
+            booster = xgb.Booster()
+            booster.load_model(str(json_path))
+            return booster
+        except Exception as exc:
+            logger.warning("Falling back from JSON model: " + str(exc))
+
+    if pkl_path.exists():
+        try:
+            return joblib.load(pkl_path)
+        except Exception as exc:
+            logger.error("Could not load model pickle: " + str(exc))
+            raise
+
+    raise FileNotFoundError("No model file found for name " + model_name)
+
+
+def load_feature_recipe() -> Optional[pd.DataFrame]:
+    """
+    Load the feature recipe used for training (if present).
+
+    Returns
+    -------
+    df or None
+    """
+    csv_path = MODELS_DIR / "model_recipe_linear.csv"
+    if not csv_path.exists():
+        return None
+    try:
+        return pd.read_csv(csv_path)
+    except Exception as exc:
+        logger.warning("Could not load feature recipe CSV: " + str(exc))
+        return None
+
+
+def get_feature_order() -> Optional[List[str]]:
+    """
+    Return the ordered list of feature names expected by the model.
+    """
+    df_recipe = load_feature_recipe()
+    if df_recipe is None:
+        return None
+    cols = df_recipe.get("feature_name")
+    if cols is None:
+        return None
+    return [str(c) for c in cols.tolist()]
+
+
+# =============================================================================
+# CORE SCORING
+# =============================================================================
+
+
+def _prepare_features_for_model(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare feature DataFrame in the correct column order and dtype for the model.
+    """
+    df_feat = df.copy()
+
+    # Drop known label/ID columns if present
+    to_drop = [
+        "single_tickets_calgary",
+        "single_tickets_edmonton",
+        "total_single_tickets",
+        "show_id",
+        "run_id",
+        "season",
+        "label",
+        "target",
+    ]
+    cols_to_drop = [c for c in to_drop if c in df_feat.columns]
+    if cols_to_drop:
+        df_feat = df_feat.drop(columns=cols_to_drop)
+
+    feature_order = get_feature_order()
+    if feature_order is not None:
+        # Add any missing expected features as zeros
+        for col in feature_order:
+            if col not in df_feat.columns:
+                df_feat[col] = 0.0
+        df_feat = df_feat[feature_order]
+
+    # Coerce everything numeric; non-numeric become  then filled with 0
+    df_feat = df_feat.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+
+    return df_feat
+
+
+def predict_point(
     df_features: pd.DataFrame,
-    n_bootstrap: int = 100,
-    random_state: Optional[int] = None
+    model: Optional[Any] = None,
+    model_name: str = "model_xgb_remount_postcovid",
 ) -> np.ndarray:
-    """Bootstrap predictions for generic models without tree access."""
-    rng = np.random.RandomState(random_state)
-    n = len(df_features)
-    boot_preds = np.zeros((n, n_bootstrap))
-
-    for b in range(n_bootstrap):
-        idx = rng.randint(0, n, size=n)
-        sample = df_features.iloc[idx]
-        boot_preds[:, b] = model.predict(sample)
-
-    return boot_preds
-
-
-def score_with_uncertainty(
-    df_features: pd.DataFrame,
-    model=None,
-    confidence_level: float = 0.9,
-    n_bootstrap: int = 100
-) -> pd.DataFrame:
-    """Score DataFrame with prediction intervals via bootstrapping.
-
-    For Random Forest models, uses the individual tree predictions to
-    estimate uncertainty. For other models, uses bootstrap resampling.
-
-    Args:
-        df_features: DataFrame with features for scoring
-        model: Trained model (loads default if None)
-        confidence_level: Confidence level for prediction intervals (0-1)
-        n_bootstrap: Number of bootstrap samples
-
-    Returns:
-        DataFrame with:
-            - forecast_single_tickets (point estimate)
-            - lower bound
-            - upper bound
     """
-    model = model or load_model()
+    Predict point estimates (expected single tickets) for each row.
 
-    # Base predictions
-    base_pred = score_dataframe(df_features, model=model, validate_schema=True)
+    For XGBoost booster: uses .predict on DMatrix
+    For sklearn models: uses .predict on numpy array.
+    """
+    if model is None:
+        model = load_model(model_name)
 
+    df_prepared = _prepare_features_for_model(df_features)
+    x_mat = df_prepared.values
+
+    # XGBoost Booster API
+    try:
+        import xgboost as xgb
+
+        if isinstance(model, xgb.Booster):
+            dmatrix = xgb.DMatrix(x_mat)
+            preds = model.predict(dmatrix)
+            return np.asarray(preds, dtype=float)
+    except Exception:
+        pass
+
+    # Fallback: sklearn-style API
+    if hasattr(model, "predict"):
+        preds = model.predict(x_mat)
+        return np.asarray(preds, dtype=float)
+
+    raise TypeError("Model of type " + str(type(model)) + " is not supported.")
+
+
+def bootstrap_prediction_intervals(
+    df_features: pd.DataFrame,
+    model: Optional[Any] = None,
+    model_name: str = "model_xgb_remount_postcovid",
+    n_bootstrap: int = 200,
+    confidence_level: float = 0.8,
+    random_state: Optional[int] = 42,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Estimate prediction intervals via simple residual bootstrapping.
+
+    Returns
+    -------
+    mean_pred : array
+        Point predictions (same as predict_point).
+    lower : array
+        Lower bound of prediction interval.
+    upper : array
+        Upper bound of prediction interval.
+    """
+    rng = np.random.RandomState(random_state)
+
+    base_pred = predict_point(df_features, model=model, model_name=model_name)
+    n = base_pred.shape[0]
+    if n == 0:
+        return base_pred, base_pred, base_pred
+
+    # Very simple residual noise model: use a global residual std from training
+    meta_path = MODELS_DIR / "model_metadata.json"
+    residual_std = 0.15  # fallback relative noise
+    if meta_path.exists():
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+            residual_std = float(meta.get("residual_std", residual_std))
+        except Exception:
+            pass
+
+    samples = []
+    for _ in range(n_bootstrap):
+        noise = rng.normal(loc=0.0, scale=residual_std, size=n)
+        samples.append(base_pred * (1.0 + noise))
+
+    samples_arr = np.stack(samples, axis=0)
     alpha = 1.0 - confidence_level
     lower_q = 100.0 * (alpha / 2.0)
     upper_q = 100.0 * (1.0 - alpha / 2.0)
 
-    # Try RF-style tree predictions first
-    try:
-        tree_preds = _get_rf_tree_predictions(model, df_features)
-        lower = np.percentile(tree_preds, lower_q, axis=1)
-        upper = np.percentile(tree_preds, upper_q, axis=1)
-    except Exception:
-        # Fallback to bootstrap predictions
-        boot_preds = _bootstrap_predictions(
-            model,
-            df_features,
-            n_bootstrap=n_bootstrap,
-            random_state=42
-        )
-        lower = np.percentile(boot_preds, lower_q, axis=1)
-        upper = np.percentile(boot_preds, upper_q, axis=1)
+    lower = np.percentile(samples_arr, lower_q, axis=0)
+    upper = np.percentile(samples_arr, upper_q, axis=0)
 
-    result = pd.DataFrame(
-        {
-            "forecast_single_tickets": base_pred.values,
-            "lower_tickets": lower,
-            "upper_tickets": upper,
-        },
-        index=df_features.index,
-    )
-
-    return result
+    return base_pred, lower, upper
 
 
 # =============================================================================
-# ECONOMIC IMPACT / STORYTELLING HOOKS (STUBS)
+# ECONOMIC CONTEXT
 # =============================================================================
 
 
-def load_economic_config(
-    path: Optional[Union[str, Path]] = None
-) -> Dict[str, Any]:
-    """Load economic factor configuration (if available)."""
-    cfg_path = Path(path) if path is not None else (
-        Path(__file__).parent.parent / "config" / "economic_alberta.yaml"
-    )
-    if not cfg_path.exists():
-        return {}
-    try:
-        with open(cfg_path, "r") as f:
-            return yaml.safe_load(f) or {}
-    except Exception as e:
-        logger.warning("Could not load economic config: " + str(e))
-        return {}
+def load_economic_config() -> Dict[str, Any]:
+    """
+    Load economic / macro configuration (e.g., scaling factors).
+    """
+    cfg_path = OUTPUTS_DIR / "economic_context.yaml"
+    return _safe_load_yaml(cfg_path)
 
 
 def attach_economic_context(
-    df_scored: pd.DataFrame,
-    context: Optional[Dict[str, Any]] = None
+    df: pd.DataFrame,
+    context: Optional[Dict[str, Any]] = None,
 ) -> pd.DataFrame:
-    """Attach lightweight economic context columns for storytelling.
-
-    This does not affect predictions, just annotations.
+    """
+    Optionally attach economic or macro context columns to predictions.
     """
     if context is None:
-        context = {}
+        context = load_economic_config()
 
-    df = df_scored.copy()
+    if not context:
+        return df
 
-    # Example: annotate whether macro sentiment is tailwind/headwind
-    macro = context.get("macro_sentiment")
-    if macro is not None:
-        df["macro_sentiment"] = macro
+    df_out = df.copy()
+    for key, val in context.items():
+        col = "macro_" + str(key)
+        if col not in df_out.columns:
+            df_out[col] = val
 
-    return df
+    return df_out
 
 
 # =============================================================================
-# HIGH-LEVEL PLANNING API
+# PUBLIC API
 # =============================================================================
+
+
+def score_with_uncertainty(
+    df_features: pd.DataFrame,
+    model: Optional[Any] = None,
+    model_name: str = "model_xgb_remount_postcovid",
+    confidence_level: float = 0.8,
+    n_bootstrap: int = 200,
+) -> pd.DataFrame:
+    """
+    Core scoring entry point with prediction intervals.
+
+    Parameters
+    ----------
+    df_features : pd.DataFrame
+        Features for each proposed run or scenario.
+        Does NOT need label columns. Any label / ID columns present will be ignored.
+    model : Any, optional
+        Preloaded model; if None, loaded from disk.
+    model_name : str
+        Base model filename (without extension).
+    confidence_level : float
+        Confidence for interval, e.g. 0.8 for 80%.
+    n_bootstrap : int
+        Number of bootstrap samples for interval.
+
+    Returns
+    -------
+    df_pred : pd.DataFrame
+        Columns:
+        - forecast_single_tickets
+        - lower_tickets
+        - upper_tickets
+    """
+    training_schema = load_training_schema()
+    ok, msgs = validate_input_schema(df_features, training_schema, raise_on_error=False)
+    for msg in msgs:
+        warnings.warn(msg, SchemaValidationWarning)
+
+    y_hat, lower, upper = bootstrap_prediction_intervals(
+        df_features,
+        model=model,
+        model_name=model_name,
+        n_bootstrap=n_bootstrap,
+        confidence_level=confidence_level,
+    )
+
+    out = pd.DataFrame(
+        {
+            "forecast_single_tickets": y_hat.astype(float),
+            "lower_tickets": lower.astype(float),
+            "upper_tickets": upper.astype(float),
+        },
+        index=df_features.index,
+    )
+    return out
 
 
 def score_runs_for_planning(
     df_runs: pd.DataFrame,
     confidence_level: float = 0.8,
     n_bootstrap: int = 200,
-    model=None,
+    model: Optional[Any] = None,
+    model_name: str = "model_xgb_remount_postcovid",
     attach_context: bool = False,
-    economic_context: Optional[Dict[str, Any]] = None
+    economic_context: Optional[Dict[str, Any]] = None,
 ) -> pd.DataFrame:
-    """High-level helper for season / run planning.
-
-    Args:
-        df_runs: DataFrame of proposed runs with the same feature columns
-                 as used in training.
-        confidence_level: e.g. 0.8 for an 80 percent prediction interval.
-        n_bootstrap: number of bootstrap draws for the interval.
-        model: optional pretrained model (otherwise loaded from disk).
-        attach_context: whether to annotate with economic context.
-        economic_context: optional dict of context values.
-
-    Returns:
-        DataFrame with original columns plus:
-            - forecast_single_tickets
-            - lower_tickets_<XX>
-            - upper_tickets_<XX>
-            - (optional) macro_sentiment or other context columns
     """
-    # Ensure we are not mutating the original frame
+    High-level helper for season / run planning.
+
+    Parameters
+    ----------
+    df_runs : pd.DataFrame
+        DataFrame of proposed runs with the same feature columns
+        as used in training (order does not matter).
+    confidence_level : float
+        e.g. 0.8 for an 80 percent prediction interval.
+    n_bootstrap : int
+        Number of bootstrap draws for the interval.
+    model : Any, optional
+        Pretrained model (otherwise loaded from disk).
+    model_name : str
+        Base model filename (without extension).
+    attach_context : bool
+        Whether to annotate with economic context.
+    economic_context : dict, optional
+        Context values.
+
+    Returns
+    -------
+    result : pd.DataFrame
+        Original columns plus:
+        - forecast_single_tickets
+        - lower_tickets_<XX>
+        - upper_tickets_<XX>
+        - (optional) macro_* context columns
+    """
     df_features = df_runs.copy()
 
     # Score with uncertainty
     df_pred = score_with_uncertainty(
         df_features,
         model=model,
+        model_name=model_name,
         confidence_level=confidence_level,
         n_bootstrap=n_bootstrap,
     )
