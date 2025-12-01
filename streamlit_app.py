@@ -209,6 +209,290 @@ def main():
             }
         )
 
+def main():
+    # Load configuration and set page meta
+    load_config("config.yaml")
+
+    st.set_page_config(
+        page_title="Alberta Ballet: Title Scoring and Ticket Forecasts",
+        layout="wide"
+    )
+
+    st.title("Alberta Ballet: Title Scoring and Ticket Forecasts")
+    st.caption(
+        "Estimate title demand and single-ticket forecasts using internal history, "
+        "external signals (Wikipedia, Google, YouTube, Spotify), and market context."
+    )
+
+    with st.sidebar:
+        st.header("Navigation")
+        page = st.radio(
+            "Choose a view",
+            ["Overview", "Title Scoring", "Forecasts & Planning", "Diagnostics"],
+            index=0,
+        )
+
+    if page == "Overview":
+        _page_overview()
+    elif page == "Title Scoring":
+        _page_title_scoring()
+    elif page == "Forecasts & Planning":
+        _page_forecasts_planning()
+    else:
+        _page_diagnostics()
+
+
+# -------------------------------------------------------------------------
+# PAGE: Overview
+# -------------------------------------------------------------------------
+def _page_overview():
+    st.subheader("Overview")
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown(
+            "Use the sidebar to switch between:\n"
+            "- **Title Scoring** to see multi-source popularity signals for candidate titles.\n"
+            "- **Forecasts & Planning** to estimate single-ticket demand for upcoming productions.\n"
+        )
+
+        uploaded = st.file_uploader(
+            "Optionally upload a history CSV (productions with ticket sales)",
+            type=["csv"],
+            help="If provided, it will be used on the Forecasts & Planning page."
+        )
+        if uploaded is not None:
+            try:
+                hist_df = pd.read_csv(uploaded)
+                st.session_state["history_df"] = hist_df
+                st.success("History data loaded into session_state.")
+                st.dataframe(hist_df.head())
+            except Exception as exc:
+                st.error("Could not read uploaded CSV: " + str(exc))
+
+    with col2:
+        st.markdown("**Quick Links**")
+        st.markdown("- Config file: `config.yaml`")
+        st.markdown("- Legacy baseline: see `pages/4_Model_Training.py` (deprecated)")
+
+
+# -------------------------------------------------------------------------
+# PAGE: Title Scoring (integrated helper)
+# -------------------------------------------------------------------------
+def _page_title_scoring():
+    st.subheader("Title Scoring Helper")
+
+    st.markdown(
+        "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, YouTube, "
+        "and Spotify for title demand scoring."
+    )
+
+    titles_input = st.text_area(
+        "Enter one title per line",
+        height=150,
+        placeholder="The Nutcracker\nRomeo and Juliet\nSwan Lake",
+    )
+
+    if not titles_input.strip():
+        st.info("Enter at least one title above to see scores.")
+        return
+
+    titles = [t.strip() for t in titles_input.splitlines() if t.strip()]
+    if not titles:
+        st.info("No valid titles found after cleaning the input.")
+        return
+
+    with st.spinner("Fetching signals from Wikipedia / Google / YouTube / Spotify..."):
+        rows = []
+        wiki_vals = []
+        gtrends_vals = []
+        yt_vals = []
+        sp_vals = []
+
+        for t in titles:
+            # Wikipedia pageviews (rough)
+            wiki_val = fetch_wikipedia_views(t)
+            # Google Trends search interest (worldwide, last 12 months)
+            gtrend_val = fetch_google_trends_score(t)
+            # YouTube view count proxy
+            yt_val = fetch_youtube_views(t)
+            # Spotify popularity score proxy
+            sp_val = fetch_spotify_metric(t)
+
+            wiki_vals.append(wiki_val)
+            gtrends_vals.append(gtrend_val)
+            yt_vals.append(yt_val)
+            sp_vals.append(sp_val)
+
+        wiki_norm = normalize_0_100(wiki_vals)
+        gtrends_norm = normalize_0_100(gtrends_vals)
+        yt_norm = normalize_0_100(yt_vals)
+        sp_norm = normalize_0_100(sp_vals)
+
+        for i, t in enumerate(titles):
+            row = {
+                "title": t,
+                "wiki_raw": wiki_vals[i],
+                "gtrends_raw": gtrends_vals[i],
+                "youtube_raw": yt_vals[i],
+                "spotify_raw": sp_vals[i],
+                "wiki_score_0_100": wiki_norm[i],
+                "gtrends_score_0_100": gtrends_norm[i],
+                "youtube_score_0_100": yt_norm[i],
+                "spotify_score_0_100": sp_norm[i],
+            }
+            # Simple aggregate (mean of the 4 normalized scores)
+            valid_scores = [
+                s for s in [
+                    wiki_norm[i],
+                    gtrends_norm[i],
+                    yt_norm[i],
+                    sp_norm[i]
+                ]
+                if not math.isnan(s)
+            ]
+            if valid_scores:
+                row["aggregate_score_0_100"] = float(sum(valid_scores)) / len(valid_scores)
+            else:
+                row["aggregate_score_0_100"] = float("")
+            rows.append(row)
+
+        df_scores = pd.DataFrame(rows)
+
+    st.markdown("**Title demand scores (0–100)**")
+    st.dataframe(df_scores[[
+        "title",
+        "aggregate_score_0_100",
+        "wiki_score_0_100",
+        "gtrends_score_0_100",
+        "youtube_score_0_100",
+        "spotify_score_0_100",
+    ]])
+
+    # Simple bar chart of aggregate scores
+    if not df_scores.empty:
+        st.markdown("**Aggregate score comparison**")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        df_plot = df_scores.sort_values("aggregate_score_0_100", ascending=False)
+        ax.barh(df_plot["title"], df_plot["aggregate_score_0_100"], color="tab:blue")
+        ax.invert_yaxis()
+        ax.set_xlabel("Aggregate Score (0–100)")
+        ax.set_ylabel("Title")
+        st.pyplot(fig)
+
+    # Optionally stash into session_state for use on Forecasts & Planning
+    st.session_state["title_scores_df"] = df_scores
+
+
+# -------------------------------------------------------------------------
+# PAGE: Forecasts & Planning
+# -------------------------------------------------------------------------
+def _page_forecasts_planning():
+    st.subheader("Forecasts & Planning")
+
+    st.markdown(
+        "This page will use the trained model (safe modelling pipeline) to estimate "
+        "single-ticket demand for planned productions, optionally informed by title scores."
+    )
+
+    history_df = st.session_state.get("history_df")
+    if history_df is None:
+        st.info(
+            "No history data in session. Upload a history CSV on the Overview page, "
+            "or use the existing internal data pipeline."
+        )
+
+    # Here we just show placeholders; wiring to `score_runs_for_planning` depends
+    # on your ml/scoring module and feature expectations.
+    try:
+        from ml.scoring import score_runs_for_planning  # type: ignore
+        scoring_available = True
+    except Exception:
+        scoring_available = False
+
+    if not scoring_available:
+        st.warning(
+            "The safe model scoring function `score_runs_for_planning` is not available "
+            "or failed to import. Check ml/scoring.py."
+        )
+        return
+
+    st.markdown("**Upcoming productions input**")
+
+    upcoming_csv = st.file_uploader(
+        "Upload a CSV of upcoming productions (with title, dates, venue, etc.)",
+        type=["csv"],
+        key="upcoming_runs_uploader",
+    )
+
+    if upcoming_csv is None:
+        st.info("Upload a CSV of upcoming productions to run the planning model.")
+        return
+
+    try:
+        upcoming_df = pd.read_csv(upcoming_csv)
+    except Exception as exc:
+        st.error("Could not read upcoming productions CSV: " + str(exc))
+        return
+
+    st.markdown("Preview of upcoming productions data:")
+    st.dataframe(upcoming_df.head())
+
+    # Run safe scoring
+    if st.button("Run ticket demand model"):
+        with st.spinner("Scoring upcoming productions with safe model..."):
+            try:
+                result_df, meta = score_runs_for_planning(
+                    upcoming_df,
+                    history_df=history_df,
+                )
+            except Exception as exc:
+                st.error("Error while scoring with safe model: " + str(exc))
+                return
+
+        st.markdown("**Model results (head)**")
+        st.dataframe(result_df.head())
+
+        if "city" in result_df.columns and "predicted_single_tickets" in result_df.columns:
+            st.markdown("**Predicted single tickets by production and city**")
+            fig2, ax2 = plt.subplots(figsize=(9, 4))
+            pivot = (
+                result_df
+                .groupby(["run_id", "city"])["predicted_single_tickets"]
+                .sum()
+                .reset_index()
+            )
+            for city in sorted(pivot["city"].unique()):
+                sub = pivot[pivot["city"] == city]
+                ax2.bar(sub["run_id"].astype(str), sub["predicted_single_tickets"], label=city)
+            ax2.set_xlabel("Run ID")
+            ax2.set_ylabel("Predicted single tickets")
+            ax2.legend()
+            plt.xticks(rotation=45, ha="right")
+            st.pyplot(fig2)
+
+        st.session_state["planning_results_df"] = result_df
+
+
+# -------------------------------------------------------------------------
+# PAGE: Diagnostics
+# -------------------------------------------------------------------------
+def _page_diagnostics():
+    st.subheader("Diagnostics")
+
+    st.markdown("**Global config values**")
+    st.json(
+        {
+            "SEGMENT_MULT": SEGMENT_MULT,
+            "REGION_MULT": REGION_MULT,
+            "DEFAULT_BASE_CITY_SPLIT": DEFAULT_BASE_CITY_SPLIT,
+            "CITY_CLIP_RANGE": _CITY_CLIP_RANGE,
+            "POSTCOVID_FACTOR": POSTCOVID_FACTOR,
+            "TICKET_BLEND_WEIGHT": TICKET_BLEND_WEIGHT,
+        }
+    )
+
 
 if __name__ == "__main__":
     main()
