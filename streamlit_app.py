@@ -581,7 +581,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
     Estimates ticket demand from title familiarity & motivation, links to sales history, then applies seasonality, remount decay, and learned city/subscriber splits.
 
     ### Full User Guide (5 steps)
-    1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/history_city_sales.csv`.
+    1. **(Optional) Load history:** In *Historicals*, upload your ticket history CSV or rely on `data/productions/history_city_sales.csv`.
     2. **Choose titles:** Add/modify the list in **Titles to score**. Unknown titles are estimated (or fetched live if you turn that on).
     3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
     4. **Pick a benchmark:** Select the **Benchmark Title** to normalize indices (benchmark = 100).
@@ -1282,10 +1282,10 @@ if ("hist_df" not in st.session_state) or relearn:
     else:
         # try your preferred filename first, then the old one; else empty
         try:
-            st.session_state["hist_df"] = pd.read_csv("data/history_city_sales.csv")
+            st.session_state["hist_df"] = pd.read_csv("data/productions/history_city_sales.csv")
         except Exception:
             try:
-                st.session_state["hist_df"] = pd.read_csv("data/history.csv")
+                st.session_state["hist_df"] = pd.read_csv("data/productions/history.csv")
             except Exception:
                 st.session_state["hist_df"] = pd.DataFrame()
 
@@ -1512,7 +1512,7 @@ SEGMENT_KEYS_IN_ORDER = [
 ]
 
 # --- Segment priors by region × category × segment from CSV ---
-# CSV: data/segment_priors.csv
+# CSV: data/productions/segment_priors.csv
 # Expected columns (case-insensitive):
 #   region, category, segment, weight
 #
@@ -1526,7 +1526,7 @@ SEGMENT_PRIORS: dict[str, dict[str, dict[str, float]]] = {}
 
 SEGMENT_PRIOR_STRENGTH = 1.0  # keep this; used in _prior_weights_for()
 
-def load_segment_priors(path: str = "data/segment_priors.csv") -> None:
+def load_segment_priors(path: str = "data/productions/segment_priors.csv") -> None:
     """
     Populates SEGMENT_PRIORS as:
       SEGMENT_PRIORS[region][category][segment] = weight
@@ -1748,7 +1748,7 @@ def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tu
     return fam, mot
 
 # --- Ticket priors (from CSV) ---
-# CSV: data/history_city_sales.csv
+# CSV: data/productions/history_city_sales.csv
 # Expected columns (case-insensitive):
 #   show_title (or title), total single tickets (or tickets)
 # One row per run: multiple rows per title are allowed; we keep a list per title.
@@ -1762,7 +1762,7 @@ def _median(xs):
     n = len(xs); mid = n // 2
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
-def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
+def load_ticket_priors(path: str = "data/productions/history_city_sales.csv") -> None:
     global TICKET_PRIORS_RAW
     try:
         df = pd.read_csv(path, thousands=",")
@@ -1801,7 +1801,7 @@ def load_ticket_priors(path: str = "data/history_city_sales.csv") -> None:
 load_ticket_priors()
 
 # --- Past runs (for seasonality) from CSV ---
-# CSV: data/past_runs.csv
+# CSV: data/productions/past_runs.csv
 # Expected columns (case-insensitive):
 #   title, start_date, end_date
 # Dates in ISO format: YYYY-MM-DD
@@ -1815,7 +1815,7 @@ def _to_date(s: str) -> date:
 def _mid_date(a: date, b: date) -> date:
     return a + (b - a) // 2
 
-def load_past_runs(path: str = "data/past_runs.csv") -> None:
+def load_past_runs(path: str = "data/productions/past_runs.csv") -> None:
     """
     Build RUNS_DF with columns:
       Title, Category, Start, End, MidDate, Month, Year, TicketMedian
