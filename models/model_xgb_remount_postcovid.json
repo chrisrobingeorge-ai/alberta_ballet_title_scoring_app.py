@@ -1,59 +1,48 @@
 {
-  "training_date": "2025-12-02T19:14:38.363990",
+  "training_date": "2025-12-02T20:37:59.240443",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
-  "n_samples": 25,
+  "n_samples": 20,
   "features": {
     "numeric": [
       "wiki",
       "trends",
       "youtube",
       "spotify",
-      "prior_total_tickets",
-      "prior_run_count",
-      "ticket_median_prior",
       "years_since_last_run",
       "is_remount_recent",
-      "is_remount_medium",
-      "run_count_prior",
-      "month_of_opening",
-      "holiday_flag",
-      "consumer_confidence_prairies",
-      "energy_index",
-      "inflation_adjustment_factor",
-      "city_median_household_income",
-      "aud__engagement_factor",
-      "res__arts_share_giving"
+      "prior_total_tickets"
     ],
     "categorical": [
+      "end_date",
       "category",
       "gender"
     ],
-    "total": 21
+    "total": 10
   },
   "cv_metrics": {
-    "mae_mean": 274.2235546875022,
-    "mae_std": 65.9179860685849,
-    "rmse_mean": 330.0861105773767,
-    "rmse_std": 77.57172265501642,
-    "r2_mean": 0.9518707405712187,
-    "r2_std": 0.04937925918599,
+    "mae_mean": 3186.7154296875,
+    "mae_std": 1412.6517752002421,
+    "rmse_mean": 3631.1729995836345,
+    "rmse_std": 1541.6145212312936,
+    "r2_mean": -15.687821299720387,
+    "r2_std": 14.915746746697591,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 2.4603515624993086,
-    "rmse": 5.074741806075975,
-    "r2": 0.9999935441331639,
-    "mae_log": 0.0002416703768135875,
-    "rmse_log": 0.0004644664187301958
+    "mae": 20.693945312499636,
+    "rmse": 27.410770251403324,
+    "r2": 0.9998919993275968,
+    "mae_log": 0.0016213737695279563,
+    "rmse_log": 0.0020429560612578576
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/pytest-of-runner/pytest-5/test_pipeline_reports_step_sta0/test_results/20251202_191427/modelling_dataset.csv",
-  "git_commit_hash": "6b26415",
-  "data_file_hash": "d6c05a18ca97b579",
+  "dataset_path": "/tmp/tmpy33_q89c/test_dataset.csv",
+  "git_commit_hash": "47ebf08",
+  "data_file_hash": "a9455801db5a8444",
   "dataset_shape": {
-    "n_rows": 25,
-    "n_columns": 24
+    "n_rows": 20,
+    "n_columns": 13
   }
 }
