@@ -20,8 +20,17 @@ def derive_basic_features(df: pd.DataFrame) -> pd.DataFrame:
     """Create simple derived features based on registry guidance.
     
     Note: This app focuses on single ticket estimation only.
+    
+    Creates total_single_tickets from single_tickets if needed for 
+    consistent target column naming across the pipeline.
     """
     out = df.copy()
+    
+    # Create total_single_tickets if only single_tickets exists
+    # This ensures consistent target column naming across the pipeline
+    if 'total_single_tickets' not in out.columns and 'single_tickets' in out.columns:
+        out['total_single_tickets'] = out['single_tickets']
+    
     return out
 
 
@@ -116,12 +125,14 @@ def join_consumer_confidence(
         region: Which region to use (default 'Prairies' for Alberta)
         
     Returns:
-        DataFrame with consumer_confidence_prairies feature added
+        DataFrame with consumer_confidence_prairies and consumer_confidence_headline features added
     """
     if nanos_df.empty:
         logger.warning("Empty Nanos data; using default consumer confidence")
-        df['consumer_confidence_prairies'] = 50.0
-        return df
+        out = df.copy()
+        out['consumer_confidence_prairies'] = 50.0
+        out['consumer_confidence_headline'] = 50.0
+        return out
     
     out = df.copy()
     
@@ -129,6 +140,7 @@ def join_consumer_confidence(
     if date_column not in out.columns or out[date_column].isna().all():
         logger.warning(f"Date column '{date_column}' missing or empty; using default consumer confidence")
         out['consumer_confidence_prairies'] = 50.0
+        out['consumer_confidence_headline'] = 50.0
         return out
     
     try:
@@ -139,70 +151,79 @@ def join_consumer_confidence(
             (nanos_df['metric'] == region)
         ].copy()
         
-        # Also get headline index as fallback
+        # Also get headline index
         headline = nanos_df[
             (nanos_df['category'] == 'BNCCI') & 
             (nanos_df['subcategory'] == 'Headline Index') &
             (nanos_df['metric'] == target_metric)
         ].copy()
         
-        # Try regional first, fall back to headline
-        confidence_data = regional if not regional.empty else headline
+        # Use regional for consumer_confidence_prairies, headline for consumer_confidence_headline
+        # If regional is empty, fall back to headline for both
+        confidence_data_prairies = regional if not regional.empty else headline
+        confidence_data_headline = headline if not headline.empty else regional
         
-        if confidence_data.empty:
+        if confidence_data_prairies.empty and confidence_data_headline.empty:
             logger.warning("No suitable consumer confidence data found; using default")
             out['consumer_confidence_prairies'] = 50.0
+            out['consumer_confidence_headline'] = 50.0
             return out
         
-        # Parse year_or_period as date
-        confidence_data['_conf_date'] = pd.to_datetime(confidence_data['year_or_period'], errors='coerce')
-        confidence_data = confidence_data.dropna(subset=['_conf_date', 'value'])
-        
-        if confidence_data.empty:
-            logger.warning("No parseable dates in consumer confidence data; using default")
-            out['consumer_confidence_prairies'] = 50.0
-            return out
-        
-        # Sort by date
-        confidence_data = confidence_data.sort_values('_conf_date')
-        
-        # Prepare show data
-        out['_show_date'] = pd.to_datetime(out[date_column], errors='coerce')
-        out_with_dates = out[out['_show_date'].notna()].copy()
-        out_without_dates = out[out['_show_date'].isna()].copy()
-        
-        if not out_with_dates.empty:
-            # Merge using asof (nearest prior date)
-            out_with_dates = pd.merge_asof(
-                out_with_dates.sort_values('_show_date'),
-                confidence_data[['_conf_date', 'value']].rename(columns={'value': 'consumer_confidence_prairies'}),
-                left_on='_show_date',
-                right_on='_conf_date',
-                direction='backward'
-            )
+        # Helper to prepare and merge confidence data
+        def prepare_and_merge(conf_data, out_df, col_name, date_col):
+            if conf_data.empty:
+                out_df[col_name] = 50.0
+                return out_df
             
-            # Fill any remaining nulls with median
-            median_confidence = confidence_data['value'].median()
-            out_with_dates['consumer_confidence_prairies'] = out_with_dates['consumer_confidence_prairies'].fillna(median_confidence)
+            conf_copy = conf_data.copy()
+            conf_copy['_conf_date'] = pd.to_datetime(conf_copy['year_or_period'], errors='coerce')
+            conf_copy = conf_copy.dropna(subset=['_conf_date', 'value'])
             
-            # Combine back
-            out = pd.concat([out_with_dates, out_without_dates], ignore_index=True)
+            if conf_copy.empty:
+                out_df[col_name] = 50.0
+                return out_df
+            
+            # Sort by date
+            conf_copy = conf_copy.sort_values('_conf_date')
+            median_val = conf_copy['value'].median()
+            
+            # Prepare show data
+            out_df['_show_date'] = pd.to_datetime(out_df[date_col], errors='coerce')
+            out_with_dates = out_df[out_df['_show_date'].notna()].copy()
+            out_without_dates = out_df[out_df['_show_date'].isna()].copy()
+            
+            if not out_with_dates.empty:
+                out_with_dates = pd.merge_asof(
+                    out_with_dates.sort_values('_show_date'),
+                    conf_copy[['_conf_date', 'value']].rename(columns={'value': col_name}),
+                    left_on='_show_date',
+                    right_on='_conf_date',
+                    direction='backward'
+                )
+                out_with_dates[col_name] = out_with_dates[col_name].fillna(median_val)
+                out_df = pd.concat([out_with_dates, out_without_dates], ignore_index=True)
+            
+            if col_name not in out_df.columns:
+                out_df[col_name] = median_val
+            else:
+                out_df[col_name] = out_df[col_name].fillna(median_val)
+            
+            out_df = out_df.drop(columns=['_show_date', '_conf_date'], errors='ignore')
+            return out_df
         
-        # Fill rows without dates with median confidence
-        if 'consumer_confidence_prairies' not in out.columns:
-            out['consumer_confidence_prairies'] = confidence_data['value'].median()
-        else:
-            out['consumer_confidence_prairies'] = out['consumer_confidence_prairies'].fillna(confidence_data['value'].median())
+        # Add prairies confidence
+        out = prepare_and_merge(confidence_data_prairies, out, 'consumer_confidence_prairies', date_column)
         
-        # Clean up temporary columns
-        out = out.drop(columns=['_show_date', '_conf_date'], errors='ignore')
+        # Add headline confidence
+        out = prepare_and_merge(confidence_data_headline, out, 'consumer_confidence_headline', date_column)
         
-        logger.info(f"Added consumer_confidence_prairies to {len(out)} rows (mean={out['consumer_confidence_prairies'].mean():.2f})")
+        logger.info(f"Added consumer_confidence_prairies and consumer_confidence_headline to {len(out)} rows")
         return out
         
     except Exception as e:
         logger.warning(f"Error joining consumer confidence: {e}")
         out['consumer_confidence_prairies'] = 50.0
+        out['consumer_confidence_headline'] = 50.0
         return out
 
 
@@ -336,6 +357,9 @@ def compute_inflation_adjustment_factor(
         cpi['date'] = pd.to_datetime(cpi['date'], errors='coerce')
         cpi = cpi.dropna(subset=['date'])
         
+        # CRITICAL: Sort CPI data by date to ensure order-independent results
+        cpi = cpi.sort_values('date').reset_index(drop=True)
+        
         # Get CPI column - V41690973 is CPI All-items
         cpi_col = 'V41690973'
         if cpi_col not in cpi.columns:
@@ -348,13 +372,13 @@ def compute_inflation_adjustment_factor(
                 out['inflation_adjustment_factor'] = 1.0
                 return out
         
-        # Get base CPI value
+        # Get base CPI value - always sort before using iloc
         base_dt = pd.to_datetime(base_date)
         base_cpi_row = cpi[cpi['date'] <= base_dt].sort_values('date')
         if len(base_cpi_row) > 0:
             base_cpi = base_cpi_row[cpi_col].iloc[-1]
         else:
-            # Use first available value
+            # Use first available value (cpi is already sorted by date)
             base_cpi = cpi[cpi_col].iloc[0]
         
         # Prepare show data
@@ -363,14 +387,20 @@ def compute_inflation_adjustment_factor(
             out['inflation_adjustment_factor'] = 1.0
             return out
         
+        # Store original index for proper reordering after merge
+        out['_orig_idx'] = range(len(out))
+        
         out['_show_date'] = pd.to_datetime(out[date_column], errors='coerce')
         out_with_dates = out[out['_show_date'].notna()].copy()
         out_without_dates = out[out['_show_date'].isna()].copy()
         
         if not out_with_dates.empty:
-            # Merge using asof (nearest prior date)
+            # Sort by show date for merge_asof, but preserve original order info
+            out_with_dates = out_with_dates.sort_values('_show_date')
+            
+            # Merge using asof (nearest prior date) - CPI is already sorted by date
             out_with_dates = pd.merge_asof(
-                out_with_dates.sort_values('_show_date'),
+                out_with_dates,
                 cpi[['date', cpi_col]].rename(columns={cpi_col: '_cpi_value'}),
                 left_on='_show_date',
                 right_on='date',
@@ -381,8 +411,9 @@ def compute_inflation_adjustment_factor(
             out_with_dates['inflation_adjustment_factor'] = out_with_dates['_cpi_value'] / base_cpi
             out_with_dates['inflation_adjustment_factor'] = out_with_dates['inflation_adjustment_factor'].fillna(1.0)
             
-            # Combine back
+            # Combine back and restore original order
             out = pd.concat([out_with_dates, out_without_dates], ignore_index=True)
+            out = out.sort_values('_orig_idx').reset_index(drop=True)
         
         # Fill rows without dates with default
         if 'inflation_adjustment_factor' not in out.columns:
@@ -391,7 +422,7 @@ def compute_inflation_adjustment_factor(
             out['inflation_adjustment_factor'] = out['inflation_adjustment_factor'].fillna(1.0)
         
         # Clean up temp columns
-        out = out.drop(columns=['_show_date', 'date', '_cpi_value'], errors='ignore')
+        out = out.drop(columns=['_show_date', 'date', '_cpi_value', '_orig_idx'], errors='ignore')
         
         logger.info(f"Added inflation_adjustment_factor to {len(out)} rows (mean={out['inflation_adjustment_factor'].mean():.3f})")
         return out

@@ -63,6 +63,7 @@ def run_full_pipeline(
     output_base_dir: str = "results",
     history_path: str = "data/productions/history_city_sales - combined.csv",
     baselines_path: str = "data/productions/baselines.csv",
+    past_runs_path: Optional[str] = None,
     tune: bool = False,
     save_shap: bool = False,
     seed: int = 42,
@@ -80,6 +81,7 @@ def run_full_pipeline(
         output_base_dir: Base directory for outputs (default: results/)
         history_path: Path to combined historical sales CSV (city-level rows with dates)
         baselines_path: Path to baselines CSV
+        past_runs_path: Optional path to past runs CSV (currently ignored, for API compatibility)
         tune: Enable hyperparameter tuning
         save_shap: Compute and save SHAP explanations
         seed: Random seed for reproducibility
@@ -88,6 +90,9 @@ def run_full_pipeline(
     Returns:
         Dictionary with pipeline execution results and output paths
     """
+    # Note: past_runs_path is accepted for API compatibility but not used in this pipeline
+    _ = past_runs_path
+    
     start_time = datetime.now()
     timestamp = start_time.strftime("%Y%m%d_%H%M%S")
 
