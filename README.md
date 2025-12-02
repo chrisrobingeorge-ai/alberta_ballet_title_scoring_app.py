@@ -35,7 +35,9 @@ streamlit run streamlit_app.py
 
 ## Robust ML Training Pipeline (New)
 
-The app includes a complete, leak-free training workflow:
+The app includes a complete, leak-free training workflow.
+
+**The pipeline now uses explicit date fields for time-aware validation and feature engineering.** This improves forecast reliability and enables integration with external data sources such as economic indicators and event calendars.
 
 > **⚠️ IMPORTANT: This is the PRIMARY, RECOMMENDED ML pipeline.**
 >
