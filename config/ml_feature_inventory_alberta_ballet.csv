@@ -66,6 +66,20 @@ Timing & Schedule Factors,on_sale_month,Month in which tickets first went on sal
 Timing & Schedule Factors,typical_performance_time,Share of performances categorised as evening vs matinee.,numeric (float),in development,From performance start times.,ratio,0,1,yes
 Timing & Schedule Factors,weekday_vs_weekend_mix,Percent of performances on Fri–Sun vs Mon–Thu.,numeric (float),in development,Derived from schedule.,ratio,0,1,yes
 Timing & Schedule Factors,overlapping_internal_events_flag,Other Alberta Ballet productions overlap in same city/run window.,boolean,in development,Compare run windows across all productions.,,,,
+Timing & Schedule Factors,opening_year,Year of the production opening (e.g. 2024).,numeric (int),available,Derived from start_date via derive_date_features().,year,2015,2030,yes
+Timing & Schedule Factors,opening_month,Month of the production opening (1-12).,numeric (int),available,Derived from start_date via derive_date_features().,month,1,12,yes
+Timing & Schedule Factors,opening_day_of_week,Day of week of opening (0=Monday through 6=Sunday).,numeric (int),available,Derived from start_date via derive_date_features().,day,0,6,yes
+Timing & Schedule Factors,opening_week_of_year,ISO week number of opening (1-52).,numeric (int),available,Derived from start_date via derive_date_features().,week,1,52,yes
+Timing & Schedule Factors,opening_quarter,Calendar quarter of opening (1-4).,numeric (int),available,Derived from start_date via derive_date_features().,quarter,1,4,yes
+Timing & Schedule Factors,opening_season,"Meteorological season of opening (winter, spring, summer, autumn).",categorical,available,Derived from start_date via derive_date_features(); uses Northern Hemisphere seasons.,,,,
+Timing & Schedule Factors,opening_is_winter,Binary flag: 1 if opening is in winter (Dec-Feb).,numeric (int),available,Derived from start_date via derive_date_features().,,0,1,yes
+Timing & Schedule Factors,opening_is_spring,Binary flag: 1 if opening is in spring (Mar-May).,numeric (int),available,Derived from start_date via derive_date_features().,,0,1,yes
+Timing & Schedule Factors,opening_is_summer,Binary flag: 1 if opening is in summer (Jun-Aug).,numeric (int),available,Derived from start_date via derive_date_features().,,0,1,yes
+Timing & Schedule Factors,opening_is_autumn,Binary flag: 1 if opening is in autumn (Sep-Nov).,numeric (int),available,Derived from start_date via derive_date_features().,,0,1,yes
+Timing & Schedule Factors,opening_is_holiday_season,"Binary flag: 1 if opening is in Nov, Dec, or Jan (holiday period).",numeric (int),available,Derived from start_date via derive_date_features(); critical for Nutcracker timing.,,0,1,yes
+Timing & Schedule Factors,opening_is_weekend,Binary flag: 1 if opening is on Saturday or Sunday.,numeric (int),available,Derived from start_date via derive_date_features().,,0,1,yes
+Timing & Schedule Factors,run_duration_days,Number of days between start_date and end_date of the run.,numeric (int),available,Derived from start_date and end_date via derive_date_features().,days,1,60,yes
+Timing & Schedule Factors,days_to_opening,Days from forecast reference date to opening (negative if past).,numeric (int),available,Computed via compute_days_to_opening(); useful for lead-time forecasting.,days,-365,365,yes
 External Factors,alberta_unemployment_rate,Unemployment rate in Alberta during run period.,numeric (float),to be collected,From Statistics Canada Labour Force Survey; use monthly or quarterly value aligned to run.,percent,0,25,yes
 External Factors,alberta_cpi_index,Consumer Price Index for Alberta (inflation proxy) at time of run.,numeric (float),to be collected,From StatsCan CPI for Alberta; align to month of opening.,index,50,300,yes
 External Factors,alberta_real_gdp_growth_rate,Real GDP growth rate for Alberta in the season year.,numeric (float),to be collected,From Alberta Treasury Board and Finance or StatsCan.,percent,-20,20,yes

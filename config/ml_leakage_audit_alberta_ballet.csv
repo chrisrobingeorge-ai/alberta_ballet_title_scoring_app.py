@@ -39,4 +39,18 @@ inflation_adjustment_factor,N,Y,CPI-based adjustment using historical published 
 city_median_household_income,N,Y,Census demographic data; static snapshot from 2021 census; safe as city characteristic.
 aud__engagement_factor,N,Y,Derived from historical audience analytics by category; not dependent on current-run sales; safe category-level characteristic known at forecast time.
 res__arts_share_giving,N,Y,Donor research data by year from Nanos/Stone Olafson study; represents annual giving patterns to arts sector; known at forecast time as historical research data.
+opening_year,N,Y,Derived from planned start_date; known at forecast time when run is scheduled.
+opening_month,N,Y,Derived from planned start_date; known at forecast time when run is scheduled.
+opening_day_of_week,N,Y,Derived from planned start_date; known at forecast time when run is scheduled.
+opening_week_of_year,N,Y,Derived from planned start_date; known at forecast time when run is scheduled.
+opening_quarter,N,Y,Derived from planned start_date; known at forecast time when run is scheduled.
+opening_season,N,Y,Derived from planned start_date; known at forecast time when run is scheduled.
+opening_is_winter,N,Y,Binary season flag derived from planned start_date; safe for forecasting.
+opening_is_spring,N,Y,Binary season flag derived from planned start_date; safe for forecasting.
+opening_is_summer,N,Y,Binary season flag derived from planned start_date; safe for forecasting.
+opening_is_autumn,N,Y,Binary season flag derived from planned start_date; safe for forecasting.
+opening_is_holiday_season,N,Y,Holiday season flag (Nov-Jan) derived from planned start_date; safe for forecasting.
+opening_is_weekend,N,Y,Weekend flag derived from planned start_date; safe for forecasting.
+run_duration_days,N,Y,Derived from planned start_date and end_date; known when run is scheduled; safe for forecasting.
+days_to_opening,N,Y,Computed from reference date to planned start_date; known at forecast time; useful for lead-time models.
 

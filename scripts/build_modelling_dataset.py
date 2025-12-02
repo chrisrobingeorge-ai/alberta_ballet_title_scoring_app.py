@@ -45,7 +45,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.canonicalize_titles import canonicalize_title, fuzzy_match_title
-from data.features import build_feature_store
+from data.features import build_feature_store, derive_date_features
 from data.loader import (
     load_nanos_consumer_confidence,
     load_nanos_better_off,
@@ -461,6 +461,26 @@ def build_modelling_dataset(
         output_path=None  # Don't write intermediate file
     )
     
+    # Apply date-based feature derivation (year, month, day of week, season, etc.)
+    # These features are derived from start_date/end_date which are known at forecast time
+    if verbose:
+        print("\n3b. Deriving date-based features...")
+    
+    history_enriched = derive_date_features(
+        history_enriched,
+        start_date_col='start_date',
+        end_date_col='end_date'
+    )
+    
+    if verbose:
+        date_cols = [c for c in history_enriched.columns if any([
+            'opening_' in c,
+            'run_duration' in c
+        ])]
+        print(f"  - Added {len(date_cols)} date-based feature columns")
+        if date_cols:
+            print(f"  - Date features: {', '.join(date_cols[:6])}{'...' if len(date_cols) > 6 else ''}")
+    
     if verbose:
         econ_cols = [c for c in history_enriched.columns if any([
             'consumer_confidence' in c,
@@ -528,10 +548,11 @@ def build_modelling_dataset(
         if verbose:
             print(f"  - Matched {matched_priors}/{len(df)} titles with ticket history")
     
-    # Join economic features and month_of_opening from enriched history
-    # Extract economic columns for each title (aggregate if needed)
+    # Join economic features, date-based features, and month_of_opening from enriched history
+    # Extract relevant columns for each title (aggregate if needed)
     if not history_enriched.empty and "canonical_title" in history_enriched.columns:
-        econ_feature_cols = [c for c in history_enriched.columns if any([
+        # Economic features
+        feature_cols_to_join = [c for c in history_enriched.columns if any([
             'consumer_confidence' in c,
             'energy_index' in c,
             'inflation_adjustment' in c,
@@ -541,35 +562,42 @@ def build_modelling_dataset(
             'city_edmonton' in c
         ])]
         
+        # Date-based features (from derive_date_features)
+        date_feature_cols = [c for c in history_enriched.columns if any([
+            c.startswith('opening_'),
+            c == 'run_duration_days'
+        ])]
+        feature_cols_to_join.extend(date_feature_cols)
+        
         # Also include month_of_opening if available
         if 'month_of_opening' in history_enriched.columns:
-            econ_feature_cols.append('month_of_opening')
+            feature_cols_to_join.append('month_of_opening')
         
-        if econ_feature_cols:
-            # Aggregate economic features by canonical_title (take mean for numeric, mode for categorical)
-            econ_agg_dict = {}
-            for col in econ_feature_cols:
-                if history_enriched[col].dtype in ['int64', 'float64']:
-                    econ_agg_dict[col] = 'mean'
-                else:
-                    econ_agg_dict[col] = lambda x: x.mode()[0] if len(x.mode()) > 0 else x.iloc[0]
-            
-            econ_features = history_enriched.groupby("canonical_title")[econ_feature_cols].agg(
-                {col: 'mean' if history_enriched[col].dtype in ['int64', 'float64'] else 'first' 
-                 for col in econ_feature_cols}
+        # Remove duplicates while preserving order
+        feature_cols_to_join = list(dict.fromkeys(feature_cols_to_join))
+        
+        if feature_cols_to_join:
+            # Aggregate features by canonical_title (take mean for numeric, mode for categorical)
+            agg_features = history_enriched.groupby("canonical_title")[feature_cols_to_join].agg(
+                {col: 'mean' if history_enriched[col].dtype in ['int64', 'float64', 'Int64'] else 'first' 
+                 for col in feature_cols_to_join}
             ).reset_index()
             
             df = df.merge(
-                econ_features,
+                agg_features,
                 on="canonical_title",
                 how="left"
             )
             
             if verbose:
                 month_populated = df['month_of_opening'].notna().sum() if 'month_of_opening' in df.columns else 0
-                print(f"  - Joined {len(econ_feature_cols)} economic/temporal features")
+                print(f"  - Joined {len(feature_cols_to_join)} economic/temporal/date features")
                 if month_populated > 0:
                     print(f"  - month_of_opening populated for {month_populated}/{len(df)} rows")
+                # Report date features specifically
+                date_features_present = [c for c in date_feature_cols if c in df.columns]
+                if date_features_present:
+                    print(f"  - Date features joined: {len(date_features_present)} columns")
     
     # 8. Join with remount features
     if not remount_features.empty and "canonical_title" in remount_features.columns:
@@ -742,6 +770,27 @@ def build_modelling_dataset(
             elif 'city_' in col:
                 df[col] = df[col].fillna(0)  # Binary flags default to 0
     
+    # Fill missing values for date-based features
+    date_feature_defaults = {
+        'opening_year': 2024,  # Default to current year
+        'opening_month': 1,
+        'opening_day_of_week': 0,
+        'opening_week_of_year': 1,
+        'opening_quarter': 1,
+        'opening_season': 'winter',
+        'opening_is_winter': 0,
+        'opening_is_spring': 0,
+        'opening_is_summer': 0,
+        'opening_is_autumn': 0,
+        'opening_is_holiday_season': 0,
+        'opening_is_weekend': 0,
+        'run_duration_days': 7  # Default to typical week-long run
+    }
+    
+    for col, default_val in date_feature_defaults.items():
+        if col in df.columns:
+            df[col] = df[col].fillna(default_val)
+    
     # 13. Select final feature columns
     if verbose:
         print("\n11. Selecting final features...")
@@ -757,6 +806,12 @@ def build_modelling_dataset(
         "years_since_last_run", "is_remount_recent", "is_remount_medium", "run_count_prior",
         # Seasonality (safe - based on planned timing)
         "month_of_opening", "holiday_flag",
+        # Date-based features (safe - derived from planned run dates)
+        "opening_year", "opening_month", "opening_day_of_week", "opening_week_of_year",
+        "opening_quarter", "opening_season",
+        "opening_is_winter", "opening_is_spring", "opening_is_summer", "opening_is_autumn",
+        "opening_is_holiday_season", "opening_is_weekend",
+        "run_duration_days",
         # Economic features (safe - macro context known at forecast time)
         "consumer_confidence_prairies", "energy_index",
         "inflation_adjustment_factor", "city_median_household_income",
