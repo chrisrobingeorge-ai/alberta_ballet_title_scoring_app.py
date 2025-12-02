@@ -151,7 +151,10 @@ def test_assert_chronological_split_passes_with_date_col():
     # Find a split point that lands between unique dates (not on a duplicate)
     # Get unique dates sorted and find a cutoff date around 80%
     unique_dates = np.sort(X_sorted[DATE_COL].unique())
-    cutoff_idx = int(len(unique_dates) * 0.8)
+    
+    # Ensure we have enough unique dates and calculate a valid cutoff index
+    assert len(unique_dates) > 1, "Need at least 2 unique dates for splitting"
+    cutoff_idx = min(int(len(unique_dates) * 0.8), len(unique_dates) - 1)
     cutoff_date = unique_dates[cutoff_idx]
     
     # Split using strict inequality to ensure train dates < test dates
