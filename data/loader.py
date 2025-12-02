@@ -2428,14 +2428,14 @@ def join_history_with_external_data(
             date_key=date_key
         )
     
-    # Join economic data (already uses left join in existing function)
+    # Note: Economic data joining is not supported in this function
+    # as load_history_with_external_factors() loads from CSV files.
+    # To join economic data, use load_history_with_external_factors() directly
+    # or use the individual join functions in data/features.py
     if include_economy:
-        result = load_history_with_external_factors(
-            history_csv=None,  # Skip loading, use provided df
-            external_csv="economics/external_factors.csv"
-        ) if history_df.empty else result  # Only call if we want to reload
-        # Note: For economy, use the existing load_history_with_external_factors
-        # which already uses left joins
+        logger.info("Economy join in join_history_with_external_data() is a no-op. "
+                   "Use load_history_with_external_factors() directly to load and join "
+                   "economic data, or use the feature store functions in data/features.py.")
     
     # Verify all rows preserved
     if len(result) != original_rows:
