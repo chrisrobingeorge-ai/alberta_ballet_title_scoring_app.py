@@ -19,6 +19,48 @@ The safe modelling dataset pipeline consists of:
 **Note:** The legacy baseline pipeline (ml/dataset.py + ml/training.py) is deprecated
 and should not be used for production. It has known leakage risks.
 
+Features Used (from modelling_dataset.csv)
+------------------------------------------
+
+**Baseline Signals (forecast-time safe):**
+- wiki, trends, youtube, spotify
+
+**Categorical Features:**
+- category, gender
+
+**Lagged Historical Features (from prior seasons - safe):**
+- prior_total_tickets, prior_run_count, ticket_median_prior
+
+**Remount Features (derived from prior runs - safe):**
+- years_since_last_run, is_remount_recent, is_remount_medium, run_count_prior
+
+**Seasonality & Date Features (based on planned timing - safe):**
+- month_of_opening, holiday_flag
+- opening_year, opening_month, opening_day_of_week, opening_week_of_year
+- opening_quarter, opening_season
+- opening_is_winter, opening_is_spring, opening_is_summer, opening_is_autumn
+- opening_is_holiday_season, opening_is_weekend, run_duration_days
+
+**External Economic Features (macro context known at forecast time - safe):**
+- consumer_confidence_prairies (Nanos consumer confidence for Prairies region)
+- energy_index (BoC commodity price index for energy)
+- inflation_adjustment_factor (CPI-based inflation adjustment)
+- city_median_household_income (Census-based household income)
+
+**Audience Analytics Features (derived from historical category engagement - safe):**
+- aud__engagement_factor (Live Analytics category engagement factor)
+
+**Research Features (donor research data by year - safe):**
+- res__arts_share_giving (Nanos arts donor research share of giving)
+
+Forbidden Features (data leakage prevention)
+--------------------------------------------
+The following patterns are FORBIDDEN and will cause training to abort:
+- single_tickets, single tickets (current-run ticket sales)
+- total_tickets, total tickets (current-run totals)
+- yourmodel_* (external model predictions)
+- *_tickets_calgary, *_tickets_edmonton (city-level current-run sales)
+
 Usage:
     python scripts/train_safe_model.py [options]
 

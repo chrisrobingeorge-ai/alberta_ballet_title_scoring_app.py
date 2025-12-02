@@ -17,8 +17,32 @@ Legacy/Prototype Model Training Module
     - Prior-season aggregates computed correctly
     - Comprehensive diagnostics and data quality reports
     - SHAP explanations for model interpretability
+    - **External features**: economic indicators (consumer_confidence_prairies,
+      energy_index, inflation_adjustment_factor), audience analytics
+      (aud__engagement_factor), research data (res__arts_share_giving)
 
     This legacy module is retained for backward compatibility and prototyping only.
+
+Leakage Prevention (CRITICAL)
+-----------------------------
+This legacy module does NOT include the robust leakage prevention from the safe
+pipeline. The following column patterns would cause data leakage and must be
+manually excluded:
+- single_tickets, total_tickets (current-run sales)
+- yourmodel_* (external model predictions)
+- *_tickets_calgary, *_tickets_edmonton (city-level current-run sales)
+
+Features NOT Included (Legacy Limitation)
+-----------------------------------------
+The legacy pipeline does NOT include external/economic features:
+- consumer_confidence_prairies
+- energy_index
+- inflation_adjustment_factor
+- city_median_household_income
+- aud__engagement_factor
+- res__arts_share_giving
+
+Use the safe pipeline (scripts/train_safe_model.py) to access these features.
 
 Features (legacy):
 - Time-based cross-validation (TimeSeriesSplit)
