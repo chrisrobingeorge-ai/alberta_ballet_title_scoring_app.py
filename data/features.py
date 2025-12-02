@@ -120,8 +120,9 @@ def _extract_temporal_features(
     # Day of week (0=Monday, 6=Sunday)
     out[f'{pref}day_of_week'] = dates.dt.dayofweek
     
-    # Week of year (1-52)
-    out[f'{pref}week_of_year'] = dates.dt.isocalendar().week.astype('Int64')
+    # Week of year (1-52) - use Int64 to handle NaT values
+    week_series = dates.dt.isocalendar().week
+    out[f'{pref}week_of_year'] = week_series.astype('Int64')
     
     # Quarter (1-4)
     out[f'{pref}quarter'] = dates.dt.quarter
@@ -129,22 +130,19 @@ def _extract_temporal_features(
     # Season indicator (meteorological seasons for Northern Hemisphere)
     out[f'{pref}season'] = _compute_season(dates)
     
-    # Create binary season flags for model use
-    out[f'{pref}is_winter'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'winter' else 0)
-    out[f'{pref}is_spring'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'spring' else 0)
-    out[f'{pref}is_summer'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'summer' else 0)
-    out[f'{pref}is_autumn'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'autumn' else 0)
+    # Create binary season flags for model use (vectorized)
+    season_col = out[f'{pref}season']
+    out[f'{pref}is_winter'] = (season_col == 'winter').astype(int)
+    out[f'{pref}is_spring'] = (season_col == 'spring').astype(int)
+    out[f'{pref}is_summer'] = (season_col == 'summer').astype(int)
+    out[f'{pref}is_autumn'] = (season_col == 'autumn').astype(int)
     
-    # Holiday season flag (Nov, Dec, Jan - important for Alberta Ballet)
+    # Holiday season flag (Nov, Dec, Jan - important for Alberta Ballet) - vectorized
     holiday_months = {11, 12, 1}
-    out[f'{pref}is_holiday_season'] = dates.dt.month.apply(
-        lambda x: 1 if pd.notna(x) and int(x) in holiday_months else 0
-    )
+    out[f'{pref}is_holiday_season'] = dates.dt.month.isin(holiday_months).astype(int)
     
-    # Weekend opening flag (Saturday=5 or Sunday=6)
-    out[f'{pref}is_weekend'] = dates.dt.dayofweek.apply(
-        lambda x: 1 if pd.notna(x) and x >= 5 else 0
-    )
+    # Weekend opening flag (Saturday=5 or Sunday=6) - vectorized
+    out[f'{pref}is_weekend'] = (dates.dt.dayofweek >= 5).astype(int)
     
     logger.info(f"Added {9} temporal features with prefix '{pref}'")
     
