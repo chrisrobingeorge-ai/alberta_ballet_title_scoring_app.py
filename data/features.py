@@ -34,6 +34,193 @@ def derive_basic_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+# =============================================================================
+# DATE-BASED FEATURE DERIVATION
+# =============================================================================
+
+
+def derive_date_features(
+    df: pd.DataFrame,
+    start_date_col: str = 'start_date',
+    end_date_col: str = 'end_date'
+) -> pd.DataFrame:
+    """Derive date-based features from start_date and end_date columns.
+    
+    Extracts temporal features useful for forecasting:
+    - Year, month, day of week from opening date
+    - Run duration in days
+    - Season indicators (spring, summer, autumn, winter)
+    - Holiday season flag (Nov-Jan for Alberta Ballet productions)
+    
+    All features are safe for forecasting as they are derived from 
+    planned run dates which are known at forecast time.
+    
+    Args:
+        df: DataFrame with date columns
+        start_date_col: Name of the start date column
+        end_date_col: Name of the end date column
+        
+    Returns:
+        DataFrame with additional date-based feature columns
+    """
+    out = df.copy()
+    
+    # Parse date columns if not already datetime
+    for col in [start_date_col, end_date_col]:
+        if col in out.columns and not pd.api.types.is_datetime64_any_dtype(out[col]):
+            out[col] = pd.to_datetime(out[col], errors='coerce')
+    
+    # Extract features from start_date (opening date)
+    if start_date_col in out.columns:
+        out = _extract_temporal_features(out, start_date_col, prefix='opening')
+    
+    # Compute run duration if both dates available
+    if start_date_col in out.columns and end_date_col in out.columns:
+        out['run_duration_days'] = (out[end_date_col] - out[start_date_col]).dt.days
+        # Fill NaN with 0 and ensure non-negative
+        out['run_duration_days'] = out['run_duration_days'].fillna(0).clip(lower=0)
+        logger.info(f"Added run_duration_days (mean={out['run_duration_days'].mean():.1f} days)")
+    
+    return out
+
+
+def _extract_temporal_features(
+    df: pd.DataFrame,
+    date_col: str,
+    prefix: str = ''
+) -> pd.DataFrame:
+    """Extract temporal features from a single date column.
+    
+    Args:
+        df: DataFrame with the date column
+        date_col: Name of the date column to extract features from
+        prefix: Prefix for feature column names (e.g., 'opening' -> 'opening_year')
+        
+    Returns:
+        DataFrame with additional temporal feature columns
+    """
+    out = df.copy()
+    
+    if date_col not in out.columns:
+        logger.warning(f"Date column '{date_col}' not found; skipping temporal features")
+        return out
+    
+    # Ensure datetime type
+    dates = pd.to_datetime(out[date_col], errors='coerce')
+    
+    # Add prefix separator if provided
+    pref = f"{prefix}_" if prefix else ""
+    
+    # Year (e.g., 2024)
+    out[f'{pref}year'] = dates.dt.year
+    
+    # Month (1-12)
+    out[f'{pref}month'] = dates.dt.month
+    
+    # Day of week (0=Monday, 6=Sunday)
+    out[f'{pref}day_of_week'] = dates.dt.dayofweek
+    
+    # Week of year (1-52)
+    out[f'{pref}week_of_year'] = dates.dt.isocalendar().week.astype('Int64')
+    
+    # Quarter (1-4)
+    out[f'{pref}quarter'] = dates.dt.quarter
+    
+    # Season indicator (meteorological seasons for Northern Hemisphere)
+    out[f'{pref}season'] = _compute_season(dates)
+    
+    # Create binary season flags for model use
+    out[f'{pref}is_winter'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'winter' else 0)
+    out[f'{pref}is_spring'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'spring' else 0)
+    out[f'{pref}is_summer'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'summer' else 0)
+    out[f'{pref}is_autumn'] = out[f'{pref}season'].apply(lambda x: 1 if x == 'autumn' else 0)
+    
+    # Holiday season flag (Nov, Dec, Jan - important for Alberta Ballet)
+    holiday_months = {11, 12, 1}
+    out[f'{pref}is_holiday_season'] = dates.dt.month.apply(
+        lambda x: 1 if pd.notna(x) and int(x) in holiday_months else 0
+    )
+    
+    # Weekend opening flag (Saturday=5 or Sunday=6)
+    out[f'{pref}is_weekend'] = dates.dt.dayofweek.apply(
+        lambda x: 1 if pd.notna(x) and x >= 5 else 0
+    )
+    
+    logger.info(f"Added {9} temporal features with prefix '{pref}'")
+    
+    return out
+
+
+def _compute_season(dates: pd.Series) -> pd.Series:
+    """Compute meteorological season from dates.
+    
+    Uses Northern Hemisphere meteorological seasons:
+    - Winter: December, January, February
+    - Spring: March, April, May  
+    - Summer: June, July, August
+    - Autumn: September, October, November
+    
+    Args:
+        dates: Series of datetime values
+        
+    Returns:
+        Series of season names (winter, spring, summer, autumn)
+    """
+    months = dates.dt.month
+    
+    def month_to_season(m):
+        if pd.isna(m):
+            return np.nan
+        m = int(m)
+        if m in {12, 1, 2}:
+            return 'winter'
+        elif m in {3, 4, 5}:
+            return 'spring'
+        elif m in {6, 7, 8}:
+            return 'summer'
+        else:  # 9, 10, 11
+            return 'autumn'
+    
+    return months.apply(month_to_season)
+
+
+def compute_days_to_opening(
+    df: pd.DataFrame,
+    start_date_col: str = 'start_date',
+    reference_date: Optional[pd.Timestamp] = None
+) -> pd.DataFrame:
+    """Compute days until opening from a reference date.
+    
+    This feature is useful for forecasting models that predict at 
+    different lead times before the show opens.
+    
+    Args:
+        df: DataFrame with start date column
+        start_date_col: Name of the start date column
+        reference_date: Reference date for computing lead time.
+                       If None, uses current date.
+        
+    Returns:
+        DataFrame with days_to_opening column added
+    """
+    out = df.copy()
+    
+    if start_date_col not in out.columns:
+        logger.warning(f"Date column '{start_date_col}' not found; cannot compute days_to_opening")
+        out['days_to_opening'] = np.nan
+        return out
+    
+    if reference_date is None:
+        reference_date = pd.Timestamp.now()
+    
+    start_dates = pd.to_datetime(out[start_date_col], errors='coerce')
+    out['days_to_opening'] = (start_dates - reference_date).dt.days
+    
+    logger.info(f"Added days_to_opening feature (reference: {reference_date.date()})")
+    
+    return out
+
+
 def get_feature_list(theme_filters=None, status=None) -> list[str]:
     """Pull model feature names from the registry."""
     inv = load_feature_inventory()
