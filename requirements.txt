@@ -1,34 +1,33 @@
+
 # --- Core ---
 streamlit>=1.37
 pandas>=2.0
-numpy>=1.21
-matplotlib>=3.0
-plotly>=5.18.0          # Interactive charts for External Data Impact page
+numpy>=1.24            # bump so tests don't break on older wheels
+matplotlib>=3.7
+plotly>=5.18.0         # Interactive charts for External Data Impact page
 requests>=2.31
 reportlab>=4.0.0
 pytrends>=4.9.2
-pyyaml>=6.0             # Config file parsing
+pyyaml>=6.0            # Config file parsing
 
 # --- Machine Learning ---
 scikit-learn>=1.4
-xgboost>=2.0.0          # Gradient boosting for better predictions
-joblib>=1.3.0           # Model serialization
+xgboost>=2.0.0         # Gradient boosting for better predictions
+joblib>=1.3.0          # Model serialization
 
 # --- Optional: live data for NEW titles ---
 google-api-python-client>=2.130.0   # YouTube Data API v3
 spotipy>=2.23.0                     # Spotify Web API
 
 # --- Optional: Advanced ML features ---
-# These are optional and the app works without them.
 # Install with: pip install rapidfuzz shap lightgbm
+# rapidfuzz>=3.0.0      # OPTIONAL: Fuzzy title matching (falls back to difflib)
+# shap>=0.42.0          # OPTIONAL: SHAP explanations for training scripts
+# lightgbm>=4.0.0       # OPTIONAL: Alternative gradient boosting
 
-# rapidfuzz>=3.0.0      # OPTIONAL: Fuzzy title matching for canonicalization
-                        # Used in utils/canonicalize_titles.py for fuzzy_match_title()
-                        # Falls back to difflib if not installed
-
-# shap>=0.42.0          # OPTIONAL: SHAP explanations for model interpretability
-                        # Used in scripts/train_safe_model.py for feature importance
-                        # Install only when running training scripts with --save-shap
-
-# lightgbm>=4.0.0       # OPTIONAL: Alternative to XGBoost for gradient boosting
-                        # Can be selected via CLI flag in train_safe_model.py
+# --- Test & formatting (keeps GitHub happy) ---
+pytest>=7.4
+pytest-cov>=4.1
+ruff>=0.6
+black>=24.10
+isort>=5.13
