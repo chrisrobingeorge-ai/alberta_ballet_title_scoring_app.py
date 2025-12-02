@@ -23,7 +23,7 @@ External Data Join Logic
 ------------------------
 After loading history_city_sales.csv, the dataset builder joins with:
 
-1. **Marketing spend data** (by city and date):
+1. **Marketing spend data** (by show_title and date):
    - Key: 'show_title' and 'start_date' or 'end_date'
    - Source: productions/marketing_spend_per_ticket.csv
    - Join type: LEFT join to preserve all show rows
@@ -290,7 +290,7 @@ def build_dataset(
 
     After loading history_city_sales.csv, this function joins with:
 
-    1. **Marketing spend data** (by city and date):
+    1. **Marketing spend data** (by show_title and date):
        - Key: 'show_title' and 'start_date' or 'end_date'
        - Join Type: LEFT join to preserve all show rows
 
