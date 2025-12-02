@@ -781,3 +781,164 @@ def test_grouped_cv_by_season():
         overlap = train_seasons & test_seasons
         assert len(overlap) == 0, \
             f"Fold {fold_idx}: seasons {overlap} appear in both train and test"
+
+
+# =============================================================================
+# Tests for scripts/train_safe_model.py time-aware CV enforcement
+# =============================================================================
+
+def test_train_safe_model_get_cv_splitter_raises_without_date_column():
+    """Test that get_cv_splitter raises MissingDateColumnError without date column."""
+    import sys
+    from pathlib import Path
+    
+    # Add scripts directory to path for import
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    
+    try:
+        from train_safe_model import get_cv_splitter
+        from ml.training import MissingDateColumnError
+        
+        # Create a DataFrame without any date or time columns
+        df = pd.DataFrame({
+            "wiki": [80, 90, 75, 85],
+            "trends": [20, 40, 25, 35],
+            "youtube": [70, 80, 65, 75],
+            "tickets": [5000, 10000, 7000, 8000],
+        })
+        
+        with pytest.raises(MissingDateColumnError) as exc_info:
+            get_cv_splitter(df, n_splits=2)
+        
+        # Verify error message is informative
+        assert "date column" in str(exc_info.value).lower()
+        assert exc_info.value.searched_columns is not None
+        assert len(exc_info.value.searched_columns) > 0
+    finally:
+        # Clean up path
+        if str(Path(__file__).parent.parent / "scripts") in sys.path:
+            sys.path.remove(str(Path(__file__).parent.parent / "scripts"))
+
+
+def test_train_safe_model_get_cv_splitter_succeeds_with_date_column():
+    """Test that get_cv_splitter succeeds when date column is present."""
+    import sys
+    from pathlib import Path
+    
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    
+    try:
+        from train_safe_model import get_cv_splitter
+        from ml.time_splits import TimeSeriesCVSplitter
+        
+        # Create a DataFrame with a date column
+        df = pd.DataFrame({
+            "start_date": pd.date_range("2018-01-01", periods=100, freq="7D"),
+            "wiki": np.random.randint(50, 100, 100),
+            "trends": np.random.randint(10, 50, 100),
+        })
+        
+        splitter = get_cv_splitter(df, n_splits=3)
+        
+        # Should return a TimeSeriesCVSplitter
+        assert isinstance(splitter, TimeSeriesCVSplitter)
+        assert splitter.date_column == "start_date"
+    finally:
+        if str(Path(__file__).parent.parent / "scripts") in sys.path:
+            sys.path.remove(str(Path(__file__).parent.parent / "scripts"))
+
+
+def test_train_safe_model_get_cv_splitter_uses_end_date():
+    """Test that get_cv_splitter correctly uses end_date column when available."""
+    import sys
+    from pathlib import Path
+    
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    
+    try:
+        from train_safe_model import get_cv_splitter
+        from ml.time_splits import TimeSeriesCVSplitter
+        
+        # Create a DataFrame with end_date column (first in priority)
+        df = pd.DataFrame({
+            "end_date": pd.date_range("2018-01-01", periods=50, freq="14D"),
+            "start_date": pd.date_range("2017-12-15", periods=50, freq="14D"),
+            "value": np.random.randint(1000, 5000, 50),
+        })
+        
+        splitter = get_cv_splitter(df, n_splits=3)
+        
+        assert isinstance(splitter, TimeSeriesCVSplitter)
+        assert splitter.date_column == "end_date"
+    finally:
+        if str(Path(__file__).parent.parent / "scripts") in sys.path:
+            sys.path.remove(str(Path(__file__).parent.parent / "scripts"))
+
+
+def test_train_safe_model_get_cv_splitter_uses_season_column():
+    """Test that get_cv_splitter uses TimeSeriesSplit when season column is present."""
+    import sys
+    from pathlib import Path
+    from sklearn.model_selection import TimeSeriesSplit
+    
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    
+    try:
+        from train_safe_model import get_cv_splitter
+        
+        # Create a DataFrame with season column but no date column
+        df = pd.DataFrame({
+            "season": ["2018-2019"] * 10 + ["2019-2020"] * 10 + ["2020-2021"] * 10,
+            "value": np.random.randint(1000, 5000, 30),
+        })
+        
+        splitter = get_cv_splitter(df, n_splits=3)
+        
+        # Should return a TimeSeriesSplit (from sklearn)
+        assert isinstance(splitter, TimeSeriesSplit)
+    finally:
+        if str(Path(__file__).parent.parent / "scripts") in sys.path:
+            sys.path.remove(str(Path(__file__).parent.parent / "scripts"))
+
+
+def test_train_safe_model_no_random_split_fallback():
+    """Test that train_safe_model NEVER silently falls back to random CV.
+    
+    This is a key acceptance criterion: attempting to train without a date or time 
+    column should result in a clear error, not a silent fallback to random splits.
+    """
+    import sys
+    from pathlib import Path
+    import warnings
+    
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    
+    try:
+        from train_safe_model import get_cv_splitter
+        from ml.training import MissingDateColumnError
+        
+        # Create a DataFrame with no date/time/group columns
+        df = pd.DataFrame({
+            "wiki": np.random.randint(50, 100, 20),
+            "trends": np.random.randint(10, 50, 20),
+            "youtube": np.random.randint(30, 80, 20),
+        })
+        
+        # Verify that random split fallback is blocked
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            
+            # This should raise MissingDateColumnError, not just a warning
+            with pytest.raises(MissingDateColumnError):
+                get_cv_splitter(df, n_splits=3)
+            
+            # Verify no KFold/random split warning was issued
+            random_split_warnings = [
+                warning for warning in w 
+                if "kfold" in str(warning.message).lower() or "random split" in str(warning.message).lower()
+            ]
+            assert len(random_split_warnings) == 0, \
+                "Should not issue warning about random/KFold split - should raise error instead"
+    finally:
+        if str(Path(__file__).parent.parent / "scripts") in sys.path:
+            sys.path.remove(str(Path(__file__).parent.parent / "scripts"))

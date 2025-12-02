@@ -55,13 +55,13 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import (
-    GroupKFold, KFold, TimeSeriesSplit, cross_val_score
+    GroupKFold, TimeSeriesSplit, cross_val_score
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 # Import version metadata utilities from ml.training
-from ml.training import get_git_commit_hash, get_file_hash, get_dataset_shape
+from ml.training import get_git_commit_hash, get_file_hash, get_dataset_shape, MissingDateColumnError
 
 # Import data quality utilities
 from data.quality import check_feature_ranges, DataQualityWarning
@@ -299,11 +299,15 @@ def get_cv_splitter(
 ):
     """Get appropriate cross-validation splitter.
     
-    Prioritizes time-aware splitting to prevent future data leakage:
+    Enforces time-aware splitting to prevent future data leakage:
     1. If date column found, use TimeSeriesCVSplitter (strictest)
     2. If season/year column found, use TimeSeriesSplit
-    3. If group column found, use GroupKFold (weaker guarantee)
-    4. Fall back to KFold with warning (no leakage guarantee)
+    3. If group column found, use GroupKFold (weaker guarantee, with warning)
+    4. Raise MissingDateColumnError - NO random split fallback allowed
+    
+    Raises:
+        MissingDateColumnError: If no date/time column is found for time-aware CV.
+            Forecasting models require temporal ordering to prevent future data leakage.
     """
     # First, try to find a date column for strict chronological splitting
     date_cols = ["end_date", "start_date", "date", "opening_date", "performance_date"]
@@ -333,14 +337,12 @@ def get_cv_splitter(
         )
         return GroupKFold(n_splits=n_splits)
     
-    # Fall back to standard KFold with warning
-    import warnings
-    warnings.warn(
-        "Using KFold with shuffle - this may allow future data to leak into training! "
-        "Consider adding date information for time-aware splitting.",
-        UserWarning
+    # Raise error instead of falling back to random splits
+    # Random splits are NOT allowed for forecasting models due to data leakage risk
+    raise MissingDateColumnError(
+        searched_columns=list(date_cols) + list(time_cols),
+        available_columns=df.columns.tolist()
     )
-    return KFold(n_splits=n_splits, shuffle=True, random_state=42)
 
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
