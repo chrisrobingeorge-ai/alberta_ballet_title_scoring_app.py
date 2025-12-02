@@ -1002,8 +1002,14 @@ def derive_weather_features(
     has_snow = snow_col in out.columns
     
     if has_precip or has_snow:
-        precip = pd.to_numeric(out.get(precip_col, pd.Series(0)), errors='coerce').fillna(0)
-        snow = pd.to_numeric(out.get(snow_col, pd.Series(0)), errors='coerce').fillna(0)
+        precip = pd.to_numeric(
+            out[precip_col] if precip_col in out.columns else 0,
+            errors='coerce'
+        ).fillna(0)
+        snow = pd.to_numeric(
+            out[snow_col] if snow_col in out.columns else 0,
+            errors='coerce'
+        ).fillna(0)
         out['weather_heavy_precip_flag'] = ((precip > 10) | (snow > 10)).astype(int)
         logger.info("Created weather_heavy_precip_flag feature")
     else:
