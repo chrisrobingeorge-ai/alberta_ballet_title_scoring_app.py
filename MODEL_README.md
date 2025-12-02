@@ -15,7 +15,7 @@ Primary output: a point forecast and three risk bounds (P10/P50/P90).
 - **Explicit date fields** for time-aware validation and feature engineering.
 - Optional: economy & weather indicators.
 
-**Note:** The pipeline now uses explicit date fields for time-aware validation and feature engineering. This improves forecast reliability and enables integration with external data sources.
+**Note:** The pipeline now uses explicit date fields for time-aware validation and feature engineering, and integrates external features (marketing, weather, economy, baselines) for every show. This improves forecast accuracy and reliability.
 
 ## How the UI calls the model
 `service/forecast.py -> predict(title, city, performance_dt)` returns:

@@ -37,7 +37,7 @@ streamlit run streamlit_app.py
 
 The app includes a complete, leak-free training workflow.
 
-**The pipeline now uses explicit date fields for time-aware validation and feature engineering.** This improves forecast reliability and enables integration with external data sources such as economic indicators and event calendars.
+**The pipeline now uses explicit date fields for time-aware validation and feature engineering, and integrates external features (marketing, weather, economy, baselines) for every show.** This improves forecast accuracy and reliability.
 
 > **⚠️ IMPORTANT: This is the PRIMARY, RECOMMENDED ML pipeline.**
 >
