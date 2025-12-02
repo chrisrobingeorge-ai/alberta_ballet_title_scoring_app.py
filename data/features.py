@@ -835,3 +835,712 @@ def build_feature_store(
         logger.info(f"Feature store written to {output_file}")
     
     return features
+
+
+# =============================================================================
+# MARKETING FEATURE ENGINEERING
+# =============================================================================
+
+
+def derive_marketing_features(
+    df: pd.DataFrame,
+    marketing_spend_col: str = 'marketing_spend',
+    tickets_col: str = 'single_tickets',
+    date_col: str = 'start_date',
+    lag_periods: Optional[list[int]] = None
+) -> pd.DataFrame:
+    """Derive marketing-related features from external marketing data.
+    
+    Creates features useful for understanding marketing effectiveness:
+    - Lagged marketing spend (from previous productions)
+    - Total marketing spend
+    - Marketing spend per ticket
+    
+    These features are safe for forecasting as they use historical data
+    or planned marketing budgets known at forecast time.
+    
+    Args:
+        df: DataFrame with marketing spend and ticket data
+        marketing_spend_col: Name of the marketing spend column
+        tickets_col: Name of the tickets sold column
+        date_col: Name of the date column for lag calculation
+        lag_periods: List of lag periods (in rows, sorted by date). 
+                     Default is [1] for previous production.
+    
+    Returns:
+        DataFrame with marketing features added:
+        - marketing_spend_total: Total marketing spend for the production
+        - marketing_spend_per_ticket: Spend per ticket sold (for historical)
+        - marketing_spend_lag_1, lag_2, etc.: Lagged spend from prior productions
+    """
+    if lag_periods is None:
+        lag_periods = [1]
+    
+    out = df.copy()
+    
+    # Ensure marketing spend column exists
+    if marketing_spend_col not in out.columns:
+        logger.info(f"Marketing spend column '{marketing_spend_col}' not found. "
+                   "Creating placeholder features with NaN.")
+        out['marketing_spend_total'] = np.nan
+        out['marketing_spend_per_ticket'] = np.nan
+        for lag in lag_periods:
+            out[f'marketing_spend_lag_{lag}'] = np.nan
+        return out
+    
+    # Total marketing spend (may already be in the data)
+    out['marketing_spend_total'] = pd.to_numeric(out[marketing_spend_col], errors='coerce')
+    
+    # Marketing spend per ticket (only for historical data where tickets are known)
+    if tickets_col in out.columns:
+        tickets = pd.to_numeric(out[tickets_col], errors='coerce')
+        spend = pd.to_numeric(out[marketing_spend_col], errors='coerce')
+        # Avoid division by zero
+        out['marketing_spend_per_ticket'] = np.where(
+            tickets > 0,
+            spend / tickets,
+            np.nan
+        )
+        logger.info(f"Created marketing_spend_per_ticket feature")
+    else:
+        out['marketing_spend_per_ticket'] = np.nan
+    
+    # Lagged marketing spend (based on date ordering)
+    if date_col in out.columns:
+        # Sort by date for proper lag calculation
+        out = out.sort_values(date_col).reset_index(drop=True)
+        
+        for lag in lag_periods:
+            out[f'marketing_spend_lag_{lag}'] = (
+                out['marketing_spend_total'].shift(lag)
+            )
+        
+        logger.info(f"Created lagged marketing spend features: {[f'lag_{l}' for l in lag_periods]}")
+    else:
+        for lag in lag_periods:
+            out[f'marketing_spend_lag_{lag}'] = np.nan
+    
+    return out
+
+
+# =============================================================================
+# WEATHER FEATURE ENGINEERING
+# =============================================================================
+
+
+def derive_weather_features(
+    df: pd.DataFrame,
+    avg_temp_col: str = 'weather_avg_temperature',
+    min_temp_col: str = 'weather_min_temperature',
+    max_temp_col: str = 'weather_max_temperature',
+    precip_col: str = 'weather_precipitation',
+    snow_col: str = 'weather_snow',
+    date_col: str = 'start_date'
+) -> pd.DataFrame:
+    """Derive weather-related features from joined weather data.
+    
+    Creates features for understanding weather impact on attendance:
+    - Temperature features (normalized, extreme cold flags)
+    - Precipitation features (rain/snow indicators)
+    - Day-of-week weather interactions
+    
+    These features capture weather conditions that may affect ticket demand
+    and should be derived from historical weather data for forecasting.
+    
+    Args:
+        df: DataFrame with weather data columns
+        avg_temp_col: Name of the average temperature column
+        min_temp_col: Name of the minimum temperature column
+        max_temp_col: Name of the maximum temperature column
+        precip_col: Name of the precipitation column
+        snow_col: Name of the snow column
+        date_col: Name of the date column for day-of-week effects
+    
+    Returns:
+        DataFrame with weather features added:
+        - weather_temp_normalized: Temperature normalized to Alberta ranges (-40 to +35)
+        - weather_extreme_cold_flag: Flag for extreme cold (<-20°C)
+        - weather_extreme_mild_flag: Flag for unusually mild conditions
+        - weather_heavy_precip_flag: Flag for heavy precipitation
+        - weather_day_of_week: Day of week (0=Monday)
+        - weather_weekend_flag: Weekend indicator
+    """
+    out = df.copy()
+    
+    # Temperature normalization (Alberta range roughly -40 to +35 Celsius)
+    if avg_temp_col in out.columns:
+        temp = pd.to_numeric(out[avg_temp_col], errors='coerce')
+        # Normalize to 0-1 scale where 0 = -40°C, 1 = +35°C
+        out['weather_temp_normalized'] = (temp + 40) / 75.0
+        out['weather_temp_normalized'] = out['weather_temp_normalized'].clip(0, 1)
+        logger.info("Created weather_temp_normalized feature")
+    else:
+        out['weather_temp_normalized'] = np.nan
+    
+    # Extreme cold flag (below -20°C)
+    if min_temp_col in out.columns:
+        min_temp = pd.to_numeric(out[min_temp_col], errors='coerce')
+        out['weather_extreme_cold_flag'] = (min_temp < -20).astype(int)
+        out['weather_extreme_cold_flag'] = out['weather_extreme_cold_flag'].fillna(0)
+        logger.info("Created weather_extreme_cold_flag feature")
+    else:
+        out['weather_extreme_cold_flag'] = 0
+    
+    # Extreme mild flag (winter months with temp > 5°C is unusual)
+    if avg_temp_col in out.columns and date_col in out.columns:
+        temp = pd.to_numeric(out[avg_temp_col], errors='coerce')
+        dates = pd.to_datetime(out[date_col], errors='coerce')
+        winter_months = dates.dt.month.isin([12, 1, 2])
+        out['weather_extreme_mild_flag'] = ((temp > 5) & winter_months).astype(int)
+        out['weather_extreme_mild_flag'] = out['weather_extreme_mild_flag'].fillna(0)
+        logger.info("Created weather_extreme_mild_flag feature")
+    else:
+        out['weather_extreme_mild_flag'] = 0
+    
+    # Heavy precipitation flag (>10mm rain or >10cm snow)
+    has_precip = precip_col in out.columns
+    has_snow = snow_col in out.columns
+    
+    if has_precip or has_snow:
+        precip = pd.to_numeric(
+            out[precip_col] if precip_col in out.columns else 0,
+            errors='coerce'
+        ).fillna(0)
+        snow = pd.to_numeric(
+            out[snow_col] if snow_col in out.columns else 0,
+            errors='coerce'
+        ).fillna(0)
+        out['weather_heavy_precip_flag'] = ((precip > 10) | (snow > 10)).astype(int)
+        logger.info("Created weather_heavy_precip_flag feature")
+    else:
+        out['weather_heavy_precip_flag'] = 0
+    
+    # Day of week effects (from show date)
+    if date_col in out.columns:
+        dates = pd.to_datetime(out[date_col], errors='coerce')
+        out['weather_day_of_week'] = dates.dt.dayofweek
+        out['weather_weekend_flag'] = (dates.dt.dayofweek >= 5).astype(int)
+        logger.info("Created weather day-of-week features")
+    else:
+        out['weather_day_of_week'] = np.nan
+        out['weather_weekend_flag'] = 0
+    
+    return out
+
+
+# =============================================================================
+# ECONOMY FEATURE ENGINEERING
+# =============================================================================
+
+
+def derive_economy_features(
+    df: pd.DataFrame,
+    unemployment_df: Optional[pd.DataFrame] = None,
+    oil_price_df: Optional[pd.DataFrame] = None,
+    cpi_df: Optional[pd.DataFrame] = None,
+    date_col: str = 'start_date',
+    city_col: str = 'city'
+) -> pd.DataFrame:
+    """Derive economy-related features from external economic data.
+    
+    Creates features for understanding economic context impact on ticket demand:
+    - Unemployment rate (provincial and city-level if available)
+    - Oil price (critical for Alberta economy)
+    - CPI / inflation indicators
+    
+    These features are joined via merge_asof for temporal matching.
+    
+    Args:
+        df: DataFrame with show data
+        unemployment_df: DataFrame with unemployment data (columns: date, unemployment_rate, region)
+        oil_price_df: DataFrame with oil price data (columns: date, wcs_oil_price)
+        cpi_df: DataFrame with CPI data (columns: date, V41690973)
+        date_col: Name of the date column in df
+        city_col: Name of the city column in df
+    
+    Returns:
+        DataFrame with economy features added:
+        - economy_unemployment_rate: Unemployment rate at show time
+        - economy_oil_price: WCS oil price at show time
+        - economy_cpi: Consumer Price Index at show time
+        - economy_oil_change_3m: 3-month oil price change (%)
+        - economy_unemployment_trend: Unemployment trend (change from prior period)
+    """
+    out = df.copy()
+    
+    # Ensure date column is datetime
+    if date_col not in out.columns:
+        logger.warning(f"Date column '{date_col}' not found; returning without economy features")
+        out['economy_unemployment_rate'] = np.nan
+        out['economy_oil_price'] = np.nan
+        out['economy_cpi'] = np.nan
+        out['economy_oil_change_3m'] = np.nan
+        out['economy_unemployment_trend'] = np.nan
+        return out
+    
+    out[date_col] = pd.to_datetime(out[date_col], errors='coerce')
+    
+    # Store original order
+    out['_orig_idx'] = range(len(out))
+    
+    # Join unemployment rate
+    if unemployment_df is not None and not unemployment_df.empty:
+        out = _join_unemployment_rate(out, unemployment_df, date_col, city_col)
+    else:
+        out['economy_unemployment_rate'] = np.nan
+        out['economy_unemployment_trend'] = np.nan
+    
+    # Join oil price
+    if oil_price_df is not None and not oil_price_df.empty:
+        out = _join_oil_price(out, oil_price_df, date_col)
+    else:
+        out['economy_oil_price'] = np.nan
+        out['economy_oil_change_3m'] = np.nan
+    
+    # Join CPI
+    if cpi_df is not None and not cpi_df.empty:
+        out = _join_cpi(out, cpi_df, date_col)
+    else:
+        out['economy_cpi'] = np.nan
+    
+    # Restore original order and clean up
+    out = out.sort_values('_orig_idx').reset_index(drop=True)
+    out = out.drop(columns=['_orig_idx'], errors='ignore')
+    
+    return out
+
+
+def _join_unemployment_rate(
+    df: pd.DataFrame,
+    unemployment_df: pd.DataFrame,
+    date_col: str,
+    city_col: str
+) -> pd.DataFrame:
+    """Join unemployment rate data using temporal matching."""
+    unemp = unemployment_df.copy()
+    
+    # Normalize column names
+    unemp.columns = [c.lower().replace(' ', '_').replace('-', '_') for c in unemp.columns]
+    
+    if 'date' not in unemp.columns:
+        df['economy_unemployment_rate'] = np.nan
+        df['economy_unemployment_trend'] = np.nan
+        return df
+    
+    unemp['date'] = pd.to_datetime(unemp['date'], errors='coerce')
+    unemp = unemp.dropna(subset=['date']).sort_values('date')
+    
+    # Use Alberta-level data (most comprehensive)
+    if 'region' in unemp.columns:
+        unemp_alberta = unemp[unemp['region'].str.lower() == 'alberta'].copy()
+        if unemp_alberta.empty:
+            unemp_alberta = unemp.copy()
+    else:
+        unemp_alberta = unemp.copy()
+    
+    if 'unemployment_rate' not in unemp_alberta.columns:
+        df['economy_unemployment_rate'] = np.nan
+        df['economy_unemployment_trend'] = np.nan
+        return df
+    
+    # Calculate unemployment trend (change from 3 months prior)
+    unemp_alberta = unemp_alberta.sort_values('date')
+    unemp_alberta['_unemp_lag'] = unemp_alberta['unemployment_rate'].shift(3)
+    unemp_alberta['economy_unemployment_trend'] = (
+        unemp_alberta['unemployment_rate'] - unemp_alberta['_unemp_lag']
+    )
+    
+    # Sort df for merge_asof
+    df_sorted = df.sort_values(date_col)
+    
+    # Perform merge_asof
+    try:
+        merged = pd.merge_asof(
+            df_sorted,
+            unemp_alberta[['date', 'unemployment_rate', 'economy_unemployment_trend']]
+                .rename(columns={'unemployment_rate': 'economy_unemployment_rate'}),
+            left_on=date_col,
+            right_on='date',
+            direction='backward'
+        )
+        merged = merged.drop(columns=['date'], errors='ignore')
+        
+        # Fill NaN with median
+        median_rate = unemp_alberta['unemployment_rate'].median()
+        merged['economy_unemployment_rate'] = merged['economy_unemployment_rate'].fillna(median_rate)
+        merged['economy_unemployment_trend'] = merged['economy_unemployment_trend'].fillna(0)
+        
+        logger.info(f"Joined unemployment rate (mean={merged['economy_unemployment_rate'].mean():.2f}%)")
+        return merged
+    except Exception as e:
+        logger.warning(f"Error joining unemployment rate: {e}")
+        df['economy_unemployment_rate'] = np.nan
+        df['economy_unemployment_trend'] = np.nan
+        return df
+
+
+def _join_oil_price(
+    df: pd.DataFrame,
+    oil_df: pd.DataFrame,
+    date_col: str
+) -> pd.DataFrame:
+    """Join oil price data using temporal matching."""
+    oil = oil_df.copy()
+    
+    # Normalize column names
+    oil.columns = [c.lower().replace(' ', '_').replace('-', '_') for c in oil.columns]
+    
+    if 'date' not in oil.columns:
+        df['economy_oil_price'] = np.nan
+        df['economy_oil_change_3m'] = np.nan
+        return df
+    
+    oil['date'] = pd.to_datetime(oil['date'], errors='coerce')
+    oil = oil.dropna(subset=['date']).sort_values('date')
+    
+    # Get price column
+    price_col = 'wcs_oil_price'
+    if price_col not in oil.columns:
+        # Try to find any price column
+        for col in oil.columns:
+            if 'price' in col.lower():
+                price_col = col
+                break
+        else:
+            df['economy_oil_price'] = np.nan
+            df['economy_oil_change_3m'] = np.nan
+            return df
+    
+    # Calculate 3-month price change
+    oil = oil.sort_values('date')
+    oil['_price_lag'] = oil[price_col].shift(3)
+    oil['economy_oil_change_3m'] = np.where(
+        oil['_price_lag'] > 0,
+        (oil[price_col] - oil['_price_lag']) / oil['_price_lag'] * 100,
+        np.nan
+    )
+    
+    # Sort df for merge_asof
+    df_sorted = df.sort_values(date_col)
+    
+    # Perform merge_asof
+    try:
+        merged = pd.merge_asof(
+            df_sorted,
+            oil[['date', price_col, 'economy_oil_change_3m']]
+                .rename(columns={price_col: 'economy_oil_price'}),
+            left_on=date_col,
+            right_on='date',
+            direction='backward'
+        )
+        merged = merged.drop(columns=['date'], errors='ignore')
+        
+        # Fill NaN with median
+        median_price = oil[price_col].median()
+        merged['economy_oil_price'] = merged['economy_oil_price'].fillna(median_price)
+        merged['economy_oil_change_3m'] = merged['economy_oil_change_3m'].fillna(0)
+        
+        logger.info(f"Joined oil price (mean=${merged['economy_oil_price'].mean():.2f})")
+        return merged
+    except Exception as e:
+        logger.warning(f"Error joining oil price: {e}")
+        df['economy_oil_price'] = np.nan
+        df['economy_oil_change_3m'] = np.nan
+        return df
+
+
+def _join_cpi(
+    df: pd.DataFrame,
+    cpi_df: pd.DataFrame,
+    date_col: str
+) -> pd.DataFrame:
+    """Join CPI data using temporal matching."""
+    cpi = cpi_df.copy()
+    
+    # Normalize column names
+    cpi.columns = [c.lower().replace(' ', '_').replace('-', '_') for c in cpi.columns]
+    
+    if 'date' not in cpi.columns:
+        df['economy_cpi'] = np.nan
+        return df
+    
+    cpi['date'] = pd.to_datetime(cpi['date'], errors='coerce')
+    cpi = cpi.dropna(subset=['date']).sort_values('date')
+    
+    # Get CPI column (V41690973 is CPI All-items)
+    cpi_col = None
+    for col in ['v41690973', 'cpi', 'cpi_all_items']:
+        if col in cpi.columns:
+            cpi_col = col
+            break
+    
+    if cpi_col is None:
+        df['economy_cpi'] = np.nan
+        return df
+    
+    # Sort df for merge_asof
+    df_sorted = df.sort_values(date_col)
+    
+    # Perform merge_asof
+    try:
+        merged = pd.merge_asof(
+            df_sorted,
+            cpi[['date', cpi_col]].rename(columns={cpi_col: 'economy_cpi'}),
+            left_on=date_col,
+            right_on='date',
+            direction='backward'
+        )
+        merged = merged.drop(columns=['date'], errors='ignore')
+        
+        # Fill NaN with median
+        median_cpi = cpi[cpi_col].median()
+        merged['economy_cpi'] = merged['economy_cpi'].fillna(median_cpi)
+        
+        logger.info(f"Joined CPI (mean={merged['economy_cpi'].mean():.2f})")
+        return merged
+    except Exception as e:
+        logger.warning(f"Error joining CPI: {e}")
+        df['economy_cpi'] = np.nan
+        return df
+
+
+# =============================================================================
+# BASELINE SIGNAL FEATURE ENGINEERING
+# =============================================================================
+
+
+def derive_baseline_features(
+    df: pd.DataFrame,
+    baselines_df: Optional[pd.DataFrame] = None,
+    title_col: str = 'show_title',
+    wiki_col: str = 'wiki',
+    trends_col: str = 'trends',
+    youtube_col: str = 'youtube',
+    spotify_col: str = 'spotify'
+) -> pd.DataFrame:
+    """Derive baseline signal features from external data sources.
+    
+    Creates features from cultural visibility signals:
+    - Wikipedia article views (familiarity indicator)
+    - Google Trends search interest
+    - YouTube view counts
+    - Spotify play counts (for musical titles)
+    
+    These signals are combined into composite indices for modeling.
+    
+    Args:
+        df: DataFrame with show data
+        baselines_df: DataFrame with baseline signals per title
+        title_col: Name of the title column in df
+        wiki_col: Name of the Wikipedia column in baselines_df
+        trends_col: Name of the Google Trends column in baselines_df
+        youtube_col: Name of the YouTube column in baselines_df
+        spotify_col: Name of the Spotify column in baselines_df
+    
+    Returns:
+        DataFrame with baseline features added:
+        - baseline_wiki: Wikipedia signal (0-100)
+        - baseline_trends: Google Trends signal (0-100)
+        - baseline_youtube: YouTube signal (0-100)
+        - baseline_spotify: Spotify signal (0-100)
+        - baseline_familiarity_index: Composite familiarity index
+        - baseline_digital_presence: Combined digital presence score
+    """
+    out = df.copy()
+    
+    if baselines_df is None or baselines_df.empty:
+        logger.info("No baselines data provided; creating placeholder features")
+        out['baseline_wiki'] = np.nan
+        out['baseline_trends'] = np.nan
+        out['baseline_youtube'] = np.nan
+        out['baseline_spotify'] = np.nan
+        out['baseline_familiarity_index'] = np.nan
+        out['baseline_digital_presence'] = np.nan
+        return out
+    
+    baselines = baselines_df.copy()
+    
+    # Normalize column names
+    baselines.columns = [c.lower().strip() for c in baselines.columns]
+    
+    # Find title column in baselines
+    baselines_title_col = None
+    for col in ['title', 'show_title', 'canonical_title']:
+        if col in baselines.columns:
+            baselines_title_col = col
+            break
+    
+    if baselines_title_col is None:
+        logger.warning("No title column found in baselines data")
+        out['baseline_wiki'] = np.nan
+        out['baseline_trends'] = np.nan
+        out['baseline_youtube'] = np.nan
+        out['baseline_spotify'] = np.nan
+        out['baseline_familiarity_index'] = np.nan
+        out['baseline_digital_presence'] = np.nan
+        return out
+    
+    # Prepare signal columns
+    signal_cols = {
+        'baseline_wiki': wiki_col,
+        'baseline_trends': trends_col,
+        'baseline_youtube': youtube_col,
+        'baseline_spotify': spotify_col
+    }
+    
+    # Select and rename columns for merge
+    cols_to_merge = [baselines_title_col]
+    rename_map = {}
+    
+    for new_name, old_name in signal_cols.items():
+        if old_name in baselines.columns:
+            cols_to_merge.append(old_name)
+            rename_map[old_name] = new_name
+    
+    if len(cols_to_merge) == 1:  # Only title column
+        logger.warning("No signal columns found in baselines data")
+        out['baseline_wiki'] = np.nan
+        out['baseline_trends'] = np.nan
+        out['baseline_youtube'] = np.nan
+        out['baseline_spotify'] = np.nan
+        out['baseline_familiarity_index'] = np.nan
+        out['baseline_digital_presence'] = np.nan
+        return out
+    
+    baselines_subset = baselines[cols_to_merge].copy()
+    baselines_subset = baselines_subset.rename(columns=rename_map)
+    
+    # Normalize title for matching
+    out['_title_match'] = out[title_col].str.lower().str.strip()
+    baselines_subset['_title_match'] = baselines_subset[baselines_title_col].str.lower().str.strip()
+    
+    # Merge on normalized title
+    merged = out.merge(
+        baselines_subset.drop(columns=[baselines_title_col]),
+        on='_title_match',
+        how='left'
+    )
+    merged = merged.drop(columns=['_title_match'], errors='ignore')
+    
+    # Ensure all columns exist
+    for col in ['baseline_wiki', 'baseline_trends', 'baseline_youtube', 'baseline_spotify']:
+        if col not in merged.columns:
+            merged[col] = np.nan
+    
+    # Convert to numeric
+    for col in ['baseline_wiki', 'baseline_trends', 'baseline_youtube', 'baseline_spotify']:
+        merged[col] = pd.to_numeric(merged[col], errors='coerce')
+    
+    # Compute composite indices
+    # Familiarity index: weighted average of wiki and trends (most stable indicators)
+    wiki = merged['baseline_wiki'].fillna(50)
+    trends = merged['baseline_trends'].fillna(50)
+    youtube = merged['baseline_youtube'].fillna(50)
+    spotify = merged['baseline_spotify'].fillna(50)
+    
+    # Familiarity index emphasizes cultural recognition
+    merged['baseline_familiarity_index'] = (
+        0.40 * wiki +
+        0.35 * trends +
+        0.15 * youtube +
+        0.10 * spotify
+    )
+    
+    # Digital presence: overall online visibility
+    merged['baseline_digital_presence'] = (
+        0.25 * wiki +
+        0.25 * trends +
+        0.30 * youtube +
+        0.20 * spotify
+    )
+    
+    logger.info(f"Created baseline signal features for {len(merged)} rows")
+    
+    return merged
+
+
+# =============================================================================
+# COMBINED FEATURE DERIVATION
+# =============================================================================
+
+
+def derive_all_external_features(
+    df: pd.DataFrame,
+    marketing_df: Optional[pd.DataFrame] = None,
+    weather_df: Optional[pd.DataFrame] = None,
+    unemployment_df: Optional[pd.DataFrame] = None,
+    oil_price_df: Optional[pd.DataFrame] = None,
+    cpi_df: Optional[pd.DataFrame] = None,
+    baselines_df: Optional[pd.DataFrame] = None,
+    date_col: str = 'start_date',
+    city_col: str = 'city',
+    title_col: str = 'show_title'
+) -> pd.DataFrame:
+    """Derive all external features from various data sources.
+    
+    This is a convenience function that applies all feature derivation
+    functions in the proper order. Use this after joining external data
+    to create model-ready features.
+    
+    Feature categories created:
+    1. Marketing: lagged spend, total spend, spend per ticket
+    2. Weather: temperature, precipitation, day-of-week effects  
+    3. Economy: unemployment rate, oil price, CPI
+    4. Baselines: wiki/trends/youtube/spotify signals
+    
+    Args:
+        df: DataFrame with show data and joined external data
+        marketing_df: Marketing spend data (optional, uses columns in df if None)
+        weather_df: Weather data (optional, uses columns in df if None)
+        unemployment_df: Unemployment rate data
+        oil_price_df: Oil price data
+        cpi_df: CPI data
+        baselines_df: Baseline signals data
+        date_col: Name of the date column
+        city_col: Name of the city column
+        title_col: Name of the title column
+    
+    Returns:
+        DataFrame with all derived features added
+    """
+    out = df.copy()
+    original_cols = len(out.columns)
+    
+    # 1. Marketing features
+    if marketing_df is not None:
+        # Join marketing data first
+        out = out.merge(marketing_df, on=[title_col, date_col], how='left', suffixes=('', '_mkt'))
+    
+    out = derive_marketing_features(
+        out,
+        date_col=date_col,
+        lag_periods=[1, 2]  # Previous 2 productions
+    )
+    
+    # 2. Weather features
+    out = derive_weather_features(
+        out,
+        date_col=date_col
+    )
+    
+    # 3. Economy features
+    out = derive_economy_features(
+        out,
+        unemployment_df=unemployment_df,
+        oil_price_df=oil_price_df,
+        cpi_df=cpi_df,
+        date_col=date_col,
+        city_col=city_col
+    )
+    
+    # 4. Baseline features
+    out = derive_baseline_features(
+        out,
+        baselines_df=baselines_df,
+        title_col=title_col
+    )
+    
+    new_cols = len(out.columns) - original_cols
+    logger.info(f"Created {new_cols} derived features from external data")
+    
+    return out
