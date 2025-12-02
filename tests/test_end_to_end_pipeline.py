@@ -25,9 +25,14 @@ def synthetic_modelling_dataset():
     np.random.seed(42)
     n_samples = 20
     
+    # Generate sequential dates for time-aware cross-validation
+    start_date = pd.Timestamp("2020-01-01")
+    end_dates = pd.date_range(start=start_date, periods=n_samples, freq="3ME")
+    
     data = {
         "title": [f"Test Title {i}" for i in range(n_samples)],
         "canonical_title": [f"test_title_{i}" for i in range(n_samples)],
+        "end_date": end_dates,
         "wiki": np.random.randint(30, 80, n_samples),
         "trends": np.random.randint(20, 70, n_samples),
         "youtube": np.random.randint(25, 75, n_samples),
