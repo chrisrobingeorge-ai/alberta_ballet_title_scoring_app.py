@@ -455,8 +455,9 @@ def score_with_uncertainty(
     df_pred : pd.DataFrame
         Columns:
         - forecast_single_tickets
-        - lower_tickets
-        - upper_tickets
+        - prediction (alias for forecast_single_tickets)
+        - lower_tickets (also aliased as lower_bound)
+        - upper_tickets (also aliased as upper_bound)
     """
     training_schema = load_training_schema()
     ok, msgs = validate_input_schema(df_features, training_schema, raise_on_error=False)
@@ -474,8 +475,11 @@ def score_with_uncertainty(
     out = pd.DataFrame(
         {
             "forecast_single_tickets": y_hat.astype(float),
+            "prediction": y_hat.astype(float),  # Alias for compatibility
             "lower_tickets": lower.astype(float),
+            "lower_bound": lower.astype(float),  # Alias for compatibility
             "upper_tickets": upper.astype(float),
+            "upper_bound": upper.astype(float),  # Alias for compatibility
         },
         index=df_features.index,
     )
@@ -550,4 +554,262 @@ def score_runs_for_planning(
             economic_context = load_economic_config()
         result = attach_economic_context(result, economic_context)
 
+    return result
+
+
+# =============================================================================
+# ECONOMIC IMPACT SCORING
+# =============================================================================
+
+
+# Default baselines for economic indicators
+DEFAULT_ECONOMIC_BASELINES: Dict[str, Any] = {
+    "consumer_confidence": {
+        "baseline": 55.0,
+        "good_threshold": 60.0,
+        "poor_threshold": 45.0,
+        "weight": 0.4,
+    },
+    "energy_index": {
+        "baseline": 800.0,
+        "good_threshold": 1000.0,
+        "poor_threshold": 500.0,
+        "weight": 0.3,
+    },
+    "cpi_base": {
+        "baseline": 1.0,
+        "good_threshold": 0.98,  # Low inflation is good
+        "poor_threshold": 1.10,  # High inflation is poor
+        "weight": 0.3,
+    },
+}
+
+
+def load_economic_baselines(config_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """
+    Load economic baselines configuration.
+
+    Parameters
+    ----------
+    config_path : str or Path, optional
+        Path to economic baselines YAML config. If None, uses defaults.
+
+    Returns
+    -------
+    dict
+        Baselines dictionary with consumer_confidence, energy_index, cpi_base keys.
+    """
+    if config_path is not None:
+        cfg_path = Path(config_path)
+        baselines = _safe_load_yaml(cfg_path)
+        if baselines:
+            return baselines
+    
+    # Try default config location
+    default_path = OUTPUTS_DIR.parent / "config" / "economic_baselines.yaml"
+    if default_path.exists():
+        baselines = _safe_load_yaml(default_path)
+        if baselines:
+            return baselines
+    
+    return DEFAULT_ECONOMIC_BASELINES.copy()
+
+
+def compute_economic_impact_score(
+    df: pd.DataFrame,
+    baselines: Optional[Dict[str, Any]] = None,
+    include_components: bool = False,
+) -> pd.DataFrame:
+    """
+    Compute economic impact score based on economic indicators.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with economic indicator columns.
+    baselines : dict, optional
+        Economic baselines config. If None, uses defaults.
+    include_components : bool, default False
+        Whether to include individual component scores.
+
+    Returns
+    -------
+    pd.DataFrame
+        Input DataFrame with economic_impact_score column added.
+        If include_components=True, also adds econ_impact_* columns.
+    """
+    if baselines is None:
+        baselines = load_economic_baselines()
+    
+    result = df.copy()
+    
+    # Initialize components
+    consumer_score = 0.0
+    energy_score = 0.0
+    inflation_score = 0.0
+    
+    cc_config = baselines.get("consumer_confidence", {})
+    energy_config = baselines.get("energy_index", {})
+    cpi_config = baselines.get("cpi_base", {})
+    
+    # Consumer confidence component
+    cc_col = None
+    for col in ["consumer_confidence_headline", "consumer_confidence_prairies"]:
+        if col in result.columns:
+            cc_col = col
+            break
+    
+    if cc_col is not None:
+        cc_baseline = cc_config.get("baseline", 55.0)
+        cc_weight = cc_config.get("weight", 0.4)
+        result["_cc_diff"] = result[cc_col] - cc_baseline
+        result["econ_impact_consumer_confidence"] = result["_cc_diff"] * cc_weight
+    else:
+        result["econ_impact_consumer_confidence"] = 0.0
+    
+    # Energy index component
+    if "energy_index" in result.columns:
+        energy_baseline = energy_config.get("baseline", 800.0)
+        energy_weight = energy_config.get("weight", 0.3)
+        result["_energy_diff"] = (result["energy_index"] - energy_baseline) / 100.0
+        result["econ_impact_energy"] = result["_energy_diff"] * energy_weight * 5  # Scale factor
+    else:
+        result["econ_impact_energy"] = 0.0
+    
+    # Inflation component (negative impact for high inflation)
+    # Note: inflation_adjustment_factor is a ratio around 1.0 (e.g., 1.05 = 5% inflation)
+    # Higher inflation (factor > 1) is bad for ticket sales
+    if "inflation_adjustment_factor" in result.columns:
+        # Always use 1.0 as the baseline for inflation adjustment factor (ratio)
+        inflation_baseline = 1.0
+        cpi_weight = cpi_config.get("weight", 0.3)
+        # Higher inflation = lower score, so we subtract factor from baseline
+        result["_cpi_diff"] = inflation_baseline - result["inflation_adjustment_factor"]
+        # Scale: 10% inflation (factor=1.10) gives diff=-0.10, component=-3.0
+        result["econ_impact_inflation"] = result["_cpi_diff"] * cpi_weight * 100
+    else:
+        result["econ_impact_inflation"] = 0.0
+    
+    # Combined score
+    result["economic_impact_score"] = (
+        result["econ_impact_consumer_confidence"]
+        + result["econ_impact_energy"]
+        + result["econ_impact_inflation"]
+    )
+    
+    # Clip to reasonable range
+    result["economic_impact_score"] = result["economic_impact_score"].clip(-100, 100)
+    
+    # Clean up temp columns
+    result = result.drop(columns=["_cc_diff", "_energy_diff", "_cpi_diff"], errors="ignore")
+    
+    # Remove component columns if not requested
+    if not include_components:
+        result = result.drop(
+            columns=[
+                "econ_impact_consumer_confidence",
+                "econ_impact_energy",
+                "econ_impact_inflation",
+            ],
+            errors="ignore",
+        )
+    
+    return result
+
+
+def compute_city_economic_summary(
+    df: pd.DataFrame,
+    city_column: str = "city",
+) -> pd.DataFrame:
+    """
+    Compute city-level economic summary statistics.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with city column and economic_impact_score.
+    city_column : str, default "city"
+        Name of the city column.
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary DataFrame with one row per city.
+    """
+    if "economic_impact_score" not in df.columns:
+        df = compute_economic_impact_score(df)
+    
+    if city_column not in df.columns:
+        return pd.DataFrame()
+    
+    summary = df.groupby(city_column).agg({
+        "economic_impact_score": ["mean", "min", "max", "count"]
+    }).reset_index()
+    
+    # Flatten multi-level columns
+    summary.columns = [
+        city_column,
+        "economic_impact_score_mean",
+        "economic_impact_score_min",
+        "economic_impact_score_max",
+        "count",
+    ]
+    
+    return summary
+
+
+def score_with_economic_impact(
+    df_features: pd.DataFrame,
+    model: Optional[Any] = None,
+    model_name: str = "model_xgb_remount_postcovid",
+    confidence_level: float = 0.8,
+    n_bootstrap: int = 200,
+    include_economic: bool = True,
+    include_components: bool = False,
+) -> pd.DataFrame:
+    """
+    Score features with both model predictions and economic impact.
+
+    Parameters
+    ----------
+    df_features : pd.DataFrame
+        Features for scoring.
+    model : Any, optional
+        Preloaded model.
+    model_name : str
+        Model filename.
+    confidence_level : float
+        Confidence for prediction intervals.
+    n_bootstrap : int
+        Bootstrap samples for intervals.
+    include_economic : bool, default True
+        Whether to include economic impact score.
+    include_components : bool, default False
+        Whether to include economic component scores.
+
+    Returns
+    -------
+    pd.DataFrame
+        Predictions with optional economic impact scores.
+    """
+    # Get model predictions
+    predictions = score_with_uncertainty(
+        df_features,
+        model=model,
+        model_name=model_name,
+        confidence_level=confidence_level,
+        n_bootstrap=n_bootstrap,
+    )
+    
+    # Merge predictions with original features
+    result = df_features.copy()
+    result = result.join(predictions)
+    
+    # Add economic impact if requested
+    if include_economic:
+        result = compute_economic_impact_score(
+            result,
+            include_components=include_components,
+        )
+    
     return result
