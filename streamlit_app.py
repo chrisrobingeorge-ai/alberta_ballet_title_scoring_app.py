@@ -42,14 +42,12 @@ except ImportError:
 
 # Live Analytics integration
 try:
-    from data.loader import get_live_analytics_category_factors, get_category_engagement_factor
+    from data.loader import get_live_analytics_category_factors
     LA_AVAILABLE = True
 except ImportError:
     LA_AVAILABLE = False
     def get_live_analytics_category_factors():
         return {}
-    def get_category_engagement_factor(category: str) -> float:
-        return 1.0
 
 # Economic factors integration
 try:
@@ -2223,7 +2221,10 @@ def _la_for_category(cat: str) -> dict:
                 return factors[mapped]
         
         return {}
-    except Exception:
+    except Exception as e:
+        # Log but don't fail - LA data is supplemental
+        import logging
+        logging.getLogger(__name__).debug(f"Error in _la_for_category for '{cat}': {e}")
         return {}
 
 
@@ -2740,7 +2741,10 @@ def compute_scores_and_store(
         econ_sources = econ_context.get("sources_available", [])
         boc_sentiment = econ_context.get("boc_sentiment")
         alberta_sentiment = econ_context.get("alberta_sentiment")
-    except Exception:
+    except Exception as e:
+        # Log but don't fail - economic data is supplemental
+        import logging
+        logging.getLogger(__name__).debug(f"Error fetching economic context: {e}")
         econ_sentiment = 1.0
         econ_sources = []
         boc_sentiment = None
