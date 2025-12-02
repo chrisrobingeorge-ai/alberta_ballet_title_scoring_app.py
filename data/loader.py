@@ -81,9 +81,9 @@ def _load_history_sales_cached(path: str, mtime: float) -> pd.DataFrame:
         mtime: File modification time (used for cache key)
         
     Returns:
-        DataFrame with normalized column names
+        DataFrame with normalized column names and date columns parsed as datetime
     """
-    df = pd.read_csv(path, thousands=",")
+    df = pd.read_csv(path, thousands=",", parse_dates=["start_date", "end_date"])
     # Normalize column names
     df.columns = [
         c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
@@ -117,15 +117,22 @@ def load_history_sales(
     
     This function is cached based on file modification time.
     
+    The returned DataFrame includes 'start_date' and 'end_date' columns parsed
+    as datetime64[ns] objects. These columns represent the start and end dates
+    of each production run and are validated to ensure no missing values.
+    
     Args:
         csv_name: Name of the CSV file to load
         fallback_empty: If True, return empty DataFrame on error instead of raising
         
     Returns:
-        DataFrame with normalized column names
+        DataFrame with normalized column names. Includes the following date columns:
+        - start_date (datetime64[ns]): Start date of the production run
+        - end_date (datetime64[ns]): End date of the production run
         
     Raises:
         DataLoadError: If file cannot be loaded and fallback_empty is False
+        ValueError: If any row has missing start_date or end_date values
     """
     path = DATA_DIR / csv_name
     
@@ -138,9 +145,24 @@ def load_history_sales(
         
         # Use cached loader with file mtime for cache invalidation
         mtime = _get_file_mtime(path)
-        return _load_history_sales_cached(str(path), mtime).copy()
+        df = _load_history_sales_cached(str(path), mtime).copy()
+        
+        # Validate that every row has valid dates (no missing values)
+        if not df.empty:
+            for date_col in ["start_date", "end_date"]:
+                if date_col in df.columns:
+                    missing_count = df[date_col].isna().sum()
+                    if missing_count > 0:
+                        raise ValueError(
+                            f"Column '{date_col}' has {missing_count} missing values. "
+                            f"Every row must have a valid date."
+                        )
+        
+        return df
         
     except DataLoadError:
+        raise
+    except ValueError:
         raise
     except Exception as e:
         if fallback_empty:
