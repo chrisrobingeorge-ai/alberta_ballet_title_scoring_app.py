@@ -52,7 +52,7 @@ from integrations.ticketmaster import TicketmasterError, TicketmasterAuthError
 from integrations.archtics import ArchticsError, ArchticsAuthError
 
 # Default CSV path for batch processing when no arguments provided
-DEFAULT_CSV_PATH = Path(__file__).parent.parent / "data" / "productions" / "history_city_sales.csv"
+DEFAULT_CSV_PATH = Path(__file__).parent.parent / "data" / "productions" / "history_city_sales - combined.csv"
 
 # Configure logging
 logging.basicConfig(
@@ -624,7 +624,7 @@ For full documentation, see README.md section "Archtics + Ticketmaster Integrati
     parser.add_argument(
         "--from_csv",
         metavar="CSV_PATH",
-        help="Path to CSV file with show titles for batch processing. Defaults to data/productions/history_city_sales.csv if no arguments provided.",
+        help="Path to CSV file with show titles for batch processing. Defaults to data/productions/history_city_sales - combined.csv if no arguments provided.",
     )
     parser.add_argument(
         "--season",

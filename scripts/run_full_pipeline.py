@@ -61,9 +61,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def run_full_pipeline(
     output_base_dir: str = "results",
-    history_path: str = "data/productions/history_city_sales.csv",
+    history_path: str = "data/productions/history_city_sales - combined.csv",
     baselines_path: str = "data/productions/baselines.csv",
-    past_runs_path: str = "data/productions/past_runs.csv",
     tune: bool = False,
     save_shap: bool = False,
     seed: int = 42,
@@ -73,15 +72,14 @@ def run_full_pipeline(
     Run the complete modelling pipeline.
 
     This function orchestrates:
-    1. Building the leak-free modelling dataset
+    1. Building the leak-free modelling dataset (from combined city-level history)
     2. Running time-aware backtesting
     3. Training the final safe model
 
     Args:
         output_base_dir: Base directory for outputs (default: results/)
-        history_path: Path to historical sales CSV
+        history_path: Path to combined historical sales CSV (city-level rows with dates)
         baselines_path: Path to baselines CSV
-        past_runs_path: Path to past runs CSV
         tune: Enable hyperparameter tuning
         save_shap: Compute and save SHAP explanations
         seed: Random seed for reproducibility
@@ -134,7 +132,6 @@ def run_full_pipeline(
         df = build_modelling_dataset(
             history_path=history_path,
             baselines_path=baselines_path,
-            past_runs_path=past_runs_path,
             output_path=dataset_output_path,
             diagnostics_path=diagnostics_output_path,
             verbose=verbose,
@@ -355,18 +352,13 @@ Examples:
     )
     parser.add_argument(
         "--history",
-        default="data/productions/history_city_sales.csv",
-        help="Path to historical sales CSV",
+        default="data/productions/history_city_sales - combined.csv",
+        help="Path to combined historical sales CSV (city-level rows with dates)",
     )
     parser.add_argument(
         "--baselines",
         default="data/productions/baselines.csv",
         help="Path to baselines CSV",
-    )
-    parser.add_argument(
-        "--past-runs",
-        default="data/productions/past_runs.csv",
-        help="Path to past runs CSV",
     )
     parser.add_argument(
         "--tune",
@@ -394,10 +386,9 @@ Examples:
 
     try:
         results = run_full_pipeline(
-            output_base_dir=args.output_dir,
+            output_base_dir=args.output,
             history_path=args.history,
             baselines_path=args.baselines,
-            past_runs_path=args.past_runs,
             tune=args.tune,
             save_shap=args.save_shap,
             seed=args.seed,

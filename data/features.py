@@ -103,61 +103,105 @@ def join_consumer_confidence(
     target_metric: str = 'This week',
     region: str = 'Prairies'
 ) -> pd.DataFrame:
-    """Join Nanos consumer confidence data to show data.
+    """Join Nanos consumer confidence data to show data using temporal matching.
     
-    Forward-fills weekly confidence data to align with show dates.
+    Matches show dates to historical consumer confidence data via merge_asof.
     Uses Prairies region as the most relevant for Alberta.
     
     Args:
         df: Show/production DataFrame with date column
-        nanos_df: Nanos consumer confidence DataFrame
+        nanos_df: Nanos consumer confidence DataFrame with year_or_period column
         date_column: Name of the date column in df
         target_metric: Which metric to use (e.g., 'This week')
         region: Which region to use (default 'Prairies' for Alberta)
         
     Returns:
-        DataFrame with consumer_confidence feature added
+        DataFrame with consumer_confidence_prairies feature added
     """
     if nanos_df.empty:
-        logger.warning("Empty Nanos data; skipping consumer confidence join")
+        logger.warning("Empty Nanos data; using default consumer confidence")
+        df['consumer_confidence_prairies'] = 50.0
         return df
     
     out = df.copy()
     
+    # Check if date column exists and has valid dates
+    if date_column not in out.columns or out[date_column].isna().all():
+        logger.warning(f"Date column '{date_column}' missing or empty; using default consumer confidence")
+        out['consumer_confidence_prairies'] = 50.0
+        return out
+    
     try:
-        # Filter for headline index
-        headline = nanos_df[
-            (nanos_df['category'] == 'BNCCI') & 
-            (nanos_df['subcategory'] == 'Headline Index') &
-            (nanos_df['metric'] == target_metric)
-        ].copy()
-        
-        # Also get regional data if available
+        # Filter for regional data (Prairies)
         regional = nanos_df[
             (nanos_df['category'] == 'Demographics') & 
             (nanos_df['subcategory'] == 'Region') &
             (nanos_df['metric'] == region)
         ].copy()
         
-        if not headline.empty:
-            # Extract the latest headline value
-            latest_confidence = headline['value'].iloc[0] if len(headline) > 0 else 50.0
-            out['consumer_confidence_headline'] = latest_confidence
-        else:
-            out['consumer_confidence_headline'] = 50.0  # neutral baseline
+        # Also get headline index as fallback
+        headline = nanos_df[
+            (nanos_df['category'] == 'BNCCI') & 
+            (nanos_df['subcategory'] == 'Headline Index') &
+            (nanos_df['metric'] == target_metric)
+        ].copy()
         
-        if not regional.empty:
-            regional_value = regional['value'].iloc[0] if len(regional) > 0 else 50.0
-            out['consumer_confidence_prairies'] = regional_value
-        else:
-            out['consumer_confidence_prairies'] = out.get('consumer_confidence_headline', 50.0)
+        # Try regional first, fall back to headline
+        confidence_data = regional if not regional.empty else headline
         
-        logger.info(f"Added consumer confidence features to {len(out)} rows")
+        if confidence_data.empty:
+            logger.warning("No suitable consumer confidence data found; using default")
+            out['consumer_confidence_prairies'] = 50.0
+            return out
+        
+        # Parse year_or_period as date
+        confidence_data['_conf_date'] = pd.to_datetime(confidence_data['year_or_period'], errors='coerce')
+        confidence_data = confidence_data.dropna(subset=['_conf_date', 'value'])
+        
+        if confidence_data.empty:
+            logger.warning("No parseable dates in consumer confidence data; using default")
+            out['consumer_confidence_prairies'] = 50.0
+            return out
+        
+        # Sort by date
+        confidence_data = confidence_data.sort_values('_conf_date')
+        
+        # Prepare show data
+        out['_show_date'] = pd.to_datetime(out[date_column], errors='coerce')
+        out_with_dates = out[out['_show_date'].notna()].copy()
+        out_without_dates = out[out['_show_date'].isna()].copy()
+        
+        if not out_with_dates.empty:
+            # Merge using asof (nearest prior date)
+            out_with_dates = pd.merge_asof(
+                out_with_dates.sort_values('_show_date'),
+                confidence_data[['_conf_date', 'value']].rename(columns={'value': 'consumer_confidence_prairies'}),
+                left_on='_show_date',
+                right_on='_conf_date',
+                direction='backward'
+            )
+            
+            # Fill any remaining nulls with median
+            median_confidence = confidence_data['value'].median()
+            out_with_dates['consumer_confidence_prairies'] = out_with_dates['consumer_confidence_prairies'].fillna(median_confidence)
+            
+            # Combine back
+            out = pd.concat([out_with_dates, out_without_dates], ignore_index=True)
+        
+        # Fill rows without dates with median confidence
+        if 'consumer_confidence_prairies' not in out.columns:
+            out['consumer_confidence_prairies'] = confidence_data['value'].median()
+        else:
+            out['consumer_confidence_prairies'] = out['consumer_confidence_prairies'].fillna(confidence_data['value'].median())
+        
+        # Clean up temporary columns
+        out = out.drop(columns=['_show_date', '_conf_date'], errors='ignore')
+        
+        logger.info(f"Added consumer_confidence_prairies to {len(out)} rows (mean={out['consumer_confidence_prairies'].mean():.2f})")
         return out
         
     except Exception as e:
         logger.warning(f"Error joining consumer confidence: {e}")
-        out['consumer_confidence_headline'] = 50.0
         out['consumer_confidence_prairies'] = 50.0
         return out
 
@@ -167,7 +211,7 @@ def join_energy_index(
     commodity_df: pd.DataFrame,
     date_column: str = 'show_date'
 ) -> pd.DataFrame:
-    """Join commodity price Energy index to show data.
+    """Join commodity price Energy index to show data using temporal matching.
     
     Uses monthly Energy index (A.ENER) from Bank of Canada commodity data.
     Energy prices strongly correlate with Alberta's economic health.
@@ -181,53 +225,75 @@ def join_energy_index(
         DataFrame with energy_index feature added
     """
     if commodity_df.empty:
-        logger.warning("Empty commodity data; skipping energy index join")
+        logger.warning("Empty commodity data; using default energy index")
+        df['energy_index'] = 100.0
         return df
     
     out = df.copy()
     
+    # Check if date column exists and has valid dates
+    if date_column not in out.columns or out[date_column].isna().all():
+        logger.warning(f"Date column '{date_column}' missing or empty; using default energy index")
+        out['energy_index'] = 100.0
+        return out
+    
     try:
-        # Ensure date columns are datetime
-        if date_column in out.columns:
-            out['_show_year_month'] = snap_show_date_to_month(out[date_column])
-        else:
-            logger.warning(f"Date column '{date_column}' not found")
-            out['energy_index'] = np.nan
-            return out
-        
         # Prepare commodity data
         comm = commodity_df.copy()
-        if 'date' in comm.columns:
-            comm['date'] = pd.to_datetime(comm['date'], errors='coerce')
-            comm['_year_month'] = comm['date'].dt.strftime('%Y-%m')
-        else:
-            out['energy_index'] = np.nan
+        
+        # Normalize column names to uppercase
+        comm.columns = [c.upper() if c.lower() != 'date' else c for c in comm.columns]
+        
+        if 'date' not in comm.columns or 'A.ENER' not in comm.columns:
+            logger.warning("Commodity data missing 'date' or 'A.ENER' column; using default")
+            out['energy_index'] = 100.0
             return out
         
-        # Get energy column (A.ENER)
-        if 'A.ENER' in comm.columns:
-            energy_lookup = comm.set_index('_year_month')['A.ENER'].to_dict()
-            out['energy_index'] = out['_show_year_month'].map(energy_lookup)
+        comm['date'] = pd.to_datetime(comm['date'], errors='coerce')
+        comm = comm.dropna(subset=['date', 'A.ENER']).sort_values('date')
+        
+        if comm.empty:
+            logger.warning("No valid commodity data after date parsing; using default")
+            out['energy_index'] = 100.0
+            return out
+        
+        # Prepare show data
+        out['_show_date'] = pd.to_datetime(out[date_column], errors='coerce')
+        out_with_dates = out[out['_show_date'].notna()].copy()
+        out_without_dates = out[out['_show_date'].isna()].copy()
+        
+        if not out_with_dates.empty:
+            # Merge using asof (nearest prior date)
+            out_with_dates = pd.merge_asof(
+                out_with_dates.sort_values('_show_date'),
+                comm[['date', 'A.ENER']].rename(columns={'A.ENER': 'energy_index'}),
+                left_on='_show_date',
+                right_on='date',
+                direction='backward'
+            )
             
-            # Forward-fill any missing values with most recent
-            if out['energy_index'].isna().any():
-                # Get most recent available value
-                sorted_comm = comm.dropna(subset=['A.ENER']).sort_values('date')
-                if len(sorted_comm) > 0:
-                    latest_energy = sorted_comm['A.ENER'].iloc[-1]
-                    out['energy_index'] = out['energy_index'].fillna(latest_energy)
+            # Fill any remaining nulls with median
+            median_energy = comm['A.ENER'].median()
+            out_with_dates['energy_index'] = out_with_dates['energy_index'].fillna(median_energy)
+            
+            # Combine back
+            out = pd.concat([out_with_dates, out_without_dates], ignore_index=True)
+        
+        # Fill rows without dates with median energy
+        if 'energy_index' not in out.columns:
+            out['energy_index'] = comm['A.ENER'].median()
         else:
-            out['energy_index'] = np.nan
+            out['energy_index'] = out['energy_index'].fillna(comm['A.ENER'].median())
         
-        # Clean up temp column
-        out = out.drop(columns=['_show_year_month'], errors='ignore')
+        # Clean up temporary columns
+        out = out.drop(columns=['_show_date', 'date'], errors='ignore')
         
-        logger.info(f"Added energy_index feature to {len(out)} rows")
+        logger.info(f"Added energy_index to {len(out)} rows (mean={out['energy_index'].mean():.2f})")
         return out
         
     except Exception as e:
         logger.warning(f"Error joining energy index: {e}")
-        out['energy_index'] = np.nan
+        out['energy_index'] = 100.0
         return out
 
 
@@ -291,30 +357,43 @@ def compute_inflation_adjustment_factor(
             # Use first available value
             base_cpi = cpi[cpi_col].iloc[0]
         
-        # Create year-month lookup for CPI
-        cpi['_year_month'] = cpi['date'].dt.strftime('%Y-%m')
-        cpi_lookup = cpi.set_index('_year_month')[cpi_col].to_dict()
-        
-        # Map show dates to CPI values
-        if date_column in out.columns:
-            out['_show_year_month'] = snap_show_date_to_month(out[date_column])
-            out['_current_cpi'] = out['_show_year_month'].map(cpi_lookup)
-            
-            # Forward-fill missing CPI with most recent
-            sorted_cpi = cpi.dropna(subset=[cpi_col]).sort_values('date')
-            if len(sorted_cpi) > 0:
-                latest_cpi = sorted_cpi[cpi_col].iloc[-1]
-                out['_current_cpi'] = out['_current_cpi'].fillna(latest_cpi)
-            
-            # Compute inflation factor
-            out['inflation_adjustment_factor'] = out['_current_cpi'] / base_cpi
-            
-            # Clean up temp columns
-            out = out.drop(columns=['_show_year_month', '_current_cpi'], errors='ignore')
-        else:
+        # Prepare show data
+        if date_column not in out.columns or out[date_column].isna().all():
+            logger.warning(f"Date column '{date_column}' missing or empty; using default inflation factor")
             out['inflation_adjustment_factor'] = 1.0
+            return out
         
-        logger.info(f"Added inflation_adjustment_factor to {len(out)} rows")
+        out['_show_date'] = pd.to_datetime(out[date_column], errors='coerce')
+        out_with_dates = out[out['_show_date'].notna()].copy()
+        out_without_dates = out[out['_show_date'].isna()].copy()
+        
+        if not out_with_dates.empty:
+            # Merge using asof (nearest prior date)
+            out_with_dates = pd.merge_asof(
+                out_with_dates.sort_values('_show_date'),
+                cpi[['date', cpi_col]].rename(columns={cpi_col: '_cpi_value'}),
+                left_on='_show_date',
+                right_on='date',
+                direction='backward'
+            )
+            
+            # Compute inflation factor relative to base
+            out_with_dates['inflation_adjustment_factor'] = out_with_dates['_cpi_value'] / base_cpi
+            out_with_dates['inflation_adjustment_factor'] = out_with_dates['inflation_adjustment_factor'].fillna(1.0)
+            
+            # Combine back
+            out = pd.concat([out_with_dates, out_without_dates], ignore_index=True)
+        
+        # Fill rows without dates with default
+        if 'inflation_adjustment_factor' not in out.columns:
+            out['inflation_adjustment_factor'] = 1.0
+        else:
+            out['inflation_adjustment_factor'] = out['inflation_adjustment_factor'].fillna(1.0)
+        
+        # Clean up temp columns
+        out = out.drop(columns=['_show_date', 'date', '_cpi_value'], errors='ignore')
+        
+        logger.info(f"Added inflation_adjustment_factor to {len(out)} rows (mean={out['inflation_adjustment_factor'].mean():.3f})")
         return out
         
     except Exception as e:
@@ -481,7 +560,7 @@ def build_feature_store(
     
     # Find date column (handle variations)
     date_col = None
-    for col in [date_column, 'opening_date', 'show_date', 'date', 'performance_date']:
+    for col in [date_column, 'opening_date', 'start_date', 'show_date', 'date', 'performance_date']:
         col_lower = col.lower().replace(' ', '_').replace('-', '_')
         if col_lower in features.columns:
             date_col = col_lower

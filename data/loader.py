@@ -1256,6 +1256,75 @@ def load_nanos_better_off(
         raise DataLoadError(f"Error loading Nanos Better Off data from {path}: {e}")
 
 
+def load_nanos_arts_donors(
+    csv_name: str = "audiences/nanos_arts_donors.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load Nanos Arts Donors research data.
+    
+    Contains data on arts giving patterns, donor demographics, and 
+    donation trends - useful for understanding arts audience engagement.
+    
+    Expected columns:
+    - section: Main section (e.g., Annual giving breakdown)
+    - subcategory: Subsection (e.g., Arts share)
+    - metric: Specific metric name (e.g., Avg %)
+    - year_or_period: Year or period of observation
+    - value: Numeric value
+    - unit: Unit of measurement (e.g., percent)
+    - notes: Additional notes
+    - source_page: Source page reference
+    
+    Args:
+        csv_name: Path to Nanos arts donors CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with arts giving breakdown by year (year, res__arts_share_giving)
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Nanos Arts Donors file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Clean the DataFrame
+        df = _clean_dataframe(df, drop_unnamed=True, numeric_columns=['value'])
+        
+        # Filter for overall arts share metric (Annual giving breakdown -> Arts share -> Avg %)
+        if 'section' in df.columns and 'subcategory' in df.columns and 'metric' in df.columns:
+            arts_share = df[
+                (df['section'] == 'Annual giving breakdown') &
+                (df['subcategory'] == 'Arts share') &
+                (df['metric'] == 'Avg %')
+            ].copy()
+            
+            # Create tidy format with year and arts_share_giving
+            if not arts_share.empty and 'year_or_period' in arts_share.columns:
+                result = pd.DataFrame({
+                    'year': pd.to_numeric(arts_share['year_or_period'], errors='coerce'),
+                    'res__arts_share_giving': arts_share['value'].values
+                })
+                result = result.dropna(subset=['year'])
+                result['year'] = result['year'].astype(int)
+                return result
+        
+        return pd.DataFrame()
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading Nanos Arts Donors data: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading Nanos Arts Donors data from {path}: {e}")
+
+
 def load_commodity_price_index(
     csv_name: str = "economics/commodity_price_index.csv",
     fallback_empty: bool = True

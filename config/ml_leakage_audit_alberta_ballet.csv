@@ -33,3 +33,10 @@ phq_rank_avg,N,Y,Average rank computed from scheduled events; safe.
 phq_holidays_flag,N,Y,Holiday dates are fixed and known in advance; safe.
 phq_severe_weather_flag,Y,N for initial model,Severe weather is unpredictable; use only in scenario planning or in-run models.
 phq_demand_impact_score,N,Y,Composite score derived from known PredictHQ features; safe if inputs are safe.
+consumer_confidence_prairies,N,Y,Weekly consumer confidence tracking; use most recent value available at forecast time.
+energy_index,N,Y,Monthly commodity price data; use most recent published value at forecast time.
+inflation_adjustment_factor,N,Y,CPI-based adjustment using historical published data; safe for normalizing past values.
+city_median_household_income,N,Y,Census demographic data; static snapshot from 2021 census; safe as city characteristic.
+aud__engagement_factor,N,Y,Derived from historical audience analytics by category; not dependent on current-run sales; safe category-level characteristic known at forecast time.
+res__arts_share_giving,N,Y,Donor research data by year from Nanos/Stone Olafson study; represents annual giving patterns to arts sector; known at forecast time as historical research data.
+

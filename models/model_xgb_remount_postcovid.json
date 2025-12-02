@@ -1,5 +1,5 @@
 {
-  "training_date": "2025-12-01T00:58:42.163151",
+  "training_date": "2025-12-02T03:12:39.366283",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
@@ -18,36 +18,42 @@
       "is_remount_medium",
       "run_count_prior",
       "month_of_opening",
-      "holiday_flag"
+      "holiday_flag",
+      "consumer_confidence_prairies",
+      "energy_index",
+      "inflation_adjustment_factor",
+      "city_median_household_income",
+      "aud__engagement_factor",
+      "res__arts_share_giving"
     ],
     "categorical": [
       "category",
       "gender"
     ],
-    "total": 15
+    "total": 21
   },
   "cv_metrics": {
-    "mae_mean": 345.23946184430827,
-    "mae_std": 177.9132946441839,
-    "rmse_mean": 516.2006441214525,
-    "rmse_std": 286.7772646189349,
-    "r2_mean": 0.8560795336631257,
-    "r2_std": 0.12663961770819515,
+    "mae_mean": 810.1645961216524,
+    "mae_std": 668.9546626303464,
+    "rmse_mean": 1458.8226346457227,
+    "rmse_std": 1514.6779535178962,
+    "r2_mean": 0.8588929150472471,
+    "r2_std": 0.14158655555339494,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 2.459493582588982,
-    "rmse": 5.768115515460797,
-    "r2": 0.9999863402161769,
-    "mae_log": 0.0008620691791854032,
-    "rmse_log": 0.0021729977332864085
+    "mae": 10.201000976562195,
+    "rmse": 44.11522379939293,
+    "r2": 0.9998919873502369,
+    "mae_log": 0.0008813721812047806,
+    "rmse_log": 0.0021470052924329164
   },
   "target_column": "target_ticket_median",
   "dataset_path": "data/modelling_dataset.csv",
-  "git_commit_hash": "fd517d2",
-  "data_file_hash": "3646189b486e56c3",
+  "git_commit_hash": "9c42780",
+  "data_file_hash": "f4eff8fee5fe81c5",
   "dataset_shape": {
     "n_rows": 35,
-    "n_columns": 18
+    "n_columns": 24
   }
 }
