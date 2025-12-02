@@ -40,6 +40,38 @@ try:
 except ImportError:
     ML_AVAILABLE = False
 
+# Live Analytics integration
+try:
+    from data.loader import get_live_analytics_category_factors
+    LA_AVAILABLE = True
+except ImportError:
+    LA_AVAILABLE = False
+    def get_live_analytics_category_factors():
+        return {}
+
+# Economic factors integration
+try:
+    from utils.economic_factors import (
+        compute_boc_economic_sentiment,
+        compute_alberta_economic_sentiment,
+        get_current_economic_context,
+        is_boc_live_enabled,
+        is_alberta_live_enabled,
+    )
+    ECON_FACTORS_AVAILABLE = True
+except ImportError:
+    ECON_FACTORS_AVAILABLE = False
+    def compute_boc_economic_sentiment(run_date=None, city=None):
+        return 1.0, {"source": "unavailable", "factor": 1.0}
+    def compute_alberta_economic_sentiment(run_date=None, city=None):
+        return 1.0, {"source": "unavailable", "factor": 1.0}
+    def get_current_economic_context(include_boc=True, include_alberta=True, use_cache=True):
+        return {"combined_sentiment": 1.0, "sources_available": []}
+    def is_boc_live_enabled():
+        return False
+    def is_alberta_live_enabled():
+        return False
+
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
     global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE
@@ -2152,48 +2184,93 @@ benchmark_title = st.selectbox(
 # -------------------------
 # Core compute
 # -------------------------
+
+# Live Analytics category lookup - uses data from loader
+def _la_for_category(cat: str) -> dict:
+    """Get live analytics data for a category.
+    
+    Returns a dictionary with metrics from the live_analytics.csv data.
+    Uses the get_live_analytics_category_factors function from data/loader.py.
+    """
+    if not LA_AVAILABLE:
+        return {}
+    
+    try:
+        factors = get_live_analytics_category_factors()
+        if not factors:
+            return {}
+        
+        cat_lower = cat.lower().strip()
+        
+        # Direct match
+        if cat_lower in factors:
+            return factors[cat_lower]
+        
+        # Map related categories
+        category_aliases = {
+            'classic_comedy': 'classic_romance',
+            'romantic_comedy': 'classic_romance',
+            'adult_literary_drama': 'dramatic',
+            'contemporary_mixed_bill': 'contemporary',
+            'touring_contemporary_company': 'contemporary',
+        }
+        
+        if cat_lower in category_aliases:
+            mapped = category_aliases[cat_lower]
+            if mapped in factors:
+                return factors[mapped]
+        
+        return {}
+    except Exception as e:
+        # Log but don't fail - LA data is supplemental
+        import logging
+        logging.getLogger(__name__).debug(f"Error in _la_for_category for '{cat}': {e}")
+        return {}
+
+
 def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
+    """Add Live Analytics engagement factors as overlays to the DataFrame.
+    
+    Uses data from data/audiences/live_analytics.csv via the loader functions.
+    Adds LA_EngagementFactor and related indices per category.
+    """
     df = df_in.copy()
-    cols = [
-        "LA_EarlyBuyerPct","LA_WeekOfPct",
-        "LA_MobilePct","LA_InternetPct","LA_PhonePct",
-        "LA_Tix12Pct","LA_Tix34Pct","LA_Tix58Pct",
-        "LA_PremiumPct","LA_LocalLT10Pct",
-        "LA_PriceHiPct","LA_PriceFlag",
+    
+    # Define LA columns to add
+    la_cols = [
+        "LA_EngagementFactor",
+        "LA_HighSpenderIdx",
+        "LA_ActiveBuyerIdx",
+        "LA_RepeatBuyerIdx",
+        "LA_ArtsAttendIdx",
     ]
-    for c in cols:
+    for c in la_cols:
         if c not in df.columns:
             df[c] = np.nan
 
     def _overlay_row_from_category(cat: str) -> dict:
         la = _la_for_category(cat)
         if not la:
-            return {}
-        early = (float(la.get("Presale", 0)) + float(la.get("FirstDay", 0)) + float(la.get("FirstWeek", 0))) / 100.0
-        price_hi = (float(la.get("Price_VeryGood", 0)) + float(la.get("Price_Best", 0))) / 100.0
+            return {
+                "LA_EngagementFactor": 1.0,
+                "LA_HighSpenderIdx": 100.0,
+                "LA_ActiveBuyerIdx": 100.0,
+                "LA_RepeatBuyerIdx": 100.0,
+                "LA_ArtsAttendIdx": 100.0,
+            }
         return {
-            "LA_EarlyBuyerPct": early,
-            "LA_WeekOfPct": float(la.get("WeekOf", 0)) / 100.0,
-            "LA_MobilePct": float(la.get("Mobile", 0)) / 100.0,
-            "LA_InternetPct": float(la.get("Internet", 0)) / 100.0,
-            "LA_PhonePct": float(la.get("Phone", 0)) / 100.0,
-            "LA_Tix12Pct": float(la.get("Tix_1_2", 0)) / 100.0,
-            "LA_Tix34Pct": float(la.get("Tix_3_4", 0)) / 100.0,
-            "LA_Tix58Pct": float(la.get("Tix_5_8", 0)) / 100.0,
-            "LA_PremiumPct": float(la.get("Premium", 0)) / 100.0,
-            "LA_LocalLT10Pct": float(la.get("LT10mi", 0)) / 100.0,
-            "LA_PriceHiPct": price_hi,
+            "LA_EngagementFactor": float(la.get("engagement_factor", 1.0)),
+            "LA_HighSpenderIdx": float(la.get("high_spender_index", 100.0)),
+            "LA_ActiveBuyerIdx": float(la.get("active_buyer_index", 100.0)),
+            "LA_RepeatBuyerIdx": float(la.get("repeat_buyer_index", 100.0)),
+            "LA_ArtsAttendIdx": float(la.get("arts_attendance_index", 100.0)),
         }
 
     overlays = df["Category"].map(lambda c: _overlay_row_from_category(str(c)))
     overlays_df = pd.DataFrame(list(overlays)).reindex(df.index)
-    for c in [c for c in cols if c in overlays_df.columns]:
+    for c in [c for c in la_cols if c in overlays_df.columns]:
         df[c] = overlays_df[c]
 
-    def _price_flag(p_hi: float) -> str:
-        if pd.isna(p_hi): return "n/a"
-        return "Elastic" if p_hi < 0.25 else ("Premium-tolerant" if p_hi > 0.30 else "Neutral")
-    df["LA_PriceFlag"] = df["LA_PriceHiPct"].apply(_price_flag)
     return df
 
 # Fallback estimator for unknown titles when live fetch is OFF
@@ -2654,6 +2731,30 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
+    # 10a) Live Analytics overlays (engagement factors by category)
+    df = _add_live_analytics_overlays(df)
+
+    # 10b) Economic sentiment factor (BoC + Alberta data)
+    try:
+        econ_context = get_current_economic_context(include_boc=True, include_alberta=True)
+        econ_sentiment = float(econ_context.get("combined_sentiment", 1.0))
+        econ_sources = econ_context.get("sources_available", [])
+        boc_sentiment = econ_context.get("boc_sentiment")
+        alberta_sentiment = econ_context.get("alberta_sentiment")
+    except Exception as e:
+        # Log but don't fail - economic data is supplemental
+        import logging
+        logging.getLogger(__name__).debug(f"Error fetching economic context: {e}")
+        econ_sentiment = 1.0
+        econ_sources = []
+        boc_sentiment = None
+        alberta_sentiment = None
+
+    df["Econ_Sentiment"] = econ_sentiment
+    df["Econ_BocFactor"] = boc_sentiment if boc_sentiment is not None else np.nan
+    df["Econ_AlbertaFactor"] = alberta_sentiment if alberta_sentiment is not None else np.nan
+    df["Econ_Sources"] = ", ".join(econ_sources) if econ_sources else "none"
+
     # 11) Remount decay + post-COVID haircut
     decay_pcts, decay_factors, est_after_decay = [], [], []
     today_year = datetime.utcnow().year
@@ -2883,9 +2984,17 @@ def render_results():
         "PredictedPrimarySegment","PredictedSecondarySegment",
 
         "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-        "Familiarity","Motivation",
+        "Familiarity","Motivation","SignalOnly",
+        
+        # Live Analytics factors
+        "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
+        "LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
+        
+        # Economic factors
+        "Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor","Econ_Sources",
+        
         "TicketHistory",
-        "TicketIndex used","TicketIndexSource",
+        "TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
         "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
         "Composite","Score",
         "EstimatedTickets",
@@ -2920,7 +3029,19 @@ def render_results():
             "SpotifyIdx": "{:.0f}",
             "Familiarity": "{:.1f}",
             "Motivation": "{:.1f}",
+            "SignalOnly": "{:.1f}",
+            # Live Analytics factors
+            "LA_EngagementFactor": "{:.3f}",
+            "LA_HighSpenderIdx": "{:.0f}",
+            "LA_ActiveBuyerIdx": "{:.0f}",
+            "LA_RepeatBuyerIdx": "{:.0f}",
+            "LA_ArtsAttendIdx": "{:.0f}",
+            # Economic factors
+            "Econ_Sentiment": "{:.3f}",
+            "Econ_BocFactor": "{:.3f}",
+            "Econ_AlbertaFactor": "{:.3f}",
             "Composite": "{:.1f}",
+            "TicketIndex_DeSeason_Used": "{:.1f}",
             "TicketIndex used": "{:.1f}",
             "TicketHistory": "{:,.0f}",
             "EstimatedTickets": "{:,.0f}",
@@ -3090,7 +3211,23 @@ def render_results():
             "SpotifyIdx": r.get("SpotifyIdx", np.nan),
             "Familiarity": r.get("Familiarity", np.nan),
             "Motivation": r.get("Motivation", np.nan),
+            "SignalOnly": r.get("SignalOnly", np.nan),
+            
+            # Live Analytics factors
+            "LA_EngagementFactor": r.get("LA_EngagementFactor", 1.0),
+            "LA_HighSpenderIdx": r.get("LA_HighSpenderIdx", 100.0),
+            "LA_ActiveBuyerIdx": r.get("LA_ActiveBuyerIdx", 100.0),
+            "LA_RepeatBuyerIdx": r.get("LA_RepeatBuyerIdx", 100.0),
+            "LA_ArtsAttendIdx": r.get("LA_ArtsAttendIdx", 100.0),
+            
+            # Economic factors
+            "Econ_Sentiment": r.get("Econ_Sentiment", 1.0),
+            "Econ_BocFactor": r.get("Econ_BocFactor", np.nan),
+            "Econ_AlbertaFactor": r.get("Econ_AlbertaFactor", np.nan),
+            "Econ_Sources": r.get("Econ_Sources", "none"),
+            
             "TicketHistory": r.get("TicketMedian", np.nan),
+            "TicketIndex_DeSeason_Used": r.get("TicketIndex_DeSeason_Used", np.nan),
             "TicketIndex used": eff_idx,
             "TicketIndexSource": r.get("TicketIndexSource", ""),
             "FutureSeasonalityFactor": f_season,
@@ -3239,8 +3376,13 @@ def render_results():
         metrics = [
             "Title","Category","PrimarySegment","SecondarySegment",
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-            "Familiarity","Motivation",
-            "TicketHistory","TicketIndex used","TicketIndexSource",
+            "Familiarity","Motivation","SignalOnly",
+            # Live Analytics factors
+            "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
+            "LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
+            # Economic factors
+            "Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor","Econ_Sources",
+            "TicketHistory","TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
             "FutureSeasonalityFactor","HistSeasonalityFactor",
             "Composite","Score",
             "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
@@ -3271,19 +3413,25 @@ def render_results():
             "YYC_Revenue","YEG_Revenue","Total_Revenue",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
             "Prod_Expense","Net_Contribution",
+            # LA indices (shown as whole numbers)
+            "LA_HighSpenderIdx","LA_ActiveBuyerIdx","LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
         ]
         sty = sty.format("{:,.0f}", subset=_S[int_like_rows, :])
 
         # Indices / composites (one decimal)
         idx_rows = [
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-            "Familiarity","Motivation","Composite","TicketIndex used",
+            "Familiarity","Motivation","SignalOnly","Composite","TicketIndex used",
+            "TicketIndex_DeSeason_Used",
         ]
         sty = sty.format("{:.1f}", subset=_S[idx_rows, :])
 
         # Factors
         sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor"], :])
         sty = sty.format("{:.2f}", subset=_S[["ReturnDecayFactor","YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
+        
+        # LA and Econ factors
+        sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
 
         # Percentages
         sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton","ReturnDecayPct"], :])
