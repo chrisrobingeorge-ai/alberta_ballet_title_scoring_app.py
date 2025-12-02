@@ -1130,9 +1130,12 @@ def marketing_spt_for(title: str, category: str, city: str) -> float:
 
 def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
     """
-    Wide schema support for:
-      - Show Title
-      - Single Tickets - Calgary / Edmonton
+    Learn city split priors from historical data.
+    
+    Supports two formats:
+    1. Wide format (legacy): Show Title, Single Tickets - Calgary, Single Tickets - Edmonton
+    2. Combined format (new): city, show_title, single_tickets columns
+    
     Handles commas in numbers, blanks, and duplicate titles.
     Populates:
       - TITLE_CITY_PRIORS[title] = {'Calgary': p, 'Edmonton': 1-p}
@@ -1147,6 +1150,19 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         return {"titles_learned": 0, "categories_learned": 0, "note": "empty history"}
 
     df = hist_df.copy()
+    
+    # Detect format: combined (long) vs wide
+    has_city_col = any('city' in c.lower() for c in df.columns)
+    has_wide_calgary = any('calgary' in c.lower() and 'single' in c.lower() for c in df.columns)
+    
+    if has_city_col and not has_wide_calgary:
+        # Combined format detected - convert to wide format
+        try:
+            df = _convert_combined_to_wide(df)
+        except Exception as e:
+            import logging
+            logging.warning(f"Failed to convert combined history format: {e}")
+            return {"titles_learned": 0, "categories_learned": 0, "note": "format conversion failed"}
 
     # --- map your exact headers (case/space tolerant) ---
     def _find_col(cands):
@@ -1191,13 +1207,36 @@ def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
         return {"titles_learned": 0, "categories_learned": 0, "note": "missing Show Title"}
     df[title_col] = df[title_col].astype(str).str.strip()
 
+    # Verify columns exist before groupby
+    missing_cols = []
+    if s_cgy not in df.columns:
+        missing_cols.append(s_cgy)
+    if s_edm not in df.columns:
+        missing_cols.append(s_edm)
+    
+    if missing_cols:
+        import logging
+        logging.warning(f"Missing ticket columns in history data: {missing_cols}")
+        return {"titles_learned": 0, "categories_learned": 0, "note": f"missing columns: {missing_cols}"}
+    
     # aggregate duplicates by title
-    agg = (
-        df.groupby(title_col)[[s_cgy, s_edm]]
-          .sum(min_count=1)
-          .reset_index()
-          .rename(columns={title_col: "Title"})
-    )
+    try:
+        agg = (
+            df.groupby(title_col)[[s_cgy, s_edm]]
+              .sum(min_count=1)
+              .reset_index()
+              .rename(columns={title_col: "Title"})
+        )
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to aggregate history data: {e}")
+        return {"titles_learned": 0, "categories_learned": 0, "note": f"aggregation error: {str(e)}"}
+
+    # Verify aggregation produced expected columns
+    if s_cgy not in agg.columns or s_edm not in agg.columns:
+        import logging
+        logging.warning(f"Aggregation did not preserve ticket columns. Got: {agg.columns.tolist()}")
+        return {"titles_learned": 0, "categories_learned": 0, "note": "aggregation column mismatch"}
 
     # infer category from title (uses your app's function if present)
     def _infer_cat(t: str) -> str:
@@ -1258,6 +1297,42 @@ def city_split_for(title: str | None, category: str | None) -> dict[str, float]:
     if category and category in CATEGORY_CITY_PRIORS:
         return CATEGORY_CITY_PRIORS[category]
     return DEFAULT_BASE_CITY_SPLIT.copy()
+
+def _convert_combined_to_wide(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert combined (long) format to wide format for priors learning.
+    
+    Expected combined format:
+        city, show_title (or title), single_tickets
+    
+    Returns wide format:
+        show_title, Single Tickets - Calgary, Single Tickets - Edmonton
+    """
+    # Normalize column names
+    df_norm = df.copy()
+    df_norm.columns = [c.strip().lower() for c in df_norm.columns]
+    
+    # Find columns
+    city_col = 'city' if 'city' in df_norm.columns else None
+    title_col = 'show_title' if 'show_title' in df_norm.columns else ('title' if 'title' in df_norm.columns else None)
+    tickets_col = 'single_tickets' if 'single_tickets' in df_norm.columns else None
+    
+    if not city_col or not title_col or not tickets_col:
+        raise ValueError(f"Missing required columns. Found: {df_norm.columns.tolist()}")
+    
+    # Clean city names (handle lowercase/title case)
+    df_norm['city_clean'] = df_norm[city_col].astype(str).str.strip().str.lower()
+    
+    # Aggregate by title and city
+    pivot = df_norm.groupby([title_col, 'city_clean'])[tickets_col].sum().unstack(fill_value=0)
+    
+    # Rename to match wide format expectations
+    result = pd.DataFrame()
+    result['show_title'] = pivot.index
+    result['Single Tickets - Calgary'] = pivot.get('calgary', 0)
+    result['Single Tickets - Edmonton'] = pivot.get('edmonton', 0)
+    
+    return result.reset_index(drop=True)
 
 def subs_share_for(category: str | None, city: str) -> float:
     """
