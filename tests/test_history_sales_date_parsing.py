@@ -9,7 +9,6 @@ These tests verify that:
 
 import pytest
 import pandas as pd
-import numpy as np
 
 from data.loader import load_history_sales
 
