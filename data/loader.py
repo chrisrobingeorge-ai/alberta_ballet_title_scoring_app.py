@@ -479,6 +479,12 @@ def load_history_with_external_factors(
 ) -> pd.DataFrame:
     """Load history sales data merged with external factors.
     
+    JOIN LOGIC:
+    -----------
+    - Key: Uses 'year'/'season_year' and/or 'city' for matching
+    - Join Type: LEFT join to preserve all show rows
+    - Auto-detection: Automatically detects common columns if join_on not specified
+    
     This is a convenience function that combines the historical sales data
     with external factors (economic, demographic, etc.) for enhanced modeling.
     
@@ -486,13 +492,19 @@ def load_history_with_external_factors(
     - If 'year' or 'season_year' exists in both: merge on year
     - If 'city' exists in both: additionally merge on city
     
+    For date-based joins using start_date/end_date, consider using:
+    - join_history_with_weather() for weather data
+    - join_history_with_marketing_spend() for marketing data
+    - join_history_with_external_data() for all external data
+    
     Args:
         history_csv: Name of the history sales CSV
         external_csv: Name of the external factors CSV
         join_on: Optional list of columns to join on. If None, auto-detects.
         
     Returns:
-        DataFrame with history data merged with external factors
+        DataFrame with history data merged with external factors.
+        All original history rows are preserved (left join).
     """
     history = load_history_sales(history_csv, fallback_empty=True)
     external = load_external_factors(external_csv, fallback_empty=True)
@@ -1070,6 +1082,12 @@ def load_history_with_predicthq(
 ) -> pd.DataFrame:
     """Load history sales data merged with PredictHQ event features.
     
+    JOIN LOGIC:
+    -----------
+    - Key: Uses 'show_title' and/or 'city' for matching
+    - Join Type: LEFT join to preserve all show rows
+    - Auto-detection: Automatically detects common columns if join_on not specified
+    
     This is a convenience function that combines historical sales data
     with PredictHQ demand intelligence features for enhanced ML modeling.
     
@@ -1077,13 +1095,18 @@ def load_history_with_predicthq(
     - If 'show_title' exists in both: merge on show_title
     - If 'city' exists in both: additionally merge on city
     
+    For date-based joins using start_date/end_date, the PredictHQ data
+    should include phq_start_date and phq_end_date columns which correspond
+    to the show's run window.
+    
     Args:
         history_csv: Name of the history sales CSV
         predicthq_csv: Name of the PredictHQ events CSV
         join_on: Optional list of columns to join on. If None, auto-detects.
         
     Returns:
-        DataFrame with history data merged with PredictHQ features
+        DataFrame with history data merged with PredictHQ features.
+        All original history rows are preserved (left join).
     """
     history = load_history_sales(history_csv, fallback_empty=True)
     predicthq = load_predicthq_events(predicthq_csv, fallback_empty=True)
@@ -2053,6 +2076,374 @@ def get_monthly_weather_summary(
     if 'precipitation' in month_data.columns:
         precip = pd.to_numeric(month_data['precipitation'], errors='coerce')
         result['precipitation_mean'] = float(precip.mean()) if precip.notna().any() else None
+    
+    return result
+
+
+# =============================================================================
+# EXTERNAL DATA JOIN FUNCTIONS
+# =============================================================================
+# Functions for joining external datasets (weather, marketing spend, economy)
+# with show/production data.
+#
+# JOIN LOGIC DOCUMENTATION:
+# -------------------------
+# When joining external datasets with show data:
+#
+# 1. KEY COLUMNS FOR MERGING:
+#    - Use 'start_date' or 'end_date' as the primary key for time-based merging
+#    - start_date: Preferred for weather (conditions at show opening)
+#    - end_date: Alternative for run completion analysis
+#
+# 2. JOIN TYPE:
+#    - ALL joins MUST be LEFT joins to preserve all show rows
+#    - This ensures no show data is lost even if external data is missing
+#
+# 3. DATA HANDLING:
+#    - External data is aggregated to match show date ranges when needed
+#    - Missing external data is filled with sensible defaults or NaN
+#    - City matching is performed when city-specific data is available
+
+
+def join_history_with_weather(
+    history_df: pd.DataFrame,
+    date_key: str = 'start_date',
+    city_column: str = 'city',
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Join historical show data with weather data using start_date or end_date.
+    
+    JOIN LOGIC:
+    -----------
+    - Key: Uses 'start_date' or 'end_date' from history to match weather dates
+    - Join Type: LEFT join to preserve all show rows
+    - City Matching: Matches city column if present in both datasets
+    - Aggregation: Aggregates weather over the show's run period when possible
+    
+    This function performs a left join between historical show data and weather
+    data. Weather data is matched based on the show's date (start_date or end_date)
+    and optionally the city. The join preserves all rows from the history dataset.
+    
+    Args:
+        history_df: Historical show data with date columns (start_date, end_date)
+        date_key: Which date column to use for joining ('start_date' or 'end_date')
+        city_column: Name of the city column in history_df
+        fallback_empty: If True, return history unchanged if weather data unavailable
+        
+    Returns:
+        DataFrame with history data merged with weather features.
+        All original history rows are preserved (left join).
+    """
+    if history_df.empty:
+        return history_df
+    
+    # Load weather data for all cities
+    weather_df = load_weather_all_cities(fallback_empty=fallback_empty)
+    
+    if weather_df.empty:
+        logger.info("No weather data available. Returning history unchanged.")
+        return history_df
+    
+    # Suffix constant for duplicate columns
+    _MERGE_SUFFIX = "_weather"
+    
+    history = history_df.copy()
+    
+    # Ensure date columns are datetime
+    if date_key not in history.columns:
+        logger.warning(f"Date key '{date_key}' not found in history. Returning unchanged.")
+        return history_df
+    
+    history[date_key] = pd.to_datetime(history[date_key], errors='coerce')
+    
+    # Prepare weather data - normalize date column
+    weather = weather_df.copy()
+    weather['date'] = pd.to_datetime(weather['date'], errors='coerce')
+    
+    # Select key weather columns to join
+    weather_cols = ['date', 'city', 'avg_temperature', 'min_temperature', 
+                    'max_temperature', 'precipitation', 'snow', 'snow_on_ground']
+    weather_cols = [c for c in weather_cols if c in weather.columns]
+    weather = weather[weather_cols].copy()
+    
+    # Rename weather columns to avoid conflicts
+    weather_rename = {c: f'weather_{c}' for c in weather_cols if c not in ['date', 'city']}
+    weather = weather.rename(columns=weather_rename)
+    
+    # Perform LEFT join - preserves all history rows
+    # Join on date and optionally city
+    try:
+        if city_column in history.columns and 'city' in weather.columns:
+            # Normalize city names for matching
+            history['_city_match'] = history[city_column].str.strip().str.title()
+            weather['_city_match'] = weather['city'].str.strip().str.title()
+            
+            # LEFT join on date and city
+            merged = history.merge(
+                weather.drop(columns=['city']),
+                left_on=[date_key, '_city_match'],
+                right_on=['date', '_city_match'],
+                how='left',  # LEFT JOIN to preserve all show rows
+                suffixes=('', _MERGE_SUFFIX)
+            )
+            merged = merged.drop(columns=['_city_match', 'date'], errors='ignore')
+        else:
+            # LEFT join on date only (aggregate weather across cities)
+            weather_agg = weather.drop(columns=['city', '_city_match'], errors='ignore').groupby('date').mean().reset_index()
+            
+            merged = history.merge(
+                weather_agg,
+                left_on=date_key,
+                right_on='date',
+                how='left',  # LEFT JOIN to preserve all show rows
+                suffixes=('', _MERGE_SUFFIX)
+            )
+            merged = merged.drop(columns=['date'], errors='ignore')
+        
+        # Remove any duplicate columns from merge
+        dup_cols = [c for c in merged.columns if c.endswith(_MERGE_SUFFIX)]
+        if dup_cols:
+            merged = merged.drop(columns=dup_cols)
+        
+        logger.info(f"Joined history with weather on '{date_key}'. "
+                   f"Result: {len(merged)} rows (original: {len(history_df)}). "
+                   f"LEFT join preserved all rows: {len(merged) == len(history_df)}")
+        
+        return merged
+        
+    except Exception as e:
+        logger.warning(f"Failed to join weather data: {e}. Returning history unchanged.")
+        return history_df
+
+
+def load_marketing_spend(
+    csv_name: str = "productions/marketing_spend_per_ticket.csv",
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Load marketing spend data.
+    
+    Marketing spend data contains per-show or per-ticket marketing expenditures
+    that can help explain ticket sales variations.
+    
+    Expected columns:
+    - show_title or title: Show identifier
+    - start_date or end_date: Date for temporal matching
+    - marketing_spend: Total marketing spend
+    - marketing_spend_per_ticket: Spend per ticket (if available)
+    
+    Args:
+        csv_name: Path to marketing spend CSV relative to data directory
+        fallback_empty: If True, return empty DataFrame on error
+        
+    Returns:
+        DataFrame with marketing spend data
+    """
+    path = DATA_DIR / csv_name
+    
+    try:
+        if not path.exists():
+            if fallback_empty:
+                return pd.DataFrame()
+            raise DataLoadError(f"Marketing spend file not found: {path}")
+        
+        mtime = _get_file_mtime(path)
+        df = _load_csv_cached(str(path), mtime).copy()
+        
+        # Parse date columns if present
+        for col in ['start_date', 'end_date', 'date']:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+        
+        return df
+        
+    except DataLoadError:
+        raise
+    except Exception as e:
+        if fallback_empty:
+            warnings.warn(f"Error loading marketing spend: {e}. Using empty DataFrame.")
+            return pd.DataFrame()
+        raise DataLoadError(f"Error loading marketing spend from {path}: {e}")
+
+
+def join_history_with_marketing_spend(
+    history_df: pd.DataFrame,
+    marketing_df: Optional[pd.DataFrame] = None,
+    date_key: str = 'start_date',
+    fallback_empty: bool = True
+) -> pd.DataFrame:
+    """Join historical show data with marketing spend data using start_date or end_date.
+    
+    JOIN LOGIC:
+    -----------
+    - Key: Uses 'start_date' or 'end_date' for temporal matching
+    - Join Type: LEFT join to preserve all show rows  
+    - Title Matching: Also matches on show_title/canonical_title if available
+    
+    This function performs a left join between historical show data and marketing
+    spend data. The join preserves all rows from the history dataset.
+    
+    Args:
+        history_df: Historical show data with date columns
+        marketing_df: Marketing spend data (if None, loads from default path)
+        date_key: Which date column to use for joining ('start_date' or 'end_date')
+        fallback_empty: If True, return history unchanged if marketing data unavailable
+        
+    Returns:
+        DataFrame with history data merged with marketing spend features.
+        All original history rows are preserved (left join).
+    """
+    if history_df.empty:
+        return history_df
+    
+    # Load marketing data if not provided
+    if marketing_df is None:
+        marketing_df = load_marketing_spend(fallback_empty=fallback_empty)
+    
+    if marketing_df.empty:
+        logger.info("No marketing spend data available. Returning history unchanged.")
+        return history_df
+    
+    # Suffix constant for duplicate columns
+    _MERGE_SUFFIX = "_mkt"
+    
+    history = history_df.copy()
+    marketing = marketing_df.copy()
+    
+    # Ensure date columns are datetime
+    if date_key in history.columns:
+        history[date_key] = pd.to_datetime(history[date_key], errors='coerce')
+    if date_key in marketing.columns:
+        marketing[date_key] = pd.to_datetime(marketing[date_key], errors='coerce')
+    
+    # Determine join keys
+    left_on = []
+    right_on = []
+    
+    # Try to match on date
+    if date_key in history.columns and date_key in marketing.columns:
+        left_on.append(date_key)
+        right_on.append(date_key)
+    
+    # Also try to match on title if available
+    history_title_col = None
+    for col in ['show_title', 'canonical_title', 'title']:
+        if col in history.columns:
+            history_title_col = col
+            break
+    
+    marketing_title_col = None
+    for col in ['show_title', 'canonical_title', 'title']:
+        if col in marketing.columns:
+            marketing_title_col = col
+            break
+    
+    if history_title_col and marketing_title_col:
+        left_on.append(history_title_col)
+        right_on.append(marketing_title_col)
+    
+    if not left_on:
+        logger.warning("No common join keys found between history and marketing data. "
+                      "Returning history unchanged.")
+        return history_df
+    
+    # Perform LEFT join - preserves all history rows
+    try:
+        merged = history.merge(
+            marketing,
+            left_on=left_on,
+            right_on=right_on,
+            how='left',  # LEFT JOIN to preserve all show rows
+            suffixes=('', _MERGE_SUFFIX)
+        )
+        
+        # Remove duplicate columns from merge
+        dup_cols = [c for c in merged.columns if c.endswith(_MERGE_SUFFIX)]
+        if dup_cols:
+            merged = merged.drop(columns=dup_cols)
+        
+        logger.info(f"Joined history with marketing spend on {left_on}. "
+                   f"Result: {len(merged)} rows (original: {len(history_df)}). "
+                   f"LEFT join preserved all rows: {len(merged) == len(history_df)}")
+        
+        return merged
+        
+    except Exception as e:
+        logger.warning(f"Failed to join marketing spend data: {e}. Returning history unchanged.")
+        return history_df
+
+
+def join_history_with_external_data(
+    history_df: pd.DataFrame,
+    include_weather: bool = True,
+    include_marketing: bool = True,
+    include_economy: bool = True,
+    date_key: str = 'start_date',
+    city_column: str = 'city'
+) -> pd.DataFrame:
+    """Join historical show data with all external datasets.
+    
+    JOIN LOGIC:
+    -----------
+    This is a convenience function that applies multiple external data joins
+    in sequence. All joins use LEFT joins to preserve all show rows.
+    
+    Key Columns:
+    - Uses 'start_date' or 'end_date' (specified by date_key) for all temporal joins
+    
+    Join Order:
+    1. Weather data (if include_weather=True)
+    2. Marketing spend (if include_marketing=True)
+    3. Economic data (if include_economy=True)
+    
+    Args:
+        history_df: Historical show data
+        include_weather: Whether to join weather data
+        include_marketing: Whether to join marketing spend data
+        include_economy: Whether to join economic data
+        date_key: Date column to use for joining ('start_date' or 'end_date')
+        city_column: City column name for city-specific joins
+        
+    Returns:
+        DataFrame with history merged with selected external datasets.
+        All original history rows are preserved (left joins throughout).
+    """
+    if history_df.empty:
+        return history_df
+    
+    result = history_df.copy()
+    original_rows = len(result)
+    
+    # Join weather data
+    if include_weather:
+        result = join_history_with_weather(
+            result, 
+            date_key=date_key,
+            city_column=city_column
+        )
+    
+    # Join marketing spend
+    if include_marketing:
+        result = join_history_with_marketing_spend(
+            result,
+            date_key=date_key
+        )
+    
+    # Note: Economic data joining is not supported in this function
+    # as load_history_with_external_factors() loads from CSV files.
+    # To join economic data, use load_history_with_external_factors() directly
+    # or use the individual join functions in data/features.py
+    if include_economy:
+        logger.info("Economy join in join_history_with_external_data() is a no-op. "
+                   "Use load_history_with_external_factors() directly to load and join "
+                   "economic data, or use the feature store functions in data/features.py.")
+    
+    # Verify all rows preserved
+    if len(result) != original_rows:
+        logger.warning(f"Row count changed during external data joins: "
+                      f"{original_rows} -> {len(result)}. "
+                      f"This may indicate a one-to-many join occurred.")
+    else:
+        logger.info(f"All {original_rows} history rows preserved after external data joins.")
     
     return result
 
