@@ -21,16 +21,40 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 @pytest.fixture
 def synthetic_history_csv(tmp_path):
-    """Create a synthetic history CSV for testing."""
+    """Create a synthetic history CSV for testing.
+    
+    This now uses the combined city-level format expected by build_modelling_dataset.
+    Format: city, show_title, start_date, end_date, single_tickets
+    """
     np.random.seed(42)
-    n_samples = 25
-
-    data = {
-        "Show Title": [f"Test Show {i}" for i in range(n_samples)],
-        "Single Tickets - Calgary": np.random.randint(3000, 8000, n_samples),
-        "Single Tickets - Edmonton": np.random.randint(2500, 6500, n_samples),
-        "Season": [f"20{20 + i % 5}-{21 + i % 5}" for i in range(n_samples)],
-    }
+    n_shows = 25
+    
+    # Create entries for both Calgary and Edmonton for each show
+    data = []
+    base_date = pd.Timestamp("2018-01-01")
+    
+    for i in range(n_shows):
+        show_title = f"Test Show {i}"
+        # Generate dates roughly 3 months apart for each show
+        start_date = base_date + pd.DateOffset(months=i * 3)
+        end_date = start_date + pd.DateOffset(days=14)
+        
+        # Calgary entry
+        data.append({
+            "city": "Calgary",
+            "show_title": show_title,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "single_tickets": np.random.randint(3000, 8000),
+        })
+        # Edmonton entry
+        data.append({
+            "city": "Edmonton",
+            "show_title": show_title,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "single_tickets": np.random.randint(2500, 6500),
+        })
 
     df = pd.DataFrame(data)
     path = tmp_path / "history_city_sales.csv"

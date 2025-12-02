@@ -16,6 +16,15 @@ from ml.scoring import (
 NEUTRAL_SCORE_TOLERANCE = 15
 
 
+class MockModel:
+    """A simple mock model for testing that returns dummy predictions."""
+    
+    def predict(self, X):
+        """Return dummy predictions based on input shape."""
+        n_samples = X.shape[0] if hasattr(X, 'shape') else len(X)
+        return np.ones(n_samples) * 5000.0  # Return constant prediction
+
+
 class TestEconomicBaselinesConfig:
     """Tests for economic baselines configuration."""
     
@@ -222,31 +231,36 @@ class TestScoringWithEconomicImpact:
             'is_premiere': [1, 0]
         })
     
-    def test_score_with_economic_returns_predictions(self, scorable_features):
+    @pytest.fixture
+    def mock_model(self):
+        """Create a mock model for testing."""
+        return MockModel()
+    
+    def test_score_with_economic_returns_predictions(self, scorable_features, mock_model):
         """Should include forecast column in output."""
         result = score_with_economic_impact(
             scorable_features,
-            model=None,  # Will try to load or skip model
+            model=mock_model,  # Use mock model to avoid loading from disk
             include_economic=True
         )
         
         assert 'forecast_single_tickets' in result.columns
     
-    def test_score_with_economic_adds_impact_score(self, scorable_features):
+    def test_score_with_economic_adds_impact_score(self, scorable_features, mock_model):
         """Should include economic impact score."""
         result = score_with_economic_impact(
             scorable_features,
-            model=None,
+            model=mock_model,
             include_economic=True
         )
         
         assert 'economic_impact_score' in result.columns
     
-    def test_can_skip_economic_scoring(self, scorable_features):
+    def test_can_skip_economic_scoring(self, scorable_features, mock_model):
         """Should skip economic scoring when include_economic=False."""
         result = score_with_economic_impact(
             scorable_features,
-            model=None,
+            model=mock_model,
             include_economic=False
         )
         

@@ -147,10 +147,17 @@ def test_assert_chronological_split_passes_with_date_col():
     
     # Sort by date and split
     X_sorted = X.sort_values(DATE_COL).reset_index(drop=True)
-    split_idx = int(len(X_sorted) * 0.8)
     
-    train_df = X_sorted.iloc[:split_idx]
-    test_df = X_sorted.iloc[split_idx:]
+    # Find a split point that lands between unique dates (not on a duplicate)
+    # Get unique dates sorted and find a cutoff date around 80%
+    unique_dates = np.sort(X_sorted[DATE_COL].unique())
+    cutoff_idx = int(len(unique_dates) * 0.8)
+    cutoff_date = unique_dates[cutoff_idx]
+    
+    # Split using strict inequality to ensure train dates < test dates
+    # Keep original indices to avoid index overlap detection
+    train_df = X_sorted[X_sorted[DATE_COL] < cutoff_date]
+    test_df = X_sorted[X_sorted[DATE_COL] >= cutoff_date]
     
     # Should not raise - verifies date column is correctly formatted
     assert_chronological_split(train_df, test_df, date_column=DATE_COL)
