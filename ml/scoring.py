@@ -390,6 +390,200 @@ def bootstrap_prediction_intervals(
 # ECONOMIC CONTEXT
 # =============================================================================
 
+# Default baselines for economic impact scoring
+DEFAULT_ECONOMIC_BASELINES: Dict[str, Any] = {
+    "consumer_confidence": {
+        "baseline": 55.0,
+        "good_threshold": 60.0,
+        "poor_threshold": 50.0,
+    },
+    "energy_index": {
+        "baseline": 800.0,
+    },
+    "cpi_base": {
+        "baseline": 1.0,
+    },
+}
+
+
+def load_economic_baselines() -> Dict[str, Any]:
+    """
+    Load economic baselines from config file or return defaults.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys: consumer_confidence, energy_index, cpi_base.
+    """
+    cfg_path = OUTPUTS_DIR / "economic_baselines.yaml"
+    loaded = _safe_load_yaml(cfg_path)
+    if loaded and all(k in loaded for k in ["consumer_confidence", "energy_index", "cpi_base"]):
+        return loaded
+    return DEFAULT_ECONOMIC_BASELINES.copy()
+
+
+def compute_economic_impact_score(
+    df: pd.DataFrame,
+    include_components: bool = False,
+) -> pd.DataFrame:
+    """
+    Compute economic impact score for each row in the DataFrame.
+
+    The score reflects the economic environment's impact on ticket sales:
+    - Positive score: favorable economic conditions
+    - Negative score: unfavorable economic conditions
+    - Score bounded between -100 and 100
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with optional columns:
+        - consumer_confidence_headline
+        - consumer_confidence_prairies
+        - energy_index
+        - inflation_adjustment_factor
+    include_components : bool, default False
+        If True, include individual component scores as columns.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with economic_impact_score column added.
+        If include_components is True, also adds:
+        - econ_impact_consumer_confidence
+        - econ_impact_energy
+        - econ_impact_inflation
+    """
+    df_out = df.copy()
+    baselines = load_economic_baselines()
+
+    cc_baseline = baselines["consumer_confidence"]["baseline"]
+    energy_baseline = baselines["energy_index"]["baseline"]
+    inflation_baseline = baselines["cpi_base"]["baseline"]
+
+    n_rows = len(df)
+
+    # Consumer confidence component
+    # Prefer prairies regional confidence for Alberta-specific analysis,
+    # as it reflects the local economic sentiment more accurately than national headline
+    if "consumer_confidence_prairies" in df.columns:
+        cc_values = pd.to_numeric(df["consumer_confidence_prairies"], errors="coerce").fillna(cc_baseline)
+    elif "consumer_confidence_headline" in df.columns:
+        cc_values = pd.to_numeric(df["consumer_confidence_headline"], errors="coerce").fillna(cc_baseline)
+    else:
+        cc_values = pd.Series([cc_baseline] * n_rows, index=df.index)
+
+    # Energy index component
+    if "energy_index" in df.columns:
+        energy_values = pd.to_numeric(df["energy_index"], errors="coerce").fillna(energy_baseline)
+    else:
+        energy_values = pd.Series([energy_baseline] * n_rows, index=df.index)
+
+    # Inflation component
+    if "inflation_adjustment_factor" in df.columns:
+        inflation_values = pd.to_numeric(df["inflation_adjustment_factor"], errors="coerce").fillna(inflation_baseline)
+    else:
+        inflation_values = pd.Series([inflation_baseline] * n_rows, index=df.index)
+
+    # Compute component scores
+    # Consumer confidence: higher is better, scale relative to baseline
+    # Scale: each point above/below baseline = ~2 points of score
+    cc_component = (cc_values - cc_baseline) * 2.0
+
+    # Energy index: higher is better for Alberta (oil economy)
+    # Scale: percent deviation from baseline, scaled to ~30 max impact
+    energy_component = ((energy_values - energy_baseline) / energy_baseline) * 30.0
+
+    # Inflation: lower is better (1.0 = baseline, < 1.0 = deflation/low inflation)
+    # Scale: each 0.01 above baseline = -1 point, below = +1 point
+    inflation_component = (inflation_baseline - inflation_values) * 100.0
+
+    # Combine components with weights
+    # Consumer confidence: 40%, Energy: 30%, Inflation: 30%
+    total_score = (
+        0.4 * cc_component +
+        0.3 * energy_component +
+        0.3 * inflation_component
+    )
+
+    # Bound to [-100, 100]
+    total_score = np.clip(total_score, -100, 100)
+
+    df_out["economic_impact_score"] = total_score
+
+    if include_components:
+        df_out["econ_impact_consumer_confidence"] = cc_component
+        df_out["econ_impact_energy"] = energy_component
+        df_out["econ_impact_inflation"] = inflation_component
+
+    return df_out
+
+
+def compute_city_economic_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute city-level summary of economic impact scores.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with 'city' and 'economic_impact_score' columns.
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary with one row per city and mean/min/max of economic_impact_score.
+    """
+    if "city" not in df.columns or "economic_impact_score" not in df.columns:
+        return pd.DataFrame()
+
+    summary = df.groupby("city")["economic_impact_score"].agg(
+        economic_impact_score_mean="mean",
+        economic_impact_score_min="min",
+        economic_impact_score_max="max",
+    ).reset_index()
+
+    return summary
+
+
+def score_with_economic_impact(
+    df: pd.DataFrame,
+    model: Optional[Any] = None,
+    include_economic: bool = True,
+) -> pd.DataFrame:
+    """
+    Score DataFrame with optional economic impact.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input features DataFrame.
+    model : Any, optional
+        Pretrained model for ticket forecasting.
+    include_economic : bool, default True
+        Whether to compute and include economic impact score.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with forecast_single_tickets and optionally economic_impact_score.
+    """
+    df_out = df.copy()
+
+    # Try to compute forecast using model
+    try:
+        preds = predict_point(df, model=model)
+        df_out["forecast_single_tickets"] = preds
+    except Exception as exc:
+        logger.warning("Could not compute model forecast: " + str(exc))
+        # Return zeros as fallback
+        df_out["forecast_single_tickets"] = 0.0
+
+    # Add economic impact if requested
+    if include_economic:
+        df_out = compute_economic_impact_score(df_out)
+
+    return df_out
+
 
 def load_economic_config() -> Dict[str, Any]:
     """
