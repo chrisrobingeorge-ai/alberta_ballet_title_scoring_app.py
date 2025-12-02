@@ -18,10 +18,43 @@ Legacy/Prototype Dataset Builder Module
     - Comprehensive diagnostics and data quality reports
 
     This legacy module is retained for backward compatibility and prototyping only.
+
+External Data Join Logic
+------------------------
+After loading history_city_sales.csv, the dataset builder joins with:
+
+1. **Marketing spend data** (by show_title and date):
+   - Key: 'show_title' and 'start_date' or 'end_date'
+   - Source: productions/marketing_spend_per_ticket.csv
+   - Join type: LEFT join to preserve all show rows
+
+2. **Weather data** (by city and date):
+   - Key: 'city' and 'start_date' (or 'end_date')
+   - Source: environment/weatherstats_calgary_daily.csv, weatherstats_edmonton_daily.csv
+   - Join type: LEFT join to preserve all show rows
+
+3. **Economic indicators** (by date):
+   - Key: 'start_date' or 'end_date' (temporal matching)
+   - Sources: economics/oil_price.csv, economics/unemployment_by_city.csv,
+             economics/commodity_price_index.csv, economics/boc_cpi_monthly.csv
+   - Join type: LEFT join (merge_asof for temporal alignment)
+
+4. **Baseline signals** (by show_title):
+   - Key: 'show_title' (via canonicalized title matching)
+   - Source: productions/baselines.csv
+   - Join type: LEFT join to preserve all show rows
 """
 
 import pandas as pd
-from data.loader import load_history_sales, load_past_runs
+from data.loader import (
+    load_history_sales,
+    load_past_runs,
+    load_baselines,
+    load_marketing_spend,
+    join_history_with_weather,
+    join_history_with_marketing_spend,
+    join_history_with_external_data,
+)
 from data.features import derive_basic_features, get_feature_list, apply_registry_renames
 from data.leakage import filter_leakage
 from utils.canonicalize_titles import canonicalize_title, fuzzy_match_title
@@ -125,8 +158,153 @@ def ensure_no_target_in_features(X: pd.DataFrame, target_col: str) -> pd.DataFra
     return X
 
 
-def build_dataset(theme_filters=None, status=None, forecast_time_only=True) -> tuple[pd.DataFrame, pd.Series]:
+def _merge_with_baselines(df: pd.DataFrame) -> pd.DataFrame:
+    """Merge history sales data with baseline signals by show_title.
+
+    JOIN LOGIC:
+    -----------
+    - Key: 'show_title' (via canonicalized title matching)
+    - Join Type: LEFT join to preserve all show rows
+    - Source: productions/baselines.csv
+
+    Baseline signals include wiki, trends, youtube, spotify scores
+    that provide familiarity and engagement metrics for each title.
+
+    Args:
+        df: DataFrame with 'show_title' column.
+
+    Returns:
+        DataFrame with baseline signal columns added (wiki, trends, youtube, spotify,
+        category, gender). Rows without a matching baseline will have NaN for
+        these columns.
+    """
+    baselines = load_baselines(fallback_empty=True)
+    if baselines.empty:
+        return df
+
+    df = df.copy()
+
+    # Create canonical title columns for matching
+    df["_canonical_title"] = df["show_title"].apply(canonicalize_title)
+
+    baselines = baselines.copy()
+    if "title" in baselines.columns:
+        baselines["_canonical_title"] = baselines["title"].apply(canonicalize_title)
+    else:
+        return df
+
+    # Select baseline columns to merge (exclude internal columns)
+    baseline_cols = ["_canonical_title"]
+    for col in ["wiki", "trends", "youtube", "spotify", "category", "gender"]:
+        if col in baselines.columns:
+            baseline_cols.append(col)
+
+    # Perform LEFT join on canonical title
+    merged = df.merge(
+        baselines[baseline_cols],
+        on="_canonical_title",
+        how="left",
+        suffixes=("", "_baseline")
+    )
+
+    # Remove temporary column
+    merged = merged.drop(columns=["_canonical_title"], errors="ignore")
+
+    # Remove any duplicate columns from merge
+    dup_cols = [c for c in merged.columns if c.endswith("_baseline")]
+    if dup_cols:
+        merged = merged.drop(columns=dup_cols)
+
+    return merged
+
+
+def _merge_with_external_data(
+    df: pd.DataFrame,
+    date_key: str = "start_date",
+    include_weather: bool = True,
+    include_marketing: bool = True
+) -> pd.DataFrame:
+    """Merge history sales data with external datasets.
+
+    JOIN LOGIC:
+    -----------
+    This function joins history data with multiple external data sources:
+
+    1. Marketing spend data (by city and date):
+       - Key: 'show_title' and date_key ('start_date' or 'end_date')
+       - Join Type: LEFT join to preserve all show rows
+       - Source: productions/marketing_spend_per_ticket.csv
+
+    2. Weather data (by city and date):
+       - Key: 'city' and date_key ('start_date' or 'end_date')
+       - Join Type: LEFT join to preserve all show rows
+       - Source: environment/weatherstats_calgary_daily.csv, weatherstats_edmonton_daily.csv
+
+    All joins are LEFT joins to ensure no show rows are lost, even if
+    external data is missing.
+
+    Args:
+        df: DataFrame with date columns (start_date, end_date) and city column.
+        date_key: Which date column to use for joining ('start_date' or 'end_date').
+        include_weather: Whether to join weather data.
+        include_marketing: Whether to join marketing spend data.
+
+    Returns:
+        DataFrame with external data columns added. Original rows are preserved.
+    """
+    if df.empty:
+        return df
+
+    result = df.copy()
+
+    # Join marketing spend data
+    if include_marketing:
+        result = join_history_with_marketing_spend(
+            result,
+            date_key=date_key,
+            fallback_empty=True
+        )
+
+    # Join weather data
+    if include_weather:
+        city_column = "city" if "city" in result.columns else None
+        if city_column and date_key in result.columns:
+            result = join_history_with_weather(
+                result,
+                date_key=date_key,
+                city_column=city_column,
+                fallback_empty=True
+            )
+
+    return result
+
+
+def build_dataset(
+    theme_filters=None,
+    status=None,
+    forecast_time_only=True,
+    include_external_data: bool = True,
+    include_baselines: bool = True
+) -> tuple[pd.DataFrame, pd.Series]:
     """Build a dataset for training or scoring.
+
+    After loading history_city_sales.csv, this function joins with:
+
+    1. **Marketing spend data** (by show_title and date):
+       - Key: 'show_title' and 'start_date' or 'end_date'
+       - Join Type: LEFT join to preserve all show rows
+
+    2. **Weather data** (by city and date):
+       - Key: 'city' and 'start_date' (or 'end_date')
+       - Join Type: LEFT join to preserve all show rows
+
+    3. **Economic indicators** (by date) - via derive_basic_features:
+       - Key: 'start_date' or 'end_date' (temporal matching)
+       - Join Type: LEFT join (merge_asof for temporal alignment)
+
+    4. **Baseline signals** (by show_title):
+       - Key: 'show_title' (via canonicalized title matching)
+       - Join Type: LEFT join to preserve all show rows
 
     The returned DataFrame X includes a DATE_COL ('end_date') column of dtype
     datetime64[ns] suitable for time-aware cross-validation. This date column
@@ -136,6 +314,8 @@ def build_dataset(theme_filters=None, status=None, forecast_time_only=True) -> t
         theme_filters: Optional list of themes to filter features by.
         status: Optional status filter for features.
         forecast_time_only: If True, apply leakage filtering for forecast time.
+        include_external_data: If True, join with marketing spend and weather data.
+        include_baselines: If True, join with baseline signals (wiki, trends, etc.).
 
     Returns:
         Tuple of (X, y) where:
@@ -146,6 +326,19 @@ def build_dataset(theme_filters=None, status=None, forecast_time_only=True) -> t
 
     # Merge with past_runs to add date columns (start_date, end_date)
     raw = _merge_with_past_runs(raw)
+
+    # Merge with baseline signals by show_title
+    if include_baselines:
+        raw = _merge_with_baselines(raw)
+
+    # Merge with external data (marketing spend, weather) by city and date
+    if include_external_data:
+        raw = _merge_with_external_data(
+            raw,
+            date_key="start_date",
+            include_weather=True,
+            include_marketing=True
+        )
 
     fe = derive_basic_features(apply_registry_renames(raw))
 
