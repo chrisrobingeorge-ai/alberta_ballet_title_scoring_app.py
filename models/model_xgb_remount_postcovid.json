@@ -1,47 +1,59 @@
 {
-  "training_date": "2025-12-02T05:15:28.984489",
+  "training_date": "2025-12-02T17:18:33.927330",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
-  "n_samples": 20,
+  "n_samples": 25,
   "features": {
     "numeric": [
       "wiki",
       "trends",
       "youtube",
       "spotify",
+      "prior_total_tickets",
+      "prior_run_count",
+      "ticket_median_prior",
       "years_since_last_run",
       "is_remount_recent",
-      "prior_total_tickets"
+      "is_remount_medium",
+      "run_count_prior",
+      "month_of_opening",
+      "holiday_flag",
+      "consumer_confidence_prairies",
+      "energy_index",
+      "inflation_adjustment_factor",
+      "city_median_household_income",
+      "aud__engagement_factor",
+      "res__arts_share_giving"
     ],
     "categorical": [
       "category",
       "gender"
     ],
-    "total": 9
+    "total": 21
   },
   "cv_metrics": {
-    "mae_mean": 2395.7206054687504,
-    "mae_std": 530.0894154322153,
-    "rmse_mean": 3087.9733203220067,
-    "rmse_std": 630.4924463042331,
-    "r2_mean": -1.009240673672791,
-    "r2_std": 1.1987392712427085,
+    "mae_mean": 274.2235546875022,
+    "mae_std": 65.9179860685849,
+    "rmse_mean": 330.0861105773767,
+    "rmse_std": 77.57172265501642,
+    "r2_mean": 0.9518707405712187,
+    "r2_std": 0.04937925918599,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 13.898388671876273,
-    "rmse": 21.895996640364466,
-    "r2": 0.9999310850546868,
-    "mae_log": 0.0010591654040508658,
-    "rmse_log": 0.0015212796901788615
+    "mae": 2.4603515624993086,
+    "rmse": 5.074741806075975,
+    "r2": 0.9999935441331639,
+    "mae_log": 0.0002416703768135875,
+    "rmse_log": 0.0004644664187301958
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/tmpsqfh54ah/test_dataset.csv",
-  "git_commit_hash": "b7f9585",
-  "data_file_hash": "db93b076506bdd67",
+  "dataset_path": "/tmp/pytest-of-runner/pytest-6/test_pipeline_reports_step_sta0/test_results/20251202_171823/modelling_dataset.csv",
+  "git_commit_hash": "51760b8",
+  "data_file_hash": "d6c05a18ca97b579",
   "dataset_shape": {
-    "n_rows": 20,
-    "n_columns": 12
+    "n_rows": 25,
+    "n_columns": 24
   }
 }
