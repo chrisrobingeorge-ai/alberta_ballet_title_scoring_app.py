@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).parent.parent / "models"
 OUTPUTS_DIR = Path(__file__).parent.parent / "outputs"
+DATA_DIR = Path(__file__).parent.parent / "data"
+ECONOMIC_BASELINES_PATH = DATA_DIR / "economic" / "economic_baselines.csv"
+
 
 # =============================================================================
 # SCHEMA VALIDATION
@@ -385,6 +388,35 @@ def bootstrap_prediction_intervals(
 
     return base_pred, lower, upper
 
+
+# =============================================================================
+# ECONOMIC BASELINES
+# =============================================================================
+
+
+def load_economic_baselines(path: Union[str, Path, None] = None) -> pd.DataFrame:
+    """
+    Load precomputed economic baseline factors used for title scoring.
+
+    Parameters
+    ----------
+    path : str or Path, optional
+        Custom path to the baselines CSV. If None, uses ECONOMIC_BASELINES_PATH.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with economic baselines indexed by date or period.
+    """
+    if path is None:
+        path = ECONOMIC_BASELINES_PATH
+
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Economic baselines file not found at {path}")
+
+    df = pd.read_csv(path)
+    return df
 
 # =============================================================================
 # ECONOMIC CONTEXT
