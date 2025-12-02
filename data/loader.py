@@ -70,27 +70,63 @@ def _clean_dataframe(
     
     return df
 
-
 @lru_cache(maxsize=16)
 def _load_history_sales_cached(path: str, mtime: float) -> pd.DataFrame:
     """
-    Load history sales CSV with caching.
-    
+    Load history_city_sales.csv with caching.
+
+    This loader assumes history_city_sales.csv contains *single ticket* data
+    by city and production run.
+
+    It:
+      - Parses start_date and end_date as datetime
+      - Normalizes column names (lowercase, underscores)
+      - Coerces single_tickets to numeric
+
     Args:
         path: Path to CSV file
-        mtime: File modification time (used for cache key)
-        
+        mtime: File modification time (used only to bust the cache)
+
     Returns:
-        DataFrame with normalized column names and date columns parsed as datetime
+        DataFrame with normalized columns and cleaned single_tickets.
     """
-    df = pd.read_csv(path, thousands=",", parse_dates=["start_date", "end_date"])
+    # Parse dates on read
+    df = pd.read_csv(
+        path,
+        parse_dates=["start_date", "end_date"],
+        thousands=","
+    )
+
     # Normalize column names
     df.columns = [
         c.strip().lower().replace(" - ", "_").replace(" ", "_").replace("-", "_")
         for c in df.columns
     ]
-    return df
 
+    # Clean unnamed columns and coerce single_tickets to numeric
+    df = _clean_dataframe(
+        df,
+        drop_unnamed=True,
+        drop_empty_unnamed_only=False,
+        numeric_columns=["single_tickets"]
+    )
+
+    # Ensure required columns exist
+    required_cols = {"city", "show_title", "start_date", "end_date", "single_tickets"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        logger.warning(
+            "history_city_sales is missing expected columns: %s",
+            ", ".join(sorted(missing))
+        )
+
+    # Coerce single_tickets again in case _clean_dataframe didn't see it
+    if "single_tickets" in df.columns:
+        df["single_tickets"] = pd.to_numeric(
+            df["single_tickets"], errors="coerce"
+        )
+
+    return df
 
 @lru_cache(maxsize=16)
 def _load_baselines_cached(path: str, mtime: float) -> pd.DataFrame:
@@ -109,67 +145,105 @@ def _load_baselines_cached(path: str, mtime: float) -> pd.DataFrame:
     return df
 
 
+class DataLoadError(Exception):
+    """Custom exception for data loading errors."""
+    pass
+
+
 def load_history_sales(
     csv_name: str = "productions/history_city_sales.csv",
-    fallback_empty: bool = False
+    fallback_empty: bool = False,
 ) -> pd.DataFrame:
-    """Load historical show-level sales (Calgary/Edmonton).
-    
+    """
+    Load historical show-level *single ticket* sales (Calgary/Edmonton).
+
     This function is cached based on file modification time.
-    
-    The returned DataFrame includes 'start_date' and 'end_date' columns parsed
-    as datetime64[ns] objects. These columns represent the start and end dates
-    of each production run and are validated to ensure no missing values.
-    
+
+    The returned DataFrame includes:
+      - start_date / end_date parsed as datetime64[ns]
+      - single_tickets coerced to numeric
+      - only rows with valid dates and non-missing single_tickets
+
     Args:
-        csv_name: Name of the CSV file to load
+        csv_name: Path under DATA_DIR to the CSV file
         fallback_empty: If True, return empty DataFrame on error instead of raising
-        
+
     Returns:
-        DataFrame with normalized column names. Includes the following date columns:
-        - start_date (datetime64[ns]): Start date of the production run
-        - end_date (datetime64[ns]): End date of the production run
-        
+        Cleaned DataFrame with normalized column names.
+
     Raises:
         DataLoadError: If file cannot be loaded and fallback_empty is False
-        ValueError: If any row has missing start_date or end_date values
+        ValueError: If date columns have missing values
     """
     path = DATA_DIR / csv_name
-    
+
     try:
         if not path.exists():
+            msg = f"History sales file not found: {path}"
             if fallback_empty:
-                warnings.warn(f"History sales file not found: {path}. Using empty DataFrame.")
+                warnings.warn(msg)
                 return pd.DataFrame()
-            raise DataLoadError(f"History sales file not found: {path}")
-        
-        # Use cached loader with file mtime for cache invalidation
+            raise DataLoadError(msg)
+
+        # Use cached loader with file mtime for invalidation
         mtime = _get_file_mtime(path)
         df = _load_history_sales_cached(str(path), mtime).copy()
-        
-        # Validate that every row has valid dates (no missing values)
-        if not df.empty:
-            for date_col in ["start_date", "end_date"]:
-                if date_col in df.columns:
-                    missing_count = df[date_col].isna().sum()
-                    if missing_count > 0:
-                        raise ValueError(
-                            f"Column '{date_col}' has {missing_count} missing values. "
-                            f"Every row must have a valid date."
-                        )
-        
+
+        if df.empty:
+            return df
+
+        # Validate date columns
+        for date_col in ["start_date", "end_date"]:
+            if date_col in df.columns:
+                missing_count = df[date_col].isna().sum()
+                if missing_count > 0:
+                    raise ValueError(
+                        f"Column '{date_col}' has {missing_count} missing values. "
+                        "Every row must have a valid date."
+                    )
+            else:
+                logger.warning(
+                    "history_city_sales is missing expected date column '%s'", date_col
+                )
+
+        # Enforce clean single_tickets target
+        if "single_tickets" not in df.columns:
+            logger.warning(
+                "history_city_sales does not contain 'single_tickets'. "
+                "Downstream ML models will not have a clearly defined target."
+            )
+            return df
+
+        # Drop rows with missing or negative single_tickets
+        missing_target = df["single_tickets"].isna().sum()
+        if missing_target > 0:
+            logger.warning(
+                "Dropping %d rows with missing single_tickets from history sales.",
+                missing_target,
+            )
+            df = df[df["single_tickets"].notna()].copy()
+
+        negatives = (df["single_tickets"] < 0).sum()
+        if negatives > 0:
+            logger.warning(
+                "Dropping %d rows with negative single_tickets from history sales.",
+                negatives,
+            )
+            df = df[df["single_tickets"] >= 0].copy()
+
         return df
-        
+
     except DataLoadError:
         raise
     except ValueError:
+        # Date validation errors bubble up explicitly
         raise
     except Exception as e:
+        msg = f"Error loading history sales from {path}: {e}"
         if fallback_empty:
-            warnings.warn(f"Error loading history sales: {e}. Using empty DataFrame.")
+            warnings.warn(msg)
             return pd.DataFrame()
-        raise DataLoadError(f"Error loading history sales from {path}: {e}")
-
+        raise DataLoadError(msg)
 
 def load_baselines(
     csv_name: str = "productions/baselines.csv",
