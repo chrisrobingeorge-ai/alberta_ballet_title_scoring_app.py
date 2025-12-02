@@ -56,10 +56,10 @@ Features Used (from modelling_dataset.csv)
 Forbidden Features (data leakage prevention)
 --------------------------------------------
 The following patterns are FORBIDDEN and will cause training to abort:
-- single_tickets, single tickets (current-run ticket sales)
-- total_tickets, total tickets (current-run totals)
-- yourmodel_* (external model predictions)
-- *_tickets_calgary, *_tickets_edmonton (city-level current-run sales)
+- ``single_tickets`` or ``single tickets`` (current-run ticket sales)
+- ``total_tickets`` or ``total tickets`` (current-run totals)
+- ``yourmodel_*`` (external model predictions)
+- ``*_tickets_calgary``, ``*_tickets_edmonton`` (city-level current-run sales)
 
 Usage:
     python scripts/train_safe_model.py [options]
