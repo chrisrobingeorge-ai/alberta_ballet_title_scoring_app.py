@@ -1850,11 +1850,14 @@ def load_ticket_priors(path: str = "data/productions/history_city_sales.csv") ->
     colmap = {c.lower().strip().replace(" ", "_").replace("-", "_"): c for c in df.columns}
     # Support both 'show_title' (history_city_sales.csv) and 'title' (legacy)
     title_col = colmap.get("show_title") or colmap.get("title")
-    # Support 'total_single_tickets' (history_city_sales.csv) and 'tickets' (legacy)
-    tix_col = colmap.get("total_single_tickets") or colmap.get("tickets") or colmap.get("ticket_median")
+    # Support various ticket column names
+    tix_col = (colmap.get("total_single_tickets") or 
+               colmap.get("single_tickets") or 
+               colmap.get("tickets") or 
+               colmap.get("ticket_median"))
 
     if not title_col or not tix_col:
-        st.error("CSV must have title column ('show_title' or 'title') and tickets column ('Total Single Tickets', 'tickets', or 'ticket_median')")
+        st.error("CSV must have title column ('show_title' or 'title') and tickets column ('Total Single Tickets', 'single_tickets', 'tickets', or 'ticket_median')")
         TICKET_PRIORS_RAW = {}
         return
 
@@ -2043,13 +2046,13 @@ if not RUNS_DF.empty:
         
             _season_rows.append({"Category": cat, "Month": m, "Factor": factor_final, "n": n})
 
-
-            # Guard
-            if not np.isfinite(m_med) or m_med <= 0:
-                continue
-
-SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
-SEASONALITY_TABLE = { (r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows() }
+# Handle empty case gracefully
+if _season_rows:
+    SEASONALITY_DF = pd.DataFrame(_season_rows).sort_values(["Category","Month"]).reset_index(drop=True)
+    SEASONALITY_TABLE = { (r["Category"], int(r["Month"])): float(r["Factor"]) for _, r in SEASONALITY_DF.iterrows() }
+else:
+    SEASONALITY_DF = pd.DataFrame(columns=["Category", "Month", "Factor", "n"])
+    SEASONALITY_TABLE = {}
 
 
 def seasonality_factor(category: str, when: Optional[date]) -> float:
