@@ -14,9 +14,10 @@ This document provides a comprehensive listing of all variables, weightings, and
 7. [City Split Calculation](#7-city-split-calculation)
 8. [Marketing Spend Calculation](#8-marketing-spend-calculation)
 9. [Economic Sentiment Factors](#9-economic-sentiment-factors)
-10. [Composite Score & Final Tickets](#10-composite-score--final-tickets)
-11. [ML Model Variables](#11-ml-model-variables)
-12. [Configuration Constants](#12-configuration-constants)
+10. [Live Analytics Integration](#10-live-analytics-integration)
+11. [Composite Score & Final Tickets](#11-composite-score--final-tickets)
+12. [ML Model Variables](#12-ml-model-variables)
+13. [Configuration Constants](#13-configuration-constants)
 
 ---
 
@@ -310,9 +311,61 @@ BoC Sensitivity: 0.10
 Alberta Sensitivity: 0.08
 ```
 
+### Arts Sentiment (Supplemental Economic Indicator)
+Arts-specific sentiment derived from Nanos survey data on arts giving, integrated as a supplemental economic factor:
+
+| Year | Arts Sentiment | Source |
+|------|----------------|--------|
+| 2023 | 11.0% | Nanos survey - % of charitable donation going to arts |
+| 2024 | 12.0% | Nanos survey - % of charitable donation going to arts |
+| 2025 | 12.0% | Nanos survey - % of charitable donation going to arts |
+
+The `Econ_ArtsSentiment` feature is merged to show data by year using `merge_asof` with forward-fill logic for future dates.
+
 ---
 
-## 10. Composite Score & Final Tickets
+## 10. Live Analytics Integration
+
+### Category Engagement Factors
+Live Analytics data from audience research provides category-specific engagement adjustments:
+
+| Feature | Description | Default |
+|---------|-------------|---------|
+| **LA_EngagementFactor** | Category engagement multiplier | 1.0 |
+| **LA_HighSpenderIdx** | High spender index (100 = average) | 100 |
+| **LA_ActiveBuyerIdx** | Active buyer index (100 = average) | 100 |
+| **LA_RepeatBuyerIdx** | Repeat buyer index (100 = average) | 100 |
+| **LA_ArtsAttendIdx** | Arts attendance index (100 = average) | 100 |
+
+### Engagement Factor Calculation
+```
+1. Load raw indices from live_analytics.csv per category
+2. Compute raw_factor = mean(HighSpenderIdx, ActiveBuyerIdx, RepeatBuyerIdx, ArtsAttendIdx) / 100
+3. Dampen: engagement = 1.0 + (raw_factor - 1.0) × 0.25
+4. Clip to range: engagement = clip(engagement, 0.92, 1.08)
+```
+
+### Sample Category Engagement Factors
+
+| Category | Engagement Factor | High Spender Idx | Active Buyer Idx |
+|----------|-------------------|------------------|------------------|
+| pop_ip | ~1.05 | 164 | 156 |
+| classic_romance | ~1.02 | 145 | 140 |
+| family_classic | ~1.03 | 148 | 150 |
+| contemporary | ~0.98 | 102 | 108 |
+| dramatic | ~0.97 | 95 | 98 |
+
+### Addressable Market Features
+Additional features from live analytics:
+
+| Feature | Description |
+|---------|-------------|
+| **LA_AddressableMarket** | Raw customer count per category |
+| **LA_AddressableMarket_Norm** | Normalized value (0-1 scale) |
+
+---
+
+## 11. Composite Score & Final Tickets
 
 ### Composite Index Formula
 ```
@@ -346,7 +399,7 @@ demand:
 
 ---
 
-## 11. ML Model Variables
+## 12. ML Model Variables
 
 ### XGBoost Feature Set (Safe Model)
 Features used in the trained XGBoost model:
@@ -378,15 +431,26 @@ These columns are **NEVER** used as predictors:
 ### k-NN Cold-Start Fallback
 For titles without history:
 ```yaml
-k: 5  # Number of nearest neighbors
-metric: "cosine"  # Distance metric
-recency_weight: 0.5  # Weight for preferring recent shows
-recency_decay: 0.1  # Decay rate per year
+k: 5                    # Number of nearest neighbors
+metric: "cosine"        # Distance metric: cosine, euclidean, manhattan
+weights: "distance"     # Voting weights: distance or uniform
+normalize: true         # Standardize features before distance computation
+recency_weight: 0.5     # Weight for preferring recent shows (0-1)
+recency_decay: 0.1      # Decay rate per year for older runs
+use_pca: false          # Apply PCA preprocessing
+pca_components: 3       # Number of PCA components (if use_pca=true)
 ```
+
+### k-NN Features Used
+The k-NN similarity matching uses these baseline signals:
+- `wiki` - Wikipedia pageview index
+- `trends` - Google Trends index
+- `youtube` - YouTube view index
+- `spotify` - Spotify popularity index
 
 ---
 
-## 12. Configuration Constants
+## 13. Configuration Constants
 
 ### Demand Settings
 ```yaml
@@ -480,6 +544,19 @@ model:
 12. Calculate Marketing Spend
     ├── YYC_Mkt = YYC_Singles × SPT_Calgary
     └── YEG_Mkt = YEG_Singles × SPT_Edmonton
+
+13. Apply Live Analytics Overlays (per category)
+    ├── LA_EngagementFactor → category engagement multiplier
+    ├── LA_HighSpenderIdx → high spender index
+    ├── LA_ActiveBuyerIdx → active buyer index
+    ├── LA_RepeatBuyerIdx → repeat buyer index
+    └── LA_ArtsAttendIdx → arts attendance index
+
+14. Apply Economic Sentiment (supplemental context)
+    ├── Econ_BocFactor → Bank of Canada sentiment
+    ├── Econ_AlbertaFactor → Alberta economic sentiment
+    ├── Econ_ArtsSentiment → Arts giving sentiment
+    └── Combined_Sentiment = 0.40×BoC + 0.60×Alberta
 ```
 
 ---
