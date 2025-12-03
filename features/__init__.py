@@ -16,6 +16,12 @@ from .economic_features import (
     get_feature_names as get_economic_feature_names,
 )
 
+from .buzz_features import (
+    add_buzz_features,
+    compute_composite_buzz_score,
+    get_feature_names as get_buzz_feature_names,
+)
+
 __all__ = [
     # Title features
     'add_title_features',
@@ -27,4 +33,8 @@ __all__ = [
     'compute_boc_factor',
     'compute_alberta_factor',
     'get_economic_feature_names',
+    # Buzz features
+    'add_buzz_features',
+    'compute_composite_buzz_score',
+    'get_buzz_feature_names',
 ]
