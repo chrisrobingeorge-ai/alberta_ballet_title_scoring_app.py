@@ -1,18 +1,25 @@
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import math
 import logging
+import sys
+from pathlib import Path
 
-import requests
-import pandas as pd
-import streamlit as st
+# Add the repository root to sys.path so we can import local modules
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from pytrends.request import TrendReq
-from googleapiclient.discovery import build
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
+import requests  # noqa: E402
+import pandas as pd  # noqa: E402
+import streamlit as st  # noqa: E402
 
-from ml.scoring import score_runs_for_planning
+from pytrends.request import TrendReq  # noqa: E402
+from googleapiclient.discovery import build  # noqa: E402
+import spotipy  # noqa: E402
+from spotipy.oauth2 import SpotifyClientCredentials  # noqa: E402
+
+from ml.scoring import score_runs_for_planning  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +35,35 @@ st.caption(
 # External API clients
 # -----------------------------------------------------------------------------
 
-pytrends = TrendReq(hl="en-US", tz=0)
+pytrends = None  # Lazy-initialized to avoid network call at import time
 
-YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", None)
-SPOTIFY_CLIENT_ID = st.secrets.get("SPOTIFY_CLIENT_ID", None)
-SPOTIFY_CLIENT_SECRET = st.secrets.get("SPOTIFY_CLIENT_SECRET", None)
+
+def _get_pytrends():
+    """Get or initialize the pytrends client lazily."""
+    global pytrends
+    if pytrends is None:
+        try:
+            pytrends = TrendReq(hl="en-US", tz=0)
+        except Exception as exc:
+            logger.warning("Could not initialize pytrends: " + str(exc))
+            return None
+    return pytrends
+
+
+def _get_secret(key: str, default=None):
+    """Safely get a Streamlit secret, returning default if secrets file is missing."""
+    try:
+        return st.secrets.get(key, default)
+    except (FileNotFoundError, KeyError):
+        return default
+    except Exception:
+        # Catch StreamlitSecretNotFoundError and any other secret-related errors
+        return default
+
+
+YOUTUBE_API_KEY = _get_secret("YOUTUBE_API_KEY", None)
+SPOTIFY_CLIENT_ID = _get_secret("SPOTIFY_CLIENT_ID", None)
+SPOTIFY_CLIENT_SECRET = _get_secret("SPOTIFY_CLIENT_SECRET", None)
 
 if YOUTUBE_API_KEY:
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -83,8 +114,11 @@ def fetch_google_trends_score(title: str) -> float:
     Returns a mean over recent period; falls back to small constant if empty.
     """
     try:
-        pytrends.build_payload([title], timeframe="today 12-m")
-        df = pytrends.interest_over_time()
+        trends_client = _get_pytrends()
+        if trends_client is None:
+            return 1.0
+        trends_client.build_payload([title], timeframe="today 12-m")
+        df = trends_client.interest_over_time()
         if df.empty or title not in df.columns:
             return 1.0
         vals = df[title].tolist()
