@@ -16,6 +16,7 @@ import warnings
 # Data directory
 DATA_DIR = Path(__file__).parent.parent / "data"
 ECONOMICS_DIR = DATA_DIR / "economics"
+AUDIENCES_DIR = DATA_DIR / "audiences"
 
 
 def load_cpi_data() -> pd.DataFrame:
@@ -122,6 +123,54 @@ def load_consumer_confidence() -> pd.DataFrame:
     df = df[['date', 'value']].rename(columns={'value': 'consumer_confidence'})
     
     return df
+
+
+def load_arts_sentiment() -> pd.DataFrame:
+    """
+    Load Nanos arts donors data and extract Arts Sentiment metric.
+    
+    Filters for rows where:
+    - subcategory == 'Arts share'
+    - metric == 'Avg %'
+    
+    Returns:
+        DataFrame with columns: year, arts_sentiment (percentage)
+    """
+    path = AUDIENCES_DIR / "nanos_arts_donors.csv"
+    if not path.exists():
+        warnings.warn(f"Arts donors data not found at {path}")
+        return pd.DataFrame()
+    
+    try:
+        df = pd.read_csv(path)
+        
+        # Filter for Arts share with Avg % metric
+        arts_share = df[
+            (df['subcategory'] == 'Arts share') & 
+            (df['metric'] == 'Avg %')
+        ].copy()
+        
+        if arts_share.empty:
+            warnings.warn("No 'Arts share' / 'Avg %' rows found in nanos_arts_donors.csv")
+            return pd.DataFrame()
+        
+        # Convert year_or_period to integer year
+        arts_share['year'] = pd.to_numeric(arts_share['year_or_period'], errors='coerce').astype('Int64')
+        
+        # Convert value to numeric (should already be numeric but ensure it)
+        arts_share['arts_sentiment'] = pd.to_numeric(arts_share['value'], errors='coerce')
+        
+        # Keep only valid rows
+        arts_share = arts_share[arts_share['year'].notna() & arts_share['arts_sentiment'].notna()].copy()
+        
+        # Return year and sentiment only
+        result = arts_share[['year', 'arts_sentiment']].sort_values('year')
+        
+        return result
+        
+    except Exception as e:
+        warnings.warn(f"Error loading arts sentiment data: {e}")
+        return pd.DataFrame()
 
 
 def compute_boc_factor(df: pd.DataFrame, date_column: str = 'start_date') -> pd.DataFrame:
@@ -329,6 +378,7 @@ def add_economic_features(
     This function merges economic indicators onto show data based on temporal proximity:
     - Econ_BocFactor: Bank of Canada composite (CPI + energy prices)
     - Econ_AlbertaFactor: Alberta-specific (oil prices + unemployment)
+    - Econ_ArtsSentiment: Arts giving sentiment from Nanos survey data
     
     Args:
         df: DataFrame with show data
@@ -358,6 +408,88 @@ def add_economic_features(
     # Add Alberta factor (provincial economic conditions)
     df_out = compute_alberta_factor(df_out, date_column=date_column)
     
+    # Add Arts Sentiment (arts giving sentiment)
+    df_out = add_arts_sentiment_feature(df_out, date_column=date_column)
+    
+    return df_out
+
+
+def add_arts_sentiment_feature(
+    df: pd.DataFrame,
+    date_column: str = 'start_date'
+) -> pd.DataFrame:
+    """
+    Add arts sentiment feature based on Nanos arts donors survey data.
+    
+    Merges arts giving sentiment (% of donations going to arts) onto shows
+    based on the year of the start_date. Uses forward-fill logic for missing years.
+    
+    Args:
+        df: DataFrame with show data
+        date_column: Name of the date column to extract year from
+        
+    Returns:
+        DataFrame with 'Econ_ArtsSentiment' column added
+    """
+    if df.empty:
+        return df.copy()
+    
+    if date_column not in df.columns:
+        warnings.warn(f"Date column '{date_column}' not found. Setting Econ_ArtsSentiment to median")
+        df_out = df.copy()
+        df_out['Econ_ArtsSentiment'] = np.nan
+        return df_out
+    
+    df_out = df.copy()
+    
+    # Load arts sentiment data
+    arts_data = load_arts_sentiment()
+    
+    if arts_data.empty:
+        # No data available - fill with NaN
+        df_out['Econ_ArtsSentiment'] = np.nan
+        return df_out
+    
+    # Calculate median for fallback
+    median_sentiment = arts_data['arts_sentiment'].median()
+    
+    # Extract year from start_date
+    df_out['_temp_year'] = pd.to_datetime(df_out[date_column], errors='coerce').dt.year
+    
+    # Merge on year with forward-fill logic
+    # Use merge_asof to get the most recent sentiment for each show year
+    arts_data_sorted = arts_data.sort_values('year').copy()
+    
+    # Ensure both year columns have the same dtype (convert to int64)
+    arts_data_sorted['year'] = arts_data_sorted['year'].astype('int64')
+    df_out['_temp_year'] = df_out['_temp_year'].astype('int64')
+    
+    # Store original index to preserve row order
+    df_out['_orig_index'] = df_out.index
+    df_out_sorted = df_out.sort_values('_temp_year').copy()
+    
+    # Merge asof: for each show year, use the most recent sentiment year <= show year
+    df_merged = pd.merge_asof(
+        df_out_sorted,
+        arts_data_sorted,
+        left_on='_temp_year',
+        right_on='year',
+        direction='backward'
+    )
+    
+    # Restore original order using the stored index
+    df_merged = df_merged.sort_values('_orig_index').set_index('_orig_index')
+    df_merged.index.name = None
+    
+    # Fill missing values with median
+    df_out['Econ_ArtsSentiment'] = df_merged['arts_sentiment'].fillna(median_sentiment)
+    
+    # Clean up temporary column
+    df_out = df_out.drop(columns=['_orig_index'])
+    
+    # Clean up temporary columns
+    df_out = df_out.drop(columns=['_temp_year'])
+    
     return df_out
 
 
@@ -368,4 +500,4 @@ def get_feature_names() -> list:
     Returns:
         List of economic feature column names
     """
-    return ['Econ_BocFactor', 'Econ_AlbertaFactor']
+    return ['Econ_BocFactor', 'Econ_AlbertaFactor', 'Econ_ArtsSentiment']
