@@ -145,14 +145,16 @@ def fetch_wikipedia_views(title: str) -> float:
         end = datetime.utcnow().strftime("%Y%m%d")
         start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
 
-        # Build the pageviews API URL
+        # Build the pageviews API URL with proper URL encoding
+        encoded_page = requests.utils.quote(page_title.replace(" ", "_"), safe="")
         url = WIKI_PAGEVIEW.format(
-            page=page_title.replace(" ", "_"),
+            page=encoded_page,
             start=start,
             end=end
         )
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
+            logger.warning("Wikipedia API returned status " + str(resp.status_code) + " for " + title)
             return 1.0
         data = resp.json()
         items = data.get("items", [])
