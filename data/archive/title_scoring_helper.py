@@ -61,9 +61,35 @@ def _get_secret(key: str, default=None):
         return default
 
 
-YOUTUBE_API_KEY = _get_secret("YOUTUBE_API_KEY", None)
-SPOTIFY_CLIENT_ID = _get_secret("SPOTIFY_CLIENT_ID", None)
-SPOTIFY_CLIENT_SECRET = _get_secret("SPOTIFY_CLIENT_SECRET", None)
+# -----------------------------------------------------------------------------
+# Sidebar: API Configuration (YouTube & Spotify)
+# -----------------------------------------------------------------------------
+with st.sidebar.expander("🔑 API Configuration (YouTube & Spotify)", expanded=False):
+    st.markdown("""
+    **For live data fetching**, enter your API keys below.
+    Keys are optional — if not provided, the app uses fallback values.
+    """)
+    yt_key_input = st.text_input(
+        "YouTube Data API v3 Key",
+        type="password",
+        help="Get a key from Google Cloud Console → APIs & Services → Credentials",
+    )
+    sp_id_input = st.text_input(
+        "Spotify Client ID",
+        type="password",
+        help="Get credentials from Spotify Developer Dashboard",
+    )
+    sp_secret_input = st.text_input(
+        "Spotify Client Secret",
+        type="password",
+        help="Get this from Spotify Developer Dashboard along with the Client ID",
+    )
+    st.caption("Keys are stored only in your session and cleared on refresh.")
+
+# Use sidebar input if provided, otherwise fall back to secrets
+YOUTUBE_API_KEY = yt_key_input if yt_key_input else _get_secret("YOUTUBE_API_KEY", None)
+SPOTIFY_CLIENT_ID = sp_id_input if sp_id_input else _get_secret("SPOTIFY_CLIENT_ID", None)
+SPOTIFY_CLIENT_SECRET = sp_secret_input if sp_secret_input else _get_secret("SPOTIFY_CLIENT_SECRET", None)
 
 if YOUTUBE_API_KEY:
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
