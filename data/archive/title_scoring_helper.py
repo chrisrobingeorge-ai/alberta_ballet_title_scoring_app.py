@@ -54,7 +54,10 @@ def _get_secret(key: str, default=None):
     """Safely get a Streamlit secret, returning default if secrets file is missing."""
     try:
         return st.secrets.get(key, default)
+    except (FileNotFoundError, KeyError):
+        return default
     except Exception:
+        # Catch StreamlitSecretNotFoundError and any other secret-related errors
         return default
 
 
