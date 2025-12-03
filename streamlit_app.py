@@ -2100,7 +2100,7 @@ with st.expander("🔑 API Configuration (YouTube & Spotify — for NEW titles o
                               help="Get this from Spotify Developer Dashboard along with the Client ID")
     use_live = st.checkbox("✅ Use Live Data for Unknown Titles", value=False,
                            help="When enabled, the app will fetch real-time data from YouTube and Spotify for titles not in the baseline")
-    st.caption("Keys are stored only in your session and are never saved. They are only used when scoring unknown titles with live fetch enabled.")
+    st.caption("Keys are stored only in your browser session and are cleared when you close or refresh the page. They are only used when scoring unknown titles with live fetch enabled.")
 
 # Fixed mode: AB-wide (Province) + General Population
 SEGMENT_DEFAULT = "General Population"
