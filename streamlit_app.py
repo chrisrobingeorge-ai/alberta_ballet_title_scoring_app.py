@@ -636,7 +636,6 @@ with st.expander("📘 About This App — Methodology & Glossary"):
 
     On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per single ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, and a ballpark paid-media ask for each title and for the season as a whole.
 
-    Finally, if you give it marketing history, it learns roughly how many dollars of paid media you’ve usually spent per single ticket in Calgary and Edmonton for different kinds of shows. When you build a season, it uses those “dollars per single” figures to suggest marketing budgets city by city, and shows you the total season spend and spend per single. The end result: one view that ties together demand, timing, cities, audience segments, and a ballpark paid-media ask for each title and for the season as a whole.   
     ---
     
 	### Purpose
