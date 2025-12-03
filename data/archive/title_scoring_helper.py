@@ -76,7 +76,6 @@ with st.sidebar.expander("🔑 API Configuration (YouTube & Spotify)", expanded=
     )
     sp_id_input = st.text_input(
         "Spotify Client ID",
-        type="password",
         help="Get credentials from Spotify Developer Dashboard",
     )
     sp_secret_input = st.text_input(
