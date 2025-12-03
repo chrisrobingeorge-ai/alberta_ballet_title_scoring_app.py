@@ -93,12 +93,14 @@ Multipliers applied to scores based on audience segment and show gender:
 | Emerging Adults (18–34) | 1.02 | 1.02 | 1.00 | 1.00 |
 
 ### Segment Multipliers by Category
-| Segment | family_classic | classic_romance | romantic_tragedy | classic_comedy | contemporary | pop_ip | dramatic |
-|---------|----------------|-----------------|------------------|----------------|--------------|--------|----------|
-| General Population | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| Core Classical (F35–64) | 1.10 | 1.08 | 1.05 | 1.02 | 0.90 | 1.00 | 1.00 |
-| Family (Parents w/ kids) | 1.18 | 0.95 | 0.85 | 1.05 | 0.82 | 1.20 | 0.90 |
-| Emerging Adults (18–34) | 0.95 | 0.92 | 0.90 | 0.98 | 1.25 | 1.15 | 1.05 |
+All categories from config.yaml:
+
+| Segment | family_classic | classic_romance | romantic_tragedy | classic_comedy | contemporary | pop_ip | dramatic | adult_literary_drama | contemporary_mixed_bill | touring_contemporary_company |
+|---------|----------------|-----------------|------------------|----------------|--------------|--------|----------|---------------------|------------------------|------------------------------|
+| General Population | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| Core Classical (F35–64) | 1.10 | 1.08 | 1.05 | 1.02 | 0.90 | 1.00 | 1.00 | 1.00 | 0.90 | 0.90 |
+| Family (Parents w/ kids) | 1.18 | 0.95 | 0.85 | 1.05 | 0.82 | 1.20 | 0.90 | 0.90 | 0.82 | 0.82 |
+| Emerging Adults (18–34) | 0.95 | 0.92 | 0.90 | 0.98 | 1.25 | 1.15 | 1.05 | 1.05 | 1.25 | 1.25 |
 
 ### Region Multipliers
 ```
@@ -335,8 +337,11 @@ EstimatedTickets_Final = EstimatedTickets × ReturnDecayFactor × POSTCOVID_FACT
 ```
 
 ### Post-COVID Factor
+This value is loaded from `config.yaml` under `demand.postcovid_factor`:
 ```yaml
-POSTCOVID_FACTOR: 0.85  # 15% haircut vs pre-COVID baseline
+# From config.yaml
+demand:
+  postcovid_factor: 0.85  # 15% haircut vs pre-COVID baseline
 ```
 
 ---
