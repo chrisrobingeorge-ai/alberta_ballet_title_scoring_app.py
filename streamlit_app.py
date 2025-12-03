@@ -2084,12 +2084,23 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
 # -------------------------
 # UI — Config
 # -------------------------
-with st.expander("🔑 API Configuration (used for NEW titles only if enabled)"):
-    yt_key = st.text_input("YouTube Data API v3 Key", type="password")
-    sp_id = st.text_input("Spotify Client ID", type="password")
-    sp_secret = st.text_input("Spotify Client Secret", type="password")
-    use_live = st.checkbox("Use Live Data for Unknown Titles", value=False)
-    st.caption("Keys are optional and only used when scoring unknown titles with live fetch.")
+with st.expander("🔑 API Configuration (YouTube & Spotify — for NEW titles only)", expanded=True):
+    st.markdown("""
+    **To fetch live data for unknown titles**, enter your API keys below and enable the checkbox.
+    These keys are optional — if not provided, the app will use estimated values for new titles.
+    """)
+    col1, col2 = st.columns(2)
+    with col1:
+        yt_key = st.text_input("YouTube Data API v3 Key", type="password", 
+                               help="Get a key from Google Cloud Console → APIs & Services → Credentials")
+    with col2:
+        sp_id = st.text_input("Spotify Client ID", type="password",
+                              help="Get credentials from Spotify Developer Dashboard")
+    sp_secret = st.text_input("Spotify Client Secret", type="password",
+                              help="Get this from Spotify Developer Dashboard along with the Client ID")
+    use_live = st.checkbox("✅ Use Live Data for Unknown Titles", value=False,
+                           help="When enabled, the app will fetch real-time data from YouTube and Spotify for titles not in the baseline")
+    st.caption("Keys are stored only in your session and are never saved. They are only used when scoring unknown titles with live fetch enabled.")
 
 # Fixed mode: AB-wide (Province) + General Population
 SEGMENT_DEFAULT = "General Population"

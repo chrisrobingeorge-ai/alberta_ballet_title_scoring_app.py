@@ -204,10 +204,33 @@ def load_model(model_name: str = "model_xgb_remount_postcovid") -> Any:
     -------
     model : Any
         Deserialized model object.
-    """
-    json_path = MODELS_DIR / (model_name + ".json")
-    pkl_path = MODELS_DIR / (model_name + ".pkl")
 
+    Raises
+    ------
+    FileNotFoundError
+        If no trained model file (.joblib, .pkl, or valid XGBoost .json) is found.
+        Note: A .json file containing only metadata (not a trained model) will not
+        load successfully as an XGBoost model.
+    """
+    joblib_path = MODELS_DIR / (model_name + ".joblib")
+    pkl_path = MODELS_DIR / (model_name + ".pkl")
+    json_path = MODELS_DIR / (model_name + ".json")
+
+    # Try .joblib first (most common for sklearn pipelines)
+    if joblib_path.exists():
+        try:
+            return joblib.load(joblib_path)
+        except Exception as exc:
+            logger.warning(f"Could not load .joblib model: {exc}")
+
+    # Try .pkl (older format)
+    if pkl_path.exists():
+        try:
+            return joblib.load(pkl_path)
+        except Exception as exc:
+            logger.warning(f"Could not load .pkl model: {exc}")
+
+    # Try .json as XGBoost Booster format
     if json_path.exists():
         try:
             import xgboost as xgb
@@ -216,16 +239,14 @@ def load_model(model_name: str = "model_xgb_remount_postcovid") -> Any:
             booster.load_model(str(json_path))
             return booster
         except Exception as exc:
-            logger.warning("Falling back from JSON model: " + str(exc))
+            # The .json file might be metadata, not an actual XGBoost model
+            logger.warning(f"Could not load JSON as XGBoost model (may be metadata file): {exc}")
 
-    if pkl_path.exists():
-        try:
-            return joblib.load(pkl_path)
-        except Exception as exc:
-            logger.error("Could not load model pickle: " + str(exc))
-            raise
-
-    raise FileNotFoundError("No model file found for name " + model_name)
+    raise FileNotFoundError(
+        f"No trained model file found for '{model_name}'. "
+        f"Checked: {joblib_path}, {pkl_path}, {json_path}. "
+        f"Run `python scripts/train_safe_model.py` to train a model first."
+    )
 
 
 def load_feature_recipe() -> Optional[pd.DataFrame]:
