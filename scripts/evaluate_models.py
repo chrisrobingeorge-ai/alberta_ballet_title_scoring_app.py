@@ -23,6 +23,7 @@ from sklearn.linear_model import LinearRegression
 
 from data.loader import load_history_sales
 from features.title_features import add_title_features
+from features.economic_features import add_economic_features
 
 
 def main():
@@ -54,6 +55,10 @@ def main():
     # Add title features
     print("Generating title features...")
     df = add_title_features(df)
+    
+    # Add economic features
+    print("Generating economic features...")
+    df = add_economic_features(df)
     print()
     
     # Sort chronologically by start_date
@@ -74,7 +79,7 @@ def main():
     y_test = test_df["single_tickets"].values
     
     # Define feature columns for Linear Regression
-    feature_cols = ['is_benchmark_classic', 'title_word_count']
+    feature_cols = ['is_benchmark_classic', 'title_word_count', 'Econ_BocFactor', 'Econ_AlbertaFactor']
     X_train = train_df[feature_cols].values
     X_test = test_df[feature_cols].values
     
@@ -111,9 +116,20 @@ def main():
     
     # Model coefficients
     print("Linear Regression Coefficients:")
-    print(f"  Intercept:           {lr_model.intercept_:>10.2f}")
+    print(f"  Intercept:                    {lr_model.intercept_:>10.2f}")
     for i, col in enumerate(feature_cols):
-        print(f"  {col:<20} {lr_model.coef_[i]:>10.2f}")
+        print(f"  {col:<30} {lr_model.coef_[i]:>10.2f}")
+    print()
+    
+    # Additional insights
+    if mae_lr < mae_baseline:
+        print("Insights:")
+        print(f"  - Economic features added to title features")
+        if 'Econ_BocFactor' in feature_cols and 'Econ_AlbertaFactor' in feature_cols:
+            boc_idx = feature_cols.index('Econ_BocFactor')
+            ab_idx = feature_cols.index('Econ_AlbertaFactor')
+            print(f"  - Econ_BocFactor coefficient: {lr_model.coef_[boc_idx]:+.2f} (BoC economic conditions)")
+            print(f"  - Econ_AlbertaFactor coefficient: {lr_model.coef_[ab_idx]:+.2f} (Alberta oil/unemployment)")
     print()
     print("=" * 70)
 
