@@ -2920,9 +2920,9 @@ def render_results():
     #   - Input Signals (Section 1)
     #   - Familiarity & Motivation (Section 2)
     #   - Ticket Index & Seasonality (Sections 4, 5)
-    #   - Remount Decay (Section 6)
     #   - Composite & Final Tickets (Section 11)
     #   - City Split (Section 7)
+    # NOTE: ReturnDecayFactor removed - remount decay eliminated per audit
     table_cols = [
         "Title", "Category",
         # Input Signal Variables (Section 1)
@@ -2933,8 +2933,6 @@ def render_results():
         "TicketIndex used", "TicketIndexSource", "FutureSeasonalityFactor",
         # Composite & Final Tickets (Section 11)
         "Composite", "EstimatedTickets_Final",
-        # Remount Decay (Section 6)
-        "ReturnDecayFactor",
         # City Split (Section 7)
         "YYC_Singles", "YEG_Singles",
     ]
@@ -2969,8 +2967,6 @@ def render_results():
             # Composite & Tickets
             "Composite": "{:.1f}",
             "EstimatedTickets_Final": "{:,.0f}",
-            # Remount Decay
-            "ReturnDecayFactor": "{:.2f}",
             # City Split
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
@@ -3160,6 +3156,7 @@ def render_results():
     plan_df = pd.DataFrame(plan_rows)
 
     # A view with a preferred column order for some displays
+    # NOTE: ReturnDecayPct removed - remount decay eliminated per audit
     desired_order = [
         "Month",
         "Title",
@@ -3168,7 +3165,6 @@ def render_results():
         "SecondarySegment",
         "TicketIndex used",
         "FutureSeasonalityFactor",
-        "ReturnDecayPct",
         "EstimatedTickets_Final",
         "YYC_Singles",
         "YEG_Singles",
@@ -3250,6 +3246,7 @@ def render_results():
         month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
         month_cols = list(month_to_row.keys())
 
+        # NOTE: ReturnDecayFactor and ReturnDecayPct removed - remount decay eliminated per audit
         metrics = [
             "Title","Category","PrimarySegment","SecondarySegment",
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
@@ -3262,7 +3259,7 @@ def render_results():
             "TicketHistory","TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
             "FutureSeasonalityFactor","HistSeasonalityFactor",
             "Composite","Score",
-            "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+            "EstimatedTickets","EstimatedTickets_Final",
             "YYC_Singles","YEG_Singles",
             "CityShare_Calgary","CityShare_Edmonton",
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
@@ -3299,13 +3296,13 @@ def render_results():
 
         # Factors
         sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor"], :])
-        sty = sty.format("{:.2f}", subset=_S[["ReturnDecayFactor","YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
+        sty = sty.format("{:.2f}", subset=_S[["YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
         
         # LA and Econ factors
         sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
 
         # Percentages
-        sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton","ReturnDecayPct"], :])
+        sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton"], :])
 
         st.markdown("#### 🗓️ Season table")
         st.dataframe(sty, width='stretch')
