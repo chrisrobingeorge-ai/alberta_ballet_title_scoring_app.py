@@ -630,7 +630,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
 # METHODOLOGY & GLOSSARY SECTION
 # -------------------------
 with st.expander("📘 About This App — Methodology & Glossary"):
-    st.markdown(dedent("""
+    st.markdown(dedent(r"""
     ## Simple Terms
     This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Spotify) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton.
 
