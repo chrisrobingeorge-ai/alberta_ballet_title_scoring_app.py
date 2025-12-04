@@ -1681,8 +1681,10 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
-# --- Post-COVID adjustment (hard-coded from audience research) ---
-POSTCOVID_FACTOR = 0.96  # 4% haircut vs pre-COVID baseline
+# --- Post-COVID adjustment (REMOVED per audit finding "Structural Pessimism") ---
+# The 0.96 factor was removed to eliminate compounding penalty that caused
+# up to 33% reduction in valid predictions. See audit report for details.
+POSTCOVID_FACTOR = 1.0  # No post-COVID haircut applied
 
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
@@ -2071,15 +2073,16 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
     return seg_to_indexed_signal
 
 def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> float:
-    last_middate = TITLE_TO_MIDDATE.get(title.strip())
-    if last_middate is None or proposed_run_date is None:
-        return 1.0
-    delta_years = (proposed_run_date.year - last_middate.year) + \
-                  ((proposed_run_date.timetuple().tm_yday - last_middate.timetuple().tm_yday) / 365.25)
-    if delta_years <= 2:   return 0.70
-    elif delta_years <= 4: return 0.80
-    elif delta_years <= 9: return 0.90
-    else:                  return 1.00
+    """
+    REMOVED per audit finding "Structural Pessimism".
+    
+    The remount decay factor was removed to eliminate compounding penalty
+    that caused up to 33% reduction in valid predictions when stacked with
+    Post_COVID_Factor. The base model already accounts for remount behavior.
+    
+    Now always returns 1.0 (no penalty).
+    """
+    return 1.0
 
 # -------------------------
 # UI — Config
@@ -2110,11 +2113,12 @@ region  = REGION_DEFAULT
 
 st.caption("Mode: **Alberta-wide** (Calgary/Edmonton split learned & applied later) • Audience: **General Population**")
 
-# Post-COVID demand adjustment (global haircut, fixed)
+# Post-COVID demand adjustment - REMOVED per audit finding
 postcovid_factor = POSTCOVID_FACTOR
 st.caption(
-    f"Post-COVID adjustment is hard-coded at ×{postcovid_factor:.2f} "
-    "(e.g. 0.85 = 15% haircut vs pre-COVID baseline, based on audience research)."
+    "Post-COVID and Remount decay factors have been removed to eliminate "
+    "compounding penalties (audit finding: 'Structural Pessimism'). "
+    "Region factor is retained for geographical variance."
 )
 
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
@@ -3223,8 +3227,8 @@ def render_results():
             st.metric("Season Production Expense", f"${total_prod:,.0f}")
 
         st.caption(
-            f"Post-COVID adjustment applied: ×{postcovid_factor:.2f} "
-            f"(e.g. 0.85 = 15% haircut vs pre-COVID baseline)."
+            "Penalty factors removed per audit: Post-COVID and Remount decay "
+            "eliminated to prevent 'Structural Pessimism'. Region factor retained."
         )
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
