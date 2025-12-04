@@ -1,5 +1,5 @@
 # External Factors: Yearly Story
-**Analysis Date:** 2025-12-02
+
 **Dataset:** 10 years with ticket sales data
 
 ---
