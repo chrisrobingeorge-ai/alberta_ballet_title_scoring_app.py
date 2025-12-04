@@ -1681,8 +1681,10 @@ def _infer_segment_mix_for(category: str, region_key: str, temperature: float = 
         pri = {k: 1.0 for k in SEGMENT_KEYS_IN_ORDER}
     return _softmax_like(pri, temperature=temperature)
 
-# --- Post-COVID adjustment (hard-coded from audience research) ---
-POSTCOVID_FACTOR = 0.96  # 4% haircut vs pre-COVID baseline
+# --- Post-COVID adjustment (REMOVED per audit finding "Structural Pessimism") ---
+# The 0.96 factor was removed to eliminate compounding penalty that caused
+# up to 33% reduction in valid predictions. See audit report for details.
+POSTCOVID_FACTOR = 1.0  # No post-COVID haircut applied
 
 # Live fetchers (guarded)
 WIKI_API = "https://en.wikipedia.org/w/api.php"
@@ -2071,15 +2073,16 @@ def _normalize_signals_by_benchmark(seg_to_raw: dict, benchmark_entry: dict, reg
     return seg_to_indexed_signal
 
 def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> float:
-    last_middate = TITLE_TO_MIDDATE.get(title.strip())
-    if last_middate is None or proposed_run_date is None:
-        return 1.0
-    delta_years = (proposed_run_date.year - last_middate.year) + \
-                  ((proposed_run_date.timetuple().tm_yday - last_middate.timetuple().tm_yday) / 365.25)
-    if delta_years <= 2:   return 0.70
-    elif delta_years <= 4: return 0.80
-    elif delta_years <= 9: return 0.90
-    else:                  return 1.00
+    """
+    REMOVED per audit finding "Structural Pessimism".
+    
+    The remount decay factor was removed to eliminate compounding penalty
+    that caused up to 33% reduction in valid predictions when stacked with
+    Post_COVID_Factor. The base model already accounts for remount behavior.
+    
+    Now always returns 1.0 (no penalty).
+    """
+    return 1.0
 
 # -------------------------
 # UI — Config
@@ -2110,11 +2113,12 @@ region  = REGION_DEFAULT
 
 st.caption("Mode: **Alberta-wide** (Calgary/Edmonton split learned & applied later) • Audience: **General Population**")
 
-# Post-COVID demand adjustment (global haircut, fixed)
+# Post-COVID demand adjustment - REMOVED per audit finding
 postcovid_factor = POSTCOVID_FACTOR
 st.caption(
-    f"Post-COVID adjustment is hard-coded at ×{postcovid_factor:.2f} "
-    "(e.g. 0.85 = 15% haircut vs pre-COVID baseline, based on audience research)."
+    "Post-COVID and Remount decay factors have been removed to eliminate "
+    "compounding penalties (audit finding: 'Structural Pessimism'). "
+    "Region factor is retained for geographical variance."
 )
 
 apply_seasonality = st.checkbox("Apply seasonality by month", value=False)
@@ -2725,33 +2729,19 @@ def compute_scores_and_store(
     df["Econ_AlbertaFactor"] = alberta_sentiment if alberta_sentiment is not None else np.nan
     df["Econ_Sources"] = ", ".join(econ_sources) if econ_sources else "none"
 
-    # 11) Remount decay + post-COVID haircut
+    # 11) Final ticket calculation (Remount decay + Post-COVID factors REMOVED per audit)
+    # Both factors were eliminated to prevent "Structural Pessimism" - compounding penalties
+    # that reduced valid predictions by up to 33%. Region factor is retained and applied
+    # via REGION_MULT during score calculation.
     decay_pcts, decay_factors, est_after_decay = [], [], []
-    today_year = datetime.utcnow().year
     for _, r in df.iterrows():
-        title = r["Title"]
         raw_est = r.get("EstimatedTickets", 0.0)
         est_base = float(raw_est) if pd.notna(raw_est) else 0.0
-        last_mid = TITLE_TO_MIDDATE.get(title)
-        if isinstance(last_mid, date):
-            yrs_since = (proposed_run_date.year - last_mid.year) if proposed_run_date else (today_year - last_mid.year)
-        else:
-            yrs_since = None
-
-        if yrs_since is None:
-            decay_pct = 0.00
-        elif yrs_since >= 5:
-            decay_pct = 0.05
-        elif yrs_since >= 3:
-            decay_pct = 0.12
-        elif yrs_since >= 1:
-            decay_pct = 0.20
-        else:
-            decay_pct = 0.25
-
-        factor = 1.0 - decay_pct
-        est_after_remount = est_base * factor
-        est_final = round(est_after_remount * POSTCOVID_FACTOR)
+        
+        # No decay applied - factors removed per audit
+        decay_pct = 0.0
+        factor = 1.0
+        est_final = round(est_base * POSTCOVID_FACTOR)  # POSTCOVID_FACTOR is now 1.0
 
         decay_pcts.append(decay_pct)
         decay_factors.append(factor)
@@ -2930,9 +2920,9 @@ def render_results():
     #   - Input Signals (Section 1)
     #   - Familiarity & Motivation (Section 2)
     #   - Ticket Index & Seasonality (Sections 4, 5)
-    #   - Remount Decay (Section 6)
     #   - Composite & Final Tickets (Section 11)
     #   - City Split (Section 7)
+    # NOTE: ReturnDecayFactor removed - remount decay eliminated per audit
     table_cols = [
         "Title", "Category",
         # Input Signal Variables (Section 1)
@@ -2943,8 +2933,6 @@ def render_results():
         "TicketIndex used", "TicketIndexSource", "FutureSeasonalityFactor",
         # Composite & Final Tickets (Section 11)
         "Composite", "EstimatedTickets_Final",
-        # Remount Decay (Section 6)
-        "ReturnDecayFactor",
         # City Split (Section 7)
         "YYC_Singles", "YEG_Singles",
     ]
@@ -2979,8 +2967,6 @@ def render_results():
             # Composite & Tickets
             "Composite": "{:.1f}",
             "EstimatedTickets_Final": "{:,.0f}",
-            # Remount Decay
-            "ReturnDecayFactor": "{:.2f}",
             # City Split
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
@@ -3061,10 +3047,11 @@ def render_results():
         else:
             est_tix = np.nan
 
-        # remount decay + post-COVID haircut
-        decay_factor = remount_novelty_factor(title_sel, run_date)
+        # Final ticket calculation (Remount decay + Post-COVID factors REMOVED per audit)
+        # Both factors now return 1.0 - no penalty applied
+        decay_factor = remount_novelty_factor(title_sel, run_date)  # Now returns 1.0
         est_tix_raw = (est_tix if np.isfinite(est_tix) else 0) * decay_factor
-        est_tix_final = int(round(est_tix_raw * POSTCOVID_FACTOR))
+        est_tix_final = int(round(est_tix_raw * POSTCOVID_FACTOR))  # POSTCOVID_FACTOR is 1.0
 
         # --- City split (recompute for season-picked month) ---
         split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
@@ -3169,6 +3156,7 @@ def render_results():
     plan_df = pd.DataFrame(plan_rows)
 
     # A view with a preferred column order for some displays
+    # NOTE: ReturnDecayPct removed - remount decay eliminated per audit
     desired_order = [
         "Month",
         "Title",
@@ -3177,7 +3165,6 @@ def render_results():
         "SecondarySegment",
         "TicketIndex used",
         "FutureSeasonalityFactor",
-        "ReturnDecayPct",
         "EstimatedTickets_Final",
         "YYC_Singles",
         "YEG_Singles",
@@ -3223,8 +3210,8 @@ def render_results():
             st.metric("Season Production Expense", f"${total_prod:,.0f}")
 
         st.caption(
-            f"Post-COVID adjustment applied: ×{postcovid_factor:.2f} "
-            f"(e.g. 0.85 = 15% haircut vs pre-COVID baseline)."
+            "Penalty factors removed per audit: Post-COVID and Remount decay "
+            "eliminated to prevent 'Structural Pessimism'. Region factor retained."
         )
 
     # --- Tabs: Season table (wide) | City split | Rank | Scatter ---
@@ -3259,6 +3246,7 @@ def render_results():
         month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
         month_cols = list(month_to_row.keys())
 
+        # NOTE: ReturnDecayFactor and ReturnDecayPct removed - remount decay eliminated per audit
         metrics = [
             "Title","Category","PrimarySegment","SecondarySegment",
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
@@ -3271,7 +3259,7 @@ def render_results():
             "TicketHistory","TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
             "FutureSeasonalityFactor","HistSeasonalityFactor",
             "Composite","Score",
-            "EstimatedTickets","ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
+            "EstimatedTickets","EstimatedTickets_Final",
             "YYC_Singles","YEG_Singles",
             "CityShare_Calgary","CityShare_Edmonton",
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
@@ -3308,13 +3296,13 @@ def render_results():
 
         # Factors
         sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor"], :])
-        sty = sty.format("{:.2f}", subset=_S[["ReturnDecayFactor","YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
+        sty = sty.format("{:.2f}", subset=_S[["YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
         
         # LA and Econ factors
         sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
 
         # Percentages
-        sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton","ReturnDecayPct"], :])
+        sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton"], :])
 
         st.markdown("#### 🗓️ Season table")
         st.dataframe(sty, width='stretch')

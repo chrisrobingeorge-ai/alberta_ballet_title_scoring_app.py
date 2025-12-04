@@ -86,7 +86,9 @@ city_splits:
     Edmonton: 0.45
 
 demand:
-  postcovid_factor: 0.85
+  # postcovid_factor REMOVED per audit finding "Structural Pessimism"
+  # Setting to 1.0 eliminates the compounding penalty that reduced predictions by up to 33%
+  postcovid_factor: 1.0
   ticket_blend_weight: 0.50
 
 seasonality:

@@ -187,20 +187,22 @@ EffectiveTicketIndex = TicketIndex_DeSeason × FutureSeasonalityFactor
 
 ## 6. Remount Decay Formula
 
-Remount decay reduces estimates for titles that ran recently:
+> **⚠️ REMOVED (December 2024)**: Per external audit finding "Structural Pessimism", the remount decay factor has been **eliminated**. The compounding of this factor with Post-COVID adjustments caused up to 33% reduction in valid predictions. The base ML model already accounts for remount behavior through the `is_remount_recent`, `is_remount_medium`, and `years_since_last_run` features.
+
+~~Remount decay reduces estimates for titles that ran recently:~~
 
 | Years Since Last Run | Decay Percentage | Decay Factor |
 |---------------------|------------------|--------------|
-| < 1 year | 25% | 0.75 |
-| 1-2 years | 20% | 0.80 |
-| 3-4 years | 12% | 0.88 |
-| ≥ 5 years | 5% | 0.95 |
-| Never run before | 0% | 1.00 |
+| ~~< 1 year~~ | ~~25%~~ | ~~0.75~~ |
+| ~~1-2 years~~ | ~~20%~~ | ~~0.80~~ |
+| ~~3-4 years~~ | ~~12%~~ | ~~0.88~~ |
+| ~~≥ 5 years~~ | ~~5%~~ | ~~0.95~~ |
+| All titles | 0% | **1.00** |
 
-### Decay Formula
+### Current Formula
 ```
-ReturnDecayFactor = 1.0 - ReturnDecayPct
-EstimatedTickets_After_Remount = EstimatedTickets × ReturnDecayFactor
+ReturnDecayFactor = 1.0  # Always 1.0 - no decay applied
+EstimatedTickets_After_Remount = EstimatedTickets  # No reduction
 ```
 
 ---
@@ -385,16 +387,27 @@ EstimatedTickets = (EffectiveTicketIndex / 100) × Benchmark_Tickets_DeSeasonali
 ```
 
 ### Final Tickets (After All Adjustments)
+
+> **⚠️ UPDATED (December 2024)**: Per external audit finding "Structural Pessimism", both the Remount Decay Factor and Post-COVID Factor have been **removed** (set to 1.0). The compounding of these factors caused up to 33% reduction in valid predictions. The Region Factor is retained for geographical variance.
+
 ```
-EstimatedTickets_Final = EstimatedTickets × ReturnDecayFactor × POSTCOVID_FACTOR
+# Previous formula (DEPRECATED):
+# EstimatedTickets_Final = EstimatedTickets × ReturnDecayFactor × POSTCOVID_FACTOR
+
+# Current formula:
+EstimatedTickets_Final = EstimatedTickets  # No penalty factors applied
 ```
 
 ### Post-COVID Factor
-This value is loaded from `config.yaml` under `demand.postcovid_factor`:
+
+> **⚠️ REMOVED (December 2024)**: The Post-COVID factor has been eliminated to prevent "Structural Pessimism".
+
 ```yaml
 # From config.yaml
 demand:
-  postcovid_factor: 0.85  # 15% haircut vs pre-COVID baseline
+  # postcovid_factor REMOVED per audit finding "Structural Pessimism"
+  # Setting to 1.0 eliminates the compounding penalty that reduced predictions by up to 33%
+  postcovid_factor: 1.0  # No haircut applied (was 0.85)
 ```
 
 ---
@@ -454,7 +467,8 @@ The k-NN similarity matching uses these baseline signals:
 
 ### Demand Settings
 ```yaml
-postcovid_factor: 0.85  # Applied to all estimates
+# postcovid_factor REMOVED per audit finding "Structural Pessimism"
+postcovid_factor: 1.0  # No haircut applied (was 0.85)
 ticket_blend_weight: 0.50  # Balance signals vs ticket history
 ```
 
@@ -531,28 +545,33 @@ model:
 8. Estimate Raw Tickets
    └── EstimatedTickets = (EffectiveTicketIndex / 100) × Benchmark_Tickets
 
-9. Apply Remount Decay
-   └── EstimatedTickets × (1 - decay_pct)
+9. [REMOVED] Remount Decay
+   └── No longer applied (was: EstimatedTickets × decay_factor)
+   └── Remount behavior now captured in ML model features
 
-10. Apply Post-COVID Factor
-    └── EstimatedTickets_Final = EstimatedTickets_After_Remount × 0.85
+10. [REMOVED] Post-COVID Factor
+    └── No longer applied (was: × 0.85)
+    └── Factor set to 1.0 per audit finding "Structural Pessimism"
 
-11. Split by City
+11. Final Tickets = EstimatedTickets (no penalty factors)
+
+12. Split by City (Region Factor RETAINED)
     ├── YYC = Final × CityShare_Calgary (default 60%)
     └── YEG = Final × CityShare_Edmonton (default 40%)
+    └── Region multipliers: Calgary 1.05, Edmonton 0.95
 
-12. Calculate Marketing Spend
+13. Calculate Marketing Spend
     ├── YYC_Mkt = YYC_Singles × SPT_Calgary
     └── YEG_Mkt = YEG_Singles × SPT_Edmonton
 
-13. Apply Live Analytics Overlays (per category)
+14. Apply Live Analytics Overlays (per category)
     ├── LA_EngagementFactor → category engagement multiplier
     ├── LA_HighSpenderIdx → high spender index
     ├── LA_ActiveBuyerIdx → active buyer index
     ├── LA_RepeatBuyerIdx → repeat buyer index
     └── LA_ArtsAttendIdx → arts attendance index
 
-14. Apply Economic Sentiment (supplemental context)
+15. Apply Economic Sentiment (supplemental context)
     ├── Econ_BocFactor → Bank of Canada sentiment
     ├── Econ_AlbertaFactor → Alberta economic sentiment
     ├── Econ_ArtsSentiment → Arts giving sentiment
@@ -562,3 +581,4 @@ model:
 ---
 
 *Last updated: December 2024*
+*Audit update: Removed Post-COVID Factor and Remount Decay to fix "Structural Pessimism"*
