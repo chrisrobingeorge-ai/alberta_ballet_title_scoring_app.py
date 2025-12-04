@@ -390,12 +390,15 @@ def index_strength_rating(index_value: float) -> str:
     Convert a ticket index value to a 1–5 star "strength" rating.
     
     The index is benchmark-normalized (100 = benchmark performance).
-    Ranges are calibrated to provide meaningful differentiation:
-      - 0–40:   Very weak (★☆☆☆☆)
-      - 40–70:  Below average (★★☆☆☆)
-      - 70–100: Average (★★★☆☆)
-      - 100–130: Above average (★★★★☆)
-      - 130+:   Strong (★★★★★)
+    Since the benchmark title represents the best historical performer,
+    reaching the benchmark (100) earns the maximum 5-star rating.
+    
+    Ranges are calibrated so the benchmark = 5 stars:
+      - 0–25:   Very weak (★☆☆☆☆)
+      - 25–50:  Below average (★★☆☆☆)
+      - 50–75:  Average (★★★☆☆)
+      - 75–100: Above average (★★★★☆)
+      - 100+:   Benchmark/Strong (★★★★★)
     
     Args:
         index_value: The ticket index or effective ticket index value.
@@ -411,13 +414,13 @@ def index_strength_rating(index_value: float) -> str:
     except (TypeError, ValueError):
         return "☆☆☆☆☆"  # No data
     
-    if idx < 40:
+    if idx < 25:
         return "★☆☆☆☆"
-    elif idx < 70:
+    elif idx < 50:
         return "★★☆☆☆"
-    elif idx < 100:
+    elif idx < 75:
         return "★★★☆☆"
-    elif idx < 130:
+    elif idx < 100:
         return "★★★★☆"
     else:
         return "★★★★★"
@@ -1075,7 +1078,7 @@ def build_full_pdf_report(methodology_paragraphs: list,
     story.append(Paragraph("Season Summary (Board View)", styles["h1"]))
     story.append(Paragraph(
         "High-level overview of the planned season. Index Strength uses a 1–5 star rating "
-        "based on the title's ticket index (★★★☆☆ = average benchmark performance).",
+        "based on the title's ticket index (★★★★★ = benchmark performance at 100+).",
         styles["small"]))
     story.append(Spacer(1, 0.15*inch))
     story.append(_make_season_summary_table_pdf(plan_df))
@@ -4137,7 +4140,7 @@ def render_results():
         st.caption(
             "High-level overview for leadership review. "
             "Index Strength uses a 1–5 star rating based on the title's ticket index "
-            "(★★★☆☆ = average benchmark performance)."
+            "(★★★★★ = benchmark performance at 100+)."
         )
         
         season_summary_df = build_season_summary(plan_df)
