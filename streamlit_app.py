@@ -3323,7 +3323,7 @@ def render_results():
         "ticket_median_prior", "prior_total_tickets", "run_count_prior",
         "TicketIndex_Predicted",
         # Temporal & Seasonality Info
-        "month_of_opening", "holiday_flag", "category_seasonality_factor",
+        "month_of_opening", "category_seasonality_factor",
         # k-NN Metadata
         "kNN_used", "kNN_neighbors",
         # Live Analytics
