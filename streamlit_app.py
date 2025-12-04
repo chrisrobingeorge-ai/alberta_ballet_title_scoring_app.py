@@ -2729,33 +2729,19 @@ def compute_scores_and_store(
     df["Econ_AlbertaFactor"] = alberta_sentiment if alberta_sentiment is not None else np.nan
     df["Econ_Sources"] = ", ".join(econ_sources) if econ_sources else "none"
 
-    # 11) Remount decay + post-COVID haircut
+    # 11) Final ticket calculation (Remount decay + Post-COVID factors REMOVED per audit)
+    # Both factors were eliminated to prevent "Structural Pessimism" - compounding penalties
+    # that reduced valid predictions by up to 33%. Region factor is retained and applied
+    # via REGION_MULT during score calculation.
     decay_pcts, decay_factors, est_after_decay = [], [], []
-    today_year = datetime.utcnow().year
     for _, r in df.iterrows():
-        title = r["Title"]
         raw_est = r.get("EstimatedTickets", 0.0)
         est_base = float(raw_est) if pd.notna(raw_est) else 0.0
-        last_mid = TITLE_TO_MIDDATE.get(title)
-        if isinstance(last_mid, date):
-            yrs_since = (proposed_run_date.year - last_mid.year) if proposed_run_date else (today_year - last_mid.year)
-        else:
-            yrs_since = None
-
-        if yrs_since is None:
-            decay_pct = 0.00
-        elif yrs_since >= 5:
-            decay_pct = 0.05
-        elif yrs_since >= 3:
-            decay_pct = 0.12
-        elif yrs_since >= 1:
-            decay_pct = 0.20
-        else:
-            decay_pct = 0.25
-
-        factor = 1.0 - decay_pct
-        est_after_remount = est_base * factor
-        est_final = round(est_after_remount * POSTCOVID_FACTOR)
+        
+        # No decay applied - factors removed per audit
+        decay_pct = 0.0
+        factor = 1.0
+        est_final = round(est_base * POSTCOVID_FACTOR)  # POSTCOVID_FACTOR is now 1.0
 
         decay_pcts.append(decay_pct)
         decay_factors.append(factor)
@@ -3065,10 +3051,11 @@ def render_results():
         else:
             est_tix = np.nan
 
-        # remount decay + post-COVID haircut
-        decay_factor = remount_novelty_factor(title_sel, run_date)
+        # Final ticket calculation (Remount decay + Post-COVID factors REMOVED per audit)
+        # Both factors now return 1.0 - no penalty applied
+        decay_factor = remount_novelty_factor(title_sel, run_date)  # Now returns 1.0
         est_tix_raw = (est_tix if np.isfinite(est_tix) else 0) * decay_factor
-        est_tix_final = int(round(est_tix_raw * POSTCOVID_FACTOR))
+        est_tix_final = int(round(est_tix_raw * POSTCOVID_FACTOR))  # POSTCOVID_FACTOR is 1.0
 
         # --- City split (recompute for season-picked month) ---
         split = city_split_for(title_sel, cat)  # {"Calgary": p, "Edmonton": 1-p}
