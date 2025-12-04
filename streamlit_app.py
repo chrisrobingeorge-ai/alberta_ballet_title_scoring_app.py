@@ -3000,6 +3000,7 @@ def render_results():
     #   - Ticket Index & Seasonality (Sections 4, 5)
     #   - Composite & Final Tickets (Section 11)
     #   - City Split (Section 7)
+    #   - Diagnostic & Contextual Fields (Section 14)
     # NOTE: ReturnDecayFactor removed - remount decay eliminated per audit
     table_cols = [
         "Title", "Category",
@@ -3013,6 +3014,18 @@ def render_results():
         "Composite", "EstimatedTickets_Final",
         # City Split (Section 7)
         "YYC_Singles", "YEG_Singles",
+        # Diagnostic & Contextual Fields (Section 14)
+        # Show & Audience Context
+        "lead_gender", "dominant_audience_segment", "segment_weights",
+        # Model & Historical Inputs
+        "ticket_median_prior", "prior_total_tickets", "run_count_prior",
+        "TicketIndex_Predicted",
+        # Temporal & Seasonality Info
+        "month_of_opening", "holiday_flag", "category_seasonality_factor",
+        # k-NN Metadata
+        "kNN_used", "kNN_neighbors",
+        # Live Analytics
+        "LA_Category",
     ]
     present_cols = [c for c in table_cols if c in df_show.columns]
 
@@ -3048,6 +3061,15 @@ def render_results():
             # City Split
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
+            # Diagnostic & Contextual Fields (Section 14)
+            # Model & Historical Inputs
+            "ticket_median_prior": "{:,.0f}",
+            "prior_total_tickets": "{:,.0f}",
+            "run_count_prior": "{:,.0f}",
+            "TicketIndex_Predicted": "{:.1f}",
+            # Temporal & Seasonality Info
+            "month_of_opening": "{:.0f}",
+            "category_seasonality_factor": "{:.3f}",
         }),
         width='stretch',
         hide_index=True
