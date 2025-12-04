@@ -1,10 +1,10 @@
 {
-  "model_path": "/tmp/pytest-of-runner/pytest-1/test_train_baseline_model_succ0/test_model.pkl",
-  "training_date": "2025-12-04T08:51:55.698924",
+  "model_path": "/tmp/pytest-of-runner/pytest-0/test_train_baseline_model_succ0/test_model.pkl",
+  "training_date": "2025-12-04T09:43:21.640738",
   "metrics": {
-    "mae": 589.7792488977625,
-    "rmse": 716.5984191571988,
-    "r2": 0.7912394968640799,
+    "mae": 589.6879028986451,
+    "rmse": 716.5402429509371,
+    "r2": 0.7912733914437511,
     "n_train": 80,
     "n_test": 20,
     "features_used": [
@@ -35,8 +35,8 @@
     "rf__max_features": null,
     "rf__max_depth": 15
   },
-  "config_hash": 4113113,
-  "git_commit_hash": "918c98f",
+  "config_hash": 39938460,
+  "git_commit_hash": "f57a4ad",
   "data_file_hash": null,
   "dataset_shape": {
     "n_rows": 100,
