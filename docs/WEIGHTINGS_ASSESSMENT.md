@@ -1,16 +1,14 @@
 # Weightings Assessment Summary
 
-**Date:** December 2, 2025  
-**Scope:** Assessment of three weighting systems in Alberta Ballet Title Scoring App  
-**Status:** ✅ COMPLETED
+This document summarizes the three key weighting systems (Live Analytics, Economics, Stone Olafson) in the Alberta Ballet Title Scoring App.
 
 ---
 
-## What Was Done
+## Overview
 
-This assessment systematically validated that the three key weighting systems (Live Analytics, Economics, Stone Olafson) are correctly wired and actively influencing the app's ticket demand predictions.
+All three weighting systems are correctly wired and actively influence the app's ticket demand predictions.
 
-### Deliverables
+### Related Documentation
 
 1. **Documentation**
    - `docs/weightings_map.md` - Comprehensive mapping of each weighting system
@@ -231,21 +229,16 @@ for feat in ['aud__engagement_factor', 'consumer_confidence_prairies',
 
 ---
 
-## Files Created/Modified
+## Related Files
 
-### New Files
+### Documentation
 - `docs/weightings_map.md` - System architecture documentation
 - `docs/weightings_diagnostics.md` - Quantitative findings report
+
+### Diagnostic Tools
 - `scripts/diagnose_weightings.py` - Diagnostic automation
 - `tests/test_weightings.py` - Unit/integration tests
 - `results/weightings_impact_summary.csv` - Per-show analysis
-
-### No Code Changes Required
-
-**Important:** No business logic was modified. All three weighting systems are correctly wired. The issues are:
-- Data quality (consumer confidence flat)
-- Feature engineering opportunities (Live Analytics granularity)
-- Architectural decisions (Stone Olafson hard-coded multipliers)
 
 ---
 
@@ -258,9 +251,7 @@ for feat in ['aud__engagement_factor', 'consumer_confidence_prairies',
 2. **Live Analytics** (+0.8% correlation) - Working but limited by 4-value granularity
 3. **Stone Olafson** (0% correlation) - Technically working but adds no predictive value
 
-**Next Steps:**
-1. Investigate consumer confidence data source (high priority)
-2. Consider enhancing Live Analytics granularity
-3. Evaluate whether Stone Olafson multipliers should remain
-
-**No Bugs Found:** The wiring is correct. The issues are feature engineering and data quality, not implementation bugs.
+**Known Data Quality Issues:**
+1. Consumer confidence data source has limited variance (high priority to address)
+2. Live Analytics granularity limited to 4 values
+3. Stone Olafson multipliers are hard-coded rather than data-driven

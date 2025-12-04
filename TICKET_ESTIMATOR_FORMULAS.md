@@ -186,24 +186,22 @@ EffectiveTicketIndex = TicketIndex_DeSeason × FutureSeasonalityFactor
 
 ---
 
-## 6. Remount Decay Formula
+## 6. Remount Behavior
 
-> **⚠️ REMOVED (December 2024)**: Per external audit finding "Structural Pessimism", the remount decay factor has been **eliminated**. The compounding of this factor with Post-COVID adjustments caused up to 33% reduction in valid predictions. The base ML model already accounts for remount behavior through the `is_remount_recent`, `is_remount_medium`, and `years_since_last_run` features.
+Remount behavior is captured through ML model features rather than a separate decay formula:
 
-~~Remount decay reduces estimates for titles that ran recently:~~
+| Feature | Description |
+|---------|-------------|
+| `is_remount_recent` | Binary flag: title ran within last 2 years |
+| `is_remount_medium` | Binary flag: title ran 2-4 years ago |
+| `years_since_last_run` | Numeric years since last run |
 
-| Years Since Last Run | Decay Percentage | Decay Factor |
-|---------------------|------------------|--------------|
-| ~~< 1 year~~ | ~~25%~~ | ~~0.75~~ |
-| ~~1-2 years~~ | ~~20%~~ | ~~0.80~~ |
-| ~~3-4 years~~ | ~~12%~~ | ~~0.88~~ |
-| ~~≥ 5 years~~ | ~~5%~~ | ~~0.95~~ |
-| All titles | 0% | **1.00** |
+The ML model learns the appropriate adjustment based on remount timing from historical data.
 
-### Current Formula
+### Formula
 ```
-ReturnDecayFactor = 1.0  # Always 1.0 - no decay applied
-EstimatedTickets_After_Remount = EstimatedTickets  # No reduction
+ReturnDecayFactor = 1.0  # No explicit decay factor applied
+EstimatedTickets_After_Remount = EstimatedTickets  # Remount effects learned by ML model
 ```
 
 ---
@@ -325,8 +323,8 @@ Arts-specific sentiment derived from Nanos survey data on arts giving, integrate
 
 The `Econ_ArtsSentiment` feature is merged to show data by year using `merge_asof` with forward-fill logic for future dates.
 
-### Temporal Join Strategy (December 2025 Update)
-All economic feature joins now use **temporal matching** via `pd.merge_asof`:
+### Temporal Join Strategy
+All economic feature joins use **temporal matching** via `pd.merge_asof`:
 
 1. Sort shows by `opening_date`
 2. Sort economic indicator data by date
@@ -406,26 +404,18 @@ EstimatedTickets = (EffectiveTicketIndex / 100) × Benchmark_Tickets_DeSeasonali
 
 ### Final Tickets (After All Adjustments)
 
-> **⚠️ UPDATED (December 2024)**: Per external audit finding "Structural Pessimism", both the Remount Decay Factor and Post-COVID Factor have been **removed** (set to 1.0). The compounding of these factors caused up to 33% reduction in valid predictions. The Region Factor is retained for geographical variance.
-
 ```
-# Previous formula (DEPRECATED):
-# EstimatedTickets_Final = EstimatedTickets × ReturnDecayFactor × POSTCOVID_FACTOR
-
-# Current formula:
 EstimatedTickets_Final = EstimatedTickets  # No penalty factors applied
 ```
 
 ### Post-COVID Factor
 
-> **⚠️ REMOVED (December 2024)**: The Post-COVID factor has been eliminated to prevent "Structural Pessimism".
+The post-COVID factor is set to 1.0, meaning no demand haircut is applied:
 
 ```yaml
 # From config.yaml
 demand:
-  # postcovid_factor REMOVED per audit finding "Structural Pessimism"
-  # Setting to 1.0 eliminates the compounding penalty that reduced predictions by up to 33%
-  postcovid_factor: 1.0  # No haircut applied (was 0.85)
+  postcovid_factor: 1.0  # No haircut applied
 ```
 
 ---
@@ -485,8 +475,7 @@ The k-NN similarity matching uses these baseline signals:
 
 ### Demand Settings
 ```yaml
-# postcovid_factor REMOVED per audit finding "Structural Pessimism"
-postcovid_factor: 1.0  # No haircut applied (was 0.85)
+postcovid_factor: 1.0  # No haircut applied
 ticket_blend_weight: 0.50  # Balance signals vs ticket history
 ```
 
@@ -628,15 +617,10 @@ Adding these fields to the export is a non-breaking change. They are purely info
 8. Estimate Raw Tickets
    └── EstimatedTickets = (EffectiveTicketIndex / 100) × Benchmark_Tickets
 
-9. [REMOVED] Remount Decay
-   └── No longer applied (was: EstimatedTickets × decay_factor)
-   └── Remount behavior now captured in ML model features
+9. Apply Remount Effects (via ML model features)
+   └── Remount behavior captured in model features (is_remount_recent, is_remount_medium, years_since_last_run)
 
-10. [REMOVED] Post-COVID Factor
-    └── No longer applied (was: × 0.85)
-    └── Factor set to 1.0 per audit finding "Structural Pessimism"
-
-11. Final Tickets = EstimatedTickets (no penalty factors)
+10. Final Tickets = EstimatedTickets (no penalty factors)
 
 12. Split by City (Region Factor RETAINED)
     ├── YYC = Final × CityShare_Calgary (default 60%)
@@ -666,5 +650,3 @@ Adding these fields to the export is a non-breaking change. They are purely info
 ---
 
 *Last updated: December 2025*
-*Audit update: Removed Post-COVID Factor and Remount Decay to fix "Structural Pessimism"*
-*December 2025 update: Economic features now use temporal joins (pd.merge_asof) for time-varying data*

@@ -2,20 +2,9 @@
 
 ## Overview
 
-This document describes the advanced regression modeling implementation that replaced simple linear regression in the Alberta Ballet title scoring application to provide more accurate statistical projections.
+This document describes the advanced regression modeling implementation in the Alberta Ballet title scoring application that provides accurate statistical projections.
 
-## Problem Statement
-
-The original implementation used simple linear regression (`np.polyfit`) to predict ticket indices from signal scores. While functional, this approach:
-- Could not capture non-linear relationships in the data
-- Provided limited model performance metrics
-- Lacked cross-validation for robustness assessment
-
-## Solution
-
-We implemented a tiered machine learning approach using scikit-learn and XGBoost:
-
-### Model Selection Strategy
+## Model Selection Strategy
 
 The system automatically selects the best model based on dataset size:
 
@@ -533,16 +522,9 @@ python scripts/analyze_safe_model.py
 ## Future Enhancements
 
 Potential improvements:
-1. ~~**Model Persistence**: Save trained models to disk for faster app startup~~ ✓ Implemented
-2. ~~**Hyperparameter Tuning**: Add GridSearchCV for optimal hyperparameters~~ ✓ Via --tune flag
-3. ~~**Feature Engineering**: Incorporate additional features (genre, gender, category)~~ ✓ Implemented
-4. **Ensemble Methods**: Combine predictions from multiple models
-5. **Uncertainty Quantification**: Add prediction intervals/confidence bounds
-6. **Online Learning**: Update models incrementally as new data arrives
-7. ~~**SHAP Explanations**: Feature importance visualization~~ ✓ Via --save-shap flag
-8. ~~**Live Economic Data**: Bank of Canada Valet API integration~~ ✓ Implemented
-9. ~~**Alberta Economic Data**: Alberta Economic Dashboard integration~~ ✓ Implemented
-10. ~~**Model Analysis Script**: Interpretability artifacts and surrogate model~~ ✓ Implemented
+1. **Ensemble Methods**: Combine predictions from multiple models
+2. **Uncertainty Quantification**: Add prediction intervals/confidence bounds
+3. **Online Learning**: Update models incrementally as new data arrives
 
 ## References
 
