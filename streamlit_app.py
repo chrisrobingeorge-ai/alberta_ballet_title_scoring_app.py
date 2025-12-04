@@ -87,7 +87,6 @@ def load_config(path: str = "config.yaml"):
     global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE
     global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
     global K_SHRINK, MINF, MAXF, N_MIN
-    global DEFAULT_MARKETING_SPT_CITY
     # New robust forecasting settings
     global ML_CONFIG, KNN_CONFIG, CALIBRATION_CONFIG
 
@@ -127,11 +126,7 @@ def load_config(path: str = "config.yaml"):
     MAXF = seas_cfg.get("max_factor", MAXF)
     N_MIN = seas_cfg.get("n_min", N_MIN)
 
-    # 6) Marketing defaults
-    mkt_cfg = cfg.get("marketing_defaults", {})
-    DEFAULT_MARKETING_SPT_CITY = mkt_cfg.get("default_marketing_spt_city", DEFAULT_MARKETING_SPT_CITY)
-
-    # 7) New robust forecasting settings (opt-in)
+    # 6) New robust forecasting settings (opt-in)
     ML_CONFIG = cfg.get("model", {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True})
     KNN_CONFIG = cfg.get("knn", {"enabled": True, "k": 5})
     CALIBRATION_CONFIG = cfg.get("calibration", {"enabled": False, "mode": "global"})
@@ -233,13 +228,11 @@ def _plain_language_overview_text() -> list:
     ))
     out.append(SP(1, 8))
 
-    # Paragraph 4: City splits and marketing spend
+    # Paragraph 4: City splits
     out.append(P(
         "With the seasonal adjustment in place, the model applies learned Calgary/Edmonton audience "
         "patterns, splitting expected demand between the two cities using historical shares for "
-        "similar productions. This is followed by a calculation of recommended marketing spend, "
-        "based on long-run medians of marketing dollars per sold single ticket by city and, where "
-        "possible, by category and title.",
+        "similar productions.",
         styles["body"],
     ))
     out.append(SP(1, 8))
@@ -305,10 +298,6 @@ def _methodology_glossary_text() -> list:
         "(vs the benchmark).",
         "<b>Seasonality Factor</b>: some months sell better than others for a given type of show.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
-        "<b>Marketing spend per single</b>: historic median $ of paid media per sold single "
-        "ticket, learned by title×city where possible, then category×city, then city-wide.",
-        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = "
-        "marketing $/single × forecast singles in each city.",
     ]
     for g in glossary_items:
         out.append(P(g, styles["body"]))
@@ -349,8 +338,6 @@ def _methodology_glossary_text() -> list:
         "We adjust for the <b>month</b> you plan to run it (some months sell better).",
         "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned "
         "historical shares to produce <b>single ticket</b> estimates.",
-        "We compute recommended <b>marketing spend</b> using learned "
-        "per-single-ticket marketing $ by title/category and city.",
     ]
     for b in bullets:
         out.append(P(f"• {b}", styles["body"]))
@@ -376,9 +363,6 @@ _FULL_SEASON_TABLE_COL_WIDTHS = {
     "EstimatedTickets_Final": 0.5 * inch,
     "YYC_Singles": 0.4 * inch,
     "YEG_Singles": 0.4 * inch,
-    "YYC_Mkt_Spend": 0.55 * inch,
-    "YEG_Mkt_Spend": 0.55 * inch,
-    "Total_Mkt_Spend": 0.55 * inch,
     "PrimarySegment": 0.9 * inch,
     "SecondarySegment": 0.8 * inch,
     "LA_EngagementFactor": 0.45 * inch,
@@ -476,7 +460,6 @@ def build_season_summary(plan_df: pd.DataFrame) -> pd.DataFrame:
           - Estimated Tickets: Total ticket forecast
           - YYC Singles: Calgary single ticket forecast
           - YEG Singles: Edmonton single ticket forecast
-          - Total Marketing Spend: Combined marketing budget
           - Segment Tilt: Primary audience segment label
           - Index Strength: 1–5 star rating based on ticket index
     
@@ -487,7 +470,7 @@ def build_season_summary(plan_df: pd.DataFrame) -> pd.DataFrame:
     if plan_df is None or plan_df.empty:
         return pd.DataFrame(columns=[
             "Month", "Show Title", "Category", "Estimated Tickets",
-            "YYC Singles", "YEG Singles", "Total Marketing Spend",
+            "YYC Singles", "YEG Singles",
             "Segment Tilt", "Index Strength"
         ])
     
@@ -528,15 +511,6 @@ def build_season_summary(plan_df: pd.DataFrame) -> pd.DataFrame:
         else:
             est_tickets = int(est_tickets)
         
-        # Calculate total marketing spend
-        total_mkt = r.get("Total_Mkt_Spend", None)
-        if total_mkt is None or pd.isna(total_mkt):
-            yyc_mkt = r.get("YYC_Mkt_Spend", 0) or 0
-            yeg_mkt = r.get("YEG_Mkt_Spend", 0) or 0
-            total_mkt = float(yyc_mkt) + float(yeg_mkt)
-        else:
-            total_mkt = float(total_mkt)
-        
         # Get ticket index for strength rating
         # Prefer "TicketIndex used" (EffectiveTicketIndex), then TicketIndex_DeSeason_Used
         idx_val = r.get("TicketIndex used", r.get("EffectiveTicketIndex", 
@@ -550,7 +524,6 @@ def build_season_summary(plan_df: pd.DataFrame) -> pd.DataFrame:
             "Estimated Tickets": est_tickets,
             "YYC Singles": int(r.get("YYC_Singles", 0) or 0),
             "YEG Singles": int(r.get("YEG_Singles", 0) or 0),
-            "Total Marketing Spend": f"${total_mkt:,.0f}" if total_mkt else "$0",
             "Segment Tilt": segment_tilt_label(r),
             "Index Strength": index_strength_rating(idx_val),
         })
@@ -593,7 +566,6 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
         "Estimated Tickets": "Est. Tickets",
         "YYC Singles": "YYC",
         "YEG Singles": "YEG",
-        "Total Marketing Spend": "Mkt Spend",
         "Segment Tilt": "Segment",
         "Index Strength": "Strength"
     }
@@ -638,8 +610,8 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     
     # Define column widths optimized for landscape LETTER page (10" usable width)
     # Total available: ~10 inches = 720 points (with 0.5" margins each side)
-    # Total used: ~7.9 inches - intentionally leaves margin for grid lines, 
-    # padding, and to avoid clipping on different printers/PDF viewers.
+    # Total used: ~7.1 inches (0.7+1.6+1.0+0.7+0.55+0.55+1.4+0.6)
+    # Intentionally leaves margin for grid lines, padding, and to avoid clipping.
     col_widths = [
         0.7 * inch,   # Month
         1.6 * inch,   # Show Title (needs room for wrapping)
@@ -647,7 +619,6 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
         0.7 * inch,   # Est. Tickets
         0.55 * inch,  # YYC
         0.55 * inch,  # YEG
-        0.8 * inch,   # Mkt Spend
         1.4 * inch,   # Segment (may need wrapping)
         0.6 * inch,   # Strength (stars)
     ]
@@ -663,10 +634,10 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
         ("LINEABOVE", (0, 0), (-1, 0), 1, colors.black),
         ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
         # Alignment - center numeric columns, left-align text
-        ("ALIGN", (3, 1), (6, -1), "CENTER"),  # Tickets and Mkt Spend
-        ("ALIGN", (8, 1), (8, -1), "CENTER"),  # Strength stars
+        ("ALIGN", (3, 1), (5, -1), "CENTER"),  # Tickets columns
+        ("ALIGN", (7, 1), (7, -1), "CENTER"),  # Strength stars
         ("ALIGN", (0, 0), (2, -1), "LEFT"),    # Month, Title, Category
-        ("ALIGN", (7, 1), (7, -1), "LEFT"),    # Segment
+        ("ALIGN", (6, 1), (6, -1), "LEFT"),    # Segment
         # Alternating row backgrounds
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f5f5")]),
         # Grid and borders
@@ -690,7 +661,6 @@ def _narrative_for_row(r: dict) -> str:
       - Seasonality factor for the scheduled month
       - Primary and secondary audience segments
       - YYC/YEG city split shares
-      - Marketing spend per single and total recommended budget
     
     NOTE: This narrative does NOT reference any removed or legacy penalty factors.
     The remount decay factor (ReturnDecayPct) is only mentioned if > 0, but as of the
@@ -707,21 +677,10 @@ def _narrative_for_row(r: dict) -> str:
 
     pri = r.get("PrimarySegment",""); sec = r.get("SecondarySegment","")
 
-    # Marketing
-    total_mkt = r.get("Total_Mkt_Spend", 0) or 0
-    singles_total = (
-        (r.get("YYC_Singles", 0) or 0) +
-        (r.get("YEG_Singles", 0) or 0)
-    )
-    try:
-        mkt_per_single = (float(total_mkt) / float(singles_total)) if singles_total else 0.0
-    except Exception:
-        mkt_per_single = 0.0
-		
     parts = []
     parts.append(f"<b>{month} — {title}</b> ({cat})")
     parts.append(f"Estimated demand comes from a combined interest score converted into a <b>Ticket Index</b> of {_dec(idx_used,1)}.")
-    parts.append(f"For {month.split()[0]}, this category’s month factor is {_dec(f_season,3)} (months above 1.0 sell better).")
+    parts.append(f"For {month.split()[0]}, this category's month factor is {_dec(f_season,3)} (months above 1.0 sell better).")
     if decay_pct and float(decay_pct) > 0:
         parts.append(f"We apply a small repeat reduction of {_pct(decay_pct)} due to recent performances.")
     if pri:
@@ -730,9 +689,6 @@ def _narrative_for_row(r: dict) -> str:
         f"We split sales using learned shares: Calgary {_pct(c_share,0)} / Edmonton {_pct(e_share,0)}, giving "
         f"<b>{_num(yyc)}</b> tickets in YYC and <b>{_num(yeg)}</b> in YEG."
     )
-    if total_mkt:
-        extra = f" (~${_dec(mkt_per_single,2)} in paid media per single)" if mkt_per_single else ""
-        parts.append(f"Based on historic marketing spend per single, the recommended paid-media budget is about <b>${_num(total_mkt)}</b>{extra}.")
     return " ".join(parts)
 
 
@@ -756,9 +712,7 @@ def _make_season_table_wide(plan_df: pd.DataFrame) -> Table:
 def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
     """
     Build a wide season summary with months as columns and rows:
-      Show Title, Estimated Tickets, YYC/YEG Singles,
-      Marketing, Production, Total Expenses,
-    with all $ values formatted with dollar signs (table + CSV).
+      Show Title, Estimated Tickets, YYC/YEG Singles.
     """
     # Month order & labels
     month_order = ["September", "October", "January", "February", "March", "May"]
@@ -781,15 +735,6 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
         "Estimated Tickets",
         "YYC Singles",
         "YEG Singles",
-        "",
-        "EXPENSES",
-        "Average YYC Marketing Spend",
-        "Average YEG Marketing Spend",
-        "YYC Marketing Spend",
-        "YEG Marketing Spend",
-        "Total Marketing Spend",
-        "Total Production Expenses",
-        "Total Expenses",
     ]
 
     out = pd.DataFrame(index=index_labels, columns=month_cols, dtype=object)
@@ -802,57 +747,6 @@ def build_season_financial_summary_table(plan_df: pd.DataFrame) -> pd.DataFrame:
 
         out.at["YYC Singles", col_name] = int(r.get("YYC_Singles", 0) or 0)
         out.at["YEG Singles", col_name] = int(r.get("YEG_Singles", 0) or 0)
-
-        # Expenses (numeric for now)
-        out.at["Average YYC Marketing Spend", col_name] = float(r.get("YYC_Mkt_SPT", 0) or 0)
-        out.at["Average YEG Marketing Spend", col_name] = float(r.get("YEG_Mkt_SPT", 0) or 0)
-
-        yyc_mkt = float(r.get("YYC_Mkt_Spend", 0) or 0)
-        yeg_mkt = float(r.get("YEG_Mkt_Spend", 0) or 0)
-        tot_mkt = float(r.get("Total_Mkt_Spend", 0) or (yyc_mkt + yeg_mkt))
-
-        out.at["YYC Marketing Spend", col_name] = yyc_mkt
-        out.at["YEG Marketing Spend", col_name] = yeg_mkt
-        out.at["Total Marketing Spend", col_name] = tot_mkt
-
-        prod = float(r.get("Prod_Expense", 0) or 0)
-        out.at["Total Production Expenses", col_name] = prod
-
-        total_exp = tot_mkt + prod
-        out.at["Total Expenses", col_name] = total_exp
-
-    # --- Format all $ fields with dollar signs (for table + CSV) ---
-    currency_rows = [
-        "Average YYC Marketing Spend",
-        "Average YEG Marketing Spend",
-        "YYC Marketing Spend",
-        "YEG Marketing Spend",
-        "Total Marketing Spend",
-        "Total Production Expenses",
-        "Total Expenses",
-    ]
-
-    for row in currency_rows:
-        if row not in out.index:
-            continue
-        formatted_vals = []
-        for col in out.columns:
-            v = out.at[row, col]
-            if v == "" or pd.isna(v):
-                formatted_vals.append("")
-                continue
-            try:
-                fv = float(v)
-            except Exception:
-                formatted_vals.append(str(v))
-                continue
-
-            # Averages keep 2 decimals; everything else whole dollars
-            if "Average" in row:
-                formatted_vals.append(f"${fv:,.2f}")
-            else:
-                formatted_vals.append(f"${fv:,.0f}")
-        out.loc[row] = formatted_vals
 
     return out
 
@@ -915,9 +809,6 @@ def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
       - Estimated Tickets (Total)
       - YYC Singles
       - YEG Singles
-      - YYC Marketing Spend
-      - YEG Marketing Spend
-      - Total Marketing Spend
       - Primary Segment
       - Secondary Segment
       - LA_EngagementFactor (if available)
@@ -963,9 +854,6 @@ def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
         ("EstimatedTickets_Final", "Est. Tix", lambda x: f"{int(x):,}" if pd.notna(x) else ""),
         ("YYC_Singles", "YYC", lambda x: f"{int(x):,}" if pd.notna(x) else ""),
         ("YEG_Singles", "YEG", lambda x: f"{int(x):,}" if pd.notna(x) else ""),
-        ("YYC_Mkt_Spend", "YYC Mkt", lambda x: f"${float(x):,.0f}" if pd.notna(x) else ""),
-        ("YEG_Mkt_Spend", "YEG Mkt", lambda x: f"${float(x):,.0f}" if pd.notna(x) else ""),
-        ("Total_Mkt_Spend", "Tot Mkt", lambda x: f"${float(x):,.0f}" if pd.notna(x) else ""),
         ("PrimarySegment", "Prim. Seg", lambda x: str(x) if pd.notna(x) and x else ""),
         ("SecondarySegment", "Sec. Seg", lambda x: str(x) if pd.notna(x) and x else ""),
     ]
@@ -1290,27 +1178,6 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **General Population**, **Core Classical (F35–64)**, **Family (Parents w/ kids)**, **Emerging Adults (18–34)**.  
     These shares are applied to **EstimatedTickets_Final** to get per-segment ticket estimates and the **primary/secondary segment**.
 
-    ### 8) Marketing spend recommendations
-    **Marketing spend per single ticket (SPT)**
-    - From `data/marketing_spend_per_ticket.csv` we learn typical **$ of paid media per sold single ticket**:
-      - **Title×City median** $/single where data exist (e.g., ** in YYC).
-      - **Category×City median** $/single as a fallback (e.g., `classic_romance` in YEG).
-      - **City-wide median** $/single as a final default.
-    - The helper `marketing_spt_for(title, category, city)` picks the best available prior:
-      1. Title×City  
-      2. Category×City  
-      3. City-wide default
-
-    **Recommended marketing budgets in the season builder**  
-    - For each picked show in **📅 Build a Season**, the app:
-      1. Forecasts final tickets in YYC and YEG (after seasonality & remount).  
-      2. Retrieves **SPT** for YYC and YEG via `marketing_spt_for`.  
-      3. Multiplies singles × SPT to get:
-         - `YYC_Mkt_Spend` = YYC singles × YYC_SPT
-         - `YEG_Mkt_Spend` = YEG singles × YEG_SPT
-         - `Total_Mkt_Spend` = YYC + YEG  
-    - These appear in the **Season table**, **wide CSV**, and in the **Season at a glance** header as the projected season-level marketing spend and $/single.
-	
     ---
     ## Seasonality model (Category × Month)
     - Built from `PAST_RUNS` + `TICKET_PRIORS_RAW`.  
@@ -1330,8 +1197,6 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     ## Interpreting outputs
     - **Familiarity vs Motivation**: plot quadrants reveal whether a title is known but “sleepy” (high Familiarity, low Motivation) vs buzzy but less known (reverse).  
     - **Composite**: best single index for ranking if you plan to blend signal and sales history.  
-    - **EstimatedTickets_Final**: planning number after **future seasonality** and **remount decay**.  
-    - **Marketing columns**: `YYC_Mkt_SPT`, `YEG_Mkt_SPT`, city-level and total marketing spend — a guide to how much paid media is typically required to support the forecast.  
     - **Segment & city breakouts**: use for campaign design, pricing tests, and inventory planning.
 
     ---
@@ -1340,7 +1205,6 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - Outlier control: **YouTube** is winsorized within category (3rd–97th percentile).  
     - Seasonality is conservative: outliers trimmed, winter months pooled, and factors shrunk and clipped.  
     - Benchmark normalization cancels unit differences across segments/region.  
-    - Marketing SPT uses **medians** and ignores extreme per single-ticket spends (>200$) to avoid campaign one-offs dominating.
 	- Heuristics are used when live APIs are off or data are thin (clearly labelled in the UI).
 
     ---
@@ -1352,14 +1216,12 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     Note: This app focuses on single ticket estimation only.  
     - **Prediction clip** for ticket index: `[20, 180]`  
     - **SEGMENT_PRIOR_STRENGTH** (exponent on priors): `1.0` (tempering off)  
-    - **DEFAULT_MARKETING_SPT_CITY**: initial city-wide per single-ticket $ before learning from marketing history (`Calgary 10 / Edmonton 8`).
 	
     ---
     ## Limitations
     - Sparse categories/months reduce model power; app falls back to overall fits or signals-only where needed.  
     - Google Trends and Spotify heuristics are proxies when live APIs are off—treat as directional.  
     - Title disambiguation (e.g., films vs ballets) is handled heuristically; review unknown-title results.  
-    - Marketing outputs assume that **historic per single-ticket spend is roughly stable**; if your media strategy shifts significantly, those columns should be re-anchored.
 	
     ---
     ## Glossary
@@ -1377,11 +1239,9 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **YYC/YEG Split**: learned Calgary/Edmonton allocation for the title or its category.  
     - **Singles Mix**: learned subscriber share by **Category×City** (fallbacks if thin).  
     - **EstimatedTickets / Final**: projected tickets before/after remount decay.  
-    - **Marketing SPT (YYC_Mkt_SPT / YEG_Mkt_SPT)**: typical $ of paid media per sold single ticket in each city.
-    - **Marketing Spend (YYC_Mkt_Spend / YEG_Mkt_Spend / Total_Mkt_Spend)**: recommended campaign budget derived from SPT × forecast singles.
 
    ---
-    **Recommendation:** Use **Composite** to rank programs, **EstimatedTickets_Final** for capacity planning, and the **marketing columns** to benchmark and budget your paid media for each title.
+    **Recommendation:** Use **Composite** to rank programs and **EstimatedTickets_Final** for capacity planning.
     """))
 
 # -------------------------
@@ -1493,203 +1353,6 @@ def infer_show_type(title: str, category: str) -> str:
         return "contemporary_show"
 
     return "unknown"
-
-PROD_EXPENSE_TITLE: dict[str, float] = {}
-PROD_EXPENSE_SHOWTYPE: dict[str, float] = {}
-
-def learn_production_expenses(path: str = "data/showtype_expense.csv") -> None:
-    """
-    Expects a CSV with columns:
-      fiscal_year, title, prod_expense
-    Uses all years, takes medians per title and per inferred show_type.
-    """
-    global PROD_EXPENSE_TITLE, PROD_EXPENSE_SHOWTYPE
-
-    try:
-        df = pd.read_csv(path)
-    except Exception:
-        PROD_EXPENSE_TITLE = {}
-        PROD_EXPENSE_SHOWTYPE = {}
-        return
-
-    # Clean
-    colmap = {c.lower().strip(): c for c in df.columns}
-    tcol = colmap.get("title", "title")
-    ecol = colmap.get("prod_expense", "prod_expense")
-
-    df[tcol] = df[tcol].astype(str).str.strip()
-
-    def _num(x):
-        try:
-            if pd.isna(x):
-                return None
-            s = str(x).strip().replace(",", "")
-            if not s:
-                return None
-            return float(s)
-        except Exception:
-            return None
-
-    df[ecol] = df[ecol].map(_num)
-    # drop blank/zero-ish rows
-    df = df[df[ecol].notna() & (df[ecol] > 0)]
-
-    # 1) per-title median
-    PROD_EXPENSE_TITLE = (
-        df.groupby(tcol)[ecol]
-          .median()
-          .to_dict()
-    )
-
-    # 2) per-show_type median as fallback
-    def _show_type_for(t: str) -> str:
-        return infer_show_type(t, infer_gender_and_category(t)[1])
-
-    df["show_type"] = df[tcol].map(_show_type_for)
-
-    PROD_EXPENSE_SHOWTYPE = (
-        df.groupby("show_type")[ecol]
-          .median()
-          .to_dict()
-    )
-
-# --- Marketing spend priors (per single-ticket, by title × city and category × city) ---
-MARKETING_SPT_TITLE_CITY: dict[str, dict[str, float]] = {}      # {"Cinderella": {"Calgary": 7.0, "Edmonton": 5.5}, ...}
-MARKETING_SPT_CATEGORY_CITY: dict[str, dict[str, float]] = {}   # {"classic_romance": {"Calgary": 9.0, "Edmonton": 7.5}, ...}
-DEFAULT_MARKETING_SPT_CITY: dict[str, float] = {"Calgary": 10.0, "Edmonton": 8.0}  # overwritten by learner
-
-
-def learn_marketing_spt_from_history(mkt_df: pd.DataFrame) -> dict:
-    """
-    Expects columns:
-      - Show Title
-      - Calgary Show Date
-      - Edmonton Show Date
-      - Marketing Spend - Calgary   (per single-ticket $)
-      - Marketing Spend - Edmonton  (per single-ticket $)
-    Learns:
-      - MARKETING_SPT_TITLE_CITY[title][city]  (median $/single)
-      - MARKETING_SPT_CATEGORY_CITY[category][city]
-      - DEFAULT_MARKETING_SPT_CITY[city]       (city-wide median)
-    """
-    global MARKETING_SPT_TITLE_CITY, MARKETING_SPT_CATEGORY_CITY, DEFAULT_MARKETING_SPT_CITY
-    MARKETING_SPT_TITLE_CITY = {}
-    MARKETING_SPT_CATEGORY_CITY = {}
-    DEFAULT_MARKETING_SPT_CITY = {"Calgary": 10.0, "Edmonton": 8.0}
-
-    if mkt_df is None or mkt_df.empty:
-        return {"title_city": 0, "cat_city": 0, "note": "empty marketing history"}
-
-    df = mkt_df.copy()
-
-    def _find_col(cands):
-        lc = {c.lower().strip(): c for c in df.columns}
-        for want in cands:
-            if want.lower() in lc:
-                return lc[want.lower()]
-        for want in cands:
-            for k, orig in lc.items():
-                if want.lower() in k:
-                    return orig
-        return None
-
-    title_col = _find_col(["Show Title","Title","Production","Show"])
-    cal_col   = _find_col(["Marketing Spend - Calgary","Calgary Spend"])
-    edm_col   = _find_col(["Marketing Spend - Edmonton","Edmonton Spend"])
-
-    if title_col is None or cal_col is None or edm_col is None:
-        return {"title_city": 0, "cat_city": 0, "note": "missing columns"}
-
-    df[title_col] = df[title_col].astype(str).str.strip()
-
-    def _num(x):
-        try:
-            if pd.isna(x): return 0.0
-            return float(str(x).replace(",","").strip() or 0)
-        except Exception:
-            return 0.0
-
-    df[cal_col] = df[cal_col].map(_num)
-    df[edm_col] = df[edm_col].map(_num)
-
-    # Long form: one row per (Title, Category, City, SPT)
-    rows = []
-    for _, r in df.iterrows():
-        title = str(r[title_col]).strip()
-        if not title:
-            continue
-        cat = infer_gender_and_category(title)[1]
-
-        cal_spt = _num(r[cal_col])
-        edm_spt = _num(r[edm_col])
-
-        if cal_spt > 0:
-            rows.append((title, cat, "Calgary", cal_spt))
-        if edm_spt > 0:
-            rows.append((title, cat, "Edmonton", edm_spt))
-
-    if not rows:
-        return {"title_city": 0, "cat_city": 0, "note": "no positive spend rows"}
-
-    long_df = pd.DataFrame(rows, columns=["Title","Category","City","SPT"])
-
-    # Title × City medians
-    title_city_count = 0
-    for (title, city), g in long_df.groupby(["Title","City"]):
-        val = float(np.median(g["SPT"].values))
-        if val <= 0 or val > 200:
-            continue
-        MARKETING_SPT_TITLE_CITY.setdefault(title, {})[city] = val
-        title_city_count += 1
-
-    # Category × City medians
-    cat_city_count = 0
-    for (cat, city), g in long_df.groupby(["Category","City"]):
-        val = float(np.median(g["SPT"].values))
-        if val <= 0 or val > 200:
-            continue
-        MARKETING_SPT_CATEGORY_CITY.setdefault(cat, {})[city] = val
-        cat_city_count += 1
-
-    # City-wide defaults (medians over all titles)
-    for city, g in long_df.groupby("City"):
-        val = float(np.median(g["SPT"].values))
-        if val > 0 and val < 200:
-            DEFAULT_MARKETING_SPT_CITY[city] = val
-
-    return {"title_city": title_city_count, "cat_city": cat_city_count}
-
-CATEGORY_FALLBACK = {
-    "adult_literary_drama": "dramatic",
-    "contemporary_mixed_bill": "contemporary",
-    "touring_contemporary_company": "contemporary",
-}
-
-def marketing_spt_for(title: str, category: str, city: str) -> float:
-    city_norm = (city or "").lower()
-    if "calg" in city_norm:
-        city_key = "Calgary"
-    elif "edm" in city_norm:
-        city_key = "Edmonton"
-    else:
-        city_key = city or "Calgary"
-
-    t = (title or "").strip()
-
-    # 1) Title × City wins if present
-    if t in MARKETING_SPT_TITLE_CITY and city_key in MARKETING_SPT_TITLE_CITY[t]:
-        return MARKETING_SPT_TITLE_CITY[t][city_key]
-
-    # 2) Category × City, with fallback mapping for new categories
-    cat_key = (category or "").strip()
-    if cat_key not in MARKETING_SPT_CATEGORY_CITY and cat_key in CATEGORY_FALLBACK:
-        cat_key = CATEGORY_FALLBACK[cat_key]
-
-    if cat_key in MARKETING_SPT_CATEGORY_CITY and city_key in MARKETING_SPT_CATEGORY_CITY[cat_key]:
-        return MARKETING_SPT_CATEGORY_CITY[cat_key][city_key]
-
-    # 3) City-wide default
-    return DEFAULT_MARKETING_SPT_CITY.get(city_key, 8.0)
 
 
 def learn_priors_from_history(hist_df: pd.DataFrame) -> dict:
@@ -1937,76 +1600,6 @@ st.caption(
     f"categories: {s.get('categories_learned',0)}, "
     f"Note: Single tickets only"
 )
-# --- Marketing spend (fixed CSV from disk) ---
-try:
-    mkt_df = pd.read_csv("data/marketing_spend_per_ticket.csv")
-except Exception:
-    mkt_df = pd.DataFrame()
-
-mkt_summary = learn_marketing_spt_from_history(mkt_df)
-st.caption(
-    f"Marketing priors → title×city: {mkt_summary.get('title_city',0)}, "
-    f"category×city: {mkt_summary.get('cat_city',0)}"
-)
-# --- Production expenses (per title / show type) ---
-learn_production_expenses("data/showtype_expense.csv")
-# --- In-app production expense budgeting (optional overrides) ---
-with st.expander("💰 Production expense budgeting (optional overrides)"):
-    st.markdown(
-        "Use these to set *budgeted* per-run production expenses by show type "
-        "(and optionally by title). These override the history-based medians "
-        "when forecasting future seasons."
-    )
-
-    # Initialize session defaults from learned history (once)
-    if "budget_prod_expense_showtype" not in st.session_state:
-        st.session_state["budget_prod_expense_showtype"] = PROD_EXPENSE_SHOWTYPE.copy()
-    if "budget_prod_expense_title" not in st.session_state:
-        st.session_state["budget_prod_expense_title"] = {}
-
-    # --- Show-type level controls ---
-    if not PROD_EXPENSE_SHOWTYPE:
-        st.info("No production expense history loaded yet; overrides will apply once history is available.")
-    else:
-        st.subheader("By show type (category-level budgets)")
-        new_showtype_budgets: dict[str, float] = {}
-
-        for stype, hist_val in sorted(PROD_EXPENSE_SHOWTYPE.items()):
-            default_val = float(st.session_state["budget_prod_expense_showtype"].get(stype, hist_val))
-            budget_val = st.number_input(
-                f"{stype}",
-                min_value=0.0,
-                value=default_val,
-                step=10_000.0,
-                format="%.0f",
-                key=f"budget_stype_{stype}",
-            )
-            new_showtype_budgets[stype] = budget_val
-            st.caption(f"Historical median for {stype}: ${hist_val:,.0f}")
-
-        # save back to session
-        st.session_state["budget_prod_expense_showtype"] = new_showtype_budgets
-
-    # --- Optional: title-specific overrides ---
-    st.subheader("Optional: per-title overrides")
-    with st.form("prod_budget_title_form", clear_on_submit=True):
-        title_for_override = st.text_input("Title (exact match to the season builder title)")
-        title_budget = st.number_input(
-            "Budgeted production expense for this title",
-            min_value=0.0,
-            step=10_000.0,
-            format="%.0f",
-        )
-        submitted = st.form_submit_button("Add / update title override")
-        if submitted and title_for_override.strip():
-            st.session_state["budget_prod_expense_title"][title_for_override.strip()] = float(title_budget)
-            st.success(f"Override set for '{title_for_override.strip()}': ${title_budget:,.0f}")
-
-    # Show current title overrides
-    if st.session_state["budget_prod_expense_title"]:
-        st.markdown("**Current title-level overrides:**")
-        for t, v in st.session_state["budget_prod_expense_title"].items():
-            st.write(f"- {t}: ${v:,.0f}")
 
 # -------------------------
 # Optional APIs (used only if toggled ON)
@@ -3133,34 +2726,11 @@ def compute_scores_and_store(
         st.error("No titles to score — check the Titles box.")
         return
 
-    # Attach show type + production expense
+    # Attach show type
     df["ShowType"] = df.apply(
         lambda r: infer_show_type(r["Title"], r["Category"]),
         axis=1,
     )
-
-    def _prod_exp_for_row(r):
-        t = str(r["Title"]).strip()
-        stype = r["ShowType"]
-
-        # 1) In-app overrides
-        budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
-        budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
-
-        if t in budget_by_title:
-            return budget_by_title[t]
-        if stype in budget_by_showtype:
-            return budget_by_showtype[stype]
-
-        # 2) History-based medians
-        if t in PROD_EXPENSE_TITLE:
-            return PROD_EXPENSE_TITLE[t]
-        if stype in PROD_EXPENSE_SHOWTYPE:
-            return PROD_EXPENSE_SHOWTYPE[stype]
-
-        return np.nan
-
-    df["Prod_Expense"] = df.apply(_prod_exp_for_row, axis=1)
 
     # 2) Normalize to benchmark
     bench_entry = BASELINES[benchmark_title]
@@ -3618,39 +3188,6 @@ def compute_scores_and_store(
     df["YYC_Singles"] = cal_singles
     df["YEG_Singles"] = edm_singles
 
-    # 13) Marketing (title-level, for table view)
-    yyc_spt = []
-    yeg_spt = []
-    yyc_mkt = []
-    yeg_mkt = []
-    total_mkt = []
-
-    for _, r in df.iterrows():
-        title = str(r.get("Title", ""))
-        cat   = str(r.get("Category", ""))
-
-        yyc_sing = float(r.get("YYC_Singles", 0.0) or 0.0)
-        yeg_sing = float(r.get("YEG_Singles", 0.0) or 0.0)
-
-        # Marketing $/ticket and spend
-        spt_yyc = marketing_spt_for(title, cat, "Calgary")
-        spt_yeg = marketing_spt_for(title, cat, "Edmonton")
-        yyc_spt.append(spt_yyc)
-        yeg_spt.append(spt_yeg)
-
-        # Marketing spend is benchmarked on singles only
-        yyc_m = yyc_sing * spt_yyc
-        yeg_m = yeg_sing * spt_yeg
-        yyc_mkt.append(yyc_m)
-        yeg_mkt.append(yeg_m)
-        total_mkt.append(yyc_m + yeg_m)
-
-    df["YYC_Mkt_SPT"]     = yyc_spt
-    df["YEG_Mkt_SPT"]     = yeg_spt
-    df["YYC_Mkt_Spend"]   = yyc_mkt
-    df["YEG_Mkt_Spend"]   = yeg_mkt
-    df["Total_Mkt_Spend"] = total_mkt
-
     # 13) Seasonality meta
     seasonality_on_flag = proposed_run_date is not None
     df["SeasonalityApplied"] = bool(seasonality_on_flag)
@@ -3933,32 +3470,6 @@ def render_results():
         yyc_singles = int(round(yyc_total))
         yeg_singles = int(round(yeg_total))
 
-        # --- Recommended marketing spend (per city, based on $/ticket) ---
-        spt_yyc = marketing_spt_for(title_sel, cat, "Calgary")
-        spt_yeg = marketing_spt_for(title_sel, cat, "Edmonton")
-        # Marketing spend is benchmarked on singles only
-        yyc_mkt = float(yyc_singles or 0) * float(spt_yyc or 0)
-        yeg_mkt = float(yeg_singles or 0) * float(spt_yeg or 0)
-        total_mkt = float(yyc_mkt) + float(yeg_mkt)  
-
-        # Show type + production expense for budgeting
-        show_type = infer_show_type(title_sel, cat)
-
-        # Same priority order as in _prod_exp_for_row
-        budget_by_title    = st.session_state.get("budget_prod_expense_title", {})
-        budget_by_showtype = st.session_state.get("budget_prod_expense_showtype", {})
-
-        if title_sel in budget_by_title:
-            prod_expense = float(budget_by_title[title_sel])
-        elif show_type in budget_by_showtype:
-            prod_expense = float(budget_by_showtype[show_type])
-        elif title_sel in PROD_EXPENSE_TITLE:
-            prod_expense = float(PROD_EXPENSE_TITLE[title_sel])
-        elif show_type in PROD_EXPENSE_SHOWTYPE:
-            prod_expense = float(PROD_EXPENSE_SHOWTYPE[show_type])
-        else:
-            prod_expense = float("nan")  # or 0.0 if you prefer
-
         plan_rows.append({
             "Month": f"{m_name} {run_year}",
             "Title": title_sel,
@@ -4002,14 +3513,6 @@ def render_results():
             "YEG_Singles": int(yeg_singles),
             "CityShare_Calgary": float(c_sh),
             "CityShare_Edmonton": float(e_sh),
-
-            # Production expense + marketing
-            "Prod_Expense": float(prod_expense),
-            "YYC_Mkt_SPT":  float(spt_yyc),
-            "YEG_Mkt_SPT":  float(spt_yeg),
-            "YYC_Mkt_Spend": float(yyc_mkt),
-            "YEG_Mkt_Spend": float(yeg_mkt),
-            "Total_Mkt_Spend": float(total_mkt),
 
             # --- Diagnostic & Contextual Fields ---
             # Show & Audience Context
@@ -4059,12 +3562,6 @@ def render_results():
         "YEG_Singles",
         "CityShare_Calgary",
         "CityShare_Edmonton",
-        "YYC_Mkt_SPT",
-        "YEG_Mkt_SPT",
-        "YYC_Mkt_Spend",
-        "YEG_Mkt_Spend",
-        "Total_Mkt_Spend",
-        "Prod_Expense",
     ]
     present_plan_cols = [c for c in desired_order if c in plan_df.columns]
     plan_view = plan_df[present_plan_cols].copy()
@@ -4072,16 +3569,11 @@ def render_results():
     # --- Executive summary KPIs ---
     with st.container():
         st.markdown("### 📊 Season at a glance")
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3 = st.columns(3)
 
         yyc_tot = int(plan_df["YYC_Singles"].sum())
         yeg_tot = int(plan_df["YEG_Singles"].sum())
-        singles_tot = int(plan_df["YYC_Singles"].sum() + plan_df["YEG_Singles"].sum())
         grand = int(plan_df["EstimatedTickets_Final"].sum()) or 1
-
-        total_mkt  = float(plan_df["Total_Mkt_Spend"].sum())
-        total_single_tix = max(singles_tot, 1)
-        total_prod = float(plan_df["Prod_Expense"].sum())
 
         with c1:
             st.metric("Projected Season Tickets", f"{grand:,}")
@@ -4089,14 +3581,6 @@ def render_results():
             st.metric("Calgary • share", f"{yyc_tot:,}", delta=f"{yyc_tot/grand:.1%}")
         with c3:
             st.metric("Edmonton • share", f"{yeg_tot:,}", delta=f"{yeg_tot/grand:.1%}")
-        with c4:
-            st.metric(
-                "Projected Marketing Spend",
-                f"${total_mkt:,.0f}",
-                delta=f"${(total_mkt / total_single_tix):.0f} per single"
-            )
-        with c5:
-            st.metric("Season Production Expense", f"${total_prod:,.0f}")
 
         st.caption(
             "Penalty factors removed per audit: Post-COVID and Remount decay "
@@ -4179,9 +3663,6 @@ def render_results():
                 "EstimatedTickets","EstimatedTickets_Final",
                 "YYC_Singles","YEG_Singles",
                 "CityShare_Calgary","CityShare_Edmonton",
-                "YYC_Mkt_SPT","YEG_Mkt_SPT",
-                "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-                "Prod_Expense",
                 # Diagnostic & Contextual Fields
                 "lead_gender","dominant_audience_segment","segment_weights",
                 "ticket_median_prior","prior_total_tickets","run_count_prior",
@@ -4198,12 +3679,10 @@ def render_results():
 
             sty = df_wide.style
 
-            # Integer counts / $ (tickets & money)
+            # Integer counts (tickets)
             int_like_rows = [
                 "TicketHistory","EstimatedTickets","EstimatedTickets_Final",
                 "YYC_Singles","YEG_Singles",
-                "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-                "Prod_Expense",
                 # LA indices (shown as whole numbers)
                 "LA_HighSpenderIdx","LA_ActiveBuyerIdx","LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
                 # New diagnostic fields - integer values
@@ -4221,7 +3700,6 @@ def render_results():
 
             # Factors
             sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor","category_seasonality_factor"], :])
-            sty = sty.format("{:.2f}", subset=_S[["YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
             
             # LA and Econ factors
             sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
