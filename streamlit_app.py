@@ -1161,6 +1161,8 @@ with st.expander("👋 How to use this app (step-by-step)"):
     3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
     4. **Pick a benchmark:** Select the **Benchmark Title** to normalize indices (benchmark = 100).
     5. **Click _Score Titles_**, then use **📅 Build a Season** to assign titles to months.
+    
+    > 💡 **No manual model training required!** The app automatically trains prediction models when you click 'Score Titles'. The sidebar's "Advanced ML Settings" are optional and for power users only.
 
     ### Interpreting results
     - **Familiarity / Motivation** → index vs benchmark (100).
@@ -4345,8 +4347,11 @@ def render_results():
 # -------------------------
 # These features are loaded from config.yaml and can be toggled here
 # Default behavior remains unchanged unless user enables these options
-with st.sidebar.expander("⚙️ Advanced ML Settings", expanded=False):
-    st.caption("Experimental features from robust forecasting pipeline")
+with st.sidebar.expander("⚙️ Advanced ML Settings (optional)", expanded=False):
+    st.info(
+        "💡 **No manual training required!** Models are trained automatically when you "
+        "click 'Score Titles'. These settings are for advanced users only."
+    )
     
     # KNN fallback toggle
     knn_enabled_ui = st.checkbox(
@@ -4366,9 +4371,9 @@ with st.sidebar.expander("⚙️ Advanced ML Settings", expanded=False):
     try:
         from ml.predict_utils import is_ml_model_available, is_calibration_available
         if is_ml_model_available():
-            st.success("✓ Trained ML model available", icon="🤖")
+            st.success("✓ XGBoost model available (optional)", icon="🤖")
         else:
-            st.info("Train a model with: `python scripts/train_safe_model.py`")
+            st.caption("ℹ️ Optional: For enhanced predictions, run `python scripts/train_safe_model.py`")
         if calibration_enabled_ui and is_calibration_available():
             st.success("✓ Calibration parameters loaded", icon="📊")
         elif calibration_enabled_ui:
