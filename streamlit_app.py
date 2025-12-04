@@ -2730,7 +2730,8 @@ def compute_scores_and_store(
     today_year = datetime.utcnow().year
     for _, r in df.iterrows():
         title = r["Title"]
-        est_base = float(r.get("EstimatedTickets", 0.0) or 0.0)
+        raw_est = r.get("EstimatedTickets", 0.0)
+        est_base = float(raw_est) if pd.notna(raw_est) else 0.0
         last_mid = TITLE_TO_MIDDATE.get(title)
         if isinstance(last_mid, date):
             yrs_since = (proposed_run_date.year - last_mid.year) if proposed_run_date else (today_year - last_mid.year)
@@ -2767,7 +2768,8 @@ def compute_scores_and_store(
     for _, r in df.iterrows():
         title = str(r["Title"])
         cat   = str(r["Category"])
-        total = float(r.get("EstimatedTickets_Final", r.get("EstimatedTickets", 0.0)) or 0.0)
+        raw_total = r.get("EstimatedTickets_Final", r.get("EstimatedTickets", 0.0))
+        total = float(raw_total) if pd.notna(raw_total) else 0.0
         split = city_split_for(title, cat)  # {"Calgary": x, "Edmonton": 1-x}
         c_sh = float(split.get("Calgary", 0.6)); e_sh = float(split.get("Edmonton", 0.4))
         c_sh, e_sh = _normalize_pair(c_sh, e_sh)
