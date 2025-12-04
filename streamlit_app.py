@@ -2073,6 +2073,19 @@ def _median(xs):
     return xs[mid] if n % 2 else (xs[mid-1] + xs[mid]) / 2.0
 
 def load_ticket_priors(path: str = "data/productions/history_city_sales.csv") -> None:
+    """
+    Load ticket priors from history CSV, grouping city entries into production runs.
+    
+    A "production run" is defined as performances of the same show that occur within
+    60 days of each other. This typically means Calgary + Edmonton performances that
+    are part of the same touring production.
+    
+    For example:
+    - "Once Upon a Time" with Calgary (Sep 11) and Edmonton (Sep 19) = 1 run
+    - "Cinderella" with 2018 (Mar) and 2022 (Apr-May) = 2 runs
+    
+    The function stores per-run ticket totals (not per-city entries) in TICKET_PRIORS_RAW.
+    """
     global TICKET_PRIORS_RAW
     try:
         df = pd.read_csv(path, thousands=",")
@@ -2090,6 +2103,8 @@ def load_ticket_priors(path: str = "data/productions/history_city_sales.csv") ->
                colmap.get("single_tickets") or 
                colmap.get("tickets") or 
                colmap.get("ticket_median"))
+    # Date column for grouping runs
+    date_col = colmap.get("start_date")
 
     if not title_col or not tix_col:
         st.error("CSV must have title column ('show_title' or 'title') and tickets column ('Total Single Tickets', 'single_tickets', 'tickets', or 'ticket_median')")
@@ -2101,14 +2116,87 @@ def load_ticket_priors(path: str = "data/productions/history_city_sales.csv") ->
     # Convert ticket column to numeric (handles NaN and invalid values)
     df[tix_col] = pd.to_numeric(df[tix_col], errors="coerce")
 
+    # Parse start_date for grouping production runs
+    if date_col:
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+
     priors: dict[str, list[float]] = {}
     for title, g in df.groupby(title_col):
-        vals = [v for v in g[tix_col].tolist() if pd.notna(v) and v > 0]
-        if not vals:
-            continue
-        priors[str(title)] = vals
+        # Group city entries into production runs based on date proximity
+        if date_col and date_col in g.columns and g[date_col].notna().any():
+            run_totals = _group_into_production_runs(g, date_col, tix_col)
+        else:
+            # Fallback: sum all tickets as one run if no date column
+            vals = [v for v in g[tix_col].tolist() if pd.notna(v) and v > 0]
+            run_totals = [sum(vals)] if vals else []
+        
+        if run_totals:
+            priors[str(title)] = run_totals
 
     TICKET_PRIORS_RAW = priors
+
+
+def _group_into_production_runs(
+    group: pd.DataFrame,
+    date_col: str,
+    tix_col: str,
+    run_gap_days: int = 60
+) -> list[float]:
+    """
+    Group city entries into production runs based on date proximity.
+    
+    Entries within run_gap_days of each other are considered part of the same
+    production run. The function sums tickets for each production run.
+    
+    Args:
+        group: DataFrame with entries for a single title
+        date_col: Name of the date column
+        tix_col: Name of the ticket column
+        run_gap_days: Maximum days between entries to be considered same run (default: 60)
+        
+    Returns:
+        List of ticket totals, one per production run
+    """
+    # Sort by date, putting NaN dates at the end
+    group = group.sort_values(date_col, na_position='last')
+    
+    runs = []
+    current_run_tickets = []
+    current_run_start = None
+    
+    for _, row in group.iterrows():
+        ticket_val = row[tix_col]
+        date_val = row[date_col]
+        
+        # Skip invalid ticket entries
+        if pd.isna(ticket_val) or ticket_val <= 0:
+            continue
+            
+        # Handle entries without dates
+        if pd.isna(date_val):
+            # Add to current run if one exists, otherwise accumulate separately
+            current_run_tickets.append(float(ticket_val))
+            continue
+            
+        if current_run_start is None:
+            # First entry with a valid date - start a new run
+            current_run_start = date_val
+            current_run_tickets.append(float(ticket_val))
+        elif abs((date_val - current_run_start).days) <= run_gap_days:
+            # Same production run (within gap threshold, using abs for safety)
+            current_run_tickets.append(float(ticket_val))
+        else:
+            # New production run - save current run and start new one
+            if current_run_tickets:
+                runs.append(sum(current_run_tickets))
+            current_run_tickets = [float(ticket_val)]
+            current_run_start = date_val
+    
+    # Don't forget the last run
+    if current_run_tickets:
+        runs.append(sum(current_run_tickets))
+    
+    return runs
 
 # Load priors now so everything below can use them
 load_ticket_priors()
