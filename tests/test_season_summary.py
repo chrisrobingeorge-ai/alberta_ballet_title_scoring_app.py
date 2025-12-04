@@ -150,7 +150,6 @@ class TestBuildSeasonSummary:
             "EstimatedTickets_Final": 5000,
             "YYC_Singles": 3000,
             "YEG_Singles": 2000,
-            "Total_Mkt_Spend": 50000,
             "TicketIndex used": 95,
             "PrimarySegment": "Core Classical (F35–64)",
         }])
@@ -159,7 +158,7 @@ class TestBuildSeasonSummary:
         
         expected_cols = [
             "Month", "Show Title", "Category", "Estimated Tickets",
-            "YYC Singles", "YEG Singles", "Total Marketing Spend",
+            "YYC Singles", "YEG Singles",
             "Segment Tilt", "Index Strength"
         ]
         assert list(result.columns) == expected_cols
@@ -229,19 +228,6 @@ class TestBuildSeasonSummary:
         }])
         result_fallback = build_season_summary(test_df_fallback)
         assert result_fallback.iloc[0]["Estimated Tickets"] == 5000
-
-    def test_marketing_spend_formatting(self):
-        """Test that marketing spend is formatted with dollar sign."""
-        from streamlit_app import build_season_summary
-        
-        test_df = pd.DataFrame([{
-            "Month": "September 2025",
-            "Title": "Test",
-            "Total_Mkt_Spend": 50000,
-        }])
-        
-        result = build_season_summary(test_df)
-        assert result.iloc[0]["Total Marketing Spend"] == "$50,000"
 
     def test_index_strength_conversion(self):
         """Test that ticket index is converted to star rating."""
@@ -319,7 +305,6 @@ class TestBuildFullPdfReport:
             "ReturnDecayPct": 0.0,
             "CityShare_Calgary": 0.6,
             "CityShare_Edmonton": 0.4,
-            "Total_Mkt_Spend": 10000,
             "PrimarySegment": "Family",
         }])
         
