@@ -278,7 +278,6 @@ pip install lightgbm
 ```
 .
 ├── streamlit_app.py           # Main application
-├── title_scoring_helper.py    # Helper app for generating baselines
 ├── requirements.txt           # Python dependencies
 ├── config.yaml                # Configuration parameters
 ├── config/                    # ML registry CSVs
@@ -585,7 +584,6 @@ The data pulled by the CLI script lands in the `data/` directory as CSV files. T
 | Pull data from APIs (one-time) | `python scripts/pull_show_data.py --show_title "Show Name"` |
 | Pull data from APIs (scheduled) | Set up cron/scheduler for `scripts/pull_show_data.py` |
 | View predictions & analytics | `streamlit run streamlit_app.py` |
-| Score new titles manually | `python title_scoring_helper.py` |
 
 **Typical Workflow**:
 1. Set up API credentials in `.env`
@@ -681,7 +679,7 @@ Additionally, these config files should exist in `config/`:
 ### Obtaining Initial Datasets
 
 - **history_city_sales.csv**: Export from your ticketing system (Tessitura, Spektrix, etc.)
-- **baselines.csv**: Use `title_scoring_helper.py` to generate signal scores for your titles
+- **baselines.csv**: Contains signal scores for titles. See [ADDING_BASELINE_TITLES.md](ADDING_BASELINE_TITLES.md) for details on the format and how to add new titles.
 - **Config CSVs**: Template files are included in the repository
 
 ---
