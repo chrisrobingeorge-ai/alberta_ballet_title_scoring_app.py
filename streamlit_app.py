@@ -2925,30 +2925,28 @@ def render_results():
     elif "SeasonalityMonthUsed" in df_show.columns:
         df_show["RunMonth"] = df_show["SeasonalityMonthUsed"].apply(_to_month_name)
 
+    # Columns shown in "Estimated ticket sales (table view)" are limited to
+    # those most salient per TICKET_ESTIMATOR_FORMULAS.md:
+    #   - Input Signals (Section 1)
+    #   - Familiarity & Motivation (Section 2)
+    #   - Ticket Index & Seasonality (Sections 4, 5)
+    #   - Remount Decay (Section 6)
+    #   - Composite & Final Tickets (Section 11)
+    #   - City Split (Section 7)
     table_cols = [
-        "Title","Gender","Category","ShowType","Prod_Expense",
-        "PredictedPrimarySegment","PredictedSecondarySegment",
-
-        "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-        "Familiarity","Motivation","SignalOnly",
-        
-        # Live Analytics factors
-        "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
-        "LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
-        
-        # Economic factors
-        "Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor","Econ_Sources",
-        
-        "TicketHistory",
-        "TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
-        "RunMonth","FutureSeasonalityFactor","HistSeasonalityFactor",
-        "Composite","Score",
-        "EstimatedTickets",
-        "ReturnDecayFactor","ReturnDecayPct","EstimatedTickets_Final",
-        "YYC_Singles","YEG_Singles",
-        "CityShare_Calgary","CityShare_Edmonton",
-        "YYC_Mkt_SPT","YEG_Mkt_SPT",
-        "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+        "Title", "Category",
+        # Input Signal Variables (Section 1)
+        "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx",
+        # Familiarity & Motivation (Section 2)
+        "Familiarity", "Motivation", "SignalOnly",
+        # Ticket Index (Section 4) & Seasonality (Section 5)
+        "TicketIndex used", "TicketIndexSource", "FutureSeasonalityFactor",
+        # Composite & Final Tickets (Section 11)
+        "Composite", "EstimatedTickets_Final",
+        # Remount Decay (Section 6)
+        "ReturnDecayFactor",
+        # City Split (Section 7)
+        "YYC_Singles", "YEG_Singles",
     ]
     present_cols = [c for c in table_cols if c in df_show.columns]
 
@@ -2966,43 +2964,26 @@ def render_results():
         )
         .style
         .format({
+            # Input signals
             "WikiIdx": "{:.0f}",
             "TrendsIdx": "{:.0f}",
             "YouTubeIdx": "{:.0f}",
             "SpotifyIdx": "{:.0f}",
+            # Familiarity & Motivation
             "Familiarity": "{:.1f}",
             "Motivation": "{:.1f}",
             "SignalOnly": "{:.1f}",
-            # Live Analytics factors
-            "LA_EngagementFactor": "{:.3f}",
-            "LA_HighSpenderIdx": "{:.0f}",
-            "LA_ActiveBuyerIdx": "{:.0f}",
-            "LA_RepeatBuyerIdx": "{:.0f}",
-            "LA_ArtsAttendIdx": "{:.0f}",
-            # Economic factors
-            "Econ_Sentiment": "{:.3f}",
-            "Econ_BocFactor": "{:.3f}",
-            "Econ_AlbertaFactor": "{:.3f}",
-            "Composite": "{:.1f}",
-            "TicketIndex_DeSeason_Used": "{:.1f}",
+            # Ticket Index & Seasonality
             "TicketIndex used": "{:.1f}",
-            "TicketHistory": "{:,.0f}",
-            "EstimatedTickets": "{:,.0f}",
-            "EstimatedTickets_Final": "{:,.0f}",
             "FutureSeasonalityFactor": "{:.3f}",
-            "HistSeasonalityFactor": "{:.3f}",
-            "ReturnDecayPct": "{:.0%}",
+            # Composite & Tickets
+            "Composite": "{:.1f}",
+            "EstimatedTickets_Final": "{:,.0f}",
+            # Remount Decay
             "ReturnDecayFactor": "{:.2f}",
+            # City Split
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
-            "CityShare_Calgary": "{:.0%}",
-            "CityShare_Edmonton": "{:.0%}",
-            "YYC_Mkt_SPT": "${:.2f}",
-            "YEG_Mkt_SPT": "${:.2f}",
-            "YYC_Mkt_Spend": "${:,.0f}",
-            "YEG_Mkt_Spend": "${:,.0f}",
-            "Total_Mkt_Spend": "${:,.0f}",
-            "Prod_Expense": "${:,.0f}",
         }),
         width='stretch',
         hide_index=True
