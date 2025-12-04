@@ -22,8 +22,8 @@ The history file contains three categories of data:
 
 | Column | Source | Description |
 |--------|--------|-------------|
-| `single_tickets_calgary` | Box Office / Tessitura | Real single tickets sold in Calgary |
-| `single_tickets_edmonton` | Box Office / Tessitura | Real single tickets sold in Edmonton |
+| `single_tickets_calgary` | Box Office / Ticketmaster | Real single tickets sold in Calgary |
+| `single_tickets_edmonton` | Box Office / Ticketmaster | Real single tickets sold in Edmonton |
 | `total_single_tickets` | Calculated | Sum of single tickets across both cities (**ACTUAL**) |
 
 #### 2. **External Model Predictions** (YourModel)
