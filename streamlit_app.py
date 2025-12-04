@@ -4,6 +4,7 @@
 # - Small fixes: softmax bug, LA attach loop, duplicate imports, safer guards
 
 import io
+import json
 import math
 import re
 import sys
@@ -71,6 +72,15 @@ except ImportError:
         return False
     def is_alberta_live_enabled():
         return False
+
+# k-NN fallback for cold-start predictions
+try:
+    from ml.knn_fallback import KNNFallback, build_knn_from_config
+    KNN_FALLBACK_AVAILABLE = True
+except ImportError:
+    KNN_FALLBACK_AVAILABLE = False
+    KNNFallback = None
+    build_knn_from_config = None
 
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
@@ -2904,6 +2914,62 @@ def compute_scores_and_store(
     model_result = _fit_overall_and_by_category(df_known)
     model_type = model_result[0]
     
+    # 4a) Build k-NN index for cold-start fallback
+    # Uses baseline signals (wiki, trends, youtube, spotify) to find similar titles
+    knn_index = None
+    knn_enabled = KNN_CONFIG.get("enabled", True)
+    if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
+        try:
+            # Build DataFrame for kNN with baseline signals and de-seasonalized ticket index
+            knn_data = df_known[["Title", "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx", 
+                                 "TicketIndex_DeSeason", "Category"]].copy()
+            knn_data = knn_data.rename(columns={
+                "WikiIdx": "wiki",
+                "TrendsIdx": "trends", 
+                "YouTubeIdx": "youtube",
+                "SpotifyIdx": "spotify",
+                "TicketIndex_DeSeason": "ticket_index"
+            })
+            knn_data = knn_data.dropna(subset=["wiki", "trends", "youtube", "spotify", "ticket_index"])
+            
+            if len(knn_data) >= 3:
+                knn_index = build_knn_from_config(
+                    knn_data, 
+                    outcome_col="ticket_index",
+                    last_run_col=None  # No date column in this context
+                )
+                st.caption(f"🔍 **k-NN Fallback** — Index built with {len(knn_data)} titles (k={KNN_CONFIG.get('k', 5)})")
+        except Exception as e:
+            # kNN build failed - continue without it
+            st.caption(f"⚠️ k-NN fallback unavailable: {e}")
+            knn_index = None
+    
+    # Helper to predict with kNN (returns prediction, source, neighbors_json)
+    def _predict_with_knn(baseline_signals: dict) -> tuple[float, str, str]:
+        """Use k-NN to predict ticket index from baseline signals."""
+        if knn_index is None:
+            return np.nan, "Not enough data", "[]"
+        try:
+            pred, neighbors_df = knn_index.predict(baseline_signals, return_neighbors=True)
+            if np.isnan(pred):
+                return np.nan, "Not enough data", "[]"
+            pred = float(np.clip(pred, 20.0, 180.0))
+            # Create JSON summary of neighbors for debugging
+            if neighbors_df is not None and not neighbors_df.empty:
+                neighbors_list = []
+                for _, nr in neighbors_df.head(KNN_CONFIG.get("k", 5)).iterrows():
+                    neighbors_list.append({
+                        "title": str(nr.get("Title", "")),
+                        "similarity": round(float(nr.get("similarity", 0)), 3),
+                        "ticket_index": round(float(nr.get("ticket_index", 0)), 1)
+                    })
+                neighbors_json = json.dumps(neighbors_list)
+            else:
+                neighbors_json = "[]"
+            return pred, "kNN Fallback", neighbors_json
+        except Exception:
+            return np.nan, "Not enough data", "[]"
+    
     if model_type == 'ml':
         _, overall_model, cat_models, overall_metrics, cat_metrics = model_result
         
@@ -2925,48 +2991,68 @@ def compute_scores_and_store(
             ])
             st.caption(f"📊 **Category Models (Ridge/Linear)** — {cat_summary}")
         
-        # 5) Impute missing TicketIndex with ML models
-        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
+        # 5) Impute missing TicketIndex with ML models, with kNN fallback
+        def _predict_ticket_index_deseason(signal_only: float, category: str, baseline_signals: dict) -> tuple[float, str, str]:
             # Try category model first
             if category in cat_models:
                 pred = _predict_with_ml_model(cat_models[category], signal_only)
                 if not np.isnan(pred):
                     pred = float(np.clip(pred, 20.0, 180.0))
-                    return pred, "ML Category"
+                    return pred, "ML Category", "[]"
             
             # Try overall model
             if overall_model is not None:
                 pred = _predict_with_ml_model(overall_model, signal_only)
                 if not np.isnan(pred):
                     pred = float(np.clip(pred, 20.0, 180.0))
-                    return pred, "ML Overall"
+                    return pred, "ML Overall", "[]"
             
-            return np.nan, "Not enough data"
+            # Fall back to k-NN if enabled
+            if knn_enabled and knn_index is not None:
+                return _predict_with_knn(baseline_signals)
+            
+            return np.nan, "Not enough data", "[]"
     else:
         # Linear regression fallback
         _, overall_coef, cat_coefs, _, _ = model_result
         
-        # 5) Impute missing TicketIndex with linear models
-        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
+        # 5) Impute missing TicketIndex with linear models, with kNN fallback
+        def _predict_ticket_index_deseason(signal_only: float, category: str, baseline_signals: dict) -> tuple[float, str, str]:
             if category in cat_coefs:
                 a, b = cat_coefs[category]; src = "Category model"
+                pred = a * signal_only + b
+                pred = float(np.clip(pred, 20.0, 180.0))
+                return pred, src, "[]"
             elif overall_coef is not None:
                 a, b = overall_coef; src = "Overall model"
-            else:
-                return np.nan, "Not enough data"
-            pred = a * signal_only + b
-            pred = float(np.clip(pred, 20.0, 180.0))
-            return pred, src
+                pred = a * signal_only + b
+                pred = float(np.clip(pred, 20.0, 180.0))
+                return pred, src, "[]"
+            
+            # Fall back to k-NN if enabled
+            if knn_enabled and knn_index is not None:
+                return _predict_with_knn(baseline_signals)
+            
+            return np.nan, "Not enough data", "[]"
 
-    imputed_vals, imputed_srcs, predicted_vals = [], [], []
+    imputed_vals, imputed_srcs, predicted_vals, knn_neighbors_data = [], [], [], []
     for _, r in df.iterrows():
         if pd.notna(r["TicketIndex_DeSeason"]):
             imputed_vals.append(r["TicketIndex_DeSeason"]); imputed_srcs.append("History")
             predicted_vals.append(np.nan)  # No ML prediction needed for history
+            knn_neighbors_data.append("[]")
         else:
-            pred, src = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"])
+            # Build baseline signals dict for kNN fallback
+            baseline_signals = {
+                "wiki": float(r.get("WikiIdx", 0) or 0),
+                "trends": float(r.get("TrendsIdx", 0) or 0),
+                "youtube": float(r.get("YouTubeIdx", 0) or 0),
+                "spotify": float(r.get("SpotifyIdx", 0) or 0),
+            }
+            pred, src, neighbors_json = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"], baseline_signals)
             imputed_vals.append(pred); imputed_srcs.append(src)
             predicted_vals.append(pred)  # Store raw ML prediction
+            knn_neighbors_data.append(neighbors_json)
 
     df["TicketIndex_DeSeason_Used"] = imputed_vals
     df["TicketIndexSource"] = imputed_srcs
@@ -3097,17 +3183,15 @@ def compute_scores_and_store(
     
     # k-NN metadata: indicate whether k-NN was used and store neighbor info
     # k-NN is used when the TicketIndexSource indicates a k-NN-based prediction
-    # Currently, the system uses ML or linear models; k-NN is reserved for future cold-start fallback
     KNN_SOURCE_INDICATORS = {"kNN", "k-NN", "KNN", "knn fallback", "kNN Fallback", "k-Nearest Neighbors"}
     knn_used_list = []
-    knn_neighbors_list = []
-    for src in imputed_srcs:
+    for i, src in enumerate(imputed_srcs):
         # Check if source matches any k-NN indicator
         is_knn = any(indicator in str(src) for indicator in KNN_SOURCE_INDICATORS)
         knn_used_list.append(is_knn)
-        knn_neighbors_list.append("[]")  # Would be populated if k-NN provides neighbor data
     df["kNN_used"] = knn_used_list
-    df["kNN_neighbors"] = knn_neighbors_list
+    # kNN_neighbors was populated during the prediction loop
+    df["kNN_neighbors"] = knn_neighbors_data
 
     # 10a) Live Analytics overlays (engagement factors by category)
     df = _add_live_analytics_overlays(df)
@@ -3266,16 +3350,17 @@ def render_results():
         src_counts = (
             df["TicketIndexSource"]
             .value_counts(dropna=False)
-            .reindex(["History", "Category model", "Overall model", "Not enough data"])
+            .reindex(["History", "Category model", "Overall model", "ML Category", "ML Overall", "kNN Fallback", "Not enough data"])
             .fillna(0)
             .astype(int)
         )
-        st.caption(
-            f"TicketIndex source — History: {int(src_counts.get('History',0))} · "
-            f"Category model: {int(src_counts.get('Category model',0))} · "
-            f"Overall model: {int(src_counts.get('Overall model',0))} · "
-            f"Not enough data: {int(src_counts.get('Not enough data',0))}"
-        )
+        # Build display string with only non-zero counts
+        count_parts = []
+        for src_name, count in src_counts.items():
+            if count > 0:
+                count_parts.append(f"{src_name}: {int(count)}")
+        if count_parts:
+            st.caption(f"TicketIndex source — {' · '.join(count_parts)}")
 
     # Seasonality status
     if "SeasonalityApplied" in df.columns and bool(df["SeasonalityApplied"].iloc[0]):
