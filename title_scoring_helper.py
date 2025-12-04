@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Add the repository root to sys.path so we can import local modules
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
