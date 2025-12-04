@@ -404,7 +404,8 @@ def build_season_summary(plan_df: pd.DataFrame) -> pd.DataFrame:
         month_str = str(r.get("Month", ""))
         month_name = month_str.split()[0] if month_str else ""
         
-        # Get month number for display if month_of_opening is available
+        # Fallback: if Month column is missing/malformed but month_of_opening exists,
+        # derive month name from it. This handles edge cases from alternate data sources.
         month_num = r.get("month_of_opening", None)
         if month_num and not month_name:
             try:
