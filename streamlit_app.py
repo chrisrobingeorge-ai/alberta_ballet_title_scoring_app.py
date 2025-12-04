@@ -348,7 +348,7 @@ def _methodology_glossary_text() -> list:
         "<b>Ticket Index</b> for each title.",
         "We adjust for the <b>month</b> you plan to run it (some months sell better).",
         "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned "
-        "historical shares.",
+        "historical shares to produce <b>single ticket</b> estimates.",
         "We compute recommended <b>marketing spend</b> using learned "
         "per-single-ticket marketing $ by title/category and city.",
     ]
@@ -362,6 +362,28 @@ def _methodology_glossary_text() -> list:
 # -------------------------
 # Season Summary (Board View) Helper Functions
 # -------------------------
+
+# Column widths for the Full Season Table PDF (module-level constant for performance)
+# Total: ~9.35 inches, fits within 10" usable width on landscape LETTER
+_FULL_SEASON_TABLE_COL_WIDTHS = {
+    "Month": 0.5 * inch,
+    "Title": 1.2 * inch,
+    "Category": 0.7 * inch,
+    "TicketIndex used": 0.5 * inch,
+    "Familiarity": 0.4 * inch,
+    "Motivation": 0.4 * inch,
+    "FutureSeasonalityFactor": 0.5 * inch,
+    "EstimatedTickets_Final": 0.5 * inch,
+    "YYC_Singles": 0.4 * inch,
+    "YEG_Singles": 0.4 * inch,
+    "YYC_Mkt_Spend": 0.55 * inch,
+    "YEG_Mkt_Spend": 0.55 * inch,
+    "Total_Mkt_Spend": 0.55 * inch,
+    "PrimarySegment": 0.9 * inch,
+    "SecondarySegment": 0.8 * inch,
+    "LA_EngagementFactor": 0.45 * inch,
+    "Econ_Sentiment": 0.4 * inch,
+}
 
 def index_strength_rating(index_value: float) -> str:
     """
@@ -613,6 +635,8 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     
     # Define column widths optimized for landscape LETTER page (10" usable width)
     # Total available: ~10 inches = 720 points (with 0.5" margins each side)
+    # Total used: ~7.9 inches - intentionally leaves margin for grid lines, 
+    # padding, and to avoid clipping on different printers/PDF viewers.
     col_widths = [
         0.7 * inch,   # Month
         1.6 * inch,   # Show Title (needs room for wrapping)
@@ -980,28 +1004,8 @@ def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
                 row_data.append(formatted)
         rows.append(row_data)
     
-    # Define column widths for landscape page (~10" usable)
-    # Adjust widths based on content type
-    base_widths = {
-        "Month": 0.5 * inch,
-        "Title": 1.2 * inch,
-        "Category": 0.7 * inch,
-        "TicketIndex used": 0.5 * inch,
-        "Familiarity": 0.4 * inch,
-        "Motivation": 0.4 * inch,
-        "FutureSeasonalityFactor": 0.5 * inch,
-        "EstimatedTickets_Final": 0.5 * inch,
-        "YYC_Singles": 0.4 * inch,
-        "YEG_Singles": 0.4 * inch,
-        "YYC_Mkt_Spend": 0.55 * inch,
-        "YEG_Mkt_Spend": 0.55 * inch,
-        "Total_Mkt_Spend": 0.55 * inch,
-        "PrimarySegment": 0.9 * inch,
-        "SecondarySegment": 0.8 * inch,
-        "LA_EngagementFactor": 0.45 * inch,
-        "Econ_Sentiment": 0.4 * inch,
-    }
-    col_widths = [base_widths.get(col, 0.5 * inch) for col, _, _ in valid_cols]
+    # Use module-level constant for column widths (performance optimization)
+    col_widths = [_FULL_SEASON_TABLE_COL_WIDTHS.get(col, 0.5 * inch) for col, _, _ in valid_cols]
     
     table = Table(rows, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
