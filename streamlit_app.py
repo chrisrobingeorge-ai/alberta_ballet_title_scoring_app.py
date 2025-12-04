@@ -2914,6 +2914,24 @@ def compute_scores_and_store(
     model_result = _fit_overall_and_by_category(df_known)
     model_type = model_result[0]
     
+    # Helper to extract baseline signals from a DataFrame row
+    def _extract_baseline_signals(row) -> dict:
+        """
+        Extract baseline signal values from a DataFrame row.
+        
+        Args:
+            row: A DataFrame row or dict-like object with WikiIdx, TrendsIdx, etc.
+        
+        Returns:
+            Dict with keys 'wiki', 'trends', 'youtube', 'spotify' containing float values
+        """
+        return {
+            "wiki": float(row.get("WikiIdx", 0) or 0),
+            "trends": float(row.get("TrendsIdx", 0) or 0),
+            "youtube": float(row.get("YouTubeIdx", 0) or 0),
+            "spotify": float(row.get("SpotifyIdx", 0) or 0),
+        }
+    
     # 4a) Build k-NN index for cold-start fallback
     # Uses baseline signals (wiki, trends, youtube, spotify) to find similar titles
     knn_index = None
@@ -2946,7 +2964,19 @@ def compute_scores_and_store(
     
     # Helper to predict with kNN (returns prediction, source, neighbors_json)
     def _predict_with_knn(baseline_signals: dict) -> tuple[float, str, str]:
-        """Use k-NN to predict ticket index from baseline signals."""
+        """
+        Use k-NN to predict ticket index from baseline signals.
+        
+        Args:
+            baseline_signals: Dict with keys 'wiki', 'trends', 'youtube', 'spotify'
+                containing the baseline signal values for the title
+        
+        Returns:
+            Tuple of (predicted_value, source_label, neighbors_json):
+            - predicted_value: The predicted ticket index (clipped to [20, 180])
+            - source_label: "kNN Fallback" on success, "Not enough data" on failure
+            - neighbors_json: JSON string with neighbor details for debugging
+        """
         if knn_index is None:
             return np.nan, "Not enough data", "[]"
         try:
@@ -2955,9 +2985,10 @@ def compute_scores_and_store(
                 return np.nan, "Not enough data", "[]"
             pred = float(np.clip(pred, 20.0, 180.0))
             # Create JSON summary of neighbors for debugging
+            # Use all neighbors returned by knn_index.predict (already limited to k)
             if neighbors_df is not None and not neighbors_df.empty:
                 neighbors_list = []
-                for _, nr in neighbors_df.head(KNN_CONFIG.get("k", 5)).iterrows():
+                for _, nr in neighbors_df.iterrows():
                     neighbors_list.append({
                         "title": str(nr.get("Title", "")),
                         "similarity": round(float(nr.get("similarity", 0)), 3),
@@ -2967,7 +2998,10 @@ def compute_scores_and_store(
             else:
                 neighbors_json = "[]"
             return pred, "kNN Fallback", neighbors_json
-        except Exception:
+        except (ValueError, RuntimeError, KeyError) as e:
+            # Log specific errors for debugging but return fallback values
+            import logging
+            logging.getLogger(__name__).debug(f"kNN prediction failed: {e}")
             return np.nan, "Not enough data", "[]"
     
     if model_type == 'ml':
@@ -3042,13 +3076,8 @@ def compute_scores_and_store(
             predicted_vals.append(np.nan)  # No ML prediction needed for history
             knn_neighbors_data.append("[]")
         else:
-            # Build baseline signals dict for kNN fallback
-            baseline_signals = {
-                "wiki": float(r.get("WikiIdx", 0) or 0),
-                "trends": float(r.get("TrendsIdx", 0) or 0),
-                "youtube": float(r.get("YouTubeIdx", 0) or 0),
-                "spotify": float(r.get("SpotifyIdx", 0) or 0),
-            }
+            # Use helper to extract baseline signals for kNN fallback
+            baseline_signals = _extract_baseline_signals(r)
             pred, src, neighbors_json = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"], baseline_signals)
             imputed_vals.append(pred); imputed_srcs.append(src)
             predicted_vals.append(pred)  # Store raw ML prediction
