@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import math
 import logging
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Add the repository root to sys.path so we can import local modules
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -108,20 +109,53 @@ else:
 # Fetch helpers
 # -----------------------------------------------------------------------------
 
+# Wikipedia API endpoints
+WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+                 "en.wikipedia/all-access/user/{page}/daily/{start}/{end}")
+
+
+def wiki_search_best_title(query: str) -> Optional[str]:
+    """
+    Search Wikipedia for the best matching page title.
+    Returns the title of the first search result, or None if no match found.
+    """
+    try:
+        params = {"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5}
+        r = requests.get(WIKI_API, params=params, timeout=10)
+        if r.status_code != 200:
+            return None
+        items = r.json().get("query", {}).get("search", [])
+        return items[0]["title"] if items else None
+    except Exception:
+        return None
+
+
 def fetch_wikipedia_views(title: str) -> float:
     """
     Very rough Wikipedia signal: pageviews over recent days.
+    Uses Wikipedia search to find the best matching page, then fetches pageviews.
     Falls back to a small constant if anything fails.
     """
     try:
-        url = (
-            "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-            "en.wikipedia.org/all-access/user/"
-            + requests.utils.quote(title.replace(" ", "_"))
-            + "/daily/20230101/20231231"
+        # Try to find the best matching Wikipedia page title
+        page_title = wiki_search_best_title(title) or title
+
+        # Calculate date range for past 365 days
+        end = datetime.utcnow().strftime("%Y%m%d")
+        start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y%m%d")
+
+        # Build the pageviews API URL with proper URL encoding
+        encoded_page = requests.utils.quote(page_title.replace(" ", "_"), safe="")
+        url = WIKI_PAGEVIEW.format(
+            page=encoded_page,
+            start=start,
+            end=end
         )
-        resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            logger.warning("Wikipedia API returned status " + str(resp.status_code) + " for " + title)
+            return 1.0
         data = resp.json()
         items = data.get("items", [])
         if not items:
