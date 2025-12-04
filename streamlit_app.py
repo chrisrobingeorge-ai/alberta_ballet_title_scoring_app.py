@@ -180,9 +180,111 @@ def _make_styles():
     }
     return styles
 
+def _plain_language_overview_text() -> list:
+    """
+    Build the 'How This Forecast Works — A Plain-Language Overview' section for the PDF report.
+    
+    This section appears near the beginning of the report (after title page).
+    It replaces the old "How this forecast works" section with comprehensive,
+    stakeholder-friendly copy that explains the current methodology.
+
+    Returns a list of ReportLab Flowables (Paragraphs, Spacers).
+    """
+    styles = _make_styles()
+    P = Paragraph
+    SP = Spacer
+    out = []
+
+    out.append(P("How This Forecast Works — A Plain-Language Overview", styles["h1"]))
+    out.append(SP(1, 6))
+
+    # Paragraph 1: Online visibility signals → Familiarity & Motivation
+    out.append(P(
+        "Alberta Ballet's ticket estimator translates public interest into ticket expectations "
+        "using a structured, evidence-based methodology. The system begins by measuring four "
+        "forms of online visibility—Wikipedia traffic, Google search activity, YouTube viewing "
+        "behaviour, and Spotify listening patterns. These signals are combined into two intuitive "
+        "measures: Familiarity, which reflects how well-known a title is, and Motivation, which "
+        "reflects how eager audiences appear to be to engage with it. Both are benchmarked against "
+        "a reference title so every show sits on a shared 0–100+ scale.",
+        styles["body"],
+    ))
+    out.append(SP(1, 8))
+
+    # Paragraph 2: Ticket Index from historical patterns
+    out.append(P(
+        "Once these interest scores are established, the model evaluates how that level of public "
+        "awareness historically translates into ticket sales. Using Alberta Ballet's multi-year "
+        "archives and category-level patterns, it estimates a Ticket Index that represents how "
+        "strong demand is likely to be relative to the benchmark. This allows the model to forecast "
+        "both returning works and titles with no Alberta performance history. The Ticket Index "
+        "serves as the backbone for interpreting each show's expected performance.",
+        styles["body"],
+    ))
+    out.append(SP(1, 8))
+
+    # Paragraph 3: Seasonality adjustments
+    out.append(P(
+        "The model then adjusts for seasonality, recognizing that certain months reliably perform "
+        "above or below average depending on the type of show. These factors are smoothed and capped "
+        "to ensure stability and prevent overreaction to smaller samples. The result is a seasonally "
+        "aware estimate that reflects when the production is scheduled to run.",
+        styles["body"],
+    ))
+    out.append(SP(1, 8))
+
+    # Paragraph 4: City splits and marketing spend
+    out.append(P(
+        "With the seasonal adjustment in place, the model applies learned Calgary/Edmonton audience "
+        "patterns, splitting expected demand between the two cities using historical shares for "
+        "similar productions. This is followed by a calculation of recommended marketing spend, "
+        "based on long-run medians of marketing dollars per sold single ticket by city and, where "
+        "possible, by category and title.",
+        styles["body"],
+    ))
+    out.append(SP(1, 8))
+
+    # Paragraph 5: Live Analytics integration
+    out.append(P(
+        "The system also integrates Live Analytics data, which captures behavioural traits of "
+        "Alberta audiences—such as repeat-attendance likelihood, spending potential, and "
+        "category-level engagement. These indicators are distilled into an engagement factor "
+        "that shifts expectations slightly up or down depending on the type of work being presented.",
+        styles["body"],
+    ))
+    out.append(SP(1, 8))
+
+    # Paragraph 6: Economic indicators
+    out.append(P(
+        "Finally, the model incorporates time-aligned economic indicators, ensuring that each "
+        "production's forecast reflects the economic climate audiences will be experiencing when "
+        "the show opens. Interest rates, energy prices, employment levels, inflation, migration "
+        "trends, and arts-giving sentiment are all merged using temporal matching so that each "
+        "show is tied to the most recent economic readings available.",
+        styles["body"],
+    ))
+    out.append(SP(1, 8))
+
+    # Paragraph 7: Summary
+    out.append(P(
+        "These components—public visibility, learned demand patterns, seasonality, city behaviour, "
+        "audience engagement, and economic context—combine to form a calibrated estimate of "
+        "single-ticket demand for every production in the season. The result is a consistent, "
+        "transparent, and empirically grounded forecasting system that supports programming "
+        "decisions, budgeting, and marketing planning across the entire Alberta Ballet season.",
+        styles["body"],
+    ))
+
+    return out
+
+
 def _methodology_glossary_text() -> list:
     """
     Build the 'Methodology & Glossary' section for the PDF report.
+    
+    NOTE: The old "How this forecast works" content has been moved to
+    _plain_language_overview_text() which now appears near the beginning of the PDF.
+    This function now contains only the glossary and technical reference sections.
 
     Returns a list of ReportLab Flowables (Paragraphs, Spacers).
     """
@@ -192,40 +294,24 @@ def _methodology_glossary_text() -> list:
     out = []
 
     # ─────────────────────────────────────────────────────────
-    # 1. High-level description
+    # 1. Plain-language glossary
     # ─────────────────────────────────────────────────────────
-    out.append(P("How this forecast works", styles["h1"]))
+    out.append(P("Plain-language glossary", styles["h1"]))
 
-    out.append(P(
-        "This model is a structured, rule-based demand forecasting system that converts "
-        "online visibility signals into ticket expectations. It uses four measurable "
-        "sources of public interest—Wikipedia traffic, Google Trends, YouTube views, "
-        "and Spotify popularity—to generate “Familiarity” and “Motivation” scores for "
-        "each show. These scores are evaluated against a benchmark title and passed "
-        "through calibrated relationships derived from Alberta Ballet’s real history: "
-        "month-by-month seasonality, Calgary/Edmonton audience differences, "
-        "and remount behaviour. The model then "
-        "translates these calibrated interest scores into expected ticket totals "
-        "and recommended marketing spend for any title you evaluate, including "
-        "new works.",
-        styles["body"],
-    ))
-    out.append(SP(1, 6))
-
-    out.append(P("How the model uses history (retrodiction, not circularity)", styles["h2"]))
-    out.append(P(
-        "The model uses historical sales to learn general patterns, but it never uses "
-        "the past ticket total of a specific title to predict that same title’s future. "
-        "Instead, it performs what economists call <b>retrodiction</b>—re-estimating "
-        "past shows using the same formula it uses for new shows. Retrodiction is not "
-        "a scientific measure of true forecast accuracy, but a calibration test: it "
-        "shows whether the shape of the interest-to-ticket mapping makes sense, whether "
-        "the model is too flat or too steep, and which titles the logic systematically "
-        "over- or under-estimates. This is the same technique Broadway economics teams "
-        "use when building benchmarked demand curves; the model checks its alignment "
-        "with reality without simply copying past results.",
-        styles["body"],
-    ))
+    glossary_items = [
+        "<b>Familiarity</b>: how well-known the title is.",
+        "<b>Motivation</b>: how keen people seem to be to watch it.",
+        "<b>Ticket Index</b>: how that interest typically translates into tickets "
+        "(vs the benchmark).",
+        "<b>Seasonality Factor</b>: some months sell better than others for a given type of show.",
+        "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
+        "<b>Marketing spend per single</b>: historic median $ of paid media per sold single "
+        "ticket, learned by title×city where possible, then category×city, then city-wide.",
+        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = "
+        "marketing $/single × forecast singles in each city.",
+    ]
+    for g in glossary_items:
+        out.append(P(g, styles["body"]))
     out.append(SP(1, 10))
 
     # ─────────────────────────────────────────────────────────
@@ -236,7 +322,7 @@ def _methodology_glossary_text() -> list:
         "When we test the model on past seasons, the dashboard shows three standard "
         "metrics: Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and R². "
         "MAE and RMSE are expressed in tickets and indicate, on average, how far the "
-        "model’s estimates are from actual results (RMSE penalises large misses more "
+        "model's estimates are from actual results (RMSE penalises large misses more "
         "heavily). R² is a 0–1 style measure of how much of the variation between "
         "stronger and weaker titles the model can explain. For example, an R² around "
         "0.40–0.45 means the model explains roughly 40–45% of the differences in "
@@ -248,51 +334,29 @@ def _methodology_glossary_text() -> list:
     out.append(SP(1, 10))
 
     # ─────────────────────────────────────────────────────────
-    # 3. Quick-read bullets (original content, kept)
+    # 3. Quick-read bullets
     # ─────────────────────────────────────────────────────────
-    out.append(P("How this forecast works (quick read)", styles["h2"]))
+    out.append(P("Key model components (quick read)", styles["h2"]))
 
     bullets = [
-        "We combine online visibility (Wikipedia, YouTube, Google) into two simple "
+        "We combine online visibility (Wikipedia, YouTube, Google, Spotify) into two simple "
         "ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> "
         "(people engage with it).",
         "We anchor everything to a <b>benchmark title</b> so scores are on a shared "
         "0–100+ scale.",
         "We connect those scores to real ticket history to estimate a "
         "<b>Ticket Index</b> for each title.",
-        "We adjust for the <b>month</b> you plan to run it (some months sell better), "
-        "and for <b>recency</b> if it’s a quick remount.",
+        "We adjust for the <b>month</b> you plan to run it (some months sell better).",
         "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned "
-        "historical shares and then into <b>Singles</b>.",
+        "historical shares.",
         "We compute recommended <b>marketing spend</b> using learned "
         "per-single-ticket marketing $ by title/category and city.",
     ]
     for b in bullets:
         out.append(P(f"• {b}", styles["body"]))
-    out.append(SP(1, 10))
-
-    # ─────────────────────────────────────────────────────────
-    # 4. Plain-language glossary (original content, kept)
-    # ─────────────────────────────────────────────────────────
-    out.append(P("Plain-language glossary", styles["h2"]))
-
-    glossary_items = [
-        "<b>Familiarity</b>: how well-known the title is.",
-        "<b>Motivation</b>: how keen people seem to be to watch it.",
-        "<b>Ticket Index</b>: how that interest typically translates into tickets "
-        "(vs the benchmark).",
-        "<b>Seasonality</b>: some months sell better than others for a given type of show.",
-        "<b>Remount</b>: recent repeats often sell a bit less; we reduce estimates accordingly.",
-        "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
-        "<b>Marketing spend per single</b>: historic median $ of paid media per sold single "
-        "ticket, learned by title×city where possible, then category×city, then city-wide.",
-        "<b>Marketing budget (YYC/YEG/Total)</b>: recommended paid-media spend = "
-        "marketing $/single × forecast singles in each city.",
-    ]
-    for g in glossary_items:
-        out.append(P(g, styles["body"]))
 
     return out
+
 
 
 # -------------------------
@@ -479,53 +543,132 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     Convert the board-level Season Summary DataFrame into a ReportLab Table
     for the PDF export.
     
+    This table is designed to fit on a single landscape page with readable text.
+    Uses shortened column headers, reduced font size, and optimized column widths
+    to ensure the full board view is visible without horizontal overflow.
+    
     Args:
         plan_df: The full results DataFrame (will be processed by build_season_summary).
     
     Returns:
         A ReportLab Table object formatted for PDF output.
     """
+    from reportlab.platypus import Paragraph as P_table
+    from reportlab.lib.styles import ParagraphStyle
+    
     summary_df = build_season_summary(plan_df)
     if summary_df.empty:
         return Table([["No season data"]])
     
-    # Header row
-    header = list(summary_df.columns)
+    # Shortened column headers to fit table on single page
+    header_map = {
+        "Month": "Month",
+        "Show Title": "Show Title",
+        "Category": "Category",
+        "Estimated Tickets": "Est. Tickets",
+        "YYC Singles": "YYC",
+        "YEG Singles": "YEG",
+        "Total Marketing Spend": "Mkt Spend",
+        "Segment Tilt": "Segment",
+        "Index Strength": "Strength"
+    }
+    
+    # Create paragraph style for text wrapping in cells
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+    )
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.whitesmoke,
+    )
+    
+    # Header row with shortened names
+    header = [P_table(header_map.get(col, col), header_style) for col in summary_df.columns]
     rows = [header]
     
-    # Data rows
+    # Data rows with text wrapping for long cells
     for _, row in summary_df.iterrows():
         row_data = []
         for col in summary_df.columns:
             v = row[col]
-            if isinstance(v, str):
-                row_data.append(v)
-            elif pd.isna(v):
-                row_data.append("")
+            if pd.isna(v):
+                cell_text = ""
+            elif isinstance(v, str):
+                cell_text = v
             else:
-                row_data.append(str(v))
+                cell_text = str(v)
+            
+            # Apply text wrapping to potentially long text columns
+            if col in ["Show Title", "Category", "Segment Tilt"]:
+                row_data.append(P_table(cell_text, cell_style))
+            else:
+                row_data.append(cell_text)
         rows.append(row_data)
     
-    table = Table(rows, repeatRows=1)
+    # Define column widths optimized for landscape LETTER page (10" usable width)
+    # Total available: ~10 inches = 720 points (with 0.5" margins each side)
+    col_widths = [
+        0.7 * inch,   # Month
+        1.6 * inch,   # Show Title (needs room for wrapping)
+        1.0 * inch,   # Category
+        0.7 * inch,   # Est. Tickets
+        0.55 * inch,  # YYC
+        0.55 * inch,  # YEG
+        0.8 * inch,   # Mkt Spend
+        1.4 * inch,   # Segment (may need wrapping)
+        0.6 * inch,   # Strength (stars)
+    ]
+    
+    table = Table(rows, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
-        ("FONT", (0, 0), (-1, -1), "Helvetica", 9),
-        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9),
+        # Font settings - slightly smaller for compact fit
+        ("FONT", (0, 0), (-1, -1), "Helvetica", 8),
+        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 8),
+        # Header styling
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c5aa0")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
         ("LINEABOVE", (0, 0), (-1, 0), 1, colors.black),
         ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
-        ("ALIGN", (3, 1), (-1, -1), "CENTER"),  # Center-align numeric columns
-        ("ALIGN", (0, 0), (2, -1), "LEFT"),      # Left-align text columns
+        # Alignment - center numeric columns, left-align text
+        ("ALIGN", (3, 1), (6, -1), "CENTER"),  # Tickets and Mkt Spend
+        ("ALIGN", (8, 1), (8, -1), "CENTER"),  # Strength stars
+        ("ALIGN", (0, 0), (2, -1), "LEFT"),    # Month, Title, Category
+        ("ALIGN", (7, 1), (7, -1), "LEFT"),    # Segment
+        # Alternating row backgrounds
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f5f5")]),
+        # Grid and borders
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+        # Cell padding - reduced for compact layout
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]))
     return table
 
 
 def _narrative_for_row(r: dict) -> str:
+    """
+    Generate a plain-English narrative paragraph for a single title in the Season Rationale.
+    
+    This narrative reflects the CURRENT methodology and includes:
+      - Familiarity/Motivation → Ticket Index conversion
+      - Seasonality factor for the scheduled month
+      - Primary and secondary audience segments
+      - YYC/YEG city split shares
+      - Marketing spend per single and total recommended budget
+    
+    NOTE: This narrative does NOT reference any removed or legacy penalty factors.
+    The remount decay factor (ReturnDecayPct) is only mentioned if > 0, but as of the
+    current audit, this factor is typically 0.0 (remount penalties removed).
+    """
     title = r.get("Title",""); month = r.get("Month",""); cat = r.get("Category","")
     idx_used = r.get("TicketIndex used", None)
     f_season = r.get("FutureSeasonalityFactor", None)
@@ -726,6 +869,167 @@ def _make_season_financial_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     ]))
     return table
 
+
+def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
+    """
+    Build the '🗓️ Full Season Table (all metrics)' table for the PDF report.
+    
+    This replaces the old "Season Table (Technical Details)" with a richer,
+    full-metrics table that includes all available computed fields.
+    
+    Columns included (using only fields that are already computed):
+      - Month
+      - Show Title
+      - Category
+      - Ticket Index
+      - Familiarity
+      - Motivation
+      - Seasonality Factor
+      - Estimated Tickets (Total)
+      - YYC Singles
+      - YEG Singles
+      - YYC Marketing Spend
+      - YEG Marketing Spend
+      - Total Marketing Spend
+      - Primary Segment
+      - Secondary Segment
+      - LA_EngagementFactor (if available)
+      - Econ_Sentiment (if available)
+    
+    Args:
+        plan_df: The full results DataFrame with all computed columns.
+    
+    Returns:
+        A ReportLab Table object formatted for PDF output.
+    """
+    from reportlab.platypus import Paragraph as P_table
+    from reportlab.lib.styles import ParagraphStyle
+    
+    if plan_df is None or plan_df.empty:
+        return Table([["No season data"]])
+    
+    # Cell styles for text wrapping
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        fontName='Helvetica',
+        fontSize=7,
+        leading=9,
+    )
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        fontName='Helvetica-Bold',
+        fontSize=7,
+        leading=9,
+        textColor=colors.whitesmoke,
+    )
+    
+    # Define column mapping: (DataFrame column name, Display header, formatter)
+    # Using shortened headers to fit on page
+    column_config = [
+        ("Month", "Month", lambda x: str(x).split()[0] if pd.notna(x) else ""),
+        ("Title", "Show Title", lambda x: str(x) if pd.notna(x) else ""),
+        ("Category", "Category", lambda x: str(x) if pd.notna(x) else ""),
+        ("TicketIndex used", "Ticket Idx", lambda x: f"{float(x):.1f}" if pd.notna(x) else ""),
+        ("Familiarity", "Famil.", lambda x: f"{float(x):.1f}" if pd.notna(x) else ""),
+        ("Motivation", "Motiv.", lambda x: f"{float(x):.1f}" if pd.notna(x) else ""),
+        ("FutureSeasonalityFactor", "Season F.", lambda x: f"{float(x):.3f}" if pd.notna(x) else ""),
+        ("EstimatedTickets_Final", "Est. Tix", lambda x: f"{int(x):,}" if pd.notna(x) else ""),
+        ("YYC_Singles", "YYC", lambda x: f"{int(x):,}" if pd.notna(x) else ""),
+        ("YEG_Singles", "YEG", lambda x: f"{int(x):,}" if pd.notna(x) else ""),
+        ("YYC_Mkt_Spend", "YYC Mkt", lambda x: f"${float(x):,.0f}" if pd.notna(x) else ""),
+        ("YEG_Mkt_Spend", "YEG Mkt", lambda x: f"${float(x):,.0f}" if pd.notna(x) else ""),
+        ("Total_Mkt_Spend", "Tot Mkt", lambda x: f"${float(x):,.0f}" if pd.notna(x) else ""),
+        ("PrimarySegment", "Prim. Seg", lambda x: str(x) if pd.notna(x) and x else ""),
+        ("SecondarySegment", "Sec. Seg", lambda x: str(x) if pd.notna(x) and x else ""),
+    ]
+    
+    # Add optional columns if they exist in the data
+    if "LA_EngagementFactor" in plan_df.columns:
+        column_config.append(
+            ("LA_EngagementFactor", "LA Eng.", lambda x: f"{float(x):.3f}" if pd.notna(x) else "")
+        )
+    if "Econ_Sentiment" in plan_df.columns:
+        column_config.append(
+            ("Econ_Sentiment", "Econ.", lambda x: f"{float(x):.3f}" if pd.notna(x) else "")
+        )
+    
+    # Filter to only columns that exist in the data
+    valid_cols = [(col, header, fmt) for col, header, fmt in column_config if col in plan_df.columns]
+    
+    if not valid_cols:
+        return Table([["No metrics available"]])
+    
+    # Build header row
+    headers = [P_table(header, header_style) for _, header, _ in valid_cols]
+    rows = [headers]
+    
+    # Build data rows
+    for _, r in plan_df.iterrows():
+        row_data = []
+        for col_name, _, fmt in valid_cols:
+            try:
+                val = r.get(col_name)
+                formatted = fmt(val)
+            except Exception:
+                formatted = ""
+            
+            # Apply text wrapping for potentially long text columns
+            if col_name in ["Title", "Category", "PrimarySegment", "SecondarySegment"]:
+                row_data.append(P_table(formatted, cell_style))
+            else:
+                row_data.append(formatted)
+        rows.append(row_data)
+    
+    # Define column widths for landscape page (~10" usable)
+    # Adjust widths based on content type
+    base_widths = {
+        "Month": 0.5 * inch,
+        "Title": 1.2 * inch,
+        "Category": 0.7 * inch,
+        "TicketIndex used": 0.5 * inch,
+        "Familiarity": 0.4 * inch,
+        "Motivation": 0.4 * inch,
+        "FutureSeasonalityFactor": 0.5 * inch,
+        "EstimatedTickets_Final": 0.5 * inch,
+        "YYC_Singles": 0.4 * inch,
+        "YEG_Singles": 0.4 * inch,
+        "YYC_Mkt_Spend": 0.55 * inch,
+        "YEG_Mkt_Spend": 0.55 * inch,
+        "Total_Mkt_Spend": 0.55 * inch,
+        "PrimarySegment": 0.9 * inch,
+        "SecondarySegment": 0.8 * inch,
+        "LA_EngagementFactor": 0.45 * inch,
+        "Econ_Sentiment": 0.4 * inch,
+    }
+    col_widths = [base_widths.get(col, 0.5 * inch) for col, _, _ in valid_cols]
+    
+    table = Table(rows, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        # Font settings - compact for full metrics view
+        ("FONT", (0, 0), (-1, -1), "Helvetica", 7),
+        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 7),
+        # Header styling
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c5aa0")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("LINEABOVE", (0, 0), (-1, 0), 1, colors.black),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
+        # Alignment
+        ("ALIGN", (3, 1), (-1, -1), "CENTER"),  # Numeric columns centered
+        ("ALIGN", (0, 0), (2, -1), "LEFT"),     # Text columns left
+        # Alternating row backgrounds
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f5f5")]),
+        # Grid
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+        # Padding
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    return table
+
+
 def build_full_pdf_report(methodology_paragraphs: list,
                           plan_df: "pd.DataFrame",
                           season_year: int,
@@ -733,10 +1037,11 @@ def build_full_pdf_report(methodology_paragraphs: list,
     """
     Returns a PDF as bytes containing:
       1) Title page
-      2) Season Summary (Board View) - NEW: Clean, leadership-friendly overview
-      3) Season Rationale (per month/title)
-      4) Methodology & Glossary
-      5) Season Table (months as columns) - Full technical details
+      2) How This Forecast Works — A Plain-Language Overview (NEW: replaces old methodology intro)
+      3) Season Summary (Board View) - Clean, leadership-friendly overview
+      4) Season Rationale (per month/title)
+      5) Methodology & Glossary
+      6) 🗓️ Full Season Table (all metrics) - Replaces old "Season Table (Technical Details)"
     """
     styles = _make_styles()
     buf = io.BytesIO()
@@ -752,12 +1057,17 @@ def build_full_pdf_report(methodology_paragraphs: list,
     # Title
     story.append(Paragraph(f"{org_name} — Season Report ({season_year})", styles["h1"]))
     story.append(Paragraph(
-        "Familiarity & Motivation • Ticket Index • Seasonality • Remount • City/Segment splits • Marketing spend",
+        "Familiarity & Motivation • Ticket Index • Seasonality • City/Segment splits • Marketing spend",
         styles["small"]
     ))
     story.append(Spacer(1, 0.25*inch))
 
-    # (1) Season Summary (Board View) - NEW
+    # (1) How This Forecast Works — A Plain-Language Overview (NEW)
+    # This replaces the old "How this forecast works" section and appears near the beginning
+    story.extend(_plain_language_overview_text())
+    story.append(PageBreak())
+
+    # (2) Season Summary (Board View)
     story.append(Paragraph("Season Summary (Board View)", styles["h1"]))
     story.append(Paragraph(
         "High-level overview of the planned season. Index Strength uses a 1–5 star rating "
@@ -767,21 +1077,23 @@ def build_full_pdf_report(methodology_paragraphs: list,
     story.append(_make_season_summary_table_pdf(plan_df))
     story.append(Spacer(1, 0.3*inch))
 
-    # (2) Season Rationale
+    # (3) Season Rationale
     story.extend(_build_month_narratives(plan_df))
     story.append(PageBreak())
 
-    # (3) Methodology & Glossary
+    # (4) Methodology & Glossary
     story.extend(methodology_paragraphs)
     story.append(PageBreak())
 
-    # (4) Season Table (months as columns) - Technical details
-    story.append(Paragraph("Season Table (Technical Details)", styles["h1"]))
+    # (5) 🗓️ Full Season Table (all metrics)
+    # Replaces old "Season Table (Technical Details)" with richer column set
+    story.append(Paragraph("🗓️ Full Season Table (all metrics)", styles["h1"]))
     story.append(Paragraph(
-        "Key metrics by month. Indices are benchmark-normalized; tickets include future seasonality and remount adjustments.",
+        "Complete technical view of each title with all computed metrics. "
+        "Indices are benchmark-normalized; tickets reflect seasonality adjustments.",
         styles["small"]))
     story.append(Spacer(1, 0.15*inch))
-    story.append(_make_season_financial_summary_table_pdf(plan_df))
+    story.append(_make_full_season_table_pdf(plan_df))
 
     doc.build(story)
     return buf.getvalue()
