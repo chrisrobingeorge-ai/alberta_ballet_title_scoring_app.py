@@ -325,6 +325,23 @@ Arts-specific sentiment derived from Nanos survey data on arts giving, integrate
 
 The `Econ_ArtsSentiment` feature is merged to show data by year using `merge_asof` with forward-fill logic for future dates.
 
+### Temporal Join Strategy (December 2025 Update)
+All economic feature joins now use **temporal matching** via `pd.merge_asof`:
+
+1. Sort shows by `opening_date`
+2. Sort economic indicator data by date
+3. Use `pd.merge_asof` with `direction='backward'` to match each show to the most recent prior economic reading
+4. Fallback to median value for shows without dates (cold-start titles)
+
+This ensures economic features vary by when the show runs, providing time-varying signals for the model:
+
+| Feature | Unique Values | Range | Notes |
+|---------|---------------|-------|-------|
+| `energy_index` | ~9 | [704, 1867] | BCPI Energy commodity prices |
+| `inflation_adjustment_factor` | ~31 | [0.94, 1.21] | CPI-based adjustment relative to 2020 baseline |
+| `consumer_confidence_prairies` | ~2 | [50.0, 50.4] | Nanos consumer confidence for Prairies (limited source data) |
+| `city_median_household_income` | 1 | 98,000 | Static census value (not time-varying) |
+
 ---
 
 ## 10. Live Analytics Integration
@@ -637,14 +654,17 @@ Adding these fields to the export is a non-breaking change. They are purely info
     ├── LA_RepeatBuyerIdx → repeat buyer index
     └── LA_ArtsAttendIdx → arts attendance index
 
-15. Apply Economic Sentiment (supplemental context)
+15. Apply Economic Sentiment (supplemental context, time-varying)
     ├── Econ_BocFactor → Bank of Canada sentiment
     ├── Econ_AlbertaFactor → Alberta economic sentiment
     ├── Econ_ArtsSentiment → Arts giving sentiment
+    ├── energy_index → BCPI Energy (temporal, range 704-1867)
+    ├── inflation_adjustment_factor → CPI-based (temporal, range 0.94-1.21)
     └── Combined_Sentiment = 0.40×BoC + 0.60×Alberta
 ```
 
 ---
 
-*Last updated: December 2024*
+*Last updated: December 2025*
 *Audit update: Removed Post-COVID Factor and Remount Decay to fix "Structural Pessimism"*
+*December 2025 update: Economic features now use temporal joins (pd.merge_asof) for time-varying data*
