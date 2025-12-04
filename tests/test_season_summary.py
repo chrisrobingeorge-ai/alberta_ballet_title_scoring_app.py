@@ -18,45 +18,62 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class TestIndexStrengthRating:
-    """Test the index_strength_rating helper function."""
+    """Test the index_strength_rating helper function.
+    
+    The benchmark title (e.g., Cinderella) has an index of 100.
+    Since the benchmark is "our best performing show", it should
+    receive 5 stars. Thresholds are calibrated so benchmark = 5 stars:
+      - 0–25:   Very weak (★☆☆☆☆)
+      - 25–50:  Below average (★★☆☆☆)
+      - 50–75:  Average (★★★☆☆)
+      - 75–100: Above average (★★★★☆)
+      - 100+:   Benchmark/Strong (★★★★★)
+    """
 
     def test_very_weak_rating(self):
-        """Test rating for very weak index (< 40)."""
+        """Test rating for very weak index (< 25)."""
         from streamlit_app import index_strength_rating
         
         assert index_strength_rating(0) == "★☆☆☆☆"
-        assert index_strength_rating(20) == "★☆☆☆☆"
-        assert index_strength_rating(39) == "★☆☆☆☆"
+        assert index_strength_rating(12) == "★☆☆☆☆"
+        assert index_strength_rating(24) == "★☆☆☆☆"
 
     def test_below_average_rating(self):
-        """Test rating for below average index (40-70)."""
+        """Test rating for below average index (25-50)."""
         from streamlit_app import index_strength_rating
         
-        assert index_strength_rating(40) == "★★☆☆☆"
-        assert index_strength_rating(55) == "★★☆☆☆"
-        assert index_strength_rating(69) == "★★☆☆☆"
+        assert index_strength_rating(25) == "★★☆☆☆"
+        assert index_strength_rating(37) == "★★☆☆☆"
+        assert index_strength_rating(49) == "★★☆☆☆"
 
     def test_average_rating(self):
-        """Test rating for average index (70-100)."""
+        """Test rating for average index (50-75)."""
         from streamlit_app import index_strength_rating
         
-        assert index_strength_rating(70) == "★★★☆☆"
-        assert index_strength_rating(85) == "★★★☆☆"
-        assert index_strength_rating(99) == "★★★☆☆"
+        assert index_strength_rating(50) == "★★★☆☆"
+        assert index_strength_rating(62) == "★★★☆☆"
+        assert index_strength_rating(74) == "★★★☆☆"
 
     def test_above_average_rating(self):
-        """Test rating for above average index (100-130)."""
+        """Test rating for above average index (75-100)."""
         from streamlit_app import index_strength_rating
         
-        assert index_strength_rating(100) == "★★★★☆"
-        assert index_strength_rating(115) == "★★★★☆"
-        assert index_strength_rating(129) == "★★★★☆"
+        assert index_strength_rating(75) == "★★★★☆"
+        assert index_strength_rating(87) == "★★★★☆"
+        assert index_strength_rating(99) == "★★★★☆"
 
-    def test_strong_rating(self):
-        """Test rating for strong index (130+)."""
+    def test_benchmark_and_strong_rating(self):
+        """Test rating for benchmark/strong index (100+).
+        
+        The benchmark title (100) should receive 5 stars since it
+        represents the best historical performer.
+        """
         from streamlit_app import index_strength_rating
         
-        assert index_strength_rating(130) == "★★★★★"
+        # Benchmark (100) gets 5 stars
+        assert index_strength_rating(100) == "★★★★★"
+        # Above benchmark also gets 5 stars
+        assert index_strength_rating(115) == "★★★★★"
         assert index_strength_rating(150) == "★★★★★"
         assert index_strength_rating(200) == "★★★★★"
 
@@ -230,14 +247,25 @@ class TestBuildSeasonSummary:
         """Test that ticket index is converted to star rating."""
         from streamlit_app import build_season_summary
         
+        # Test above average (4 stars): 75-100
         test_df = pd.DataFrame([{
             "Month": "September 2025",
             "Title": "Test",
-            "TicketIndex used": 115,
+            "TicketIndex used": 85,
         }])
         
         result = build_season_summary(test_df)
         assert result.iloc[0]["Index Strength"] == "★★★★☆"
+        
+        # Test benchmark/strong (5 stars): 100+
+        test_df_benchmark = pd.DataFrame([{
+            "Month": "September 2025",
+            "Title": "Cinderella",
+            "TicketIndex used": 100,
+        }])
+        
+        result_benchmark = build_season_summary(test_df_benchmark)
+        assert result_benchmark.iloc[0]["Index Strength"] == "★★★★★"
 
 
 class TestMakeSeasonSummaryTablePdf:
