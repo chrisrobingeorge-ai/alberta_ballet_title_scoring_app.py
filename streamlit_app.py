@@ -284,6 +284,236 @@ def _methodology_glossary_text() -> list:
 
     return out
 
+
+# -------------------------
+# Season Summary (Board View) Helper Functions
+# -------------------------
+
+def index_strength_rating(index_value: float) -> str:
+    """
+    Convert a ticket index value to a 1–5 star "strength" rating.
+    
+    The index is benchmark-normalized (100 = benchmark performance).
+    Ranges are calibrated to provide meaningful differentiation:
+      - 0–40:   Very weak (★☆☆☆☆)
+      - 40–70:  Below average (★★☆☆☆)
+      - 70–100: Average (★★★☆☆)
+      - 100–130: Above average (★★★★☆)
+      - 130+:   Strong (★★★★★)
+    
+    Args:
+        index_value: The ticket index or effective ticket index value.
+    
+    Returns:
+        A string with filled/empty star characters representing strength.
+    """
+    try:
+        idx = float(index_value)
+        # Check for NaN after conversion (np.nan converts to float nan)
+        if math.isnan(idx):
+            return "☆☆☆☆☆"
+    except (TypeError, ValueError):
+        return "☆☆☆☆☆"  # No data
+    
+    if idx < 40:
+        return "★☆☆☆☆"
+    elif idx < 70:
+        return "★★☆☆☆"
+    elif idx < 100:
+        return "★★★☆☆"
+    elif idx < 130:
+        return "★★★★☆"
+    else:
+        return "★★★★★"
+
+
+def segment_tilt_label(row: dict) -> str:
+    """
+    Derive a short, human-readable label for the lead audience segment.
+    
+    Uses the PrimarySegment field if available, with fallback to
+    dominant_audience_segment. If neither exists, returns "General Population".
+    
+    Args:
+        row: A dictionary-like object (DataFrame row or dict) with segment fields.
+    
+    Returns:
+        A human-readable string for the primary audience segment.
+    """
+    # Try PrimarySegment first (from segment analysis)
+    primary = row.get("PrimarySegment", "")
+    if primary and str(primary).strip():
+        return str(primary).strip()
+    
+    # Fallback to dominant_audience_segment
+    dominant = row.get("dominant_audience_segment", "")
+    if dominant and str(dominant).strip():
+        return str(dominant).strip()
+    
+    # Fallback to PredictedPrimarySegment
+    predicted = row.get("PredictedPrimarySegment", "")
+    if predicted and str(predicted).strip():
+        return str(predicted).strip()
+    
+    # Final fallback
+    return "General Population"
+
+
+def build_season_summary(plan_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build a clean, board-level summary DataFrame from the full export table.
+    
+    This function derives a simplified view suitable for leadership review,
+    with only the most relevant columns for strategic planning.
+    
+    Args:
+        plan_df: The full results DataFrame with all columns.
+    
+    Returns:
+        A new DataFrame with board-friendly summary columns:
+          - Month: Full month name (e.g., "September")
+          - Show Title: Title of the production
+          - Category: Show category (e.g., "family_classic")
+          - Estimated Tickets: Total ticket forecast
+          - YYC Singles: Calgary single ticket forecast
+          - YEG Singles: Edmonton single ticket forecast
+          - Total Marketing Spend: Combined marketing budget
+          - Segment Tilt: Primary audience segment label
+          - Index Strength: 1–5 star rating based on ticket index
+    
+    The output is sorted by calendar month order (September → October → ...).
+    """
+    import calendar
+    
+    if plan_df is None or plan_df.empty:
+        return pd.DataFrame(columns=[
+            "Month", "Show Title", "Category", "Estimated Tickets",
+            "YYC Singles", "YEG Singles", "Total Marketing Spend",
+            "Segment Tilt", "Index Strength"
+        ])
+    
+    # Define calendar order for sorting
+    # Season typically runs Sept-May with gap in Nov-Dec and April
+    month_order = ["September", "October", "November", "December",
+                   "January", "February", "March", "April", "May", "June"]
+    order_map = {m: i for i, m in enumerate(month_order)}
+    
+    rows = []
+    for _, r in plan_df.iterrows():
+        # Extract month name from "September 2026" format
+        month_str = str(r.get("Month", ""))
+        month_name = month_str.split()[0] if month_str else ""
+        
+        # Get month number for display if month_of_opening is available
+        month_num = r.get("month_of_opening", None)
+        if month_num and not month_name:
+            try:
+                month_name = calendar.month_name[int(month_num)]
+            except (ValueError, IndexError):
+                pass
+        
+        # Calculate estimated tickets
+        # Check for column existence first, then check for NaN values
+        est_tickets = None
+        if "EstimatedTickets_Final" in r and pd.notna(r.get("EstimatedTickets_Final")):
+            est_tickets = r.get("EstimatedTickets_Final")
+        elif "EstimatedTickets" in r and pd.notna(r.get("EstimatedTickets")):
+            est_tickets = r.get("EstimatedTickets")
+        
+        if est_tickets is None or pd.isna(est_tickets):
+            # Fallback: sum of YYC + YEG Singles
+            yyc = r.get("YYC_Singles", 0) or 0
+            yeg = r.get("YEG_Singles", 0) or 0
+            est_tickets = int(yyc) + int(yeg)
+        else:
+            est_tickets = int(est_tickets)
+        
+        # Calculate total marketing spend
+        total_mkt = r.get("Total_Mkt_Spend", None)
+        if total_mkt is None or pd.isna(total_mkt):
+            yyc_mkt = r.get("YYC_Mkt_Spend", 0) or 0
+            yeg_mkt = r.get("YEG_Mkt_Spend", 0) or 0
+            total_mkt = float(yyc_mkt) + float(yeg_mkt)
+        else:
+            total_mkt = float(total_mkt)
+        
+        # Get ticket index for strength rating
+        # Prefer "TicketIndex used" (EffectiveTicketIndex), then TicketIndex_DeSeason_Used
+        idx_val = r.get("TicketIndex used", r.get("EffectiveTicketIndex", 
+                        r.get("TicketIndex_DeSeason_Used", 100)))
+        
+        rows.append({
+            "Month": month_name,
+            "_month_order": order_map.get(month_name, 99),
+            "Show Title": r.get("Title", ""),
+            "Category": r.get("Category", ""),
+            "Estimated Tickets": est_tickets,
+            "YYC Singles": int(r.get("YYC_Singles", 0) or 0),
+            "YEG Singles": int(r.get("YEG_Singles", 0) or 0),
+            "Total Marketing Spend": f"${total_mkt:,.0f}" if total_mkt else "$0",
+            "Segment Tilt": segment_tilt_label(r),
+            "Index Strength": index_strength_rating(idx_val),
+        })
+    
+    summary_df = pd.DataFrame(rows)
+    
+    # Sort by calendar month order
+    summary_df = summary_df.sort_values("_month_order").drop(columns=["_month_order"])
+    
+    return summary_df.reset_index(drop=True)
+
+
+def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
+    """
+    Convert the board-level Season Summary DataFrame into a ReportLab Table
+    for the PDF export.
+    
+    Args:
+        plan_df: The full results DataFrame (will be processed by build_season_summary).
+    
+    Returns:
+        A ReportLab Table object formatted for PDF output.
+    """
+    summary_df = build_season_summary(plan_df)
+    if summary_df.empty:
+        return Table([["No season data"]])
+    
+    # Header row
+    header = list(summary_df.columns)
+    rows = [header]
+    
+    # Data rows
+    for _, row in summary_df.iterrows():
+        row_data = []
+        for col in summary_df.columns:
+            v = row[col]
+            if isinstance(v, str):
+                row_data.append(v)
+            elif pd.isna(v):
+                row_data.append("")
+            else:
+                row_data.append(str(v))
+        rows.append(row_data)
+    
+    table = Table(rows, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("FONT", (0, 0), (-1, -1), "Helvetica", 9),
+        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c5aa0")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("LINEABOVE", (0, 0), (-1, 0), 1, colors.black),
+        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
+        ("ALIGN", (3, 1), (-1, -1), "CENTER"),  # Center-align numeric columns
+        ("ALIGN", (0, 0), (2, -1), "LEFT"),      # Left-align text columns
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f5f5")]),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return table
+
+
 def _narrative_for_row(r: dict) -> str:
     title = r.get("Title",""); month = r.get("Month",""); cat = r.get("Category","")
     idx_used = r.get("TicketIndex used", None)
@@ -492,9 +722,10 @@ def build_full_pdf_report(methodology_paragraphs: list,
     """
     Returns a PDF as bytes containing:
       1) Title page
-      2) Season Rationale (per month/title)
-      3) Methodology & Glossary
-      4) Season Table (months as columns)
+      2) Season Summary (Board View) - NEW: Clean, leadership-friendly overview
+      3) Season Rationale (per month/title)
+      4) Methodology & Glossary
+      5) Season Table (months as columns) - Full technical details
     """
     styles = _make_styles()
     buf = io.BytesIO()
@@ -515,16 +746,26 @@ def build_full_pdf_report(methodology_paragraphs: list,
     ))
     story.append(Spacer(1, 0.25*inch))
 
-    # (1) Season Rationale
+    # (1) Season Summary (Board View) - NEW
+    story.append(Paragraph("Season Summary (Board View)", styles["h1"]))
+    story.append(Paragraph(
+        "High-level overview of the planned season. Index Strength uses a 1–5 star rating "
+        "based on the title's ticket index (★★★☆☆ = average benchmark performance).",
+        styles["small"]))
+    story.append(Spacer(1, 0.15*inch))
+    story.append(_make_season_summary_table_pdf(plan_df))
+    story.append(Spacer(1, 0.3*inch))
+
+    # (2) Season Rationale
     story.extend(_build_month_narratives(plan_df))
     story.append(PageBreak())
 
-    # (2) Methodology & Glossary
+    # (3) Methodology & Glossary
     story.extend(methodology_paragraphs)
     story.append(PageBreak())
 
-    # (3) Season Table (months as columns)
-    story.append(Paragraph("Season Table (months as columns)", styles["h1"]))
+    # (4) Season Table (months as columns) - Technical details
+    story.append(Paragraph("Season Table (Technical Details)", styles["h1"]))
     story.append(Paragraph(
         "Key metrics by month. Indices are benchmark-normalized; tickets include future seasonality and remount adjustments.",
         styles["small"]))
@@ -3370,84 +3611,113 @@ def render_results():
         month_to_row = { _month_label(r["Month"]): r for _, r in picked.iterrows() }
         month_cols = list(month_to_row.keys())
 
-        # NOTE: ReturnDecayFactor and ReturnDecayPct removed - remount decay eliminated per audit
-        metrics = [
-            "Title","Category","PrimarySegment","SecondarySegment",
-            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-            "Familiarity","Motivation","SignalOnly",
-            # Live Analytics factors
-            "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
-            "LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
-            # Economic factors
-            "Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor","Econ_Sources",
-            "TicketHistory","TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
-            "FutureSeasonalityFactor","HistSeasonalityFactor",
-            "Composite","Score",
-            "EstimatedTickets","EstimatedTickets_Final",
-            "YYC_Singles","YEG_Singles",
-            "CityShare_Calgary","CityShare_Edmonton",
-            "YYC_Mkt_SPT","YEG_Mkt_SPT",
-            "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-            "Prod_Expense",
-            # Diagnostic & Contextual Fields
-            "lead_gender","dominant_audience_segment","segment_weights",
-            "ticket_median_prior","prior_total_tickets","run_count_prior",
-            "TicketIndex_Predicted",
-            "month_of_opening","holiday_flag","category_seasonality_factor",
-            "kNN_used","kNN_neighbors","LA_Category",
-        ]
-
-        # assemble wide DF: rows = metrics, columns = month labels
-        df_wide = pd.DataFrame(
-            { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
-            index=metrics
+        # === NEW: Season Summary (Board View) - Shown first ===
+        st.markdown("#### 📋 Season Summary (Board View)")
+        st.caption(
+            "High-level overview for leadership review. "
+            "Index Strength uses a 1–5 star rating based on the title's ticket index "
+            "(★★★☆☆ = average benchmark performance)."
         )
-
-        sty = df_wide.style
-
-        # Integer counts / $ (tickets & money)
-        int_like_rows = [
-            "TicketHistory","EstimatedTickets","EstimatedTickets_Final",
-            "YYC_Singles","YEG_Singles",
-            "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
-            "Prod_Expense",
-            # LA indices (shown as whole numbers)
-            "LA_HighSpenderIdx","LA_ActiveBuyerIdx","LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
-            # New diagnostic fields - integer values
-            "ticket_median_prior","prior_total_tickets","run_count_prior","month_of_opening",
-        ]
-        sty = sty.format("{:,.0f}", subset=_S[int_like_rows, :])
-
-        # Indices / composites (one decimal)
-        idx_rows = [
-            "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
-            "Familiarity","Motivation","SignalOnly","Composite","TicketIndex used",
-            "TicketIndex_DeSeason_Used","TicketIndex_Predicted",
-        ]
-        sty = sty.format("{:.1f}", subset=_S[idx_rows, :])
-
-        # Factors
-        sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor","category_seasonality_factor"], :])
-        sty = sty.format("{:.2f}", subset=_S[["YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
         
-        # LA and Econ factors
-        sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
+        season_summary_df = build_season_summary(plan_df)
+        if not season_summary_df.empty:
+            st.dataframe(season_summary_df, width='stretch', hide_index=True)
+            
+            # Download button for Season Summary CSV
+            summary_csv_bytes = season_summary_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Download Season Summary (Board View) CSV",
+                data=summary_csv_bytes,
+                file_name=f"season_summary_board_{season_year}.csv",
+                mime="text/csv",
+                key="download_season_summary_csv"
+            )
+        else:
+            st.info("No shows scheduled yet. Select titles for each month above.")
+        
+        st.markdown("---")
 
-        # Percentages
-        sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton"], :])
+        # === Existing detailed table - Now in expander ===
+        with st.expander("📊 Advanced technical table (full export)", expanded=False):
+            # NOTE: ReturnDecayFactor and ReturnDecayPct removed - remount decay eliminated per audit
+            metrics = [
+                "Title","Category","PrimarySegment","SecondarySegment",
+                "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+                "Familiarity","Motivation","SignalOnly",
+                # Live Analytics factors
+                "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
+                "LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
+                # Economic factors
+                "Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor","Econ_Sources",
+                "TicketHistory","TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
+                "FutureSeasonalityFactor","HistSeasonalityFactor",
+                "Composite","Score",
+                "EstimatedTickets","EstimatedTickets_Final",
+                "YYC_Singles","YEG_Singles",
+                "CityShare_Calgary","CityShare_Edmonton",
+                "YYC_Mkt_SPT","YEG_Mkt_SPT",
+                "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+                "Prod_Expense",
+                # Diagnostic & Contextual Fields
+                "lead_gender","dominant_audience_segment","segment_weights",
+                "ticket_median_prior","prior_total_tickets","run_count_prior",
+                "TicketIndex_Predicted",
+                "month_of_opening","holiday_flag","category_seasonality_factor",
+                "kNN_used","kNN_neighbors","LA_Category",
+            ]
 
-        st.markdown("#### 🗓️ Season table")
-        st.dataframe(sty, width='stretch')
+            # assemble wide DF: rows = metrics, columns = month labels
+            df_wide = pd.DataFrame(
+                { col: [month_to_row[col].get(m, np.nan) for m in metrics] for col in month_cols },
+                index=metrics
+            )
 
-        # CSV download
-        st.download_button(
-            "⬇️ Download Season (wide) CSV",
-            df_wide.reset_index().rename(columns={"index":"Metric"}).to_csv(index=False).encode("utf-8"),
-            file_name=f"season_plan_wide_{season_year}.csv",
-            mime="text/csv"
-        )
+            sty = df_wide.style
 
-        # Full PDF report download
+            # Integer counts / $ (tickets & money)
+            int_like_rows = [
+                "TicketHistory","EstimatedTickets","EstimatedTickets_Final",
+                "YYC_Singles","YEG_Singles",
+                "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
+                "Prod_Expense",
+                # LA indices (shown as whole numbers)
+                "LA_HighSpenderIdx","LA_ActiveBuyerIdx","LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
+                # New diagnostic fields - integer values
+                "ticket_median_prior","prior_total_tickets","run_count_prior","month_of_opening",
+            ]
+            sty = sty.format("{:,.0f}", subset=_S[int_like_rows, :])
+
+            # Indices / composites (one decimal)
+            idx_rows = [
+                "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+                "Familiarity","Motivation","SignalOnly","Composite","TicketIndex used",
+                "TicketIndex_DeSeason_Used","TicketIndex_Predicted",
+            ]
+            sty = sty.format("{:.1f}", subset=_S[idx_rows, :])
+
+            # Factors
+            sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor","category_seasonality_factor"], :])
+            sty = sty.format("{:.2f}", subset=_S[["YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
+            
+            # LA and Econ factors
+            sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
+
+            # Percentages
+            sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton"], :])
+
+            st.markdown("##### 🗓️ Full Season Table (all metrics)")
+            st.dataframe(sty, width='stretch')
+
+            # CSV download
+            st.download_button(
+                "⬇️ Download Season (wide) CSV",
+                df_wide.reset_index().rename(columns={"index":"Metric"}).to_csv(index=False).encode("utf-8"),
+                file_name=f"season_plan_wide_{season_year}.csv",
+                mime="text/csv",
+                key="download_season_wide_csv"
+            )
+
+        # Full PDF report download (outside expander, always visible)
         try:
             methodology_paragraphs = _methodology_glossary_text()
             pdf_bytes = build_full_pdf_report(
@@ -3461,7 +3731,7 @@ def render_results():
                 data=pdf_bytes,
                 file_name=f"alberta_ballet_season_report_{season_year}.pdf",
                 mime="application/pdf",
-                width='content'
+                key="download_pdf_report"
             )
         except Exception as e:
             st.warning(f"PDF report unavailable: {e}")
