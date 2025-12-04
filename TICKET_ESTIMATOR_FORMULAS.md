@@ -646,7 +646,3 @@ Adding these fields to the export is a non-breaking change. They are purely info
     ├── inflation_adjustment_factor → CPI-based (temporal, range 0.94-1.21)
     └── Combined_Sentiment = 0.40×BoC + 0.60×Alberta
 ```
-
----
-
-*Last updated: December 2025*
