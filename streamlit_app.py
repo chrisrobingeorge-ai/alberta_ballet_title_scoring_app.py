@@ -610,8 +610,8 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     
     # Define column widths optimized for landscape LETTER page (10" usable width)
     # Total available: ~10 inches = 720 points (with 0.5" margins each side)
-    # Total used: ~7.1 inches - intentionally leaves margin for grid lines, 
-    # padding, and to avoid clipping on different printers/PDF viewers.
+    # Total used: ~7.1 inches (0.7+1.6+1.0+0.7+0.55+0.55+1.4+0.6)
+    # Intentionally leaves margin for grid lines, padding, and to avoid clipping.
     col_widths = [
         0.7 * inch,   # Month
         1.6 * inch,   # Show Title (needs room for wrapping)
@@ -1241,7 +1241,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **EstimatedTickets / Final**: projected tickets before/after remount decay.  
 
    ---
-    **Recommendation:** Use **Composite** to rank programs, **EstimatedTickets_Final** for capacity planning, .
+    **Recommendation:** Use **Composite** to rank programs and **EstimatedTickets_Final** for capacity planning.
     """))
 
 # -------------------------
