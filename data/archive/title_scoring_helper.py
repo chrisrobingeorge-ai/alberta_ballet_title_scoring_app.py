@@ -114,6 +114,11 @@ WIKI_API = "https://en.wikipedia.org/w/api.php"
 WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
                  "en.wikipedia/all-access/user/{page}/daily/{start}/{end}")
 
+# REQUIRED: Custom User-Agent to satisfy Wikimedia policy and avoid 403 blocks
+WIKI_HEADERS = {
+    'User-Agent': 'TitleScoringApp/1.0 (https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app)'
+}
+
 
 def wiki_search_best_title(query: str) -> Optional[str]:
     """
@@ -122,7 +127,8 @@ def wiki_search_best_title(query: str) -> Optional[str]:
     """
     try:
         params = {"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5}
-        r = requests.get(WIKI_API, params=params, timeout=10)
+        # Added headers=WIKI_HEADERS to avoid blocking
+        r = requests.get(WIKI_API, params=params, headers=WIKI_HEADERS, timeout=10)
         if r.status_code != 200:
             return None
         items = r.json().get("query", {}).get("search", [])
@@ -152,7 +158,8 @@ def fetch_wikipedia_views(title: str) -> float:
             start=start,
             end=end
         )
-        resp = requests.get(url, timeout=10)
+        # Added headers=WIKI_HEADERS to avoid blocking
+        resp = requests.get(url, headers=WIKI_HEADERS, timeout=10)
         if resp.status_code != 200:
             logger.warning("Wikipedia API returned status " + str(resp.status_code) + " for " + title)
             return 1.0
