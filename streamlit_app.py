@@ -2462,7 +2462,9 @@ def compute_scores_and_store(
             "FamiliarityRaw": fam_raw, "MotivationRaw": mot_raw,
             "WikiIdx": entry["wiki"], "TrendsIdx": entry["trends"],
             "YouTubeIdx": entry["youtube"], "SpotifyIdx": entry["spotify"],
-            "Source": src
+            "Source": src,
+            # Diagnostic field: lead_gender for export
+            "lead_gender": entry["gender"],
         })
 
     df = pd.DataFrame(rows)
@@ -2545,6 +2547,27 @@ def compute_scores_and_store(
     df["TicketIndex_DeSeason"] = idx_list
     df["HistSeasonalityFactor"] = hist_factor_list
 
+    # --- Add diagnostic fields for export ---
+    # ticket_median_prior: median tickets from prior runs (mirrors TicketMedian for export clarity)
+    # Note: This is intentionally duplicated for export schema consistency - allows analysts to
+    # identify which field represents "prior median" vs other ticket-related metrics
+    df["ticket_median_prior"] = med_list
+    
+    # prior_total_tickets: sum of all ticket values from prior runs
+    # run_count_prior: count of runs for this title
+    prior_totals, run_counts = [], []
+    for _, r in df.iterrows():
+        title = r["Title"]
+        priors = TICKET_PRIORS_RAW.get(title, [])
+        if priors:
+            prior_totals.append(sum(priors))
+            run_counts.append(len(priors))
+        else:
+            prior_totals.append(np.nan)
+            run_counts.append(0)
+    df["prior_total_tickets"] = prior_totals
+    df["run_count_prior"] = run_counts
+
     # 4) Fit regression models (XGBoost/GradientBoosting or simple linear)
     df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
@@ -2605,16 +2628,19 @@ def compute_scores_and_store(
             pred = float(np.clip(pred, 20.0, 180.0))
             return pred, src
 
-    imputed_vals, imputed_srcs = [], []
+    imputed_vals, imputed_srcs, predicted_vals = [], [], []
     for _, r in df.iterrows():
         if pd.notna(r["TicketIndex_DeSeason"]):
             imputed_vals.append(r["TicketIndex_DeSeason"]); imputed_srcs.append("History")
+            predicted_vals.append(np.nan)  # No ML prediction needed for history
         else:
             pred, src = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"])
             imputed_vals.append(pred); imputed_srcs.append(src)
+            predicted_vals.append(pred)  # Store raw ML prediction
 
     df["TicketIndex_DeSeason_Used"] = imputed_vals
     df["TicketIndexSource"] = imputed_srcs
+    df["TicketIndex_Predicted"] = predicted_vals  # Raw ML prediction (pre-adjustment)
 
     # 6) Apply future seasonality
     def _future_factor(cat: str):
@@ -2705,8 +2731,60 @@ def compute_scores_and_store(
     df["Seg_Family_Tickets"] = seg_family_tix
     df["Seg_EA_Tickets"] = seg_ea_tix
 
+    # --- Additional diagnostic fields for export ---
+    # dominant_audience_segment: alias for PredictedPrimarySegment
+    df["dominant_audience_segment"] = prim_list
+    
+    # segment_weights: JSON representation of segment mix shares
+    import json
+    segment_weights_json = []
+    for i in range(len(mix_gp)):
+        weights = {
+            "General Population": round(mix_gp[i], 4),
+            "Core Classical (F35–64)": round(mix_core[i], 4),
+            "Family (Parents w/ kids)": round(mix_family[i], 4),
+            "Emerging Adults (18–34)": round(mix_ea[i], 4),
+        }
+        segment_weights_json.append(json.dumps(weights))
+    df["segment_weights"] = segment_weights_json
+
+    # month_of_opening: integer (1-12) from proposed run date
+    if proposed_run_date is not None:
+        df["month_of_opening"] = int(proposed_run_date.month)
+    else:
+        df["month_of_opening"] = np.nan
+    
+    # holiday_flag: boolean, True if month is in Nov-Jan (holiday season)
+    if proposed_run_date is not None:
+        df["holiday_flag"] = proposed_run_date.month in (11, 12, 1)
+    else:
+        df["holiday_flag"] = False
+    
+    # category_seasonality_factor: seasonality factor for this category/month combination
+    # Note: This is the final factor after shrinkage and clipping (same as FutureSeasonalityFactor)
+    # The raw factor before shrinkage is not typically exposed as it may be unreliable for sparse data
+    df["category_seasonality_factor"] = df["FutureSeasonalityFactor"]
+    
+    # k-NN metadata: indicate whether k-NN was used and store neighbor info
+    # k-NN is used when the TicketIndexSource indicates a k-NN-based prediction
+    # Currently, the system uses ML or linear models; k-NN is reserved for future cold-start fallback
+    KNN_SOURCE_INDICATORS = {"kNN", "k-NN", "KNN", "knn fallback", "kNN Fallback", "k-Nearest Neighbors"}
+    knn_used_list = []
+    knn_neighbors_list = []
+    for src in imputed_srcs:
+        # Check if source matches any k-NN indicator
+        is_knn = any(indicator in str(src) for indicator in KNN_SOURCE_INDICATORS)
+        knn_used_list.append(is_knn)
+        knn_neighbors_list.append("[]")  # Would be populated if k-NN provides neighbor data
+    df["kNN_used"] = knn_used_list
+    df["kNN_neighbors"] = knn_neighbors_list
+
     # 10a) Live Analytics overlays (engagement factors by category)
     df = _add_live_analytics_overlays(df)
+    
+    # Add LA_Category field based on the Category column (for diagnostic export)
+    # This maps the show category to the Live Analytics category structure
+    df["LA_Category"] = df["Category"]  # Default to show category
 
     # 10b) Economic sentiment factor (BoC + Alberta data)
     try:
@@ -3145,6 +3223,30 @@ def render_results():
             "YYC_Mkt_Spend": float(yyc_mkt),
             "YEG_Mkt_Spend": float(yeg_mkt),
             "Total_Mkt_Spend": float(total_mkt),
+
+            # --- Diagnostic & Contextual Fields ---
+            # Show & Audience Context
+            "lead_gender": r.get("lead_gender", r.get("Gender", "n/a")),
+            "dominant_audience_segment": r.get("dominant_audience_segment", r.get("PredictedPrimarySegment", "")),
+            "segment_weights": r.get("segment_weights", "{}"),
+
+            # Model & Historical Inputs
+            "ticket_median_prior": r.get("ticket_median_prior", r.get("TicketMedian", np.nan)),
+            "prior_total_tickets": r.get("prior_total_tickets", np.nan),
+            "run_count_prior": r.get("run_count_prior", 0),
+            "TicketIndex_Predicted": r.get("TicketIndex_Predicted", np.nan),
+
+            # Temporal & Seasonality Info
+            "month_of_opening": int(m_num),
+            "holiday_flag": m_num in (11, 12, 1),
+            "category_seasonality_factor": r.get("category_seasonality_factor", f_season),
+
+            # k-NN Metadata
+            "kNN_used": r.get("kNN_used", False),
+            "kNN_neighbors": r.get("kNN_neighbors", "[]"),
+
+            # LA Category (if available from live analytics)
+            "LA_Category": r.get("LA_Category", cat),
         })
 
     # Guard + render
@@ -3265,6 +3367,12 @@ def render_results():
             "YYC_Mkt_SPT","YEG_Mkt_SPT",
             "YYC_Mkt_Spend","YEG_Mkt_Spend","Total_Mkt_Spend",
             "Prod_Expense",
+            # Diagnostic & Contextual Fields
+            "lead_gender","dominant_audience_segment","segment_weights",
+            "ticket_median_prior","prior_total_tickets","run_count_prior",
+            "TicketIndex_Predicted",
+            "month_of_opening","holiday_flag","category_seasonality_factor",
+            "kNN_used","kNN_neighbors","LA_Category",
         ]
 
         # assemble wide DF: rows = metrics, columns = month labels
@@ -3283,6 +3391,8 @@ def render_results():
             "Prod_Expense",
             # LA indices (shown as whole numbers)
             "LA_HighSpenderIdx","LA_ActiveBuyerIdx","LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
+            # New diagnostic fields - integer values
+            "ticket_median_prior","prior_total_tickets","run_count_prior","month_of_opening",
         ]
         sty = sty.format("{:,.0f}", subset=_S[int_like_rows, :])
 
@@ -3290,12 +3400,12 @@ def render_results():
         idx_rows = [
             "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
             "Familiarity","Motivation","SignalOnly","Composite","TicketIndex used",
-            "TicketIndex_DeSeason_Used",
+            "TicketIndex_DeSeason_Used","TicketIndex_Predicted",
         ]
         sty = sty.format("{:.1f}", subset=_S[idx_rows, :])
 
         # Factors
-        sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor"], :])
+        sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor","category_seasonality_factor"], :])
         sty = sty.format("{:.2f}", subset=_S[["YYC_Mkt_SPT","YEG_Mkt_SPT"], :])
         
         # LA and Econ factors

@@ -18,6 +18,7 @@ This document provides a comprehensive listing of all variables, weightings, and
 11. [Composite Score & Final Tickets](#11-composite-score--final-tickets)
 12. [ML Model Variables](#12-ml-model-variables)
 13. [Configuration Constants](#13-configuration-constants)
+14. [Ticket Estimator Export: Diagnostic & Contextual Fields](#14-ticket-estimator-export-diagnostic--contextual-fields)
 
 ---
 
@@ -509,6 +510,71 @@ model:
   use_for_cold_start: true
   confidence_threshold: 0.6  # R² threshold for KNN fallback
 ```
+
+---
+
+## 14. Ticket Estimator Export: Diagnostic & Contextual Fields
+
+The ticket estimator export CSV includes additional non-mathematical diagnostic fields that surface underlying model inputs and context. These fields help analysts interpret and validate predictions.
+
+### Show & Audience Context
+
+| Field | Type | Description |
+|-------|------|-------------|
+| **lead_gender** | string | Gender of lead character(s): "male", "female", "co-lead", or "n/a" |
+| **dominant_audience_segment** | string | Primary audience segment (e.g., "Family (Parents w/ kids)", "Core Classical (F35–64)") |
+| **segment_weights** | JSON | Segment weight distribution as JSON object (e.g., `{"Family": 0.6, "Emerging Adults": 0.2, ...}`) |
+
+### Model & Historical Inputs
+
+| Field | Type | Description |
+|-------|------|-------------|
+| **ticket_median_prior** | float | Median tickets from prior runs (from TICKET_PRIORS_RAW) |
+| **prior_total_tickets** | int | Sum of all ticket values from prior runs |
+| **run_count_prior** | int | Number of previous runs for this title |
+| **TicketIndex_Predicted** | float | Raw ML model prediction before seasonality adjustment |
+| **TicketIndexSource** | string | Source of ticket index: "History", "ML Category", "ML Overall", "Linear Fallback", "kNN", "Not enough data" |
+
+### Temporal & Seasonality Info
+
+| Field | Type | Description |
+|-------|------|-------------|
+| **month_of_opening** | int | Opening month (1-12) |
+| **holiday_flag** | boolean | True if show opens during holiday season (Nov-Jan) |
+| **category_seasonality_factor** | float | Raw seasonality factor for the category |
+| **FutureSeasonalityFactor** | float | Applied seasonality factor (after shrinkage and clipping) |
+
+### Live Analytics Signals
+
+| Field | Type | Description |
+|-------|------|-------------|
+| **LA_EngagementFactor** | float | Category engagement multiplier |
+| **LA_HighSpenderIdx** | float | High spender index (100 = average) |
+| **LA_ActiveBuyerIdx** | float | Active buyer index (100 = average) |
+| **LA_RepeatBuyerIdx** | float | Repeat buyer index (100 = average) |
+| **LA_ArtsAttendIdx** | float | Arts attendance index (100 = average) |
+| **LA_Category** | string | Category as mapped from live_analytics.csv |
+
+### k-NN Metadata
+
+| Field | Type | Description |
+|-------|------|-------------|
+| **kNN_used** | boolean | True if k-NN fallback was used for prediction |
+| **kNN_neighbors** | JSON array | Array of neighbor titles used (top k, if kNN was used) |
+
+### Purpose
+
+These diagnostic fields enable:
+- **Validation**: Compare model inputs to expected values
+- **Debugging**: Identify why specific estimates differ from expectations  
+- **Correlation Analysis**: Investigate patterns (e.g., "are female-led shows underestimated for Family audiences?")
+- **Model Improvement**: Identify titles that consistently fallback to the same neighbors
+
+### Non-Breaking Change
+Adding these fields to the export is a non-breaking change. They are purely informational and do not affect:
+- Ticket prediction math
+- Model architecture
+- UI presentation of core results
 
 ---
 
