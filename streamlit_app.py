@@ -2548,8 +2548,10 @@ def compute_scores_and_store(
     df["HistSeasonalityFactor"] = hist_factor_list
 
     # --- Add diagnostic fields for export ---
-    # ticket_median_prior: median tickets from prior runs
-    df["ticket_median_prior"] = med_list  # Same as TicketMedian
+    # ticket_median_prior: median tickets from prior runs (mirrors TicketMedian for export clarity)
+    # Note: This is intentionally duplicated for export schema consistency - allows analysts to
+    # identify which field represents "prior median" vs other ticket-related metrics
+    df["ticket_median_prior"] = med_list
     
     # prior_total_tickets: sum of all ticket values from prior runs
     # run_count_prior: count of runs for this title
@@ -2758,27 +2760,31 @@ def compute_scores_and_store(
     else:
         df["holiday_flag"] = False
     
-    # category_seasonality_factor: raw seasonality factor for category (before shrinkage)
-    # This is essentially the same as FutureSeasonalityFactor for now
+    # category_seasonality_factor: seasonality factor for this category/month combination
+    # Note: This is the final factor after shrinkage and clipping (same as FutureSeasonalityFactor)
+    # The raw factor before shrinkage is not typically exposed as it may be unreliable for sparse data
     df["category_seasonality_factor"] = df["FutureSeasonalityFactor"]
     
     # k-NN metadata: indicate whether k-NN was used and store neighbor info
-    # For now, k-NN is only used when ML/linear models fail
+    # k-NN is used when the TicketIndexSource indicates a k-NN-based prediction
+    # Currently, the system uses ML or linear models; k-NN is reserved for future cold-start fallback
+    KNN_SOURCE_INDICATORS = {"kNN", "k-NN", "KNN", "knn fallback", "kNN Fallback", "k-Nearest Neighbors"}
     knn_used_list = []
     knn_neighbors_list = []
     for src in imputed_srcs:
-        # k-NN is used when source is "kNN" (if implemented) or fallback
-        if "kNN" in src or "k-NN" in src:
-            knn_used_list.append(True)
-            knn_neighbors_list.append("[]")  # Would be populated if k-NN provides neighbors
-        else:
-            knn_used_list.append(False)
-            knn_neighbors_list.append("[]")
+        # Check if source matches any k-NN indicator
+        is_knn = any(indicator in str(src) for indicator in KNN_SOURCE_INDICATORS)
+        knn_used_list.append(is_knn)
+        knn_neighbors_list.append("[]")  # Would be populated if k-NN provides neighbor data
     df["kNN_used"] = knn_used_list
     df["kNN_neighbors"] = knn_neighbors_list
 
     # 10a) Live Analytics overlays (engagement factors by category)
     df = _add_live_analytics_overlays(df)
+    
+    # Add LA_Category field based on the Category column (for diagnostic export)
+    # This maps the show category to the Live Analytics category structure
+    df["LA_Category"] = df["Category"]  # Default to show category
 
     # 10b) Economic sentiment factor (BoC + Alberta data)
     try:
