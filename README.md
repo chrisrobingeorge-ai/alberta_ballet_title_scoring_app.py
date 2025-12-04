@@ -278,6 +278,7 @@ pip install lightgbm
 ```
 .
 ├── streamlit_app.py           # Main application
+├── title_scoring_helper.py    # Helper app for generating baselines
 ├── requirements.txt           # Python dependencies
 ├── config.yaml                # Configuration parameters
 ├── config/                    # ML registry CSVs
@@ -308,8 +309,6 @@ pip install lightgbm
 ├── utils/                     # Helper modules
 │   ├── priors.py
 │   └── canonicalize_titles.py # Title normalization
-├── legacy/                    # ⚠️ DEPRECATED scripts (do not use for production)
-│   └── build_city_priors.py   # Legacy city prior generator
 ├── integrations/              # API integrations
 │   ├── ticketmaster.py        # Ticketmaster Discovery API client
 │   ├── archtics.py            # Archtics Reporting API client
@@ -584,6 +583,7 @@ The data pulled by the CLI script lands in the `data/` directory as CSV files. T
 | Pull data from APIs (one-time) | `python scripts/pull_show_data.py --show_title "Show Name"` |
 | Pull data from APIs (scheduled) | Set up cron/scheduler for `scripts/pull_show_data.py` |
 | View predictions & analytics | `streamlit run streamlit_app.py` |
+| Score new titles manually | `streamlit run title_scoring_helper.py` |
 
 **Typical Workflow**:
 1. Set up API credentials in `.env`

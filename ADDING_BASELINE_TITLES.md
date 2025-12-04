@@ -44,18 +44,18 @@ For each title, collect the four external signals:
 
 | Signal | Source | Scale | How to Collect |
 |--------|--------|-------|----------------|
-| `wiki` | Wikipedia | 0-100 | Check monthly pageviews for the title's Wikipedia page |
+| `wiki` | Wikipedia | 0-100 | Use the Title Scoring Helper app, or check monthly pageviews |
 | `trends` | Google Trends | 0-100 | Search in Google Trends for Alberta region (past 12 months) |
 | `youtube` | YouTube | 0-100 | Search for official performance videos, note view counts |
 | `spotify` | Spotify | 0-100 | Search for associated music (composer/production) popularity |
 
-**Manual Data Collection:**
+**Using the Title Scoring Helper:**
 
-You can manually estimate signal values by checking each platform directly:
-- **Wikipedia**: Look up the title's page and check pageview statistics
-- **Google Trends**: Search for the title and note relative interest (0-100 scale)
-- **YouTube**: Search for performances and note median view counts
-- **Spotify**: Search for the associated music and check track popularity
+```bash
+streamlit run title_scoring_helper.py
+```
+
+Enter your titles, optionally add API keys for YouTube/Spotify, and click "Run Scoring" to fetch normalized 0-100 scores.
 
 ### Step 3: Add to baselines.csv
 
