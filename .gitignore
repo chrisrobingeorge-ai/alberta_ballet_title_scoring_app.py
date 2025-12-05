@@ -1,5 +1,10 @@
 .streamlit/secrets.toml
 
+# Generated video files (artifacts)
+*.mp4
+*.wav
+temp_scene_*.mp3
+
 # Trained models (can be regenerated)
 models/*.pkl
 models/*.joblib
