@@ -1,0 +1,6 @@
+moviepy==1.0.3
+gTTS==2.5.1
+numpy<2.0.0
+decorator
+tqdm
+pillow
