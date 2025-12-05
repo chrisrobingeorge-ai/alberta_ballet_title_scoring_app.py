@@ -967,9 +967,9 @@ To deploy:
 2. Connect to Streamlit Cloud
 3. The `packages.txt` file will automatically install system dependencies
 
-**Note:** Video generation is a standalone script (`video_maker.py`), not part of the main Streamlit app. To generate videos on Streamlit Cloud, you would need to add a dedicated page or integrate the functionality into the app.
+**Note:** The `packages.txt` file ensures system dependencies are available if you extend the Streamlit app to include video generation. The standalone `video_maker.py` script is designed for local or containerized execution—see Options 2-4 below for production video generation.
 
-**Option 2: Local Development**
+**Option 2: Local Development (Recommended for Video Generation)**
 
 For local video generation, install the system packages:
 
@@ -1034,10 +1034,10 @@ Some systems have restrictive ImageMagick policies. If you encounter errors like
 
 ```bash
 # Edit ImageMagick policy (Linux)
-sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-6/policy.xml
+sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@\*"/' /etc/ImageMagick-6/policy.xml
 
 # Or for ImageMagick 7
-sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-7/policy.xml
+sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@\*"/' /etc/ImageMagick-7/policy.xml
 ```
 
 #### Output Files
