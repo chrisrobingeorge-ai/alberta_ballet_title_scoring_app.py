@@ -10,22 +10,21 @@ def generate_tts_audio(text, output_file):
     """
     Generate TTS audio using espeak-ng command line tool.
     This works offline without needing internet access.
+    Returns a WAV file that moviepy can directly use.
     """
-    # Use espeak-ng to generate a WAV file, then convert to MP3
-    wav_file = output_file.replace('.mp3', '.wav')
-    
     # Generate WAV with espeak-ng
     cmd = [
         'espeak-ng',
         '-v', 'en',  # English voice
         '-s', '150',  # Speed (words per minute)
-        '-w', wav_file,  # Output WAV file
+        '-w', output_file,  # Output WAV file
         text
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    result = subprocess.run(cmd, check=True, capture_output=True)
+    if result.stderr:
+        print(f"  Warning from espeak-ng: {result.stderr.decode()}")
     
-    # Return the WAV file directly (moviepy can handle WAV)
-    return wav_file
+    return output_file
 
 def create_scene_clip(scene_num, title, visual_desc, narration_text, output_audio_name):
     """
@@ -149,7 +148,7 @@ def main():
     print("--- Starting Video Generation ---")
     
     for i, (scene_num, title, visual, narration) in enumerate(script_data):
-        temp_audio = f"temp_scene_{scene_num}.mp3"
+        temp_audio = f"temp_scene_{scene_num}.wav"
         
         try:
             clip, audio_file = create_scene_clip(scene_num, title, visual, narration, temp_audio)
