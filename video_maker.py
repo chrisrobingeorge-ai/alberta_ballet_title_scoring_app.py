@@ -1,10 +1,15 @@
 import os
 import textwrap
 import subprocess
-from moviepy.editor import (
-    TextClip, CompositeVideoClip, AudioFileClip, 
-    ColorClip, concatenate_videoclips
-)
+
+try:
+    from moviepy.editor import (
+        TextClip, CompositeVideoClip, AudioFileClip, 
+        ColorClip, concatenate_videoclips
+    )
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
 
 def generate_tts_audio(text, output_file):
     """
@@ -32,6 +37,11 @@ def create_scene_clip(scene_num, title, visual_desc, narration_text, output_audi
     - TTS Audio of the narration.
     - A visual slide containing the Scene Title and Visual Description.
     """
+    if not MOVIEPY_AVAILABLE:
+        raise ImportError(
+            "moviepy is not installed. Install video dependencies with: "
+            "pip install -r video_requirements.txt"
+        )
     print(f"  > Processing Scene {scene_num}: {title}...")
 
     # 1. Generate TTS Audio using espeak-ng (offline)
@@ -92,6 +102,12 @@ def create_scene_clip(scene_num, title, visual_desc, narration_text, output_audi
     return video, audio_file
 
 def main():
+    if not MOVIEPY_AVAILABLE:
+        print("Error: moviepy is not installed.")
+        print("To use video_maker.py, install the video dependencies:")
+        print("  pip install -r video_requirements.txt")
+        return
+    
     # --- SCRIPT DATA ---
     # Format: (Scene Number, Title, Visual Description, Narration)
     script_data = [
