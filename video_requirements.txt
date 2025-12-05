@@ -1,3 +1,14 @@
+# Video generation dependencies for video_maker.py
+#
+# SYSTEM DEPENDENCIES REQUIRED:
+# These Python packages require system packages to be installed first.
+# For Streamlit Cloud, these are specified in packages.txt
+# For local development, install via:
+#   Ubuntu/Debian: sudo apt-get install imagemagick ffmpeg espeak-ng
+#   macOS: brew install imagemagick ffmpeg espeak
+#
+# See README.md section "Video Generation Deployment" for full details.
+
 moviepy==1.0.3
 gTTS==2.5.1
 numpy<2.0.0
