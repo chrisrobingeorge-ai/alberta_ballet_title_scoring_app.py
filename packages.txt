@@ -1,0 +1,8 @@
+# System packages for Streamlit Cloud deployment
+# See: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies#apt-get-dependencies
+
+# Required for video generation (video_maker.py)
+# These packages are needed for moviepy text rendering and TTS
+imagemagick
+ffmpeg
+espeak-ng

@@ -936,3 +936,112 @@ When `hide_row_level_data: true` is set in `config.yaml`:
 - Raw row-level sales data is hidden in the UI
 - Only aggregate statistics are displayed
 - Export files may still contain detailed data (controlled by `mask_sensitive_exports`)
+
+### Video Generation Deployment
+
+The `video_maker.py` script generates training/documentation videos for the Alberta Ballet Ticket Estimator. This feature requires system packages that need special handling when deploying.
+
+#### Required System Packages
+
+| Package | Purpose |
+|---------|---------|
+| `imagemagick` | Text rendering for video clips (moviepy TextClip) |
+| `ffmpeg` | Video encoding and processing |
+| `espeak-ng` | Text-to-speech audio generation |
+
+#### Deployment Options
+
+**Option 1: Streamlit Cloud (Recommended)**
+
+Streamlit Cloud supports apt packages via `packages.txt`. The required packages are already configured:
+
+```bash
+# packages.txt (included in this repo)
+imagemagick
+ffmpeg
+espeak-ng
+```
+
+To deploy:
+1. Push the repository to GitHub
+2. Connect to Streamlit Cloud
+3. The `packages.txt` file will automatically install system dependencies
+
+**Note:** Video generation is a standalone script (`video_maker.py`), not part of the main Streamlit app. To generate videos on Streamlit Cloud, you would need to add a dedicated page or integrate the functionality into the app.
+
+**Option 2: Local Development**
+
+For local video generation, install the system packages:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install imagemagick ffmpeg espeak-ng
+
+# macOS (using Homebrew)
+brew install imagemagick ffmpeg espeak
+
+# Then install Python dependencies
+pip install -r video_requirements.txt
+```
+
+Run the video generator:
+```bash
+python video_maker.py
+```
+
+**Option 3: Docker Deployment**
+
+For containerized environments, use a Dockerfile with system packages:
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    imagemagick \
+    ffmpeg \
+    espeak-ng \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt video_requirements.txt ./
+RUN pip install -r requirements.txt -r video_requirements.txt
+
+COPY . /app
+WORKDIR /app
+
+CMD ["python", "video_maker.py"]
+```
+
+Build and run:
+```bash
+docker build -t alberta-ballet-video .
+docker run -v $(pwd)/outputs:/app/outputs alberta-ballet-video
+```
+
+**Option 4: Cloud Functions / Serverless**
+
+For on-demand video generation, deploy as a serverless function:
+
+- **AWS Lambda**: Use a custom container image with system dependencies
+- **Google Cloud Run**: Use a Docker container with the required packages
+- **Azure Container Instances**: Deploy the Docker image for batch processing
+
+#### ImageMagick Policy Configuration
+
+Some systems have restrictive ImageMagick policies. If you encounter errors like "not authorized", update the policy:
+
+```bash
+# Edit ImageMagick policy (Linux)
+sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-6/policy.xml
+
+# Or for ImageMagick 7
+sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-7/policy.xml
+```
+
+#### Output Files
+
+Generated videos are saved to the current directory:
+- `AlbertaBallet_Estimator_Video.mp4` - Final video output
+- Temporary files (`temp_scene_*.wav`) are automatically cleaned up
