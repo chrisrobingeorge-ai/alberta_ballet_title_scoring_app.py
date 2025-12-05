@@ -10,11 +10,6 @@ try:
     MOVIEPY_AVAILABLE = True
 except ImportError:
     MOVIEPY_AVAILABLE = False
-    TextClip = None
-    CompositeVideoClip = None
-    AudioFileClip = None
-    ColorClip = None
-    concatenate_videoclips = None
 
 def generate_tts_audio(text, output_file):
     """
@@ -44,7 +39,8 @@ def create_scene_clip(scene_num, title, visual_desc, narration_text, output_audi
     """
     if not MOVIEPY_AVAILABLE:
         raise ImportError(
-            "moviepy is not installed. Install it with: pip install moviepy"
+            "moviepy is not installed. Install video dependencies with: "
+            "pip install -r video_requirements.txt"
         )
     print(f"  > Processing Scene {scene_num}: {title}...")
 
