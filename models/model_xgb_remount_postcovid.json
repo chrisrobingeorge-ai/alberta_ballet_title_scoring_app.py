@@ -1,5 +1,5 @@
 {
-  "training_date": "2025-12-05T05:44:19.828518",
+  "training_date": "2025-12-05T19:09:11.222358",
   "model_type": "xgboost",
   "seed": 42,
   "tuned": false,
@@ -38,8 +38,8 @@
     "rmse_log": 0.0020429560612578576
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/tmpchf8zstj/test_dataset.csv",
-  "git_commit_hash": "65f83c9",
+  "dataset_path": "/tmp/tmpem2yr86a/test_dataset.csv",
+  "git_commit_hash": "9f131e0",
   "data_file_hash": "a9455801db5a8444",
   "dataset_shape": {
     "n_rows": 20,
