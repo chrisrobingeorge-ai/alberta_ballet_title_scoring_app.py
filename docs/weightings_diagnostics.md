@@ -1,8 +1,6 @@
 # Weightings Diagnostics Report
 
-**Date:** December 2, 2025  
-**Analysis:** Quantitative validation of three weighting systems  
-**Dataset:** 286 shows from `data/modelling_dataset.csv`
+This document provides quantitative validation of three weighting systems based on analysis of 286 shows from `data/modelling_dataset.csv`.
 
 ---
 

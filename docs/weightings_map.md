@@ -1,7 +1,6 @@
 # Weightings Systems Map
 
-**Date:** December 2, 2025  
-**Purpose:** Document the three key weighting systems in the Alberta Ballet Title Scoring App
+This document describes the three key weighting systems in the Alberta Ballet Title Scoring App.
 
 ---
 
@@ -97,10 +96,9 @@ The app integrates three distinct weighting systems that adjust ticket demand pr
   - Calls `build_feature_store()` which applies all economic joins
   - Economic features become predictors in the XGBoost model
 
-### Historical Context
-- **Previous Issue:** Economic features were flat/constant (all rows had same values)
-- **Resolution:** Rewrote join functions (Dec 2025) to use temporal matching with `pd.merge_asof`
-- **Current State:** Features now vary over time (validated in `ECONOMIC_FEATURES_WIRING_SUMMARY.md`)
+### Technical Notes
+- Economic features use temporal matching with `pd.merge_asof` for proper time-varying data
+- Features vary over time based on when each show runs
 
 ---
 

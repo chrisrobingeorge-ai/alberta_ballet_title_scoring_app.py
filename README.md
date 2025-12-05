@@ -33,17 +33,11 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-## Robust ML Training Pipeline (New)
+## Robust ML Training Pipeline
 
 The app includes a complete, leak-free training workflow.
 
-**The pipeline now uses explicit date fields for time-aware validation and feature engineering, and integrates external features (marketing, weather, economy, baselines) for every show.** This improves forecast accuracy and reliability.
-
-> **⚠️ IMPORTANT: This is the PRIMARY, RECOMMENDED ML pipeline.**
->
-> Always use the safe modelling dataset pipeline (below) for production training.
-> The legacy baseline pipeline (`ml/dataset.py` + `ml/training.py`) is deprecated
-> and has known data leakage risks.
+The pipeline uses explicit date fields for time-aware validation and feature engineering, and integrates external features (marketing, weather, economy, baselines) for every show.
 
 ### Quick Start: Run Full Pipeline
 
@@ -183,22 +177,12 @@ The app uses a **config-driven approach** with CSV files as the single source of
 
 ### Training a Model
 
-> **⚠️ DEPRECATED: The code below uses the legacy baseline pipeline.**
->
-> For production use, prefer the safe modelling dataset pipeline instead:
-> ```bash
-> python scripts/build_modelling_dataset.py
-> python scripts/train_safe_model.py --tune
-> python scripts/backtest_timeaware.py
-> ```
+Use the safe modelling dataset pipeline for training:
 
-From the **Model Training** page in the UI, or programmatically (deprecated):
-
-```python
-# DEPRECATED: Use scripts/train_safe_model.py instead
-from ml.training import train_baseline_model
-result = train_baseline_model()
-print(result)
+```bash
+python scripts/build_modelling_dataset.py
+python scripts/train_safe_model.py --tune
+python scripts/backtest_timeaware.py
 ```
 
 ## Machine Learning Models

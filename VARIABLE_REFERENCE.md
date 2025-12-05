@@ -225,7 +225,3 @@ Please:
 | **What is `EstimatedTickets_Final`?** | Rule-based forecast from main scorer (familiarity/motivation + adjustments) |
 | **Are external factors auto-loaded?** | **No**—you need to create CSVs and update the code using the prompts above |
 | **Which is most accurate?** | Compare MAE against `total_single_tickets` using the Title Scoring page |
-
----
-
-*Last updated: November 2024*

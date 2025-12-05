@@ -1,19 +1,10 @@
-# Statistical Soundness Refactoring Notes
+# Statistical Implementation Notes
 
-This document summarizes the changes made to achieve statistical rigor, robust model validation, and greater interpretability in the title scoring application.
+This document describes the statistical features and configuration in the title scoring application.
 
-## Summary of Changes
+## Model Training Features (`ml/training.py`)
 
-### 1. Model Training Enhancements (`ml/training.py`)
-
-**Implemented:**
-- **Time-based cross-validation**: Added `TimeSeriesSplit` and custom `TimeSeriesCVSplitter` for walk-forward validation
-- **Hyperparameter tuning**: Integrated `RandomizedSearchCV` with configurable search space
-- **Ensemble models**: Added `GradientBoostingRegressor` as an alternative to Random Forest
-- **Feature importance tracking**: Automatic extraction and export of feature importances
-- **Model metadata versioning**: Saves training date, metrics, features, and hyperparameters to JSON
-
-**New Functions:**
+### Available Functions
 - `load_ml_config()` - Load YAML configuration
 - `apply_target_transform()` / `inverse_target_transform()` - Log1p transform support
 - `get_hyperparam_grid()` - Get hyperparameter search space by model type
@@ -25,12 +16,14 @@ This document summarizes the changes made to achieve statistical rigor, robust m
 - `save_evaluation_metrics()` - Save metrics to `metrics/` folder
 - `train_with_cross_validation()` - Full CV training with metrics
 
-### 2. Target Variable Improvements
+### Model Training Capabilities
+- **Time-based cross-validation**: Uses `TimeSeriesSplit` and custom `TimeSeriesCVSplitter` for walk-forward validation
+- **Hyperparameter tuning**: `RandomizedSearchCV` with configurable search space
+- **Ensemble models**: GradientBoostingRegressor as an alternative to Random Forest
+- **Feature importance tracking**: Automatic extraction and export of feature importances
+- **Model metadata versioning**: Saves training date, metrics, features, and hyperparameters to JSON
 
-**Implemented:**
-- **Log1p transform**: Configurable via `target.use_log_transform` in config
-- Automatic inverse transform for predictions to return to original scale
-- Support for normalized targets (tickets_per_show, tickets_per_capacity) via config
+## Target Variable Configuration
 
 **Configuration:**
 ```yaml
@@ -41,14 +34,18 @@ target:
   normalize_by_capacity: false
 ```
 
-### 3. Cold Start KNN Fallback Refinement (`ml/knn_fallback.py`)
+- **Log1p transform**: Configurable via `target.use_log_transform` in config
+- Automatic inverse transform for predictions to return to original scale
+- Support for normalized targets (tickets_per_show, tickets_per_capacity) via config
 
-**Implemented:**
+## Cold Start KNN Fallback (`ml/knn_fallback.py`)
+
+**Capabilities:**
 - **Distance-weighted voting**: `weights='distance'` parameter for inverse-distance weighting
 - **PCA preprocessing**: Optional PCA for dimensionality reduction (Mahalanobis-like distance)
 - **Configurable parameters**: All parameters (k, recency_decay, etc.) tunable via YAML config
 
-**New Features:**
+**Functions:**
 - `load_knn_config()` - Load KNN settings from config file
 - PCA transform during index building and prediction
 - `use_pca` and `pca_components` parameters
@@ -65,21 +62,21 @@ knn:
   recency_decay: 0.1
 ```
 
-### 4. Feature Validation + Schema Enforcement (`ml/scoring.py`)
+## Feature Validation + Schema Enforcement (`ml/scoring.py`)
 
-**Implemented:**
+**Capabilities:**
 - **Schema validation**: Validates input DataFrame against training schema
 - **Column drift detection**: Warns on missing, extra, or reordered columns
 - **Custom warning class**: `SchemaValidationWarning` for filtering warnings
 
-**New Functions:**
+**Functions:**
 - `load_training_schema()` - Load schema from model metadata
 - `validate_input_schema()` - Validate DataFrame against schema
 - `score_with_uncertainty()` - Score with prediction intervals
 
-### 5. Uncertainty + Explainability
+## Uncertainty + Explainability
 
-**Implemented:**
+**Capabilities:**
 - **Prediction intervals**: Bootstrap-based uncertainty via tree variance (Random Forest)
 - **Feature importance export**: Saved to `outputs/feature_importance.json`
 - **Top N features**: Configurable number of top features to report
@@ -97,9 +94,9 @@ uncertainty:
   method: "quantile_forest"
 ```
 
-### 6. Evaluation Reporting
+## Evaluation Reporting
 
-**Implemented:**
+**Capabilities:**
 - **Subgroup metrics**: MAE, RMSE, R² reported by genre, season, city, capacity bin
 - **Metrics folder**: Results saved to `metrics/` as JSON and CSV
 - **CV results**: Cross-validation fold-by-fold results saved to `metrics/cv_results.json`
@@ -109,15 +106,9 @@ uncertainty:
 - `metrics/evaluation_metrics_by_subgroup.csv` - CSV for analysis
 - `metrics/cv_results.json` - Cross-validation results
 
-### 7. Data Clean-Up
+## Model Versioning
 
-**Implemented:**
-- **Cleaned `title_id_map.csv`**: Removed comment lines that were breaking CSV parsing
-- **Schema validation**: Input files validated against expected schemas
-
-### 8. Model Versioning
-
-**Implemented:**
+**Capabilities:**
 - **`model_metadata.json`**: Stores feature names, training date, metrics, hyperparameters
 - **Config hash**: Tracks configuration version for reproducibility
 
@@ -133,9 +124,9 @@ uncertainty:
 }
 ```
 
-## New Configuration File
+## Configuration File
 
-Created `configs/ml_config.yaml` with all ML settings:
+The `configs/ml_config.yaml` contains all ML settings:
 - Model type and hyperparameter search space
 - Target variable transformation settings
 - KNN fallback configuration
@@ -176,7 +167,7 @@ from ml.scoring import score_with_uncertainty
 results = score_with_uncertainty(df_features, confidence_level=0.9)
 ```
 
-## Key Improvements
+## Key Features
 
 1. **No Future Data Leakage**: Strict chronological splits ensure training data always precedes test data
 2. **Reproducibility**: Model metadata and config tracking enable exact reproduction
@@ -184,22 +175,3 @@ results = score_with_uncertainty(df_features, confidence_level=0.9)
 4. **Robustness**: Cross-validation provides more reliable performance estimates
 5. **Configurability**: All key parameters exposed via YAML config
 6. **Schema Safety**: Validation prevents silent failures from schema drift
-
-## Files Modified
-
-- `ml/training.py` - Major rewrite with new functionality
-- `ml/knn_fallback.py` - Added PCA, distance weighting, config loading
-- `ml/scoring.py` - Added schema validation, uncertainty quantification
-- `data/title_id_map.csv` - Cleaned up invalid comment lines
-
-## Files Created
-
-- `configs/ml_config.yaml` - Comprehensive ML configuration
-- `NOTES.md` - This documentation file
-
-## Backward Compatibility
-
-All changes are backward compatible:
-- Default behavior unchanged when no config file present
-- Original function signatures preserved
-- New parameters have sensible defaults

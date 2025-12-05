@@ -204,7 +204,3 @@ Let's walk through adding "The Nutcracker" as a reference baseline:
    ```
 
 5. **Validate**: Run the validation script to confirm it loaded correctly.
-
----
-
-*Last updated: November 2024*
