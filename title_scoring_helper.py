@@ -379,18 +379,21 @@ if fetch_button and titles:
 
     # Attach titles back for display
     df_scored["title"] = df_features["title"].values
+    
+    # Add index column starting from 1 for better UX
+    df_scored.insert(0, "index", range(1, len(df_scored) + 1))
 
-    # Reorder columns: title first, then forecast + intervals
+    # Reorder columns: index and title first, then forecast + intervals
     forecast_cols = [
         c for c in df_scored.columns
         if "forecast" in c or "lower" in c or "upper" in c
     ]
-    other_cols = [c for c in df_scored.columns if c not in forecast_cols + ["title"]]
-    display_cols = ["title"] + forecast_cols + other_cols
+    other_cols = [c for c in df_scored.columns if c not in forecast_cols + ["title", "index"]]
+    display_cols = ["index", "title"] + forecast_cols + other_cols
 
     st.dataframe(df_scored[display_cols], use_container_width=True)
 
-    csv_bytes = df_scored.to_csv(index=False).encode("utf-8")
+    csv_bytes = df_scored[display_cols].to_csv(index=False).encode("utf-8")
     st.download_button(
         label="Download Forecast CSV",
         data=csv_bytes,
