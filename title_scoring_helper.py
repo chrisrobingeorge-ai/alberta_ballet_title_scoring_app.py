@@ -65,7 +65,9 @@ def _get_secret(key: str, default=None):
 # -----------------------------------------------------------------------------
 # Sidebar: API Configuration (YouTube, Spotify & Wikipedia)
 # -----------------------------------------------------------------------------
-with st.sidebar.expander("🔑 API Configuration (YouTube, Spotify & Wikipedia)", expanded=False):
+with st.sidebar.expander(
+    "🔑 API Configuration (YouTube, Spotify & Wikipedia)", expanded=False
+):
     st.markdown("""
     **For live data fetching**, enter your API keys below.
     Keys are optional — if not provided, the app uses fallback values.
@@ -97,11 +99,23 @@ with st.sidebar.expander("🔑 API Configuration (YouTube, Spotify & Wikipedia)"
     st.caption("Keys are stored only in your session and cleared on refresh.")
 
 # Use sidebar input if provided, otherwise fall back to secrets
-YOUTUBE_API_KEY = yt_key_input if yt_key_input else _get_secret("YOUTUBE_API_KEY", None)
-SPOTIFY_CLIENT_ID = sp_id_input if sp_id_input else _get_secret("SPOTIFY_CLIENT_ID", None)
-SPOTIFY_CLIENT_SECRET = sp_secret_input if sp_secret_input else _get_secret("SPOTIFY_CLIENT_SECRET", None)
-WIKI_API_KEY = wiki_key_input if wiki_key_input else _get_secret("WIKI_API_KEY", None)
-WIKI_API_SECRET = wiki_secret_input if wiki_secret_input else _get_secret("WIKI_API_SECRET", None)
+YOUTUBE_API_KEY = (
+    yt_key_input if yt_key_input else _get_secret("YOUTUBE_API_KEY", None)
+)
+SPOTIFY_CLIENT_ID = (
+    sp_id_input if sp_id_input else _get_secret("SPOTIFY_CLIENT_ID", None)
+)
+SPOTIFY_CLIENT_SECRET = (
+    sp_secret_input if sp_secret_input
+    else _get_secret("SPOTIFY_CLIENT_SECRET", None)
+)
+WIKI_API_KEY = (
+    wiki_key_input if wiki_key_input else _get_secret("WIKI_API_KEY", None)
+)
+WIKI_API_SECRET = (
+    wiki_secret_input if wiki_secret_input
+    else _get_secret("WIKI_API_SECRET", None)
+)
 
 if YOUTUBE_API_KEY:
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -130,10 +144,14 @@ WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-articl
 def _get_wiki_headers() -> Dict[str, str]:
     """
     Build Wikipedia API request headers with optional authentication.
-    Includes required User-Agent and optional API key/secret for future authentication.
+    Includes required User-Agent and optional API key/secret.
     """
     headers = {
-        'User-Agent': 'TitleScoringApp/1.0 (https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app)'
+        'User-Agent': (
+            'TitleScoringApp/1.0 '
+            '(https://github.com/chrisrobingeorge-ai/'
+            'alberta_ballet_title_scoring_app)'
+        )
     }
     # Add optional authentication headers if credentials are provided
     if WIKI_API_KEY:
@@ -150,8 +168,16 @@ def wiki_search_best_title(query: str) -> Optional[str]:
     Uses API key/secret if provided for authentication.
     """
     try:
-        params = {"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5}
-        r = requests.get(WIKI_API, params=params, headers=_get_wiki_headers(), timeout=10)
+        params = {
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "format": "json",
+            "srlimit": 5
+        }
+        r = requests.get(
+            WIKI_API, params=params, headers=_get_wiki_headers(), timeout=10
+        )
         if r.status_code != 200:
             return None
         items = r.json().get("query", {}).get("search", [])
@@ -184,7 +210,10 @@ def fetch_wikipedia_views(title: str) -> float:
         )
         resp = requests.get(url, headers=_get_wiki_headers(), timeout=10)
         if resp.status_code != 200:
-            logger.warning("Wikipedia API returned status " + str(resp.status_code) + " for " + title)
+            logger.warning(
+                f"Wikipedia API returned status {resp.status_code} "
+                f"for {title}"
+            )
             return 1.0
         data = resp.json()
         items = data.get("items", [])
@@ -402,7 +431,7 @@ if fetch_button and titles:
 
     # Attach titles back for display
     df_scored["title"] = df_features["title"].values
-    
+
     # Add index column starting from 1 for better UX
     df_scored.insert(0, "index", range(1, len(df_scored) + 1))
 
@@ -411,7 +440,10 @@ if fetch_button and titles:
         c for c in df_scored.columns
         if "forecast" in c or "lower" in c or "upper" in c
     ]
-    other_cols = [c for c in df_scored.columns if c not in forecast_cols + ["title", "index"]]
+    other_cols = [
+        c for c in df_scored.columns
+        if c not in forecast_cols + ["title", "index"]
+    ]
     display_cols = ["index", "title"] + forecast_cols + other_cols
 
     st.dataframe(df_scored[display_cols], use_container_width=True)
