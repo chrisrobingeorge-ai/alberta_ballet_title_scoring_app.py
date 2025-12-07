@@ -28,8 +28,9 @@ st.set_page_config(page_title="Title Scoring Helper", layout="wide")
 
 st.title("Title Scoring Helper")
 st.caption(
-    "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, YouTube, and Spotify "
-    "for title demand scoring, then estimate ticket demand with uncertainty bands."
+    "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, "
+    "YouTube, and Spotify for title demand scoring, then estimate "
+    "ticket demand with uncertainty bands."
 )
 
 # -----------------------------------------------------------------------------
