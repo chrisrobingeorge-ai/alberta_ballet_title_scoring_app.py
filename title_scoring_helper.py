@@ -51,7 +51,7 @@ with st.expander("ℹ️ How to Use This Tool", expanded=False):
     - **Score multiple titles** - Enter several titles to compare them side-by-side
     - **Confidence intervals** - Wider ranges indicate higher uncertainty in the forecast
     
-    📖 **Full documentation**: See [TITLE_SCORING_HELPER_USAGE.md](https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app.py/blob/main/TITLE_SCORING_HELPER_USAGE.md)
+    📖 **Full documentation**: See TITLE_SCORING_HELPER_USAGE.md in the repository root
     """)
 
 # -----------------------------------------------------------------------------
