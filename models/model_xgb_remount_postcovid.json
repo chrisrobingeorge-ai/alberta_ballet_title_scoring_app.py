@@ -1,48 +1,73 @@
 {
-  "training_date": "2025-12-05T19:09:11.222358",
+  "training_date": "2025-12-09T18:24:09.217447",
   "model_type": "xgboost",
   "seed": 42,
-  "tuned": false,
-  "n_samples": 20,
+  "tuned": true,
+  "n_samples": 35,
   "features": {
     "numeric": [
       "wiki",
       "trends",
       "youtube",
       "spotify",
+      "prior_total_tickets",
+      "prior_run_count",
+      "ticket_median_prior",
       "years_since_last_run",
       "is_remount_recent",
-      "prior_total_tickets"
+      "is_remount_medium",
+      "run_count_prior",
+      "month_of_opening",
+      "holiday_flag",
+      "opening_year",
+      "opening_month",
+      "opening_day_of_week",
+      "opening_week_of_year",
+      "opening_quarter",
+      "opening_is_winter",
+      "opening_is_spring",
+      "opening_is_summer",
+      "opening_is_autumn",
+      "opening_is_holiday_season",
+      "opening_is_weekend",
+      "run_duration_days",
+      "consumer_confidence_prairies",
+      "energy_index",
+      "inflation_adjustment_factor",
+      "city_median_household_income",
+      "aud__engagement_factor",
+      "res__arts_share_giving"
     ],
     "categorical": [
-      "end_date",
       "category",
-      "gender"
+      "gender",
+      "opening_season",
+      "opening_date"
     ],
-    "total": 10
+    "total": 35
   },
   "cv_metrics": {
-    "mae_mean": 3186.7154296875,
-    "mae_std": 1412.6517752002421,
-    "rmse_mean": 3631.1729995836345,
-    "rmse_std": 1541.6145212312936,
-    "r2_mean": -15.687821299720387,
-    "r2_std": 14.915746746697591,
+    "mae_mean": 648.5499658203128,
+    "mae_std": 565.0847403773085,
+    "rmse_mean": 785.1646320423589,
+    "rmse_std": 692.791534568553,
+    "r2_mean": 0.6270235883780968,
+    "r2_std": 0.4126571920220356,
     "n_folds": 5
   },
   "train_metrics": {
-    "mae": 20.693945312499636,
-    "rmse": 27.410770251403324,
-    "r2": 0.9998919993275968,
-    "mae_log": 0.0016213737695279563,
-    "rmse_log": 0.0020429560612578576
+    "mae": 37.13555210658489,
+    "rmse": 80.63447467039649,
+    "r2": 0.9966771316589074,
+    "mae_log": 0.020160400783951208,
+    "rmse_log": 0.04455376073022479
   },
   "target_column": "target_ticket_median",
-  "dataset_path": "/tmp/tmpem2yr86a/test_dataset.csv",
-  "git_commit_hash": "9f131e0",
-  "data_file_hash": "a9455801db5a8444",
+  "dataset_path": "data/modelling_dataset.csv",
+  "git_commit_hash": "d2d73f9",
+  "data_file_hash": "975b7f7dbc437c7c",
   "dataset_shape": {
-    "n_rows": 20,
-    "n_columns": 13
+    "n_rows": 35,
+    "n_columns": 38
   }
 }
