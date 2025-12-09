@@ -812,6 +812,7 @@ def build_modelling_dataset(
         "opening_is_winter", "opening_is_spring", "opening_is_summer", "opening_is_autumn",
         "opening_is_holiday_season", "opening_is_weekend",
         "run_duration_days",
+        "opening_date",
         # Economic features (safe - macro context known at forecast time)
         "consumer_confidence_prairies", "energy_index",
         "inflation_adjustment_factor", "city_median_household_income",
