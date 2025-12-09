@@ -1,23 +1,23 @@
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
-import math
+
 import logging
+import math
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Add the repository root to sys.path so we can import local modules
 _REPO_ROOT = Path(__file__).resolve().parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-import requests  # noqa: E402
 import pandas as pd  # noqa: E402
-import streamlit as st  # noqa: E402
-
-from pytrends.request import TrendReq  # noqa: E402
-from googleapiclient.discovery import build  # noqa: E402
+import requests  # noqa: E402
 import spotipy  # noqa: E402
+import streamlit as st  # noqa: E402
+from googleapiclient.discovery import build  # noqa: E402
+from pytrends.request import TrendReq  # noqa: E402
 from spotipy.oauth2 import SpotifyClientCredentials  # noqa: E402
 
 from ml.scoring import score_runs_for_planning  # noqa: E402
@@ -69,10 +69,12 @@ def _get_secret(key: str, default=None):
 with st.sidebar.expander(
     "🔑 API Configuration (YouTube, Spotify & Wikipedia)", expanded=False
 ):
-    st.markdown("""
+    st.markdown(
+        """
     **For live data fetching**, enter your API keys below.
     Keys are optional — if not provided, the app uses fallback values.
-    """)
+    """
+    )
     yt_key_input = st.text_input(
         "YouTube Data API v3 Key",
         type="password",
@@ -100,22 +102,16 @@ with st.sidebar.expander(
     st.caption("Keys are stored only in your session and cleared on refresh.")
 
 # Use sidebar input if provided, otherwise fall back to secrets
-YOUTUBE_API_KEY = (
-    yt_key_input if yt_key_input else _get_secret("YOUTUBE_API_KEY", None)
-)
+YOUTUBE_API_KEY = yt_key_input if yt_key_input else _get_secret("YOUTUBE_API_KEY", None)
 SPOTIFY_CLIENT_ID = (
     sp_id_input if sp_id_input else _get_secret("SPOTIFY_CLIENT_ID", None)
 )
 SPOTIFY_CLIENT_SECRET = (
-    sp_secret_input if sp_secret_input
-    else _get_secret("SPOTIFY_CLIENT_SECRET", None)
+    sp_secret_input if sp_secret_input else _get_secret("SPOTIFY_CLIENT_SECRET", None)
 )
-WIKI_API_KEY = (
-    wiki_key_input if wiki_key_input else _get_secret("WIKI_API_KEY", None)
-)
+WIKI_API_KEY = wiki_key_input if wiki_key_input else _get_secret("WIKI_API_KEY", None)
 WIKI_API_SECRET = (
-    wiki_secret_input if wiki_secret_input
-    else _get_secret("WIKI_API_SECRET", None)
+    wiki_secret_input if wiki_secret_input else _get_secret("WIKI_API_SECRET", None)
 )
 
 if YOUTUBE_API_KEY:
@@ -138,8 +134,10 @@ else:
 
 # Wikipedia API endpoints
 WIKI_API = "https://en.wikipedia.org/w/api.php"
-WIKI_PAGEVIEW = ("https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-                 "en.wikipedia/all-access/user/{page}/daily/{start}/{end}")
+WIKI_PAGEVIEW = (
+    "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+    "en.wikipedia/all-access/user/{page}/daily/{start}/{end}"
+)
 
 
 def _get_wiki_headers() -> Dict[str, str]:
@@ -148,17 +146,17 @@ def _get_wiki_headers() -> Dict[str, str]:
     Includes required User-Agent and optional API key/secret.
     """
     headers = {
-        'User-Agent': (
-            'TitleScoringApp/1.0 '
-            '(https://github.com/chrisrobingeorge-ai/'
-            'alberta_ballet_title_scoring_app)'
+        "User-Agent": (
+            "TitleScoringApp/1.0 "
+            "(https://github.com/chrisrobingeorge-ai/"
+            "alberta_ballet_title_scoring_app)"
         )
     }
     # Add optional authentication headers if credentials are provided
     if WIKI_API_KEY:
-        headers['X-API-Key'] = WIKI_API_KEY
+        headers["X-API-Key"] = WIKI_API_KEY
     if WIKI_API_SECRET:
-        headers['X-API-Secret'] = WIKI_API_SECRET
+        headers["X-API-Secret"] = WIKI_API_SECRET
     return headers
 
 
@@ -174,7 +172,7 @@ def wiki_search_best_title(query: str) -> Optional[str]:
             "list": "search",
             "srsearch": query,
             "format": "json",
-            "srlimit": 5
+            "srlimit": 5,
         }
         r = requests.get(
             WIKI_API, params=params, headers=_get_wiki_headers(), timeout=10
@@ -204,16 +202,11 @@ def fetch_wikipedia_views(title: str) -> float:
 
         # Build the pageviews API URL with proper URL encoding
         encoded_page = requests.utils.quote(page_title.replace(" ", "_"), safe="")
-        url = WIKI_PAGEVIEW.format(
-            page=encoded_page,
-            start=start,
-            end=end
-        )
+        url = WIKI_PAGEVIEW.format(page=encoded_page, start=start, end=end)
         resp = requests.get(url, headers=_get_wiki_headers(), timeout=10)
         if resp.status_code != 200:
             logger.warning(
-                f"Wikipedia API returned status {resp.status_code} "
-                f"for {title}"
+                f"Wikipedia API returned status {resp.status_code} " f"for {title}"
             )
             return 1.0
         data = resp.json()
@@ -272,11 +265,7 @@ def fetch_youtube_metric(title: str) -> float:
         if not items:
             return 1.0
         vid_id = items[0]["id"]["videoId"]
-        stats_resp = (
-            youtube.videos()
-            .list(id=vid_id, part="statistics")
-            .execute()
-        )
+        stats_resp = youtube.videos().list(id=vid_id, part="statistics").execute()
         vitems = stats_resp.get("items", [])
         if not vitems:
             return 1.0
@@ -305,9 +294,11 @@ def fetch_spotify_metric(title: str) -> float:
         logger.warning("Spotify fetch failed for " + title + ": " + str(exc))
         return 1.0
 
+
 # -----------------------------------------------------------------------------
 # Normalization
 # -----------------------------------------------------------------------------
+
 
 def normalize_0_100(values: List[float]) -> List[float]:
     """
@@ -322,6 +313,7 @@ def normalize_0_100(values: List[float]) -> List[float]:
     if v_max <= v_min:
         return [50.0 for _ in v]
     return [100.0 * (x - v_min) / (v_max - v_min) for x in v]
+
 
 # -----------------------------------------------------------------------------
 # UI
@@ -380,8 +372,13 @@ if fetch_button and titles:
         df_raw["spotify"] = spotify_norm
 
     st.subheader("Step 2 – Normalized Signals (0–100)")
+
+    # Add index column for better readability
+    df_display = df_raw[["title", "wiki", "trends", "youtube", "spotify"]].copy()
+    df_display.insert(0, "index", range(1, len(df_display) + 1))
+
     st.dataframe(
-        df_raw[["title", "wiki", "trends", "youtube", "spotify"]],
+        df_display,
         use_container_width=True,
     )
 
@@ -438,12 +435,10 @@ if fetch_button and titles:
 
     # Reorder columns: index and title first, then forecast + intervals
     forecast_cols = [
-        c for c in df_scored.columns
-        if "forecast" in c or "lower" in c or "upper" in c
+        c for c in df_scored.columns if "forecast" in c or "lower" in c or "upper" in c
     ]
     other_cols = [
-        c for c in df_scored.columns
-        if c not in forecast_cols + ["title", "index"]
+        c for c in df_scored.columns if c not in forecast_cols + ["title", "index"]
     ]
     display_cols = ["index", "title"] + forecast_cols + other_cols
 
