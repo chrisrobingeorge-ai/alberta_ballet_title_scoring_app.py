@@ -136,7 +136,7 @@ def assert_no_leakage(df: pd.DataFrame, feature_cols: List[str], context: str = 
         )
 
 
-def load_combined_history(path: str = "data/productions/history_city_sales - combined.csv") -> pd.DataFrame:
+def load_combined_history(path: str = "data/productions/history_city_sales.csv") -> pd.DataFrame:
     """Load and preprocess combined historical sales data (city-level rows).
     
     Expected columns:
@@ -332,7 +332,7 @@ def compute_remount_features(
 
 
 def build_modelling_dataset(
-    history_path: str = "data/productions/history_city_sales - combined.csv",
+    history_path: str = "data/productions/history_city_sales.csv",
     baselines_path: str = "data/productions/baselines.csv",
     output_path: str = "data/modelling_dataset.csv",
     diagnostics_path: str = "diagnostics/modelling_dataset_report.json",
@@ -928,7 +928,7 @@ def main():
     )
     parser.add_argument(
         "--history", 
-        default="data/productions/history_city_sales - combined.csv",
+        default="data/productions/history_city_sales.csv",
         help="Path to combined historical sales CSV (city-level rows with dates)"
     )
     parser.add_argument(
