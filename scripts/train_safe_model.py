@@ -334,24 +334,30 @@ def get_model(
         raise ValueError(f"Unknown model type: {model_type}")
 
 
-def get_cv_splitter(df, n_splits=5, date_column=None):
-    df: pd.DataFrame,
-    n_splits: int = 5,
-    group_col: Optional[str] = None
-):
+def get_cv_splitter(df: pd.DataFrame, n_splits: int = 5, date_column: Optional[str] = None, group_col: Optional[str] = None):
     """Get appropriate cross-validation splitter.
-    
+
     Enforces time-aware splitting to prevent future data leakage:
-    1. If date column found, use TimeSeriesCVSplitter (strictest)
-    2. If season/year column found, use TimeSeriesSplit
-    3. If group column found, use GroupKFold (weaker guarantee, with warning)
-    4. Raise MissingDateColumnError - NO random split fallback allowed
-    
+    1. If explicit date_column provided, use it
+    2. If date column found automatically, use it
+    3. If season/year column found, use TimeSeriesSplit
+    4. If group column found, use GroupKFold (weaker guarantee, with warning)
+    5. Otherwise, raise MissingDateColumnError (NO random CV allowed)
+
     Raises:
         MissingDateColumnError: If no date/time column is found for time-aware CV.
-            Forecasting models require temporal ordering to prevent future data leakage.
     """
-    # First, try to find a date column for strict chronological splitting
+    from sklearn.model_selection import TimeSeriesSplit, GroupKFold
+
+    # ✅ 1. Use explicitly provided date column first
+    if date_column and date_column in df.columns:
+        try:
+            from ml.time_splits import TimeSeriesCVSplitter
+            return TimeSeriesCVSplitter(n_splits=n_splits, date_column=date_column)
+        except ImportError:
+            return TimeSeriesSplit(n_splits=n_splits)
+
+    # ✅ 2. Auto-detect real date columns
     date_cols = ["end_date", "start_date", "date", "opening_date", "performance_date"]
     for col in date_cols:
         if col in df.columns:
@@ -359,16 +365,15 @@ def get_cv_splitter(df, n_splits=5, date_column=None):
                 from ml.time_splits import TimeSeriesCVSplitter
                 return TimeSeriesCVSplitter(n_splits=n_splits, date_column=col)
             except ImportError:
-                pass  # Fall through to TimeSeriesSplit
-    
-    # Try time-aware if we have a season/year column
+                return TimeSeriesSplit(n_splits=n_splits)
+
+    # ✅ 3. Fall back to year/season ordering (weaker, but still time-aware)
     time_cols = ["season", "ref_year", "year", "fiscal_year"]
     for col in time_cols:
         if col in df.columns:
-            # Use TimeSeriesSplit
             return TimeSeriesSplit(n_splits=n_splits)
-    
-    # Try group-based if we have a grouping column
+
+    # ✅ 4. Group-based fallback (with warning)
     if group_col and group_col in df.columns:
         import warnings
         warnings.warn(
@@ -378,9 +383,8 @@ def get_cv_splitter(df, n_splits=5, date_column=None):
             UserWarning
         )
         return GroupKFold(n_splits=n_splits)
-    
-    # Raise error instead of falling back to random splits
-    # Random splits are NOT allowed for forecasting models due to data leakage risk
+
+    # ❌ 5. Hard fail: no time awareness possible
     raise MissingDateColumnError(
         searched_columns=list(date_cols) + list(time_cols),
         available_columns=df.columns.tolist()
