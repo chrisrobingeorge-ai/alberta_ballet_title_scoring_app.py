@@ -232,17 +232,18 @@ def prepare_features(
             numeric_cols.append(col)
     
     # Prepare X and y
-    X = df[feature_cols].copy()
+    X = df[feature_cols].copy().reset_index(drop=True)
     
     if target_col in df.columns:
-        y = df[target_col].copy()
+        y = df[target_col].copy().clip(lower=0)
         # Log transform target for better predictions
-        y = np.log1p(y.clip(lower=0))
+        y = np.log1p(y)
+        y = y.reset_index(drop=True)
     else:
-        # No target - return for inference
         y = None
     
     return X, y, numeric_cols, categorical_cols
+
 
 
 def build_preprocessing_pipeline(
