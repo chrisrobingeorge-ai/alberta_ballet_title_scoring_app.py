@@ -1,7 +1,5 @@
 # Weightings Quick Reference
 
-**Last Updated:** December 2, 2025
-
 ---
 
 ## Quick Status Check
@@ -26,21 +24,20 @@ Expected output: All three systems should show **0% zero deltas** (meaning they'
 
 ---
 
-## Known Issues (Dec 2025)
+## Known Data Quality Issues
 
 ### 🔴 Consumer Confidence (HIGH PRIORITY)
 - Only 1-2 unique values across dataset
 - Effectively flat over time
-- **Fix:** Investigate `nanos_consumer_confidence.csv` data quality
+- Source: `nanos_consumer_confidence.csv`
 
 ### 🟡 Live Analytics Granularity (MEDIUM)
 - Only 4 unique engagement factors
 - Limited discriminative power
-- **Fix:** Add subcategory-level factors or secondary dimensions
 
 ### 🟡 Stone Olafson Multipliers (MEDIUM)
 - Zero correlation improvement despite +2.6 point impact
-- **Consider:** Removing or making data-driven
+- Currently hard-coded rather than data-driven
 
 ---
 

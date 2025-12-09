@@ -94,7 +94,6 @@ which makes intuitive sense: shows that have sold well in the past tend to sell 
 
 ## Model Metadata
 
-- **Training Date:** 2025-12-01T00:58:42.163151
 - **Model Type:** xgboost
 - **Training Samples:** 35
 - **Target Column:** target_ticket_median
