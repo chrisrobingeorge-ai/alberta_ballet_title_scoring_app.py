@@ -20,16 +20,16 @@ Solution:
     5. For non-matched titles: keep original scores
 
 Usage:
-    python scripts/normalize_export_scores.py \\
-        --baselines data/productions/baselines.csv \\
-        --export 2025_export.csv \\
+    python scripts/normalize_export_scores.py \
+        --baselines data/productions/baselines.csv \
+        --export 2025_export.csv \
         --output 2025_export_normalized.csv
 
     # With custom signal columns
-    python scripts/normalize_export_scores.py \\
-        --baselines data/productions/baselines.csv \\
-        --export 2025_export.csv \\
-        --output 2025_export_normalized.csv \\
+    python scripts/normalize_export_scores.py \
+        --baselines data/productions/baselines.csv \
+        --export 2025_export.csv \
+        --output 2025_export_normalized.csv \
         --signals wiki trends youtube spotify custom_signal
 
 Output:
@@ -173,8 +173,8 @@ def normalize_scores(
         baseline_mean = baseline_stats.loc['mean', col]
         baseline_std = baseline_stats.loc['std', col]
         
-        # Handle edge case: zero standard deviation
-        if export_std == 0 or pd.isna(export_std):
+        # Handle edge case: zero or near-zero standard deviation
+        if pd.isna(export_std) or export_std < 1e-10:
             logger.warning(f"Signal '{col}' has zero or invalid std in export, keeping original values")
             continue
         
