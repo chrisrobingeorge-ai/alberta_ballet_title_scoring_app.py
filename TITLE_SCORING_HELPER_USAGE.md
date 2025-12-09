@@ -1,5 +1,7 @@
 # Title Scoring Helper - Usage Guide
 
+> 🚀 **Quick Reference**: See [TITLE_SCORING_QUICK_REFERENCE.md](TITLE_SCORING_QUICK_REFERENCE.md) for a printable one-page reference card.
+
 ## What is the Title Scoring Helper?
 
 The Title Scoring Helper (`title_scoring_helper.py`) is a **Streamlit web application** that helps you score new ballet titles on their own without needing historical ticket sales data. It fetches popularity signals from external sources (Wikipedia, Google Trends, YouTube, Spotify) and provides ticket demand forecasts.
