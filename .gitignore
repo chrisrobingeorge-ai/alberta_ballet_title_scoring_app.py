@@ -45,6 +45,12 @@ data/modelling_dataset.csv
 # Generated API integration CSVs (can be regenerated)
 data/*_archtics_ticketmaster.csv
 
+# Sample export and normalized files (example data)
+2025_export.csv
+2025_export_normalized.csv
+*_export.csv
+*_export_normalized.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
