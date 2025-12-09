@@ -412,7 +412,7 @@ def train_model(
     tune: bool = False,
     save_shap: bool = False,
     seed: int = 42,
-    verbose: bool = True
+    verbose: bool = True,
     date_column: Optional[str] = None
 ) -> Dict[str, Any]:
     """
