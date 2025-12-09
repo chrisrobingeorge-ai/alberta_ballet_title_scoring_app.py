@@ -413,6 +413,7 @@ def train_model(
     save_shap: bool = False,
     seed: int = 42,
     verbose: bool = True
+    date_column: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Train the model pipeline.
@@ -502,7 +503,7 @@ def train_model(
     if verbose:
         print("\n4. Running cross-validation...")
     
-    cv = get_cv_splitter(df, n_splits=min(5, len(df) // 2))
+    cv = get_cv_splitter(df, n_splits=min(5, len(df) // 2), date_column=date_column)
     
     # Manual CV for detailed metrics
     cv_scores = {"mae": [], "rmse": [], "r2": []}
@@ -731,7 +732,11 @@ def main():
         action="store_true",
         help="Suppress progress output"
     )
-    
+    parser.add_argument(
+        "--date_column",
+        type=str, default=None,
+        help="Name of date column to use for time-aware CV (e.g., 'opening_date')")
+
     args = parser.parse_args()
     
     try:
@@ -743,7 +748,8 @@ def main():
             tune=args.tune,
             save_shap=args.save_shap,
             seed=args.seed,
-            verbose=not args.quiet
+            verbose=not args.quiet,
+            date_column=args.date_column  # ✅ Add this line
         )
         
         if not results["success"]:
