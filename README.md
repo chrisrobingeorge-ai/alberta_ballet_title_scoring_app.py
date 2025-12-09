@@ -30,8 +30,14 @@ pip install -r requirements.txt
 ### 2. Run the app
 
 ```bash
+# Main application (full season planning and analytics)
 streamlit run streamlit_app.py
+
+# Title Scoring Helper (score individual titles without historical data)
+streamlit run title_scoring_helper.py
 ```
+
+> 📖 **New to the Title Scoring Helper?** See [TITLE_SCORING_HELPER_USAGE.md](TITLE_SCORING_HELPER_USAGE.md) for a complete guide on how to score new titles on their own.
 
 ## Robust ML Training Pipeline (New)
 
@@ -278,7 +284,7 @@ pip install lightgbm
 ```
 .
 ├── streamlit_app.py           # Main application
-├── title_scoring_helper.py    # Helper app for generating baselines
+├── title_scoring_helper.py    # Helper app for scoring new titles (see TITLE_SCORING_HELPER_USAGE.md)
 ├── requirements.txt           # Python dependencies
 ├── config.yaml                # Configuration parameters
 ├── config/                    # ML registry CSVs
@@ -583,12 +589,16 @@ The data pulled by the CLI script lands in the `data/` directory as CSV files. T
 | Pull data from APIs (one-time) | `python scripts/pull_show_data.py --show_title "Show Name"` |
 | Pull data from APIs (scheduled) | Set up cron/scheduler for `scripts/pull_show_data.py` |
 | View predictions & analytics | `streamlit run streamlit_app.py` |
-| Score new titles manually | `streamlit run title_scoring_helper.py` |
+| **Score new titles on their own** | `streamlit run title_scoring_helper.py` ([see usage guide](TITLE_SCORING_HELPER_USAGE.md)) |
 
 **Typical Workflow**:
 1. Set up API credentials in `.env`
 2. Run `scripts/pull_show_data.py` to fetch fresh data (manually or via scheduler)
 3. Run `streamlit run streamlit_app.py` to view and analyze the data
+
+**Scoring New Titles**:
+- Use `title_scoring_helper.py` to score titles without historical data
+- See [TITLE_SCORING_HELPER_USAGE.md](TITLE_SCORING_HELPER_USAGE.md) for complete instructions
 
 ---
 

@@ -33,6 +33,27 @@ st.caption(
     "ticket demand with uncertainty bands."
 )
 
+# Add usage instructions in an expander
+with st.expander("ℹ️ How to Use This Tool", expanded=False):
+    st.markdown("""
+    ### Quick Start Guide
+    
+    1. **Enter titles** - Type one title per line in the text area below
+    2. **Configure settings** - Choose normalization method, genre, and season
+    3. **Fetch scores** - Click "Fetch & Normalize Scores" to get results
+    4. **Review forecasts** - See predicted ticket sales with confidence intervals
+    5. **Download** - Export results as CSV for further analysis
+    
+    ### Tips
+    
+    - **Use Reference-based normalization** (default) for consistency with baselines.csv
+    - **API keys are optional** - Provide YouTube/Spotify keys in the sidebar for better accuracy
+    - **Score multiple titles** - Enter several titles to compare them side-by-side
+    - **Confidence intervals** - Wider ranges indicate higher uncertainty in the forecast
+    
+    📖 **Full documentation**: See [TITLE_SCORING_HELPER_USAGE.md](https://github.com/chrisrobingeorge-ai/alberta_ballet_title_scoring_app.py/blob/main/TITLE_SCORING_HELPER_USAGE.md)
+    """)
+
 # -----------------------------------------------------------------------------
 # External API clients
 # -----------------------------------------------------------------------------
@@ -397,10 +418,16 @@ def normalize_with_reference(
 
 st.subheader("Step 1 – Enter Titles")
 
+st.markdown("""
+**Enter the title(s) you want to score.** You can score a single title on its own or 
+multiple titles to compare them. Use exact title names for best API matching results.
+""")
+
 titles_raw = st.text_area(
     "Paste one title per line:",
     height=150,
     placeholder="The Nutcracker\nSwan Lake\nCinderella",
+    help="Enter each title on a new line. Use official or commonly known title names for best results."
 )
 
 col_a, col_b, col_c = st.columns(3)
