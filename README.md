@@ -219,17 +219,17 @@ See [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md) for detailed technica
 
 The app uses several CSV files in the `data/` directory:
 
-- `history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions, and ticket priors)
-- `baselines.csv` - Familiarity and motivation scores for all titles (includes both historical and reference titles)
-- `marketing_spend_per_ticket.csv` - Historical marketing spend data
-- `past_runs.csv` - Performance dates for seasonality analysis
-- `segment_priors.csv` - Audience segment preferences
-- `title_id_map.csv` - Title canonicalization mapping
-- `modelling_dataset.csv` - Generated leak-free dataset (created by scripts)
+- `data/productions/history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions, and ticket priors)
+- `data/productions/baselines.csv` - Familiarity and motivation scores for all titles (includes both historical and reference titles)
+- `data/productions/marketing_spend_per_ticket.csv` - Historical marketing spend data
+- `data/productions/past_runs.csv` - Performance dates for seasonality analysis
+- `data/productions/segment_priors.csv` - Audience segment preferences
+- `data/title_id_map.csv` - Title canonicalization mapping
+- `data/modelling_dataset.csv` - Generated leak-free dataset (created by scripts)
 
 ### Where Do the Titles Come From?
 
-The application uses **114 unique ballet/performance titles** in `baselines.csv`, distinguished by the `source` column:
+The application uses **114 unique ballet/performance titles** in `data/productions/baselines.csv`, distinguished by the `source` column:
 
 | Source | Titles | Description |
 |--------|--------|-------------|
@@ -237,9 +237,9 @@ The application uses **114 unique ballet/performance titles** in `baselines.csv`
 | `external_reference` | 47 | **Reference titles** - Well-known ballets from other companies (Royal Ballet, ABT, etc.) without AB ticket history. Used for k-NN similarity matching and cold-start predictions. |
 
 **How titles are loaded:**
-- The main Streamlit app (`streamlit_app.py`) loads all titles from `baselines.csv` (114 titles) for scoring
+- The main Streamlit app (`streamlit_app.py`) loads all titles from `data/productions/baselines.csv` (114 titles) for scoring
 - Use `load_all_baselines(include_reference=False)` to get only historical titles for ML training
-- Historical sales data in `history_city_sales.csv` contains 42 title records with actual ticket sales
+- Historical sales data in `data/productions/history_city_sales.csv` contains 42 title records with actual ticket sales
 
 **📖 See [VARIABLE_REFERENCE.md](VARIABLE_REFERENCE.md) for detailed explanations of all ticket-related columns and how to add external factors.**
 
@@ -636,8 +636,8 @@ To get started, you need these data files in the `data/` directory:
 
 | File | Purpose | Minimum Columns |
 |------|---------|-----------------|
-| `history_city_sales.csv` | Historical ticket sales | `Show Title`, `Single Tickets - Calgary`, `Single Tickets - Edmonton` |
-| `baselines.csv` | Title signal scores | `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source` |
+| `data/productions/history_city_sales.csv` | Historical ticket sales | `Show Title`, `Single Tickets - Calgary`, `Single Tickets - Edmonton` |
+| `data/productions/baselines.csv` | Title signal scores | `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source` |
 
 Additionally, these config files should exist in `config/`:
 - `ml_feature_inventory_alberta_ballet.csv`
@@ -678,8 +678,8 @@ Additionally, these config files should exist in `config/`:
 
 ### Obtaining Initial Datasets
 
-- **history_city_sales.csv**: Export from your ticketing system (Tessitura, Spektrix, etc.)
-- **baselines.csv**: Contains signal scores for titles. See [ADDING_BASELINE_TITLES.md](ADDING_BASELINE_TITLES.md) for details on the format and how to add new titles.
+- **data/productions/history_city_sales.csv**: Export from your ticketing system (Tessitura, Spektrix, etc.)
+- **data/productions/baselines.csv**: Contains signal scores for titles. See [ADDING_BASELINE_TITLES.md](ADDING_BASELINE_TITLES.md) for details on the format and how to add new titles.
 - **Config CSVs**: Template files are included in the repository
 
 ---
