@@ -334,7 +334,7 @@ def get_model(
         raise ValueError(f"Unknown model type: {model_type}")
 
 
-def get_cv_splitter(
+def get_cv_splitter(df, n_splits=5, date_column=None):
     df: pd.DataFrame,
     n_splits: int = 5,
     group_col: Optional[str] = None
