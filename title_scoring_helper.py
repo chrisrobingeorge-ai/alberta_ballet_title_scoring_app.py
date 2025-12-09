@@ -300,10 +300,30 @@ def fetch_spotify_metric(title: str) -> float:
 # -----------------------------------------------------------------------------
 
 
+def load_reference_distribution() -> Optional[pd.DataFrame]:
+    """
+    Load the reference distribution from baselines.csv for global normalization.
+    Returns a DataFrame with columns: title, wiki, trends, youtube, spotify.
+    Returns None if file cannot be loaded.
+    """
+    try:
+        baselines_path = _REPO_ROOT / "data" / "productions" / "baselines.csv"
+        if not baselines_path.exists():
+            return None
+        df = pd.read_csv(baselines_path)
+        return df[['title', 'wiki', 'trends', 'youtube', 'spotify']].copy()
+    except Exception as exc:
+        logger.warning(f"Could not load reference distribution: {exc}")
+        return None
+
+
 def normalize_0_100(values: List[float]) -> List[float]:
     """
     Rescale a list of values to 0–100. If all values are identical,
     return 50 for all to avoid divide-by-zero.
+    
+    NOTE: This function is for batch-relative normalization (legacy behavior).
+    For consistency with baselines.csv, use normalize_with_reference() instead.
     """
     if not values:
         return []
@@ -313,6 +333,62 @@ def normalize_0_100(values: List[float]) -> List[float]:
     if v_max <= v_min:
         return [50.0 for _ in v]
     return [100.0 * (x - v_min) / (v_max - v_min) for x in v]
+
+
+def normalize_with_reference(
+    values: List[float],
+    signal_name: str,
+    reference_df: Optional[pd.DataFrame] = None
+) -> List[float]:
+    """
+    Normalize values to 0-100 using a reference distribution from baselines.csv.
+    This ensures scores are consistent with the global baseline scores.
+    
+    Args:
+        values: List of raw values to normalize
+        signal_name: Name of the signal ('wiki', 'trends', 'youtube', 'spotify')
+        reference_df: Optional pre-loaded reference DataFrame. If None, will load it.
+    
+    Returns:
+        List of normalized values (0-100 scale)
+    
+    If reference distribution cannot be loaded, falls back to batch normalization.
+    """
+    if not values:
+        return []
+    
+    # Clean input values
+    v = [0.0 if (val is None or math.isnan(val)) else float(val) for val in values]
+    
+    # Load reference distribution if not provided
+    if reference_df is None:
+        reference_df = load_reference_distribution()
+    
+    # If we have a reference distribution, use it for normalization
+    if reference_df is not None and signal_name in reference_df.columns:
+        ref_values = reference_df[signal_name].dropna().tolist()
+        
+        if ref_values:
+            # Get min and max from reference distribution
+            ref_min = min(ref_values)
+            ref_max = max(ref_values)
+            
+            if ref_max > ref_min:
+                # Normalize using reference distribution bounds
+                normalized = []
+                for val in v:
+                    # Clip to reference bounds to avoid values outside 0-100
+                    clipped = max(ref_min, min(ref_max, val))
+                    norm_val = 100.0 * (clipped - ref_min) / (ref_max - ref_min)
+                    normalized.append(norm_val)
+                return normalized
+    
+    # Fallback to batch normalization if reference not available
+    logger.warning(
+        f"Reference distribution not available for {signal_name}, "
+        "using batch normalization (scores may not match baselines.csv)"
+    )
+    return normalize_0_100(v)
 
 
 # -----------------------------------------------------------------------------
@@ -327,10 +403,21 @@ titles_raw = st.text_area(
     placeholder="The Nutcracker\nSwan Lake\nCinderella",
 )
 
-col_a, col_b = st.columns(2)
+col_a, col_b, col_c = st.columns(3)
 with col_a:
     fetch_button = st.button("Fetch & Normalize Scores", type="primary")
 with col_b:
+    normalization_method = st.selectbox(
+        "Normalization method",
+        options=["reference", "batch"],
+        format_func=lambda x: {
+            "reference": "Reference-based (matches baselines.csv)",
+            "batch": "Batch-relative (legacy)"
+        }[x],
+        index=0,
+        help="Reference-based normalization uses the full baseline distribution for consistency"
+    )
+with col_c:
     confidence_level = st.selectbox(
         "Forecast interval confidence",
         options=[0.8, 0.9, 0.95],
@@ -361,10 +448,36 @@ if fetch_button and titles:
 
         df_raw = pd.DataFrame(rows)
 
-        wiki_norm = normalize_0_100(df_raw["wiki_raw"].tolist())
-        trends_norm = normalize_0_100(df_raw["trends_raw"].tolist())
-        youtube_norm = normalize_0_100(df_raw["youtube_raw"].tolist())
-        spotify_norm = normalize_0_100(df_raw["spotify_raw"].tolist())
+        # Load reference distribution once if using reference-based normalization
+        reference_df = None
+        if normalization_method == "reference":
+            reference_df = load_reference_distribution()
+            if reference_df is None:
+                st.warning(
+                    "⚠️ Could not load baselines.csv for reference normalization. "
+                    "Falling back to batch normalization."
+                )
+
+        # Normalize scores
+        if normalization_method == "reference":
+            wiki_norm = normalize_with_reference(
+                df_raw["wiki_raw"].tolist(), "wiki", reference_df
+            )
+            trends_norm = normalize_with_reference(
+                df_raw["trends_raw"].tolist(), "trends", reference_df
+            )
+            youtube_norm = normalize_with_reference(
+                df_raw["youtube_raw"].tolist(), "youtube", reference_df
+            )
+            spotify_norm = normalize_with_reference(
+                df_raw["spotify_raw"].tolist(), "spotify", reference_df
+            )
+        else:
+            # Legacy batch normalization
+            wiki_norm = normalize_0_100(df_raw["wiki_raw"].tolist())
+            trends_norm = normalize_0_100(df_raw["trends_raw"].tolist())
+            youtube_norm = normalize_0_100(df_raw["youtube_raw"].tolist())
+            spotify_norm = normalize_0_100(df_raw["spotify_raw"].tolist())
 
         df_raw["wiki"] = wiki_norm
         df_raw["trends"] = trends_norm
