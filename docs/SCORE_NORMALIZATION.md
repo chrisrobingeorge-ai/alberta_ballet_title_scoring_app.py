@@ -16,14 +16,17 @@ This makes direct comparison invalid and can degrade ML model performance.
 
 ## Solution
 
-Z-score normalization using baseline statistics as the reference distribution:
+Distribution alignment using statistical transformation:
 
 ```
-z = (new_score - baseline_mean) / baseline_std
-normalized = baseline_mean + (z * baseline_std)
+# Step 1: Calculate z-scores using NEW data statistics
+z_new = (new_score - new_mean) / new_std
+
+# Step 2: Rescale using BASELINE statistics
+aligned = baseline_mean + (z_new * baseline_std)
 ```
 
-This ensures new scores have the same statistical distribution as baselines.
+This ensures aligned scores have the same statistical distribution (mean, std) as baselines.
 
 ## Usage
 
@@ -118,10 +121,13 @@ Using all 288 titles (historical + external reference):
 ## How It Works
 
 1. **Load baseline statistics**: Calculate mean and std for each signal from baselines.csv
-2. **Load export file**: Read new scores to normalize
-3. **Apply z-score normalization**: Transform each score using baseline statistics
-4. **Preserve metadata**: Keep all non-signal columns unchanged
-5. **Save output**: Write normalized scores to CSV
+2. **Load export file**: Read new scores to align
+3. **Calculate export statistics**: Compute mean and std from the new export data
+4. **Apply distribution alignment**: Transform scores using both sets of statistics
+   - Convert to z-scores using export mean/std
+   - Rescale using baseline mean/std
+5. **Preserve metadata**: Keep all non-signal columns unchanged
+6. **Save output**: Write aligned scores to CSV
 
 ## When to Use
 
@@ -182,9 +188,9 @@ python scripts/normalize_export_scores.py \
 
 **Solution**: Check that your export file has the correct title column name. Use `--title-column` if different from default.
 
-### Values seem unchanged
+### Values are very different
 
-**Note**: After z-score normalization and rescaling with the same statistics, values may appear unchanged. This is correct! The transformation aligns the distribution statistically, even if individual values look similar.
+**Note**: After alignment, values will likely be quite different from the original export. This is expected! The transformation maps scores from the export's distribution to the baseline's distribution. If your new scores were systematically higher/lower than baseline, aligned scores will be adjusted accordingly.
 
 ## Testing
 
@@ -200,28 +206,47 @@ python -m pytest tests/test_normalize_export_scores.py::test_normalize_scores_zs
 
 ## Technical Details
 
-### Z-Score Normalization Formula
+### Distribution Alignment Formula
 
 ```python
-z = (value - baseline_mean) / baseline_std
-normalized = baseline_mean + (z * baseline_std)
+# Step 1: Calculate export data statistics
+export_mean = export_scores.mean()
+export_std = export_scores.std()
+
+# Step 2: Transform each score
+z_new = (new_score - export_mean) / export_std
+aligned_score = baseline_mean + (z_new * baseline_std)
 ```
 
-### Why Rescale Back?
+### Why This Approach?
 
-The rescaling step (`normalized = mean + z*std`) ensures:
-1. Scores remain on the familiar 0-100 scale
-2. Distribution matches baseline distribution
-3. Easy comparison with historical data
+The two-step transformation ensures:
+1. **Preserves relative ordering**: Highest new score → highest aligned score
+2. **Matches baseline distribution**: Aligned scores have same mean/std as baseline
+3. **Handles calibration drift**: Adjusts for systematic bias in new measurements
+4. **Scale-invariant**: Works even if new scores use different absolute ranges
+
+### Example Transformation
+
+```
+New scores:     [85, 90, 95]  (mean=90, std=5)
+Baseline stats:              (mean=60, std=15)
+
+Aligned scores: [45, 60, 75]  (mean=60, std=15) ✓
+```
+
+The middle value (90) was at the new mean, so it maps to the baseline mean (60).
+The spread is preserved proportionally.
 
 ### Alternative Approaches
 
 Other normalization methods not used:
-- **Min-Max scaling**: Sensitive to outliers
-- **Robust scaling**: Less interpretable
-- **Quantile transformation**: Changes distribution shape
+- **Simple z-scores**: Would output standardized values (mean=0, std=1), not 0-100 scale
+- **Min-Max scaling**: Sensitive to outliers and doesn't preserve distribution shape
+- **Robust scaling**: Less interpretable for domain experts
+- **Quantile transformation**: Changes distribution shape entirely
 
-Z-score normalization preserves distribution shape while aligning scale.
+Distribution alignment preserves relative relationships while matching baseline scale.
 
 ## See Also
 
