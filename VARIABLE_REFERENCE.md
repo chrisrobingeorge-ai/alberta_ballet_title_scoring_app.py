@@ -46,8 +46,8 @@ When you click "Score Titles" on the main page:
 
 | Column | Description |
 |--------|-------------|
-| `EstimatedTickets` | Predicted tickets **before** remount decay |
-| `EstimatedTickets_Final` | Predicted tickets **after** remount decay & post-COVID adjustment |
+| `EstimatedTickets` | Predicted tickets from the ticket index calculation |
+| `EstimatedTickets_Final` | Final predicted tickets (equal to EstimatedTickets - penalty factors removed) |
 | `YYC_Singles` / `YEG_Singles` | City-level single ticket predictions |
 
 #### B. ML Model Predictions
@@ -68,8 +68,8 @@ The app's forecast is built in these steps:
 2. **Index Computation**: Convert signals to Familiarity & Motivation indices (normalized to benchmark = 100)
 3. **Ticket Index**: Use regression on historical data to convert SignalOnly → TicketIndex
 4. **Seasonality**: Apply category×month factor for the planned run date
-5. **Remount Decay**: Reduce estimate if the title ran recently (up to 25% reduction)
-6. **Post-COVID**: Apply post-COVID adjustment factor (e.g., 0.85 = 15% haircut)
+
+> **Note (December 2024 Update)**: Remount decay and Post-COVID penalty factors have been **removed** per audit finding "Structural Pessimism". These compounding penalties caused up to 33% reduction in valid predictions. The base ML model now accounts for remount behavior through explicit features (`is_remount_recent`, `years_since_last_run`).
 
 ---
 
