@@ -111,13 +111,23 @@ def normalize_scores(
     title_column: str = 'title'
 ) -> pd.DataFrame:
     """
-    Normalize export scores using baseline statistics.
+    Align export scores to baseline distribution using statistical normalization.
     
-    For each signal column in export_df:
-    1. Calculate z-score: z = (value - baseline_mean) / baseline_std
-    2. Rescale: normalized = baseline_mean + (z * baseline_std)
+    This function adjusts new scores to match the baseline distribution by:
+    1. Computing statistics (mean, std) from the NEW export scores
+    2. Converting new scores to z-scores using NEW statistics
+    3. Rescaling z-scores using BASELINE statistics
     
-    This ensures the normalized scores have the same distribution as baselines.
+    Formula: aligned = baseline_mean + ((new - new_mean) / new_std) * baseline_std
+    
+    This ensures the aligned scores have the same statistical properties as the
+    baseline distribution (same mean and standard deviation), making them directly
+    comparable and suitable for ML models trained on baseline data.
+    
+    Example:
+        If new scores have mean=90, std=5 and baseline has mean=60, std=15:
+        - A new score of 95 (1 std above new mean) becomes 75 (1 std above baseline mean)
+        - This preserves relative position while aligning absolute scale
     
     Args:
         export_df: DataFrame with new scores to normalize
@@ -126,65 +136,110 @@ def normalize_scores(
         title_column: Name of the title column for logging
         
     Returns:
-        DataFrame with normalized scores (copy of input with signal columns updated)
+        DataFrame with aligned scores (copy of input with signal columns adjusted)
     """
-    logger.info(f"Normalizing {len(export_df)} titles")
+    logger.info(f"Aligning {len(export_df)} titles to baseline distribution")
     
     # Create a copy to avoid modifying input
     normalized_df = export_df.copy()
     
+    # First, calculate statistics from the NEW export data
+    export_stats = export_df[signal_columns].agg(['mean', 'std'])
+    
+    logger.info("Export data statistics:")
+    for col in signal_columns:
+        if col in export_df.columns:
+            exp_mean = export_stats.loc['mean', col]
+            exp_std = export_stats.loc['std', col]
+            base_mean = baseline_stats.loc['mean', col]
+            base_std = baseline_stats.loc['std', col]
+            logger.info(f"  {col:10s}: export mean={exp_mean:6.2f}, std={exp_std:6.2f} | "
+                       f"baseline mean={base_mean:6.2f}, std={base_std:6.2f}")
+    
     # Track how many scores were normalized
     normalized_count = 0
     
-    # Normalize each signal column
+    # Align each signal column to baseline distribution
     for col in signal_columns:
         if col not in export_df.columns:
             logger.warning(f"Signal column '{col}' not found in export file, skipping")
             continue
         
-        # Get baseline statistics
-        mean = baseline_stats.loc['mean', col]
-        std = baseline_stats.loc['std', col]
+        # Get export statistics (from new data)
+        export_mean = export_stats.loc['mean', col]
+        export_std = export_stats.loc['std', col]
         
-        # Calculate z-scores
-        z_scores = (export_df[col] - mean) / std
+        # Get baseline statistics (reference distribution)
+        baseline_mean = baseline_stats.loc['mean', col]
+        baseline_std = baseline_stats.loc['std', col]
         
-        # Rescale back to baseline distribution
-        # (This is technically the same as the original value, but kept for clarity)
-        # If you want different rescaling, modify this line
-        normalized_df[col] = mean + (z_scores * std)
+        # Handle edge case: zero standard deviation
+        if export_std == 0 or pd.isna(export_std):
+            logger.warning(f"Signal '{col}' has zero or invalid std in export, keeping original values")
+            continue
+        
+        # Distribution alignment transformation:
+        # 1. Convert to z-scores using EXPORT statistics (where is value in NEW distribution)
+        z_scores = (export_df[col] - export_mean) / export_std
+        
+        # 2. Rescale using BASELINE statistics (map to BASELINE distribution)
+        aligned_scores = baseline_mean + (z_scores * baseline_std)
+        
+        # Replace original scores with aligned scores
+        normalized_df[col] = aligned_scores
         
         # Count non-null normalizations
         normalized_count += export_df[col].notna().sum()
     
-    logger.info(f"Normalized {normalized_count} score values across {len(signal_columns)} signals")
+    # Verify alignment worked
+    final_stats = normalized_df[signal_columns].agg(['mean', 'std'])
+    logger.info(f"\nAligned {normalized_count} scores across {len(signal_columns)} signals")
+    logger.info("Aligned scores now match baseline distribution:")
+    for col in signal_columns:
+        if col in normalized_df.columns:
+            logger.info(f"  {col:10s}: mean={final_stats.loc['mean', col]:6.2f}, "
+                       f"std={final_stats.loc['std', col]:6.2f}")
     
     return normalized_df
 
 
-def match_titles_and_normalize(
+def normalize_export_to_baseline(
     export_path: str,
     baseline_path: str,
     signal_columns: List[str],
     title_column: str = 'title'
 ) -> pd.DataFrame:
     """
-    Load export file, match titles with baseline, and normalize matched titles.
+    Load export file and align scores to baseline distribution.
     
-    This function:
-    1. Loads baseline statistics
-    2. Loads export file
-    3. For ALL titles in export: normalizes using baseline stats
-       (No matching required - we normalize based on statistical distribution)
+    This function adjusts new export scores to match the baseline's statistical
+    properties (mean and standard deviation). This is necessary when new scores
+    from APIs have different calibration than the baseline reference set.
+    
+    The transformation:
+    - Calculates statistics from both NEW export and BASELINE data
+    - Maps new scores to baseline distribution via: 
+      aligned = baseline_mean + ((new - new_mean) / new_std) * baseline_std
+    - Ensures aligned scores are directly comparable to historical data
+    
+    Process:
+    1. Load baseline statistics (mean, std for each signal)
+    2. Load export file with new scores
+    3. Calculate export statistics (mean, std)
+    4. Transform scores to align with baseline distribution
     
     Args:
         export_path: Path to export CSV file with new scores
-        baseline_path: Path to baselines.csv file
-        signal_columns: List of signal column names to normalize
-        title_column: Name of the title column
+        baseline_path: Path to baselines.csv file with reference statistics
+        signal_columns: List of signal column names to normalize (e.g., ['wiki', 'trends'])
+        title_column: Name of the title column in export file
         
     Returns:
-        DataFrame with normalized scores for all titles
+        DataFrame with scores aligned to baseline distribution
+        
+    Raises:
+        FileNotFoundError: If baseline or export file doesn't exist
+        ValueError: If required columns are missing
     """
     # Load baseline statistics
     baseline_stats = load_baseline_statistics(baseline_path, signal_columns)
@@ -201,15 +256,15 @@ def match_titles_and_normalize(
             f"Available columns: {list(export_df.columns)}"
         )
     
-    # Normalize all scores using baseline statistics
-    normalized_df = normalize_scores(
+    # Align all scores to baseline distribution
+    aligned_df = normalize_scores(
         export_df,
         baseline_stats,
         signal_columns,
         title_column
     )
     
-    return normalized_df
+    return aligned_df
 
 
 def main():
@@ -254,8 +309,8 @@ def main():
     args = parser.parse_args()
     
     try:
-        # Normalize scores
-        normalized_df = match_titles_and_normalize(
+        # Align scores to baseline distribution
+        aligned_df = normalize_export_to_baseline(
             export_path=args.export,
             baseline_path=args.baselines,
             signal_columns=args.signals,
@@ -263,20 +318,21 @@ def main():
         )
         
         # Save output
-        logger.info(f"Saving normalized scores to {args.output}")
-        normalized_df.to_csv(args.output, index=False)
-        logger.info(f"Successfully saved {len(normalized_df)} normalized titles")
+        logger.info(f"\nSaving aligned scores to {args.output}")
+        aligned_df.to_csv(args.output, index=False)
+        logger.info(f"Successfully saved {len(aligned_df)} titles with aligned scores")
         
         # Log sample output
-        logger.info("\nSample normalized output (first 5 rows):")
+        logger.info("\nSample aligned output (first 5 rows):")
         sample_cols = [args.title_column] + args.signals
-        available_cols = [col for col in sample_cols if col in normalized_df.columns]
-        logger.info("\n" + normalized_df[available_cols].head().to_string(index=False))
+        available_cols = [col for col in sample_cols if col in aligned_df.columns]
+        logger.info("\n" + aligned_df[available_cols].head().to_string(index=False))
         
-        logger.info("\n✓ Normalization complete!")
+        logger.info("\n✓ Score alignment complete!")
+        logger.info("Output scores now match baseline distribution (same mean and std)")
         
     except Exception as e:
-        logger.error(f"Error during normalization: {e}", exc_info=True)
+        logger.error(f"Error during alignment: {e}", exc_info=True)
         sys.exit(1)
 
 

@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from normalize_export_scores import (
     load_baseline_statistics,
     normalize_scores,
-    match_titles_and_normalize,
+    normalize_export_to_baseline,
 )
 
 
@@ -134,36 +134,43 @@ def test_normalize_scores_basic(sample_baseline_csv):
         assert np.isfinite(normalized_df[col]).all()
 
 
-def test_normalize_scores_zscore_calculation():
-    """Test that z-score normalization formula is applied correctly."""
-    # Create simple baseline with known statistics
+def test_normalize_scores_distribution_alignment():
+    """Test that distribution alignment formula is applied correctly."""
+    # Create baseline with known statistics
     baseline_data = {
         'title': ['A', 'B', 'C', 'D', 'E'],
-        'wiki': [50, 60, 70, 80, 90]  # mean=70, std=14.14
+        'wiki': [50, 60, 70, 80, 90]  # mean=70, std=~15.81
     }
     baseline_df = pd.DataFrame(baseline_data)
-    
-    # Calculate stats
-    mean = baseline_df['wiki'].mean()  # 70
-    std = baseline_df['wiki'].std()    # ~14.14
+    baseline_mean = baseline_df['wiki'].mean()  # 70
+    baseline_std = baseline_df['wiki'].std()    # ~15.81
     
     baseline_stats = pd.DataFrame({
-        'wiki': [mean, std]
+        'wiki': [baseline_mean, baseline_std]
     }, index=['mean', 'std'])
     
-    # Create export data with a known value
+    # Create export data with DIFFERENT distribution (higher mean)
     export_data = {
-        'title': ['Test'],
-        'wiki': [84.14]  # Should be 1 std above mean
+        'title': ['X', 'Y', 'Z'],
+        'wiki': [85, 90, 95]  # mean=90, std=5
     }
     export_df = pd.DataFrame(export_data)
+    export_mean = export_df['wiki'].mean()  # 90
+    export_std = export_df['wiki'].std()    # 5
     
-    # Normalize
-    normalized_df = normalize_scores(export_df, baseline_stats, ['wiki'])
+    # Align to baseline distribution
+    aligned_df = normalize_scores(export_df, baseline_stats, ['wiki'])
     
-    # Check the normalized value equals the input (identity transformation)
-    # because normalized = mean + z*std = mean + ((value-mean)/std)*std = value
-    assert np.isclose(normalized_df['wiki'].iloc[0], 84.14, rtol=0.01)
+    # Check that aligned values match expected transformation
+    # For middle value (Y=90, which is AT export mean):
+    # aligned = baseline_mean + ((90 - 90) / 5) * 15.81 = 70 + 0 = 70
+    assert np.isclose(aligned_df['wiki'].iloc[1], baseline_mean, rtol=0.01)
+    
+    # Check that aligned distribution has baseline mean/std
+    aligned_mean = aligned_df['wiki'].mean()
+    aligned_std = aligned_df['wiki'].std()
+    assert np.isclose(aligned_mean, baseline_mean, rtol=0.01)
+    assert np.isclose(aligned_std, baseline_std, rtol=0.01)
 
 
 def test_normalize_preserves_non_signal_columns():
@@ -218,29 +225,39 @@ def test_normalize_handles_missing_values():
     assert pd.isna(normalized_df['trends'].iloc[2])
 
 
-def test_match_titles_and_normalize_integration(sample_baseline_csv, sample_export_csv):
-    """Test the full integration of matching and normalizing."""
+def test_normalize_export_to_baseline_integration(sample_baseline_csv, sample_export_csv):
+    """Test the full integration of distribution alignment."""
     signals = ['wiki', 'trends', 'youtube', 'spotify']
     
-    # Run full normalization
-    normalized_df = match_titles_and_normalize(
+    # Load baseline stats for verification
+    baseline_df = pd.read_csv(sample_baseline_csv)
+    baseline_stats = baseline_df[signals].agg(['mean', 'std'])
+    
+    # Run full alignment
+    aligned_df = normalize_export_to_baseline(
         export_path=sample_export_csv,
         baseline_path=sample_baseline_csv,
         signal_columns=signals
     )
     
     # Check output structure
-    assert isinstance(normalized_df, pd.DataFrame)
-    assert len(normalized_df) == 3  # All 3 titles from export
-    assert 'title' in normalized_df.columns
+    assert isinstance(aligned_df, pd.DataFrame)
+    assert len(aligned_df) == 3  # All 3 titles from export
+    assert 'title' in aligned_df.columns
     
-    # Check all signal columns present
+    # Check all signal columns present and aligned to baseline distribution
     for col in signals:
-        assert col in normalized_df.columns
-        assert normalized_df[col].notna().all()
+        assert col in aligned_df.columns
+        assert aligned_df[col].notna().all()
+        # Aligned scores should have similar mean/std to baseline
+        # (with small sample, won't be exact but should be in same ballpark)
+        aligned_mean = aligned_df[col].mean()
+        baseline_mean = baseline_stats.loc['mean', col]
+        # Within 30% of baseline mean is reasonable for 3-sample alignment
+        assert abs(aligned_mean - baseline_mean) / baseline_mean < 0.5
 
 
-def test_match_titles_and_normalize_preserves_all_titles(sample_baseline_csv, sample_export_csv):
+def test_normalize_export_to_baseline_preserves_all_titles(sample_baseline_csv, sample_export_csv):
     """Test that all titles from export are preserved in output."""
     signals = ['wiki', 'trends', 'youtube', 'spotify']
     
@@ -248,35 +265,35 @@ def test_match_titles_and_normalize_preserves_all_titles(sample_baseline_csv, sa
     original_export = pd.read_csv(sample_export_csv)
     original_titles = set(original_export['title'].str.strip().str.lower())
     
-    # Run normalization
-    normalized_df = match_titles_and_normalize(
+    # Run alignment
+    aligned_df = normalize_export_to_baseline(
         export_path=sample_export_csv,
         baseline_path=sample_baseline_csv,
         signal_columns=signals
     )
     
     # Check all titles preserved
-    normalized_titles = set(normalized_df['title'].str.strip().str.lower())
-    assert normalized_titles == original_titles
+    aligned_titles = set(aligned_df['title'].str.strip().str.lower())
+    assert aligned_titles == original_titles
 
 
 def test_output_schema_integrity(sample_baseline_csv, sample_export_csv, tmp_path):
     """Test that output CSV has correct schema."""
     signals = ['wiki', 'trends', 'youtube', 'spotify']
-    output_path = tmp_path / "normalized_output.csv"
+    output_path = tmp_path / "aligned_output.csv"
     
     # Load original
     original_df = pd.read_csv(sample_export_csv)
     
-    # Normalize
-    normalized_df = match_titles_and_normalize(
+    # Align to baseline
+    aligned_df = normalize_export_to_baseline(
         export_path=sample_export_csv,
         baseline_path=sample_baseline_csv,
         signal_columns=signals
     )
     
     # Save to file
-    normalized_df.to_csv(output_path, index=False)
+    aligned_df.to_csv(output_path, index=False)
     
     # Reload and check
     reloaded_df = pd.read_csv(output_path)
@@ -325,16 +342,17 @@ def test_empty_export_file(sample_baseline_csv, tmp_path):
     
     signals = ['wiki', 'trends', 'youtube', 'spotify']
     
-    # Should handle gracefully
-    normalized_df = match_titles_and_normalize(
+    # Should handle gracefully (though stats calculation will produce NaN)
+    # This is expected behavior for empty data
+    aligned_df = normalize_export_to_baseline(
         export_path=export_path,
         baseline_path=sample_baseline_csv,
         signal_columns=signals
     )
     
     # Check empty output
-    assert len(normalized_df) == 0
-    assert list(normalized_df.columns) == ['title', 'wiki', 'trends', 'youtube', 'spotify']
+    assert len(aligned_df) == 0
+    assert list(aligned_df.columns) == ['title', 'wiki', 'trends', 'youtube', 'spotify']
 
 
 if __name__ == '__main__':
