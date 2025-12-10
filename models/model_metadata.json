@@ -1,45 +1,44 @@
 {
-  "model_path": "/tmp/pytest-of-runner/pytest-0/test_train_baseline_model_succ0/test_model.pkl",
-  "training_date": "2025-12-05T19:10:31.158454",
-  "metrics": {
-    "mae": 589.6879028986424,
-    "rmse": 716.5402429509352,
-    "r2": 0.7912733914437522,
-    "n_train": 80,
-    "n_test": 20,
-    "features_used": [
-      "wiki",
-      "trends",
-      "youtube",
-      "spotify",
-      "genre",
-      "season"
-    ],
-    "time_aware_split": true,
-    "log_transformed": true,
-    "model_type": "random_forest"
-  },
-  "n_features": 6,
+  "model_path": "models/model_xgb_remount_postcovid.joblib",
+  "training_date": "2025-12-10T19:21:18.332565",
+  "n_features": 35,
   "features": [
     "wiki",
     "trends",
     "youtube",
     "spotify",
-    "genre",
-    "season"
+    "prior_total_tickets",
+    "prior_run_count",
+    "ticket_median_prior",
+    "years_since_last_run",
+    "is_remount_recent",
+    "is_remount_medium",
+    "run_count_prior",
+    "month_of_opening",
+    "holiday_flag",
+    "opening_year",
+    "opening_month",
+    "opening_day_of_week",
+    "opening_week_of_year",
+    "opening_quarter",
+    "opening_is_winter",
+    "opening_is_spring",
+    "opening_is_summer",
+    "opening_is_autumn",
+    "opening_is_holiday_season",
+    "opening_is_weekend",
+    "run_duration_days",
+    "consumer_confidence_prairies",
+    "energy_index",
+    "inflation_adjustment_factor",
+    "city_median_household_income",
+    "aud__engagement_factor",
+    "res__arts_share_giving",
+    "category",
+    "gender",
+    "opening_season",
+    "opening_date"
   ],
-  "hyperparameters": {
-    "rf__n_estimators": 300,
-    "rf__min_samples_split": 2,
-    "rf__min_samples_leaf": 2,
-    "rf__max_features": null,
-    "rf__max_depth": 15
-  },
-  "config_hash": 90692253,
-  "git_commit_hash": "9f131e0",
-  "data_file_hash": null,
-  "dataset_shape": {
-    "n_rows": 100,
-    "n_columns": 6
-  }
+  "model_type": "xgboost",
+  "note": "Metadata regenerated to match actual model features"
 }

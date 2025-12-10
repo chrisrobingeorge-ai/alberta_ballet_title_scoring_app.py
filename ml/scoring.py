@@ -337,13 +337,14 @@ def _prepare_features_for_model(df: pd.DataFrame, model: Optional[Any] = None) -
     df_feat = df.copy()
 
     # Drop known label/ID columns if present
+    # Note: 'season' is a label column (e.g., for grouping), not the feature 'opening_season'
     to_drop = [
         "single_tickets_calgary",
         "single_tickets_edmonton",
         "total_single_tickets",
         "show_id",
         "run_id",
-        "season",
+        "season",  # Label column, NOT the 'opening_season' feature
         "label",
         "target",
     ]
