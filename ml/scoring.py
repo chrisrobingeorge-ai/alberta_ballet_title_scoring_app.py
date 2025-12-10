@@ -307,7 +307,8 @@ def get_feature_order_from_model(model: Any) -> Optional[List[str]]:
                         feature_names.extend(columns)
                 return feature_names
     except Exception as exc:
-        logger.warning(f"Could not extract feature names from model: {exc}")
+        model_type = type(model).__name__
+        logger.warning(f"Could not extract feature names from {model_type} model: {exc}")
     
     return None
 
