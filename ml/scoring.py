@@ -280,14 +280,58 @@ def get_feature_order() -> Optional[List[str]]:
     return [str(c) for c in cols.tolist()]
 
 
+def get_feature_order_from_model(model: Any) -> Optional[List[str]]:
+    """
+    Extract the expected feature names directly from a trained sklearn Pipeline.
+    
+    Parameters
+    ----------
+    model : Any
+        A trained sklearn Pipeline with a ColumnTransformer preprocessor.
+    
+    Returns
+    -------
+    list of str or None
+        Ordered list of feature names, or None if extraction fails.
+    """
+    try:
+        # Check if it's a sklearn Pipeline with a preprocessor step
+        if hasattr(model, 'named_steps') and 'preprocessor' in model.named_steps:
+            preprocessor = model.named_steps['preprocessor']
+            
+            # Extract feature names from the ColumnTransformer
+            if hasattr(preprocessor, 'transformers_'):
+                feature_names = []
+                for name, transformer, columns in preprocessor.transformers_:
+                    if name != 'remainder':  # Skip remainder if present
+                        feature_names.extend(columns)
+                return feature_names
+    except Exception as exc:
+        logger.warning(f"Could not extract feature names from model: {exc}")
+    
+    return None
+
+
 # =============================================================================
 # CORE SCORING
 # =============================================================================
 
 
-def _prepare_features_for_model(df: pd.DataFrame) -> pd.DataFrame:
+def _prepare_features_for_model(df: pd.DataFrame, model: Optional[Any] = None) -> pd.DataFrame:
     """
     Prepare feature DataFrame in the correct column order and dtype for the model.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input feature DataFrame
+    model : Any, optional
+        The trained model (used to extract feature names if recipe not available)
+    
+    Returns
+    -------
+    pd.DataFrame
+        Prepared feature DataFrame with all expected features
     """
     df_feat = df.copy()
 
@@ -306,16 +350,31 @@ def _prepare_features_for_model(df: pd.DataFrame) -> pd.DataFrame:
     if cols_to_drop:
         df_feat = df_feat.drop(columns=cols_to_drop)
 
+    # Try to get feature order from recipe file first
     feature_order = get_feature_order()
+    
+    # If recipe not available, try to extract from model
+    if feature_order is None and model is not None:
+        feature_order = get_feature_order_from_model(model)
+    
     if feature_order is not None:
-        # Add any missing expected features as zeros
+        # Add any missing expected features with default values
         for col in feature_order:
             if col not in df_feat.columns:
-                df_feat[col] = 0.0
+                # Use appropriate default values based on feature type
+                if col.startswith('is_') or col.endswith('_flag'):
+                    df_feat[col] = 0  # Binary features default to 0
+                elif col in ['opening_date', 'opening_season', 'category', 'gender']:
+                    df_feat[col] = 'missing'  # Categorical features
+                else:
+                    df_feat[col] = 0.0  # Numeric features default to 0
         df_feat = df_feat[feature_order]
 
-    # Coerce everything numeric; non-numeric become  then filled with 0
-    df_feat = df_feat.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+    # Coerce numeric columns; non-numeric become NaN then filled with 0
+    # But preserve categorical columns
+    numeric_cols = [c for c in df_feat.columns if c not in ['opening_date', 'opening_season', 'category', 'gender']]
+    for col in numeric_cols:
+        df_feat[col] = pd.to_numeric(df_feat[col], errors='coerce').fillna(0.0)
 
     return df_feat
 
@@ -334,7 +393,16 @@ def predict_point(
     if model is None:
         model = load_model(model_name)
 
-    df_prepared = _prepare_features_for_model(df_features)
+    df_prepared = _prepare_features_for_model(df_features, model=model)
+    
+    # For sklearn Pipeline, use the pipeline's predict method directly (not raw numpy)
+    # This ensures the preprocessing step receives the DataFrame correctly
+    if hasattr(model, 'predict') and hasattr(model, 'named_steps'):
+        # sklearn Pipeline - pass the DataFrame
+        preds = model.predict(df_prepared)
+        return np.asarray(preds, dtype=float)
+    
+    # For other models, convert to numpy
     x_mat = df_prepared.values
 
     # XGBoost Booster API
