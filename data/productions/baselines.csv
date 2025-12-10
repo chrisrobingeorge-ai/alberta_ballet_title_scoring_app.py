@@ -21,6 +21,7 @@ Billy the Kid,52,18,65,45,contemporary,male,external_reference,American Western 
 Botero,70,12,87,49,contemporary,male,historical,
 Caravaggio,81,20,85,45,adult_literary_drama,male,historical,
 Carmen,82,38,92,75,romantic_tragedy,female,external_reference,Highly recognizable dramatic story
+Carmina Burana,68,28,83,55,adult_literary_drama,female,historical,
 Charlie Chaplin,93,30,100,41,family_classic,male,historical,
 Chroma,48,14,60,38,contemporary_mixed_bill,co,external_reference,McGregor/White Stripes
 Cinderella,80,20,100,72,family_classic,female,historical, highest demand title
@@ -286,4 +287,5 @@ Whereabouts Unknown,32,38,45,63,contemporary,co,external_reference,Contemporary 
 Whipped Cream,66,44,62,66,family_classic,co,external_reference,Ratmansky confection
 Wings of Wax,35,24,52,53,contemporary,co,external_reference,Ekman Icarus theme
 Winter's Tale,70,26,70,38,romantic_tragedy,co,external_reference,Wheeldon Shakespeare
+
 
