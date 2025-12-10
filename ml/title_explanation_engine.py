@@ -90,6 +90,11 @@ def build_title_explanation(
     # Build narrative in paragraphs
     paragraphs = []
     
+    def _add_paragraph(parts: list) -> None:
+        """Helper to add non-empty paragraph to output."""
+        if parts:
+            paragraphs.append(" ".join(parts))
+    
     # Paragraph 1: Title header and signal positioning
     p1_parts = [f"<b>{month} — {title}</b> ({category})"]
     
@@ -109,7 +114,7 @@ def build_title_explanation(
             f"public visibility across multiple digital platforms."
         )
     
-    paragraphs.append(" ".join(p1_parts))
+    _add_paragraph(p1_parts)
     
     # Paragraph 2: Historical & category context
     p2_parts = []
@@ -136,8 +141,7 @@ def build_title_explanation(
             f"This category-informed baseline helps anchor expectations when direct title-level priors are unavailable."
         )
     
-    if p2_parts:
-        paragraphs.append(" ".join(p2_parts))
+    _add_paragraph(p2_parts)
     
     # Paragraph 3: Seasonal & macro layer
     p3_parts = []
@@ -171,8 +175,7 @@ def build_title_explanation(
         f"the macroeconomic environment audiences will experience at opening."
     )
     
-    if p3_parts:
-        paragraphs.append(" ".join(p3_parts))
+    _add_paragraph(p3_parts)
     
     # Paragraph 4: SHAP-based driver summary (or feature-based if SHAP unavailable)
     p4_parts = []
@@ -205,8 +208,7 @@ def build_title_explanation(
                 f"with the combined signal strength positioning this title at a Ticket Index of {ticket_index:.1f}."
             )
     
-    if p4_parts:
-        paragraphs.append(" ".join(p4_parts))
+    _add_paragraph(p4_parts)
     
     # Paragraph 5: Board-level interpretation
     p5_parts = []
@@ -231,8 +233,7 @@ def build_title_explanation(
             f"informing marketing channel prioritization and messaging strategy."
         )
     
-    if p5_parts:
-        paragraphs.append(" ".join(p5_parts))
+    _add_paragraph(p5_parts)
     
     # Join all paragraphs with spacing
     return " ".join(paragraphs)
@@ -374,8 +375,14 @@ def _describe_shap_features(features: List[Tuple[str, float]], direction: str) -
         elif "prior" in feat_name.lower() or "median" in feat_name.lower():
             descriptions.append("strong historical precedent")
         else:
-            # Generic fallback
+            # Generic fallback - log warning for unmapped features
+            import warnings
             readable = feat_name.replace("_", " ").lower()
+            warnings.warn(
+                f"SHAP feature '{feat_name}' has no prose mapping - using generic description",
+                UserWarning,
+                stacklevel=3
+            )
             descriptions.append(f"{readable}")
     
     # Deduplicate while preserving order

@@ -716,7 +716,7 @@ def _narrative_for_row(r: dict) -> str:
         
         return narrative
         
-    except (ImportError, Exception) as e:
+    except (ImportError, ModuleNotFoundError, AttributeError) as e:
         # Fallback to simpler narrative if explanation engine fails
         title = r.get("Title",""); month = r.get("Month",""); cat = r.get("Category","")
         idx_used = r.get("TicketIndex used", None)

@@ -69,9 +69,12 @@ def test_pdf_generation_with_new_narratives():
         print(f"\n✓ PDF generated successfully: {len(pdf_bytes)} bytes")
         
         # Optionally save to a temp file for manual inspection
-        output_path = "/tmp/test_season_report_with_narratives.pdf"
-        with open(output_path, "wb") as f:
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".pdf", delete=False) as f:
             f.write(pdf_bytes)
+            output_path = f.name
         
         print(f"✓ PDF saved to: {output_path}")
         
