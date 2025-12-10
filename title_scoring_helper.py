@@ -544,8 +544,8 @@ if fetch_button and titles:
                 "trends": row["trends"],
                 "youtube": row["youtube"],
                 "spotify": row["spotify"],
-                "genre": default_genre,
-                "season": default_season,
+                "category": default_genre,  # Use 'category' to match model expectations
+                "opening_season": default_season,  # Use 'opening_season' to match model expectations
             }
         )
 
