@@ -3,6 +3,8 @@ from typing import Dict
 from unittest.mock import patch, Mock
 from urllib.parse import quote
 
+import wiki_buzz_helper
+
 
 class TestWikiApiHeaders:
     """Tests for _get_wiki_headers function logic."""
@@ -128,9 +130,6 @@ class TestWikipediaUrlEncoding:
 
     def test_url_encoding_with_colon(self):
         """Test that colons are properly URL-encoded to avoid 404 errors."""
-        # Import here to avoid module-level dependency
-        import wiki_buzz_helper
-        
         title = "Peeping Tom: Dance Theatre Productions"
         start_date = "20250101"
         end_date = "20251215"
@@ -158,8 +157,6 @@ class TestWikipediaUrlEncoding:
 
     def test_url_encoding_with_parentheses(self):
         """Test that parentheses are properly URL-encoded."""
-        import wiki_buzz_helper
-        
         title = "The Great Gatsby (2024)"
         start_date = "20250101"
         end_date = "20251215"
@@ -187,8 +184,6 @@ class TestWikipediaUrlEncoding:
 
     def test_url_encoding_simple_title(self):
         """Test that simple titles without special chars still work."""
-        import wiki_buzz_helper
-        
         title = "Cinderella"
         start_date = "20250101"
         end_date = "20251215"
@@ -211,8 +206,6 @@ class TestWikipediaUrlEncoding:
 
     def test_spaces_replaced_with_underscores(self):
         """Test that spaces are replaced with underscores before encoding."""
-        import wiki_buzz_helper
-        
         title = "Swan Lake"
         start_date = "20250101"
         end_date = "20251215"

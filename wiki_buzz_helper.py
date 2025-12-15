@@ -42,6 +42,8 @@ def fetch_wikipedia_views_sum(title: str, start_date: str, end_date: str) -> int
     """Fetch total Wikipedia views for a title between start_date and end_date (YYYYMMDD)."""
     # Replace spaces with underscores, then URL-encode special characters
     # This handles colons, parentheses, and other special characters properly
+    # Note: safe='' encodes reserved chars (like : and ()) while preserving
+    # unreserved chars (-, ., _, ~) per RFC 3986
     title_with_underscores = title.replace(" ", "_")
     title_encoded = quote(title_with_underscores, safe='')
     url = (
