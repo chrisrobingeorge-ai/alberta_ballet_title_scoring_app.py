@@ -11,6 +11,7 @@ import requests
 import pandas as pd
 from datetime import datetime
 from typing import Dict
+from urllib.parse import quote
 
 # Get optional Wikipedia API credentials from environment variables
 WIKI_API_KEY = os.getenv("WIKI_API_KEY")
@@ -39,7 +40,12 @@ def _get_wiki_headers() -> Dict[str, str]:
 
 def fetch_wikipedia_views_sum(title: str, start_date: str, end_date: str) -> int:
     """Fetch total Wikipedia views for a title between start_date and end_date (YYYYMMDD)."""
-    title_encoded = title.replace(" ", "_")
+    # Replace spaces with underscores, then URL-encode special characters
+    # This handles colons, parentheses, and other special characters properly
+    # Note: safe='' encodes reserved chars (like : and ()) while preserving
+    # unreserved chars (-, ., _, ~) per RFC 3986
+    title_with_underscores = title.replace(" ", "_")
+    title_encoded = quote(title_with_underscores, safe='')
     url = (
         f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
         f"en.wikipedia/all-access/user/{title_encoded}/daily/{start_date}/{end_date}"

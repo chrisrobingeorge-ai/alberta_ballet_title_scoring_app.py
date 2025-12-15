@@ -1,5 +1,9 @@
 """Tests for Wikipedia API functions in title_scoring_helper.py."""
 from typing import Dict
+from unittest.mock import patch, Mock
+from urllib.parse import quote
+
+import wiki_buzz_helper
 
 
 class TestWikiApiHeaders:
@@ -119,3 +123,106 @@ class TestWikiApiFunctionsDocumentation:
         assert len(expected_patterns['wiki']) == (
             len(expected_patterns['spotify'])
         )
+
+
+class TestWikipediaUrlEncoding:
+    """Tests for URL encoding in fetch_wikipedia_views_sum function."""
+
+    def test_url_encoding_with_colon(self):
+        """Test that colons are properly URL-encoded to avoid 404 errors."""
+        title = "Peeping Tom: Dance Theatre Productions"
+        start_date = "20250101"
+        end_date = "20251215"
+        
+        with patch('wiki_buzz_helper.requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"items": [{"views": 100}]}
+            mock_get.return_value = mock_response
+            
+            result = wiki_buzz_helper.fetch_wikipedia_views_sum(
+                title, start_date, end_date
+            )
+            
+            # Get the URL that was called
+            called_url = mock_get.call_args[0][0]
+            
+            # Verify the colon is encoded as %3A (not raw :)
+            assert '%3A' in called_url, (
+                f"Colon not properly URL-encoded. Got: {called_url}"
+            )
+            assert 'Peeping_Tom%3A_Dance_Theatre_Productions' in called_url
+            # Ensure we're not passing raw colons
+            assert 'Peeping_Tom:_Dance' not in called_url
+
+    def test_url_encoding_with_parentheses(self):
+        """Test that parentheses are properly URL-encoded."""
+        title = "The Great Gatsby (2024)"
+        start_date = "20250101"
+        end_date = "20251215"
+        
+        with patch('wiki_buzz_helper.requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"items": [{"views": 50}]}
+            mock_get.return_value = mock_response
+            
+            result = wiki_buzz_helper.fetch_wikipedia_views_sum(
+                title, start_date, end_date
+            )
+            
+            called_url = mock_get.call_args[0][0]
+            
+            # Verify parentheses are encoded
+            assert '%28' in called_url, (
+                f"Opening parenthesis not encoded. Got: {called_url}"
+            )
+            assert '%29' in called_url, (
+                f"Closing parenthesis not encoded. Got: {called_url}"
+            )
+            assert 'The_Great_Gatsby_%282024%29' in called_url
+
+    def test_url_encoding_simple_title(self):
+        """Test that simple titles without special chars still work."""
+        title = "Cinderella"
+        start_date = "20250101"
+        end_date = "20251215"
+        
+        with patch('wiki_buzz_helper.requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"items": [{"views": 200}]}
+            mock_get.return_value = mock_response
+            
+            result = wiki_buzz_helper.fetch_wikipedia_views_sum(
+                title, start_date, end_date
+            )
+            
+            called_url = mock_get.call_args[0][0]
+            
+            # Verify the title is in the URL correctly
+            assert 'Cinderella' in called_url
+            assert result == 200
+
+    def test_spaces_replaced_with_underscores(self):
+        """Test that spaces are replaced with underscores before encoding."""
+        title = "Swan Lake"
+        start_date = "20250101"
+        end_date = "20251215"
+        
+        with patch('wiki_buzz_helper.requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"items": []}
+            mock_get.return_value = mock_response
+            
+            result = wiki_buzz_helper.fetch_wikipedia_views_sum(
+                title, start_date, end_date
+            )
+            
+            called_url = mock_get.call_args[0][0]
+            
+            # Spaces should be replaced with underscores
+            assert 'Swan_Lake' in called_url
+            # Should not have %20 (URL-encoded space)
+            assert 'Swan%20Lake' not in called_url
