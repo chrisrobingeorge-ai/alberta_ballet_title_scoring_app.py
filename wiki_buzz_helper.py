@@ -6,9 +6,36 @@ based on total pageviews fetched from the Wikimedia REST API.
 """
 
 import argparse
+import os
 import requests
 import pandas as pd
 from datetime import datetime
+from typing import Dict
+
+# Get optional Wikipedia API credentials from environment variables
+WIKI_API_KEY = os.getenv("WIKI_API_KEY")
+WIKI_API_SECRET = os.getenv("WIKI_API_SECRET")
+
+
+def _get_wiki_headers() -> Dict[str, str]:
+    """
+    Build Wikipedia API request headers with optional authentication.
+    Includes required User-Agent and optional API key/secret.
+    """
+    headers = {
+        "User-Agent": (
+            "TitleScoringApp/1.0 "
+            "(https://github.com/chrisrobingeorge-ai/"
+            "alberta_ballet_title_scoring_app)"
+        )
+    }
+    # Add optional authentication headers if credentials are provided
+    if WIKI_API_KEY:
+        headers["X-API-Key"] = WIKI_API_KEY
+    if WIKI_API_SECRET:
+        headers["X-API-Secret"] = WIKI_API_SECRET
+    return headers
+
 
 def fetch_wikipedia_views_sum(title: str, start_date: str, end_date: str) -> int:
     """Fetch total Wikipedia views for a title between start_date and end_date (YYYYMMDD)."""
@@ -18,7 +45,7 @@ def fetch_wikipedia_views_sum(title: str, start_date: str, end_date: str) -> int
         f"en.wikipedia/all-access/user/{title_encoded}/daily/{start_date}/{end_date}"
     )
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=_get_wiki_headers(), timeout=10)
         response.raise_for_status()
         data = response.json()
         return sum(item["views"] for item in data.get("items", []))
