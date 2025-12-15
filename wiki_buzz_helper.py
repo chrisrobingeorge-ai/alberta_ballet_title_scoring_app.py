@@ -92,7 +92,16 @@ def main():
             raise ValueError("CSV must contain a 'title' column.")
         titles = df_input["title"].dropna().tolist()
     else:
-        raise ValueError("Please provide --titles or --input_csv.")
+        # Default to data/productions/baselines.csv when no arguments provided
+        default_csv = "data/productions/baselines.csv"
+        if os.path.exists(default_csv):
+            df_input = pd.read_csv(default_csv)
+            if "title" not in df_input.columns:
+                raise ValueError("CSV must contain a 'title' column.")
+            titles = df_input["title"].dropna().tolist()
+            print(f"No input provided. Using default: {default_csv}")
+        else:
+            raise ValueError("Please provide --titles or --input_csv, or ensure data/productions/baselines.csv exists.")
 
     df_results = calculate_scores(titles, args.benchmark)
 
