@@ -1148,8 +1148,6 @@ with st.expander("👋 How to use this app (step-by-step)"):
     3. **(Optional) Seasonality:** Toggle **Apply seasonality** and pick an assumed run month (affects indices & tickets).
     4. **Pick a benchmark:** Select the **Benchmark Title** to normalize indices (benchmark = 100).
     5. **Click _Score Titles_**, then use **📅 Build a Season** to assign titles to months.
-    
-    > 💡 **No manual model training required!** The app automatically trains prediction models when you click 'Score Titles'. The sidebar's "Advanced ML Settings" are optional and for power users only.
 
     ### Interpreting results
     - **Familiarity / Motivation** → index vs benchmark (100).
@@ -2975,10 +2973,9 @@ def compute_scores_and_store(
                     outcome_col="ticket_index",
                     last_run_col=None  # No date column in this context
                 )
-                st.caption(f"🔍 **k-NN Fallback** — Index built with {len(knn_data)} titles (k={KNN_CONFIG.get('k', 5)})")
+                # kNN index built successfully - ready for fallback predictions
         except Exception as e:
             # kNN build failed - continue without it
-            st.caption(f"⚠️ k-NN fallback unavailable: {e}")
             knn_index = None
     
     # Helper to predict with kNN (returns prediction, source, neighbors_json)
@@ -3026,23 +3023,8 @@ def compute_scores_and_store(
     if model_type == 'ml':
         _, overall_model, cat_models, overall_metrics, cat_metrics = model_result
         
-        # Display model performance metrics
-        if overall_metrics:
-            model_name = "XGBoost" if overall_metrics.get('n_samples', 0) >= 8 else "GradientBoosting"
-            st.caption(
-                f"🤖 **{model_name} Model Performance** — "
-                f"R²: {overall_metrics.get('R2', 0):.3f} | "
-                f"MAE: {overall_metrics.get('MAE', 0):.1f} | "
-                f"CV-MAE: {overall_metrics.get('MAE_CV', 0):.1f} | "
-                f"RMSE: {overall_metrics.get('RMSE', 0):.1f} | "
-                f"Samples: {overall_metrics.get('n_samples', 0)}"
-            )
-        if cat_metrics:
-            cat_summary = ", ".join([
-                f"{cat}: R²={m.get('R2', 0):.2f} (n={m.get('n_samples', 0)})" 
-                for cat, m in cat_metrics.items()
-            ])
-            st.caption(f"📊 **Category Models (Ridge/Linear)** — {cat_summary}")
+        # Model performance metrics available for debugging if needed
+        # (Hidden from UI to avoid confusion - metrics stored in session state)
         
         # 5) Impute missing TicketIndex with ML models, with kNN fallback
         def _predict_ticket_index_deseason(signal_only: float, category: str, baseline_signals: dict) -> tuple[float, str, str]:
@@ -3950,47 +3932,6 @@ def render_results():
             mime="text/csv",
             width='content',
         )
-
-# -------------------------
-# Advanced ML Settings (opt-in toggles from config.yaml)
-# -------------------------
-# These features are loaded from config.yaml and can be toggled here
-# Default behavior remains unchanged unless user enables these options
-with st.sidebar.expander("⚙️ Advanced ML Settings (optional)", expanded=False):
-    st.info(
-        "💡 **No manual training required!** Models are trained automatically when you "
-        "click 'Score Titles'. These settings are for advanced users only."
-    )
-    
-    # KNN fallback toggle
-    knn_enabled_ui = st.checkbox(
-        "Enable k-NN fallback for cold-start",
-        value=KNN_CONFIG.get("enabled", True),
-        help="Use similarity matching for titles without ticket history"
-    )
-    
-    # Calibration toggle
-    calibration_enabled_ui = st.checkbox(
-        "Apply prediction calibration",
-        value=CALIBRATION_CONFIG.get("enabled", False),
-        help="Adjust predictions using calibration parameters (if available)"
-    )
-    
-    # Show model status
-    try:
-        from ml.predict_utils import is_ml_model_available, is_calibration_available
-        if is_ml_model_available():
-            st.success("✓ XGBoost model available (optional)", icon="🤖")
-        else:
-            st.caption("ℹ️ Optional: For enhanced predictions, run `python scripts/train_safe_model.py`")
-        if calibration_enabled_ui and is_calibration_available():
-            st.success("✓ Calibration parameters loaded", icon="📊")
-        elif calibration_enabled_ui:
-            st.warning("Run: `python scripts/calibrate_predictions.py fit`")
-    except ImportError:
-        st.caption("ML utilities not loaded")
-    
-    st.caption(f"Config: knn.k={KNN_CONFIG.get('k', 5)}, calibration.mode={CALIBRATION_CONFIG.get('mode', 'global')}")
 
 # Main app logic
 run = st.button("Score Titles", type="primary")

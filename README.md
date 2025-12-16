@@ -30,24 +30,11 @@ pip install -r requirements.txt
 ### 2. Run the app
 
 ```bash
-# Main application (full season planning and analytics)
+# Main application (season planning and ticket forecasting)
 streamlit run streamlit_app.py
-
-# Title Scoring Helper (score individual titles without historical data)
-streamlit run title_scoring_helper.py
 ```
 
-> 📖 **New to the Title Scoring Helper?** See [TITLE_SCORING_HELPER_USAGE.md](TITLE_SCORING_HELPER_USAGE.md) for a complete guide on how to score new titles on their own.
-
-## Robust ML Training Pipeline (New)
-
-The app includes a complete, leak-free training workflow.
-
-**The pipeline now uses explicit date fields for time-aware validation and feature engineering, and integrates external features (marketing, weather, economy, baselines) for every show.** This improves forecast accuracy and reliability.
-
-> **⚠️ IMPORTANT: This is the PRIMARY, RECOMMENDED ML pipeline.**
->
-> Always use the safe modelling dataset pipeline (below) for production training.
+## Key Features Explained
 > The legacy baseline pipeline (`ml/dataset.py` + `ml/training.py`) is deprecated
 > and has known data leakage risks.
 
@@ -89,15 +76,31 @@ python scripts/run_full_pipeline.py --tune --save-shap
 python scripts/run_full_pipeline.py --quiet
 ```
 
-**Output Structure:**
+## Key Features Explained
 
-```
-results/<timestamp>/
-├── modelling_dataset.csv          # Leak-free training data
-├── modelling_dataset_report.json  # Dataset diagnostics
-├── backtest_summary.json          # Method comparison metrics
-├── backtest_comparison.csv        # Row-level predictions
-├── feature_importances.csv        # Feature importance scores
+### Ticket Demand Prediction
+The app uses constrained Ridge regression trained on historical ticket sales data to predict demand for ballet productions. The model combines:
+- Public visibility metrics (Wikipedia views, Google Trends, YouTube engagement, Chartmetric streaming)
+- Historical performance patterns
+- Seasonality adjustments
+- Economic factors
+
+### Season Planning
+Build complete season plans with:
+- Month-by-month title assignments
+- City-specific (Calgary/Edmonton) ticket projections
+- Revenue forecasts
+- Marketing budget recommendations
+- PDF report generation with narratives
+
+## Documentation
+
+- [README.md](README.md) - This file, main documentation
+- [docs/NARRATIVE_ENGINE_DOCUMENTATION.md](docs/NARRATIVE_ENGINE_DOCUMENTATION.md) - How narrative generation works
+- [docs/SCORE_NORMALIZATION.md](docs/SCORE_NORMALIZATION.md) - Score calculation methodology
+- [docs/WEIGHTINGS_QUICK_REFERENCE.md](docs/WEIGHTINGS_QUICK_REFERENCE.md) - Feature weighting reference
+
+## Data Requirements
 ├── pipeline_summary.json          # Overall run summary
 ├── plots/
 │   ├── mae_by_method.png          # MAE comparison chart
@@ -207,9 +210,20 @@ result = train_baseline_model()
 print(result)
 ```
 
-## Machine Learning Models
+## Data Requirements
 
-The app uses a constrained Ridge regression model for ticket demand predictions:
+The app expects the following CSV files in the `data/productions/` directory:
+
+- `history_city_sales.csv` - Historical ticket sales by production and city
+- `baselines.csv` - Baseline scores (familiarity, motivation) for known titles
+- `segment_priors.csv` - Audience segment distribution priors
+- `marketing_spend_per_ticket.csv` - Historical marketing spend data (optional)
+
+Additional economic data is loaded from `data/economics/` for economic factor adjustments.
+
+## Model Information
+
+The app uses **constrained Ridge regression** for ticket predictions:
 
 - **Constrained Ridge Regression** with anchor points ensuring realistic bounds
 - **k-NN Fallback** for cold-start titles without history
@@ -292,9 +306,59 @@ pip install shap
 │   ├── features.py            # Feature engineering
 │   ├── leakage.py             # Leakage prevention
 │   └── title_id_map.csv       # Title canonicalization
+
+- **Constrained Ridge Regression** with anchor points ensuring realistic predictions
+- **k-NN Fallback** for cold-start titles without historical data
+- Automatic training when you click "Score Titles"
+
+The Ridge model uses L2 regularization (α=5.0) and synthetic anchor points to prevent unrealistic predictions for low-buzz titles.
+
+## Project Structure
+
+```
+.
+├── streamlit_app.py           # Main application
+├── requirements.txt           # Python dependencies
+├── config.yaml                # Configuration parameters
+├── data/                      # Data files
+│   ├── loader.py              # Data loading utilities
+│   ├── productions/           # Historical sales and baseline data
+│   └── economics/             # Economic indicator data
 ├── ml/                        # ML pipeline modules
-│   ├── dataset.py             # Dataset builder
-│   ├── training.py            # Model training
+│   ├── knn_fallback.py        # k-NN similarity matching
+│   └── title_explanation_engine.py  # SHAP-based narratives
+├── utils/                     # Utility modules
+│   └── economic_factors.py    # Economic sentiment calculation
+├── docs/                      # Documentation
+├── models/                    # Trained model files
+└── pages/                     # Additional Streamlit pages
+    └── 7_External_Data_Impact.py  # Economic data dashboard
+```
+
+## Requirements
+
+- Python 3.11+
+- Streamlit 1.37+
+- pandas 2.0+
+- numpy 1.21+
+- scikit-learn 1.4+
+- matplotlib 3.0+
+- reportlab (for PDF generation)
+
+See `requirements.txt` for complete dependency list.
+
+## Configuration
+
+Edit `config.yaml` to adjust:
+- Segment and region multipliers
+- City split defaults
+- Post-COVID demand factors
+- Seasonality parameters
+- k-NN settings
+
+## Support
+
+For questions or issues:
 │   ├── scoring.py             # Model scoring
 │   ├── knn_fallback.py        # k-NN cold-start predictions
 │   └── predict_utils.py       # Streamlit prediction helpers
@@ -382,8 +446,13 @@ BATCH PROCESSING SUMMARY
 Total shows in CSV:     42
 Unique shows processed: 39
 Duplicates skipped:     3
-------------------------------------------------------------
-Successful:  35
+## Support
+
+For questions or issues, please refer to the documentation in the `docs/` directory.
+
+## License
+
+See [LICENSE](LICENSE) for details.
 Failed:      4
 
 ✓ SUCCESSFUL:
