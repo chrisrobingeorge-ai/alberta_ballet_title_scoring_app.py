@@ -27,7 +27,7 @@ def sample_features_and_target():
         "wiki": np.random.randint(20, 100, n_samples),
         "trends": np.random.randint(10, 60, n_samples),
         "youtube": np.random.randint(30, 90, n_samples),
-        "spotify": np.random.randint(40, 80, n_samples),
+        "chartmetric": np.random.randint(40, 80, n_samples),
         "genre": np.random.choice(["classic", "contemporary", "family"], n_samples),
         "season": np.random.choice(["fall", "winter", "spring"], n_samples),
     })
@@ -371,7 +371,7 @@ def test_save_feature_importances():
             "wiki": 0.4,
             "trends": 0.3,
             "youtube": 0.2,
-            "spotify": 0.1
+            "chartmetric": 0.1
         }
         
         save_feature_importances(importances, config)
@@ -395,7 +395,7 @@ def test_knn_fallback_with_pca():
         "wiki": [80, 95, 86, 74, 77],
         "trends": [18, 45, 32, 14, 30],
         "youtube": [71, 88, 80, 62, 70],
-        "spotify": [71, 75, 80, 62, 70],
+        "chartmetric": [71, 75, 80, 62, 70],
         "ticket_median": [9000, 12000, 8500, 6000, 7500],
     })
     
@@ -407,7 +407,7 @@ def test_knn_fallback_with_pca():
     assert knn._is_fitted
     
     # Should still predict correctly
-    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "spotify": 65}
+    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "chartmetric": 65}
     prediction = knn.predict(new_show)
     
     assert isinstance(prediction, float)
@@ -422,7 +422,7 @@ def test_knn_fallback_distance_weighting():
         "wiki": [80, 90, 70],
         "trends": [20, 40, 10],
         "youtube": [70, 80, 60],
-        "spotify": [70, 80, 60],
+        "chartmetric": [70, 80, 60],
         "ticket_median": [8000, 12000, 4000],
     })
     
@@ -431,7 +431,7 @@ def test_knn_fallback_distance_weighting():
     knn.build_index(test_data, outcome_col="ticket_median")
     
     # Query exactly matching first row should heavily weight that neighbor
-    new_show = {"wiki": 80, "trends": 20, "youtube": 70, "spotify": 70}
+    new_show = {"wiki": 80, "trends": 20, "youtube": 70, "chartmetric": 70}
     prediction = knn.predict(new_show)
     
     # Should be closer to 8000 than the average

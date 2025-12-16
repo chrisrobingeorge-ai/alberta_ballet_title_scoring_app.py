@@ -29,7 +29,7 @@ def sample_show_data():
         'wiki': [70, 65, 75],
         'trends': [60, 55, 62],
         'youtube': [80, 70, 75],
-        'spotify': [65, 60, 68],
+        'chartmetric': [65, 60, 68],
         'show_date': ['2022-05-01', '2022-06-15', '2022-09-20'],
         'city': ['calgary', 'edmonton', 'calgary']
     })
@@ -299,7 +299,7 @@ class TestStoneOlafsonWeightings:
             'wiki': 70,
             'trends': 60,
             'youtube': 80,
-            'spotify': 65,
+            'chartmetric': 65,
             'gender': 'female',
             'category': 'pop_ip'
         }
@@ -312,7 +312,7 @@ class TestStoneOlafsonWeightings:
         assert mot > 0
         
         # Scores should be influenced by multipliers (not just base signal)
-        base_fam = test_entry['wiki'] * 0.55 + test_entry['trends'] * 0.30 + test_entry['spotify'] * 0.15
+        base_fam = test_entry['wiki'] * 0.55 + test_entry['trends'] * 0.30 + test_entry['chartmetric'] * 0.15
         
         # Multiplied score should differ from base (unless all multipliers are exactly 1.0)
         # Allow small tolerance for floating point
@@ -363,7 +363,7 @@ class TestWeightingsIntegration:
             'wiki': [70, 65, 75],
             'trends': [60, 55, 62],
             'youtube': [80, 70, 75],
-            'spotify': [65, 60, 68],
+            'chartmetric': [65, 60, 68],
             'aud__engagement_factor': [1.05, 1.08, 1.06],
             'consumer_confidence_prairies': [50.0, 51.0, 50.5],
             'energy_index': [1000, 1200, 1100],
@@ -374,7 +374,7 @@ class TestWeightingsIntegration:
         base_scores = (
             sample_data['wiki'] * 0.55 + 
             sample_data['trends'] * 0.30 + 
-            sample_data['spotify'] * 0.15
+            sample_data['chartmetric'] * 0.15
         )
         
         # Apply Live Analytics

@@ -15,7 +15,7 @@ def sample_baseline_data():
         "wiki": [80, 95, 86, 74, 77],
         "trends": [18, 45, 32, 14, 30],
         "youtube": [71, 88, 80, 62, 70],
-        "spotify": [71, 75, 80, 62, 70],
+        "chartmetric": [71, 75, 80, 62, 70],
         "ticket_median": [9000, 12000, 8500, 6000, 7500],
     })
 
@@ -57,7 +57,7 @@ def test_knn_fallback_predict_basic(sample_baseline_data):
     knn.build_index(sample_baseline_data, outcome_col="ticket_median")
     
     # Test prediction with similar baseline
-    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "spotify": 65}
+    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "chartmetric": 65}
     prediction = knn.predict(new_show)
     
     # Should return a reasonable value in the range of the data
@@ -75,7 +75,7 @@ def test_knn_fallback_predict_with_neighbors(sample_baseline_data):
     knn = KNNFallback(k=3, metric="cosine")
     knn.build_index(sample_baseline_data, outcome_col="ticket_median")
     
-    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "spotify": 65}
+    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "chartmetric": 65}
     prediction, neighbors = knn.predict(new_show, return_neighbors=True)
     
     assert isinstance(prediction, float)
@@ -97,7 +97,7 @@ def test_knn_fallback_predict_handles_nan():
         "wiki": [80, np.nan, 86],
         "trends": [18, 45, np.nan],
         "youtube": [71, 88, 80],
-        "spotify": [71, 75, 80],
+        "chartmetric": [71, 75, 80],
         "ticket_median": [9000, 12000, 8500],
     })
     
@@ -105,7 +105,7 @@ def test_knn_fallback_predict_handles_nan():
     knn.build_index(data, outcome_col="ticket_median")
     
     # Should still work with NaN in input
-    prediction = knn.predict({"wiki": 75, "trends": 30, "youtube": np.nan, "spotify": 70})
+    prediction = knn.predict({"wiki": 75, "trends": 30, "youtube": np.nan, "chartmetric": 70})
     assert isinstance(prediction, float)
     assert not np.isnan(prediction)
 
@@ -121,7 +121,7 @@ def test_knn_fallback_empty_index():
         "wiki": [],
         "trends": [],
         "youtube": [],
-        "spotify": [],
+        "chartmetric": [],
         "ticket_median": [],
     })
     
@@ -131,7 +131,7 @@ def test_knn_fallback_empty_index():
     # With empty index, predict should handle gracefully (return NaN)
     # Note: _is_fitted may be False for empty data
     if knn._is_fitted:
-        prediction = knn.predict({"wiki": 75, "trends": 30, "youtube": 70, "spotify": 70})
+        prediction = knn.predict({"wiki": 75, "trends": 30, "youtube": 70, "chartmetric": 70})
         assert np.isnan(prediction)
     else:
         # Empty data doesn't fit the model - that's OK
@@ -149,7 +149,7 @@ def test_knn_fallback_no_valid_outcomes():
         "wiki": [80, 90, 86],
         "trends": [18, 45, 32],
         "youtube": [71, 88, 80],
-        "spotify": [71, 75, 80],
+        "chartmetric": [71, 75, 80],
         "ticket_median": [np.nan, np.nan, np.nan],
     })
     
@@ -159,7 +159,7 @@ def test_knn_fallback_no_valid_outcomes():
     
     # With no valid outcomes, index won't be fitted - that's OK
     if knn._is_fitted:
-        prediction = knn.predict({"wiki": 75, "trends": 30, "youtube": 70, "spotify": 70})
+        prediction = knn.predict({"wiki": 75, "trends": 30, "youtube": 70, "chartmetric": 70})
         assert np.isnan(prediction)
     else:
         # No valid outcomes means no index built - that's expected
@@ -187,7 +187,7 @@ def test_predict_knn_function(sample_baseline_data):
     knn = build_knn_index(sample_baseline_data, outcome_col="ticket_median")
     
     prediction = predict_knn(
-        {"wiki": 78, "trends": 25, "youtube": 75, "spotify": 65},
+        {"wiki": 78, "trends": 25, "youtube": 75, "chartmetric": 65},
         knn_index=knn,
         k=3
     )

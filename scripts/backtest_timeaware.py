@@ -242,7 +242,7 @@ def heuristic_prediction(row: pd.Series) -> float:
     wiki = float(row.get("wiki", 50) or 50)
     trends = float(row.get("trends", 50) or 50)
     youtube = float(row.get("youtube", 50) or 50)
-    spotify = float(row.get("spotify", 50) or 50)
+    spotify = float(row.get("chartmetric", 50) or 50)
     
     # Compute familiarity and motivation (simplified)
     familiarity = 0.55 * wiki + 0.30 * trends + 0.15 * spotify
@@ -267,7 +267,7 @@ def train_baseline_model(
     y_train: pd.Series
 ) -> Pipeline:
     """Train a baseline model using only baseline signal features."""
-    baseline_cols = ["wiki", "trends", "youtube", "spotify"]
+    baseline_cols = ["wiki", "trends", "youtube", "chartmetric"]
     available_cols = [c for c in baseline_cols if c in X_train.columns]
     
     if not available_cols:
@@ -480,7 +480,7 @@ def run_backtest(
             knn_preds = np.full(len(X_test), np.nan)
         
         # Baseline model (signals only)
-        baseline_cols = ["wiki", "trends", "youtube", "spotify"]
+        baseline_cols = ["wiki", "trends", "youtube", "chartmetric"]
         baseline_cols = [c for c in baseline_cols if c in X_train.columns]
         if baseline_cols:
             try:

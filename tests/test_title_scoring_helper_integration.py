@@ -30,21 +30,21 @@ def test_title_scoring_helper_workflow():
             'wiki': 85.0,
             'trends': 75.0,
             'youtube': 90.0,
-            'spotify': 80.0,
+            'chartmetric': 80.0,
         },
         {
             'title': 'The Nutcracker',
             'wiki': 95.0,
             'trends': 85.0,
             'youtube': 95.0,
-            'spotify': 90.0,
+            'chartmetric': 90.0,
         },
         {
             'title': 'Romeo and Juliet',
             'wiki': 80.0,
             'trends': 70.0,
             'youtube': 85.0,
-            'spotify': 75.0,
+            'chartmetric': 75.0,
         },
     ]
     
@@ -60,7 +60,7 @@ def test_title_scoring_helper_workflow():
             'wiki': title_data['wiki'],
             'trends': title_data['trends'],
             'youtube': title_data['youtube'],
-            'spotify': title_data['spotify'],
+            'chartmetric': title_data['chartmetric'],
             'category': default_genre,  # FIXED: was 'genre'
             'opening_season': default_season,  # FIXED: was 'season'
         })
@@ -114,7 +114,7 @@ def test_different_genres_affect_predictions():
         'wiki': 80.0,
         'trends': 60.0,
         'youtube': 70.0,
-        'spotify': 75.0,
+        'chartmetric': 75.0,
         'opening_season': '2025-26',
     }
     
@@ -151,7 +151,7 @@ def test_different_seasons_affect_predictions():
         'wiki': 80.0,
         'trends': 60.0,
         'youtube': 70.0,
-        'spotify': 75.0,
+        'chartmetric': 75.0,
         'category': 'classical',
     }
     
@@ -185,7 +185,7 @@ def test_csv_export_format():
             'wiki': 80.0,
             'trends': 60.0,
             'youtube': 70.0,
-            'spotify': 75.0,
+            'chartmetric': 75.0,
             'category': 'classical',
             'opening_season': '2025-26',
         }

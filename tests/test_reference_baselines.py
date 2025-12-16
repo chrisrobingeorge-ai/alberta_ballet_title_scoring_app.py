@@ -22,7 +22,7 @@ def test_load_baselines():
     df = load_baselines()
     assert not df.empty
     # Check expected columns (now includes source and notes)
-    for col in ["title", "wiki", "trends", "youtube", "spotify", "category", "gender", "source"]:
+    for col in ["title", "wiki", "trends", "youtube", "chartmetric", "category", "gender", "source"]:
         assert col in df.columns, f"Missing column: {col}"
 
 
@@ -31,7 +31,7 @@ def test_load_reference_baselines():
     df = load_reference_baselines()
     assert not df.empty
     # Check expected columns
-    for col in ["title", "wiki", "trends", "youtube", "spotify", "category", "gender", "source"]:
+    for col in ["title", "wiki", "trends", "youtube", "chartmetric", "category", "gender", "source"]:
         assert col in df.columns, f"Missing column: {col}"
     # Check source column has expected value (filtered to external_reference only)
     assert (df["source"] == "external_reference").all()
@@ -66,7 +66,7 @@ def test_all_baselines_no_duplicates():
 def test_signal_values_in_range():
     """Test that signal values are in valid 0-100 range."""
     df = load_all_baselines(include_reference=True)
-    for col in ["wiki", "trends", "youtube", "spotify"]:
+    for col in ["wiki", "trends", "youtube", "chartmetric"]:
         assert df[col].min() >= 0, f"{col} has values below 0"
         assert df[col].max() <= 100, f"{col} has values above 100"
 
@@ -76,7 +76,7 @@ def test_find_similar_titles():
     all_baselines = load_all_baselines(include_reference=True)
     
     # Query for a family classic type show
-    query = {"wiki": 80, "trends": 30, "youtube": 95, "spotify": 70}
+    query = {"wiki": 80, "trends": 30, "youtube": 95, "chartmetric": 70}
     similar = find_similar_titles(query, all_baselines, k=5)
     
     assert len(similar) == 5

@@ -56,7 +56,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default signal columns to normalize
-DEFAULT_SIGNALS = ['wiki', 'trends', 'youtube', 'spotify']
+DEFAULT_SIGNALS = ['wiki', 'trends', 'youtube', 'chartmetric']
 
 
 def load_baseline_statistics(

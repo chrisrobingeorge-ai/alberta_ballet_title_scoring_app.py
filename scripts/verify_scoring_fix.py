@@ -29,7 +29,7 @@ def load_reference_distribution():
         if not baselines_path.exists():
             return None
         df = pd.read_csv(baselines_path)
-        return df[['title', 'wiki', 'trends', 'youtube', 'spotify']].copy()
+        return df[['title', 'wiki', 'trends', 'youtube', 'chartmetric']].copy()
     except Exception as exc:
         print(f"Could not load reference distribution: {exc}")
         return None
@@ -89,7 +89,7 @@ def test_reference_normalization():
     print("-"*80)
     
     all_passed = True
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         ref_vals = reference_df[signal].dropna().tolist()
         ref_min, ref_max = min(ref_vals), max(ref_vals)
         
@@ -129,7 +129,7 @@ def test_reference_normalization():
         return False
     
     max_error = 0.0
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         original_scores = test_data[signal].tolist()
         renormalized = normalize_with_reference(original_scores, signal, reference_df)
         
@@ -164,7 +164,7 @@ def test_reference_normalization():
     
     # Score Cinderella alone
     batch1_scores = {}
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         val = test_row[signal].values[0]
         normalized = normalize_with_reference([val], signal, reference_df)
         batch1_scores[signal] = normalized[0]
@@ -174,7 +174,7 @@ def test_reference_normalization():
     batch2_df = df[df['title'].isin([test_title] + other_titles)].copy()
     batch2_scores = {}
     
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         vals = batch2_df[signal].tolist()
         normalized = normalize_with_reference(vals, signal, reference_df)
         # Get Cinderella's score (it's the first one since we filtered for it first)
@@ -187,7 +187,7 @@ def test_reference_normalization():
     print("  " + "-"*50)
     
     max_diff = 0.0
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         alone = batch1_scores[signal]
         together = batch2_scores[signal]
         diff = abs(together - alone)
