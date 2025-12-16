@@ -44,7 +44,7 @@ The app integrates three distinct weighting systems that adjust ticket demand pr
       lambda cat: get_category_engagement_factor(cat) if pd.notna(cat) else 1.0
   )
   ```
-- **Impact:** Becomes a numeric feature used by XGBoost model during training/prediction
+- **Impact:** Becomes a numeric feature used by Ridge regression model during training/prediction
 
 ### Streamlit App Usage
 - **Location:** `streamlit_app.py`, `_add_live_analytics_overlays()` function (line ~2155)
@@ -95,7 +95,7 @@ The app integrates three distinct weighting systems that adjust ticket demand pr
   - Features added as columns to the modelling dataset
 - **Integration Point:** `scripts/build_modelling_dataset.py`
   - Calls `build_feature_store()` which applies all economic joins
-  - Economic features become predictors in the XGBoost model
+  - Economic features become predictors in the Ridge regression model
 
 ### Historical Context
 - **Previous Issue:** Economic features were flat/constant (all rows had same values)
@@ -180,16 +180,16 @@ REGION_MULT = {
 
 | Weighting System | Data Source | Key Variables | Application Stage | Method |
 |------------------|-------------|---------------|-------------------|---------|
-| **Live Analytics** | `audiences/live_analytics.csv` | `aud__engagement_factor` | Pre-model (feature) | Category lookup → XGBoost feature |
-| **Economics** | `economics/nanos_*.csv`<br/>`economics/commodity_price_index.csv`<br/>`economics/boc_cpi_monthly.csv` | `consumer_confidence_prairies`<br/>`energy_index`<br/>`inflation_adjustment_factor` | Pre-model (feature) | Temporal join → XGBoost features |
+| **Live Analytics** | `audiences/live_analytics.csv` | `aud__engagement_factor` | Pre-model (feature) | Category lookup → Ridge feature |
+| **Economics** | `economics/nanos_*.csv`<br/>`economics/commodity_price_index.csv`<br/>`economics/boc_cpi_monthly.csv` | `consumer_confidence_prairies`<br/>`energy_index`<br/>`inflation_adjustment_factor` | Pre-model (feature) | Temporal join → Ridge features |
 | **Stone Olafson** | `audiences/live_analytics.csv` (indices) | `SEGMENT_MULT` (dict)<br/>`REGION_MULT` (dict) | Post-signal (scoring) | Multipliers in `calc_scores()` |
 
 ---
 
 ## Key Differences
 
-1. **Live Analytics** operates as a **feature** in the ML model (XGBoost learns its weight)
-2. **Economics** operates as **features** in the ML model (XGBoost learns their weights)
+1. **Live Analytics** operates as a **feature** in the ML model (Ridge regression learns its weight)
+2. **Economics** operates as **features** in the ML model (Ridge regression learns their weights)
 3. **Stone Olafson** operates as **explicit multipliers** applied after base scores (deterministic, not learned)
 
 **Critical Insight:** Live Analytics and Economics are learned by the model, while Stone Olafson weightings are hard-coded business rules that directly scale the final scores.

@@ -295,7 +295,7 @@ The Title Scoring Helper provides data-driven estimates, but always consider:
 
 3. **Feature Engineering**:
    - Combines signals with genre and season
-   - Passes features to trained XGBoost model
+   - Passes features to trained constrained Ridge regression model
 
 4. **Forecasting**:
    - Model generates point prediction

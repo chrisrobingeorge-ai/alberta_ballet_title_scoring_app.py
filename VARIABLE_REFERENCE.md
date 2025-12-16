@@ -56,7 +56,7 @@ When using trained ML models (via `ml/scoring.py`):
 
 | Column | Source | Description |
 |--------|--------|-------------|
-| `forecast_single_tickets` | ML model (`ml/scoring.py`) | **PREDICTED** single tickets from trained Random Forest/XGBoost model |
+| `forecast_single_tickets` | ML model (`ml/scoring.py`) | **PREDICTED** single tickets from trained Ridge regression model |
 
 > **Key Difference**: `forecast_single_tickets` comes from a trained ML pipeline, while `EstimatedTickets_Final` uses the rule-based familiarity/motivation algorithm.
 
@@ -113,7 +113,7 @@ print(f"YourModel MAE: {mae_yourmodel:.0f} tickets")
 
 ### Current Model Performance
 
-Based on [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md), the app's XGBoost model shows:
+Based on [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md), the app's constrained Ridge regression model shows:
 - R² Score: ~0.90 (on training data with cross-validation)
 - MAE: ~4-9 index points
 - Note: These are on the **TicketIndex** scale, not raw ticket counts

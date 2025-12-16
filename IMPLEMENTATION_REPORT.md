@@ -28,7 +28,7 @@ Successfully implemented a comprehensive narrative generation system that transf
 
 ✅ **STEP 1 — INGEST CANONICAL PROSE**  
 - Loaded and analyzed `docs/Alberta_Ballet_Technical_Report_Prose_Style.docx`
-- Extracted conceptual explanations of Familiarity, Motivation, Ticket Index, seasonality, XGBoost, SHAP
+- Extracted conceptual explanations of Familiarity, Motivation, Ticket Index, seasonality, Ridge regression, SHAP
 - Used as single source of truth for narrative tone and structure
 
 ✅ **STEP 2 — UPGRADE THE SEASON REPORT INTRO GENERATOR**  
@@ -118,7 +118,7 @@ streamlit_app.py
 2. **Familiarity & Motivation** - Digital signal measurement and combination
 3. **Ticket Index Translation** - Historical demand conversion
 4. **Seasonality & Category** - Temporal and genre patterns
-5. **Premiere vs Remount** - Distinction and XGBoost modeling
+5. **Premiere vs Remount** - Distinction and constrained Ridge modeling
 6. **SHAP Explainability** - Feature attribution methodology
 7. **Economic Integration** - Macroeconomic indicators
 8. **Summary & Scope** - Methodology overview and appropriate use

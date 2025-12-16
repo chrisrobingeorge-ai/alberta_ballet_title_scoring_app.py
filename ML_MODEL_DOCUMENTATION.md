@@ -198,7 +198,6 @@ Monitor these metrics when:
 
 All dependencies checked with GitHub Advisory Database:
 - ✅ No known vulnerabilities in scikit-learn 1.7.2
-- ✅ No known vulnerabilities in xgboost 3.1.2
 - ✅ CodeQL analysis passed with 0 alerts
 
 ## Robust Forecasting Pipeline (New)
@@ -533,11 +532,11 @@ This command loads the trained model and produces:
 | `results/model_recipe_linear.csv` | Linear surrogate model coefficients (Ridge regression) |
 | `results/model_recipe_summary.md` | Human-readable summary of model behavior |
 | `results/plots/feature_importances_bar.png` | Bar chart of top features by permutation importance |
-| `results/plots/surrogate_vs_model_scatter.png` | Scatter plot: surrogate predictions vs XGBoost |
+| `results/plots/surrogate_vs_model_scatter.png` | Scatter plot: surrogate predictions vs Ridge model |
 
 ### Key Insights
 
-The linear surrogate model approximates the XGBoost behavior with a simple equation:
+The linear surrogate model approximates the Ridge regression behavior with a simple equation:
 - R² typically > 0.99 (excellent approximation)
 - Top positive drivers: `prior_total_tickets`, `ticket_median_prior`
 - Top negative drivers: `prior_run_count`, `is_remount_recent`
@@ -574,7 +573,7 @@ Potential improvements:
 ## References
 
 - scikit-learn documentation: https://scikit-learn.org/
-- XGBoost documentation: https://xgboost.readthedocs.io/
+- Ridge regression: https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html
 - SHAP documentation: https://shap.readthedocs.io/
 - Bank of Canada Valet API: https://www.bankofcanada.ca/valet/docs
 - Alberta Economic Dashboard: https://economicdashboard.alberta.ca/
