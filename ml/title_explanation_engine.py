@@ -71,6 +71,7 @@ def build_title_explanation(
     familiarity = title_metadata.get("Familiarity", None)
     motivation = title_metadata.get("Motivation", None)
     signal_only = title_metadata.get("SignalOnly", None)
+    intent_ratio = title_metadata.get("IntentRatio", None)
     
     ticket_index = title_metadata.get("TicketIndex used", 
                                      title_metadata.get("EffectiveTicketIndex", 100))
@@ -118,7 +119,22 @@ def build_title_explanation(
     
     # Paragraph 2: Historical & category context
     p2_parts = []
-    
+    # --- Intent Ratio Analysis ---
+    if intent_ratio is not None:
+        if intent_ratio < 0.05:
+            p2_parts.append(
+                f"⚠️ While <b>{title}</b> shows high cultural visibility, only {intent_ratio:.1%} of its search traffic appears tied to actual performance intent. "
+                f"This suggests that digital interest may be inflated by unrelated media references (e.g., Disney, literature, or homonyms)."
+            )
+        elif intent_ratio > 0.30:
+            p2_parts.append(
+                f"✅ This title exhibits a strong Intent Ratio of {intent_ratio:.1%}, indicating that online search behavior aligns closely with actual ticket-buying interest."
+            )
+        else:
+            p2_parts.append(
+                f"ℹ️ This title has a moderate Intent Ratio of {intent_ratio:.1%}, suggesting mixed digital intent. Marketing clarity may influence conversion rates."
+            )
+
     if is_remount and years_since is not None and years_since > 0:
         p2_parts.append(
             f"This production represents a remount, last performed approximately {years_since} "
