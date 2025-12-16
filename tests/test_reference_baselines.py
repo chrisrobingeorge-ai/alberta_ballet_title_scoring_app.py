@@ -96,7 +96,7 @@ def test_estimate_category_benchmark():
     assert "wiki" in benchmarks
     assert "trends" in benchmarks
     assert "youtube" in benchmarks
-    assert "spotify" in benchmarks
+    assert "chartmetric" in benchmarks
     
     # Values should be reasonable (between 0 and 100)
     for col, value in benchmarks.items():
