@@ -167,14 +167,14 @@ def _merge_with_baselines(df: pd.DataFrame) -> pd.DataFrame:
     - Join Type: LEFT join to preserve all show rows
     - Source: productions/baselines.csv
 
-    Baseline signals include wiki, trends, youtube, spotify scores
+    Baseline signals include wiki, trends, youtube, chartmetric scores
     that provide familiarity and engagement metrics for each title.
 
     Args:
         df: DataFrame with 'show_title' column.
 
     Returns:
-        DataFrame with baseline signal columns added (wiki, trends, youtube, spotify,
+        DataFrame with baseline signal columns added (wiki, trends, youtube, chartmetric,
         category, gender). Rows without a matching baseline will have NaN for
         these columns.
     """
@@ -195,7 +195,7 @@ def _merge_with_baselines(df: pd.DataFrame) -> pd.DataFrame:
 
     # Select baseline columns to merge (exclude internal columns)
     baseline_cols = ["_canonical_title"]
-    for col in ["wiki", "trends", "youtube", "spotify", "category", "gender"]:
+    for col in ["wiki", "trends", "youtube", "chartmetric", "category", "gender"]:
         if col in baselines.columns:
             baseline_cols.append(col)
 

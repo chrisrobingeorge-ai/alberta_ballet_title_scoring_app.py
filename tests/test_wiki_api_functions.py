@@ -108,7 +108,7 @@ class TestWikiApiFunctionsDocumentation:
         # This is a documentation test to ensure consistency
         expected_patterns = {
             'youtube': ['YOUTUBE_API_KEY'],
-            'spotify': ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'],
+            'chartmetric': ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'],
             'wiki': ['WIKI_API_KEY', 'WIKI_API_SECRET']
         }
 
@@ -121,7 +121,7 @@ class TestWikiApiFunctionsDocumentation:
 
         # Wiki should follow same pattern as Spotify (key + secret)
         assert len(expected_patterns['wiki']) == (
-            len(expected_patterns['spotify'])
+            len(expected_patterns['chartmetric'])
         )
 
 

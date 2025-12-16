@@ -149,8 +149,8 @@ REGION_MULT = {
 - **Method:**
   ```python
   def calc_scores(entry, seg_key, reg_key):
-      # Base scores from wiki/trends/spotify/youtube
-      fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + entry["spotify"] * 0.15
+      # Base scores from wiki/trends/chartmetric/youtube
+      fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + entry["chartmetric"] * 0.15
       mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + ...
       
       # Apply segment multipliers (Stone Olafson)

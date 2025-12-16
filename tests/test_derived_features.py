@@ -260,7 +260,7 @@ class TestDeriveBaselineFeatures:
             'wiki': [90, 85],
             'trends': [80, 75],
             'youtube': [95, 90],
-            'spotify': [70, 65]
+            'chartmetric': [70, 65]
         })
         
         result = derive_baseline_features(df, baselines_df=baselines)
@@ -268,7 +268,7 @@ class TestDeriveBaselineFeatures:
         assert 'baseline_wiki' in result.columns
         assert 'baseline_trends' in result.columns
         assert 'baseline_youtube' in result.columns
-        assert 'baseline_spotify' in result.columns
+        assert 'baseline_chartmetric' in result.columns
         assert result['baseline_wiki'].iloc[0] == 90
     
     def test_creates_familiarity_index(self):
@@ -285,7 +285,7 @@ class TestDeriveBaselineFeatures:
             'wiki': [100],
             'trends': [100],
             'youtube': [100],
-            'spotify': [100]
+            'chartmetric': [100]
         })
         
         result = derive_baseline_features(df, baselines_df=baselines)
@@ -308,7 +308,7 @@ class TestDeriveBaselineFeatures:
             'wiki': [80],
             'trends': [60],
             'youtube': [90],
-            'spotify': [50]
+            'chartmetric': [50]
         })
         
         result = derive_baseline_features(df, baselines_df=baselines)
@@ -345,7 +345,7 @@ class TestDeriveBaselineFeatures:
             'wiki': [90],
             'trends': [80],
             'youtube': [95],
-            'spotify': [70]
+            'chartmetric': [70]
         })
         
         result = derive_baseline_features(df, baselines_df=baselines)
@@ -373,7 +373,7 @@ class TestDeriveAllExternalFeatures:
             'wiki': [90, 85],
             'trends': [80, 75],
             'youtube': [95, 90],
-            'spotify': [70, 65]
+            'chartmetric': [70, 65]
         })
         
         result = derive_all_external_features(

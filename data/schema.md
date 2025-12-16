@@ -10,7 +10,7 @@
 ## Exogenous features (optional, can add later)
 - marketing_spend_daily (float, by city)
 - capacity_total (int), price_bands (text)
-- baselines_wiki/trends/youtube/spotify (ints)
+- baselines_wiki/trends/youtube/chartmetric (ints)
 - economy_unemployment (float), oil_price (float)
 - weather_temp (float), weather_precip (float)
 

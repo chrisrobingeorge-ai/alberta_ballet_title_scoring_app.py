@@ -207,7 +207,7 @@ def validate_data_files() -> Tuple[bool, List[str]]:
     
     required_data_files = [
         ("productions/history_city_sales.csv", ["show_title"]),
-        ("productions/baselines.csv", ["title", "wiki", "trends", "youtube", "spotify"]),
+        ("productions/baselines.csv", ["title", "wiki", "trends", "youtube", "chartmetric"]),
     ]
     
     for file_name, required_cols in required_data_files:
@@ -238,13 +238,13 @@ CORE_DATA_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "productions/baselines.csv": {
         "path": DATA_DIR / "productions" / "baselines.csv",
-        "required_columns": ["title", "wiki", "trends", "youtube", "spotify"],
+        "required_columns": ["title", "wiki", "trends", "youtube", "chartmetric"],
         "column_types": {
             "title": "str",
             "wiki": "numeric",
             "trends": "numeric",
             "youtube": "numeric",
-            "spotify": "numeric"
+            "chartmetric": "numeric"
         },
         "description": "Baseline metrics for production titles"
     },

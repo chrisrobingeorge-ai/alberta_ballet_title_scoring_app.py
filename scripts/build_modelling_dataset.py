@@ -523,7 +523,7 @@ def build_modelling_dataset(
     df = baselines_df.copy()
     
     # Ensure baseline signal columns are present and properly named
-    signal_cols = ["wiki", "trends", "youtube", "spotify"]
+    signal_cols = ["wiki", "trends", "youtube", "chartmetric"]
     for col in signal_cols:
         if col not in df.columns:
             df[col] = 0
@@ -799,7 +799,7 @@ def build_modelling_dataset(
         # Identifiers
         "title", "canonical_title", "category", "gender",
         # Baseline signals (forecast-time safe)
-        "wiki", "trends", "youtube", "spotify",
+        "wiki", "trends", "youtube", "chartmetric",
         # Lagged historical features (from prior seasons - safe)
         "prior_total_tickets", "prior_run_count", "ticket_median_prior",
         # Remount features (safe - derived from prior runs)

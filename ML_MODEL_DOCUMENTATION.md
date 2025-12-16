@@ -191,7 +191,7 @@ The new training pipeline (`scripts/train_safe_model.py`) ensures no data leakag
    - Any column matching current-run sales patterns
 
 3. **Allowed Features**:
-   - Baseline signals: wiki, trends, youtube, spotify
+   - Baseline signals: wiki, trends, youtube, chartmetric
    - Categorical: category, gender
    - Prior-season lags: prior_total_tickets, ticket_median_prior
    - Remount features: years_since_last_run, is_remount_recent
@@ -210,7 +210,7 @@ Post-COVID adjustment is applied as a configurable factor in config.yaml.
 ### k-NN Cold-Start Fallback
 
 For titles without historical ticket data, the k-NN fallback (`ml/knn_fallback.py`):
-- Uses baseline signal vectors (wiki, trends, youtube, spotify)
+- Uses baseline signal vectors (wiki, trends, youtube, chartmetric)
 - Finds k nearest neighbors among titles with known outcomes
 - Weights predictions by similarity AND recency of neighbor runs
 - Configurable via config.yaml knn settings

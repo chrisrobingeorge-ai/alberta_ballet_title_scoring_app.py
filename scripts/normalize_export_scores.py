@@ -2,7 +2,7 @@
 """
 Normalize Export Scores
 
-This script normalizes external signal scores (wiki, trends, youtube, spotify)
+This script normalizes external signal scores (wiki, trends, youtube, chartmetric)
 from a new export CSV by aligning them to the baseline distribution using
 z-score normalization.
 
@@ -56,7 +56,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default signal columns to normalize
-DEFAULT_SIGNALS = ['wiki', 'trends', 'youtube', 'spotify']
+DEFAULT_SIGNALS = ['wiki', 'trends', 'youtube', 'chartmetric']
 
 
 def load_baseline_statistics(

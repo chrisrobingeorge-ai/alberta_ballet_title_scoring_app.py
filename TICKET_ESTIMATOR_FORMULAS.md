@@ -32,7 +32,7 @@ Each title has four online visibility signal scores that measure public awarenes
 | **WikiIdx** | Wikipedia API | `40 + min(110, 20 × ln(1 + views/day))` | Average daily pageviews over the past year |
 | **TrendsIdx** | Google Trends | Proxy heuristic (scaled 0-100) | Search interest relative to peak |
 | **YouTubeIdx** | YouTube Data API | `50 + min(90, 9 × ln(1 + median_views))` | Median view counts across relevant videos |
-| **SpotifyIdx** | Spotify API | 80th percentile track popularity (0-100) | Track popularity near the query |
+| **chartmetricIdx** | chartmetric API | 80th percentile track popularity (0-100) | Track popularity near the query |
 
 ### YouTube Winsorization
 YouTube scores are **winsorized by category** to prevent outliers from dominating:
@@ -46,25 +46,25 @@ YouTube scores are **winsorized by category** to prevent outliers from dominatin
 
 **Familiarity** (how well-known the title is):
 ```
-Familiarity_Raw = 0.55 × WikiIdx + 0.30 × TrendsIdx + 0.15 × SpotifyIdx
+Familiarity_Raw = 0.55 × WikiIdx + 0.30 × TrendsIdx + 0.15 × chartmetricIdx
 ```
 
 | Component | Weight |
 |-----------|--------|
 | Wikipedia Index | **55%** |
 | Google Trends Index | **30%** |
-| Spotify Index | **15%** |
+| chartmetric Index | **15%** |
 
 **Motivation** (how engaged people are with it):
 ```
-Motivation_Raw = 0.45 × YouTubeIdx + 0.25 × TrendsIdx + 0.15 × SpotifyIdx + 0.15 × WikiIdx
+Motivation_Raw = 0.45 × YouTubeIdx + 0.25 × TrendsIdx + 0.15 × chartmetricIdx + 0.15 × WikiIdx
 ```
 
 | Component | Weight |
 |-----------|--------|
 | YouTube Index | **45%** |
 | Google Trends Index | **25%** |
-| Spotify Index | **15%** |
+| chartmetric Index | **15%** |
 | Wikipedia Index | **15%** |
 
 ### Benchmark Normalization
@@ -442,7 +442,7 @@ Features used in the trained XGBoost model:
 | trends | Google Trends signal | ✅ Yes |
 | youtube | YouTube signal | ✅ Yes |
 | wiki | Wikipedia signal | ✅ Yes |
-| spotify | Spotify signal | ✅ Yes |
+| chartmetric | chartmetric signal | ✅ Yes |
 | familiarity | Computed familiarity score | ✅ Yes |
 | motivation | Computed motivation score | ✅ Yes |
 | is_remount_recent | Binary: ≤2 years since last run | ✅ Yes |
@@ -477,7 +477,7 @@ The k-NN similarity matching uses these baseline signals:
 - `wiki` - Wikipedia pageview index
 - `trends` - Google Trends index
 - `youtube` - YouTube view index
-- `spotify` - Spotify popularity index
+- `chartmetric` - chartmetric popularity index
 
 ---
 
@@ -602,11 +602,11 @@ Adding these fields to the export is a non-breaking change. They are purely info
    ├── Wikipedia pageviews → WikiIdx
    ├── Google Trends → TrendsIdx  
    ├── YouTube views → YouTubeIdx (winsorized by category)
-   └── Spotify popularity → SpotifyIdx
+   └── chartmetric popularity → chartmetricIdx
 
 2. Compute Raw Scores
-   ├── Familiarity_Raw = 0.55×Wiki + 0.30×Trends + 0.15×Spotify
-   └── Motivation_Raw = 0.45×YouTube + 0.25×Trends + 0.15×Spotify + 0.15×Wiki
+   ├── Familiarity_Raw = 0.55×Wiki + 0.30×Trends + 0.15×chartmetric
+   └── Motivation_Raw = 0.45×YouTube + 0.25×Trends + 0.15×chartmetric + 0.15×Wiki
 
 3. Normalize to Benchmark (=100)
    ├── Familiarity = (Familiarity_Raw / Benchmark_Raw) × 100

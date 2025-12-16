@@ -249,7 +249,7 @@ def load_baselines(
     csv_name: str = "productions/baselines.csv",
     fallback_empty: bool = True
 ) -> pd.DataFrame:
-    """Load baseline signals (wiki, trends, youtube, spotify) for all titles.
+    """Load baseline signals (wiki, trends, youtube, chartmetric) for all titles.
     
     This function is cached based on file modification time.
     
@@ -262,7 +262,7 @@ def load_baselines(
         fallback_empty: If True, return empty DataFrame on error (default True for backwards compat)
         
     Returns:
-        DataFrame with columns: title, wiki, trends, youtube, spotify, category, 
+        DataFrame with columns: title, wiki, trends, youtube, chartmetric, category, 
                                 gender, source, notes
     """
     path = DATA_DIR / csv_name
@@ -297,7 +297,7 @@ def load_reference_baselines(csv_name: str = "productions/baselines.csv") -> pd.
     and filters to only external reference titles.
     
     Returns:
-        DataFrame with columns: title, wiki, trends, youtube, spotify, category, 
+        DataFrame with columns: title, wiki, trends, youtube, chartmetric, category, 
                                 gender, source, notes
     """
     df = load_baselines(csv_name)
@@ -329,7 +329,7 @@ def load_all_baselines(
         reference_path: Ignored, kept for backward compatibility
         
     Returns:
-        DataFrame with columns: title, wiki, trends, youtube, spotify,
+        DataFrame with columns: title, wiki, trends, youtube, chartmetric,
                                 category, gender, source
     """
     baselines = load_baselines(baselines_path)

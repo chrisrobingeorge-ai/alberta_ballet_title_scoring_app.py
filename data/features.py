@@ -1316,7 +1316,7 @@ def derive_baseline_features(
     wiki_col: str = 'wiki',
     trends_col: str = 'trends',
     youtube_col: str = 'youtube',
-    spotify_col: str = 'spotify'
+    chartmetric_col: str = 'chartmetric'
 ) -> pd.DataFrame:
     """Derive baseline signal features from external data sources.
     
@@ -1324,7 +1324,7 @@ def derive_baseline_features(
     - Wikipedia article views (familiarity indicator)
     - Google Trends search interest
     - YouTube view counts
-    - Spotify play counts (for musical titles)
+    - Chartmetric play counts (for musical titles)
     
     These signals are combined into composite indices for modeling.
     
@@ -1335,14 +1335,14 @@ def derive_baseline_features(
         wiki_col: Name of the Wikipedia column in baselines_df
         trends_col: Name of the Google Trends column in baselines_df
         youtube_col: Name of the YouTube column in baselines_df
-        spotify_col: Name of the Spotify column in baselines_df
+        chartmetric_col: Name of the Chartmetric column in baselines_df
     
     Returns:
         DataFrame with baseline features added:
         - baseline_wiki: Wikipedia signal (0-100)
         - baseline_trends: Google Trends signal (0-100)
         - baseline_youtube: YouTube signal (0-100)
-        - baseline_spotify: Spotify signal (0-100)
+        - baseline_chartmetric: Chartmetric signal (0-100)
         - baseline_familiarity_index: Composite familiarity index
         - baseline_digital_presence: Combined digital presence score
     """
@@ -1353,7 +1353,7 @@ def derive_baseline_features(
         out['baseline_wiki'] = np.nan
         out['baseline_trends'] = np.nan
         out['baseline_youtube'] = np.nan
-        out['baseline_spotify'] = np.nan
+        out['baseline_chartmetric'] = np.nan
         out['baseline_familiarity_index'] = np.nan
         out['baseline_digital_presence'] = np.nan
         return out
@@ -1375,7 +1375,7 @@ def derive_baseline_features(
         out['baseline_wiki'] = np.nan
         out['baseline_trends'] = np.nan
         out['baseline_youtube'] = np.nan
-        out['baseline_spotify'] = np.nan
+        out['baseline_chartmetric'] = np.nan
         out['baseline_familiarity_index'] = np.nan
         out['baseline_digital_presence'] = np.nan
         return out
@@ -1385,7 +1385,7 @@ def derive_baseline_features(
         'baseline_wiki': wiki_col,
         'baseline_trends': trends_col,
         'baseline_youtube': youtube_col,
-        'baseline_spotify': spotify_col
+        'baseline_chartmetric': chartmetric_col
     }
     
     # Select and rename columns for merge
@@ -1402,7 +1402,7 @@ def derive_baseline_features(
         out['baseline_wiki'] = np.nan
         out['baseline_trends'] = np.nan
         out['baseline_youtube'] = np.nan
-        out['baseline_spotify'] = np.nan
+        out['baseline_chartmetric'] = np.nan
         out['baseline_familiarity_index'] = np.nan
         out['baseline_digital_presence'] = np.nan
         return out
@@ -1423,12 +1423,12 @@ def derive_baseline_features(
     merged = merged.drop(columns=['_title_match'], errors='ignore')
     
     # Ensure all columns exist
-    for col in ['baseline_wiki', 'baseline_trends', 'baseline_youtube', 'baseline_spotify']:
+    for col in ['baseline_wiki', 'baseline_trends', 'baseline_youtube', 'baseline_chartmetric']:
         if col not in merged.columns:
             merged[col] = np.nan
     
     # Convert to numeric
-    for col in ['baseline_wiki', 'baseline_trends', 'baseline_youtube', 'baseline_spotify']:
+    for col in ['baseline_wiki', 'baseline_trends', 'baseline_youtube', 'baseline_chartmetric']:
         merged[col] = pd.to_numeric(merged[col], errors='coerce')
     
     # Compute composite indices
@@ -1436,14 +1436,14 @@ def derive_baseline_features(
     wiki = merged['baseline_wiki'].fillna(50)
     trends = merged['baseline_trends'].fillna(50)
     youtube = merged['baseline_youtube'].fillna(50)
-    spotify = merged['baseline_spotify'].fillna(50)
+    chartmetric = merged['baseline_chartmetric'].fillna(50)
     
     # Familiarity index emphasizes cultural recognition
     merged['baseline_familiarity_index'] = (
         0.40 * wiki +
         0.35 * trends +
         0.15 * youtube +
-        0.10 * spotify
+        0.10 * chartmetric
     )
     
     # Digital presence: overall online visibility
@@ -1451,7 +1451,7 @@ def derive_baseline_features(
         0.25 * wiki +
         0.25 * trends +
         0.30 * youtube +
-        0.20 * spotify
+        0.20 * chartmetric
     )
     
     logger.info(f"Created baseline signal features for {len(merged)} rows")
@@ -1486,7 +1486,7 @@ def derive_all_external_features(
     1. Marketing: lagged spend, total spend, spend per ticket
     2. Weather: temperature, precipitation, day-of-week effects  
     3. Economy: unemployment rate, oil price, CPI
-    4. Baselines: wiki/trends/youtube/spotify signals
+    4. Baselines: wiki/trends/youtube/chartmetric signals
     
     Args:
         df: DataFrame with show data and joined external data

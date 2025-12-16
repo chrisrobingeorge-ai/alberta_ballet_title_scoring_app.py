@@ -48,7 +48,7 @@ def analyze_normalization_impact(df):
     print("NORMALIZATION ANALYSIS")
     print("="*80)
     
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         values = df[signal].dropna().tolist()
         
         print(f"\n{signal.upper()}:")
@@ -84,13 +84,13 @@ def simulate_batch_scoring(df, titles_to_test):
     batch['wiki_raw'] = batch['wiki']
     batch['trends_raw'] = batch['trends']
     batch['youtube_raw'] = batch['youtube']
-    batch['spotify_raw'] = batch['spotify']
+    batch['chartmetric_raw'] = batch['chartmetric']
     
     # Apply normalization (this is what title_scoring_helper.py does)
     batch['wiki_normalized'] = normalize_0_100(batch['wiki_raw'].tolist())
     batch['trends_normalized'] = normalize_0_100(batch['trends_raw'].tolist())
     batch['youtube_normalized'] = normalize_0_100(batch['youtube_raw'].tolist())
-    batch['spotify_normalized'] = normalize_0_100(batch['spotify_raw'].tolist())
+    batch['chartmetric_normalized'] = normalize_0_100(batch['chartmetric_raw'].tolist())
     
     print("\n" + "-"*80)
     print("COMPARISON: Baseline vs. Batch-Normalized")
@@ -98,7 +98,7 @@ def simulate_batch_scoring(df, titles_to_test):
     
     for _, row in batch.iterrows():
         print(f"\n{row['title']}:")
-        for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+        for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
             baseline = row[signal]
             normalized = row[f'{signal}_normalized']
             diff = normalized - baseline
@@ -111,7 +111,7 @@ def check_for_precision_issues(df):
     print("PRECISION ANALYSIS")
     print("="*80)
     
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         # Check decimal precision
         decimals = df[signal].dropna().apply(lambda x: len(str(x).split('.')[-1]) if '.' in str(x) else 0)
         
@@ -133,7 +133,7 @@ def check_data_sources(df):
     print(f"\nHistorical titles: {len(historical)}")
     print(f"Reference titles: {len(reference)}")
     
-    for signal in ['wiki', 'trends', 'youtube', 'spotify']:
+    for signal in ['wiki', 'trends', 'youtube', 'chartmetric']:
         print(f"\n{signal.upper()}:")
         print(f"  Historical - Mean: {historical[signal].mean():.2f}, Range: [{historical[signal].min():.2f}, {historical[signal].max():.2f}]")
         print(f"  Reference  - Mean: {reference[signal].mean():.2f}, Range: [{reference[signal].min():.2f}, {reference[signal].max():.2f}]")

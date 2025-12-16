@@ -205,7 +205,7 @@ class TestBacktestIntegrationWithCI:
             "wiki": np.random.randint(30, 80, n_samples),
             "trends": np.random.randint(20, 70, n_samples),
             "youtube": np.random.randint(25, 75, n_samples),
-            "spotify": np.random.randint(15, 65, n_samples),
+            "chartmetric": np.random.randint(15, 65, n_samples),
             "category": np.random.choice(
                 ["family_classic", "classic_romance", "contemporary"], n_samples
             ),

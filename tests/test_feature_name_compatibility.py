@@ -56,7 +56,7 @@ def test_correct_column_names_preserve_values():
         'wiki': 80.0,
         'trends': 60.0,
         'youtube': 70.0,
-        'spotify': 75.0,
+        'chartmetric': 75.0,
         'category': 'classical',
         'opening_season': '2025-26',
     }])
@@ -96,7 +96,7 @@ def test_wrong_column_names_lose_values():
         'wiki': 80.0,
         'trends': 60.0,
         'youtube': 70.0,
-        'spotify': 75.0,
+        'chartmetric': 75.0,
         'genre': 'classical',  # WRONG: should be 'category'
         'season': '2025-26',   # WRONG: should be 'opening_season'
     }])
@@ -129,7 +129,7 @@ def test_scoring_succeeds_with_correct_names():
         'wiki': 80.0,
         'trends': 60.0,
         'youtube': 70.0,
-        'spotify': 75.0,
+        'chartmetric': 75.0,
         'category': 'classical',
         'opening_season': '2025-26',
     }])
@@ -155,7 +155,7 @@ def test_all_35_features_present_after_preparation():
         'wiki': 80.0,
         'trends': 60.0,
         'youtube': 70.0,
-        'spotify': 75.0,
+        'chartmetric': 75.0,
         'category': 'classical',
         'opening_season': '2025-26',
     }])

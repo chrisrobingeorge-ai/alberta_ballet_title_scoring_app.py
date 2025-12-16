@@ -329,7 +329,7 @@ def generate_summary_markdown(
         "- `wiki`: Wikipedia page views",
         "- `trends`: Google Trends interest",
         "- `youtube`: YouTube engagement",
-        "- `spotify`: Spotify plays/popularity",
+        "- `spotify`: Chartmetric plays/popularity",
         "",
         "### 2. Historical Priors",
         "- `prior_total_tickets`: Sum of tickets from all prior runs",

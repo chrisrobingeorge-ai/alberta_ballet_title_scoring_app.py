@@ -36,7 +36,7 @@ def synthetic_modelling_dataset():
         "wiki": np.random.randint(30, 80, n_samples),
         "trends": np.random.randint(20, 70, n_samples),
         "youtube": np.random.randint(25, 75, n_samples),
-        "spotify": np.random.randint(15, 65, n_samples),
+        "chartmetric": np.random.randint(15, 65, n_samples),
         "category": np.random.choice(["family_classic", "classic_romance", "contemporary"], n_samples),
         "gender": np.random.choice(["female", "male", "co", "na"], n_samples),
         "years_since_last_run": np.random.choice([0, 1, 2, 3, 5, np.nan], n_samples),
@@ -60,7 +60,7 @@ class TestDatasetBuilding:
     
     def test_dataset_has_required_columns(self, synthetic_modelling_dataset):
         """Verify the dataset contains required columns."""
-        required_cols = ["wiki", "trends", "youtube", "spotify", "category", "target_ticket_median"]
+        required_cols = ["wiki", "trends", "youtube", "chartmetric", "category", "target_ticket_median"]
         for col in required_cols:
             assert col in synthetic_modelling_dataset.columns, f"Missing column: {col}"
     

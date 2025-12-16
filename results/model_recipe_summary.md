@@ -13,7 +13,7 @@ The safe model uses the following feature groups:
 - `wiki`: Wikipedia page views
 - `trends`: Google Trends interest
 - `youtube`: YouTube engagement
-- `spotify`: Spotify plays/popularity
+- `chartmetric`: chartmetric plays/popularity
 
 ### 2. Historical Priors
 - `prior_total_tickets`: Sum of tickets from all prior runs
@@ -45,7 +45,7 @@ The safe model uses the following feature groups:
 | 3 | `wiki` | 0.0333 | ↓ negative |
 | 4 | `youtube` | 0.0003 | ↑ positive |
 | 5 | `trends` | 0.0000 | ↑ positive |
-| 6 | `spotify` | 0.0000 | ↑ positive |
+| 6 | `chartmetric` | 0.0000 | ↑ positive |
 | 7 | `prior_run_count` | 0.0000 | ↓ negative |
 | 8 | `years_since_last_run` | 0.0000 | ↓ negative |
 | 9 | `is_remount_recent` | 0.0000 | ↓ negative |

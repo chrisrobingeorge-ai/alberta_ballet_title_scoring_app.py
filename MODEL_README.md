@@ -11,7 +11,7 @@ Primary output: a point forecast and three risk bounds (P10/P50/P90).
 ## Data it expects (now or later)
 - Historical single-ticket sales at performance level (YYC/YEG).
 - Marketing spend (daily by city).
-- Baselines for new titles (wiki/trends/youtube/spotify).
+- Baselines for new titles (wiki/trends/youtube/chartmetric).
 - **Explicit date fields** for time-aware validation and feature engineering.
 - Optional: economy & weather indicators.
 
