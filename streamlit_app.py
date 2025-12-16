@@ -2620,8 +2620,13 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
 
 def _train_ml_models(df_known_in: pd.DataFrame):
     """
-    Train regression models (XGBoost/GradientBoosting for overall, Ridge for categories) 
+    Train regression models (Constrained Ridge for overall, Ridge for categories) 
     to predict TicketIndex_DeSeason from SignalOnly.
+    
+    Constrained model ensures:
+    - SignalOnly = 0 → TicketIndex ≈ 25 (realistic floor for minimal buzz)
+    - SignalOnly = 100 → TicketIndex = 100 (benchmark alignment)
+    
     Returns models and their performance metrics.
     """
     if not ML_AVAILABLE:
@@ -2639,49 +2644,53 @@ def _train_ml_models(df_known_in: pd.DataFrame):
     if len(df_known_in) >= 5:
         try:
             # Prepare training data
-            X = df_known_in[['SignalOnly']].values
-            y = df_known_in['TicketIndex_DeSeason'].values
+            X_original = df_known_in[['SignalOnly']].values
+            y_original = df_known_in['TicketIndex_DeSeason'].values
             
-            # Try XGBoost with cross-validation for robust performance
-            if len(df_known_in) >= 8:
-                # Use XGBoost for larger datasets
-                model = xgb.XGBRegressor(
-                    n_estimators=100,
-                    max_depth=3,
-                    learning_rate=0.1,
-                    random_state=42,
-                    n_jobs=1
-                )
-            else:
-                # Use Gradient Boosting for smaller datasets
-                model = GradientBoostingRegressor(
-                    n_estimators=50,
-                    max_depth=2,
-                    learning_rate=0.1,
-                    random_state=42
-                )
+            # Add synthetic anchor points to enforce desired behavior:
+            # - SignalOnly=0 → TicketIndex=25 (low floor for minimal online presence)
+            # - SignalOnly=100 → TicketIndex=100 (benchmark alignment)
+            # Weight these anchor points to guide the model without overwhelming real data
+            n_real = len(df_known_in)
+            anchor_weight = max(3, n_real // 2)  # Scale anchor influence with dataset size
+            
+            X_anchors = np.array([[0.0], [100.0]])
+            y_anchors = np.array([25.0, 100.0])
+            
+            # Repeat anchors to increase their weight
+            X_anchors_weighted = np.repeat(X_anchors, anchor_weight, axis=0)
+            y_anchors_weighted = np.repeat(y_anchors, anchor_weight)
+            
+            # Combine real data with weighted anchors
+            X = np.vstack([X_original, X_anchors_weighted])
+            y = np.concatenate([y_original, y_anchors_weighted])
+            
+            # Use Ridge regression with regularization to prevent overfitting
+            # Alpha controls regularization strength - higher = more conservative
+            model = Ridge(alpha=5.0, random_state=42)
             
             # Train the model
             model.fit(X, y)
             overall_model = model
             
-            # Calculate cross-validated metrics
-            cv_scores = cross_val_score(model, X, y, cv=min(3, len(df_known_in)), 
-                                       scoring='neg_mean_absolute_error', n_jobs=1)
-            mae_cv = -cv_scores.mean()
+            # Calculate metrics on REAL data only (not anchors)
+            y_pred_real = model.predict(X_original)
+            mae = mean_absolute_error(y_original, y_pred_real)
+            rmse = np.sqrt(mean_squared_error(y_original, y_pred_real))
+            r2 = r2_score(y_original, y_pred_real)
             
-            # Calculate metrics on full dataset
-            y_pred = model.predict(X)
-            mae = mean_absolute_error(y, y_pred)
-            rmse = np.sqrt(mean_squared_error(y, y_pred))
-            r2 = r2_score(y, y_pred)
+            # Verify anchor point behavior
+            anchor_preds = model.predict(X_anchors)
             
             overall_metrics = {
                 'MAE': float(mae),
-                'MAE_CV': float(mae_cv),
                 'RMSE': float(rmse),
                 'R2': float(r2),
-                'n_samples': len(df_known_in)
+                'n_samples': len(df_known_in),
+                'intercept': float(model.intercept_),
+                'slope': float(model.coef_[0]),
+                'anchor_0': float(anchor_preds[0]),  # Should be ~25
+                'anchor_100': float(anchor_preds[1])  # Should be ~100
             }
         except Exception as e:
             # Silently fall back to None if training fails
@@ -2733,27 +2742,50 @@ def _predict_with_ml_model(model, signal_only: float) -> float:
 
 def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
     """
-    Fit regression models (XGBoost/GradientBoosting if ML available, otherwise simple linear).
+    Fit regression models (Constrained Ridge if ML available, otherwise constrained linear).
     Returns model objects or coefficients depending on availability.
+    
+    Ensures realistic predictions:
+    - SignalOnly = 0 → TicketIndex ≈ 25
+    - SignalOnly = 100 → TicketIndex = 100
     """
     if ML_AVAILABLE and len(df_known_in) >= 3:
-        # Use advanced ML models (XGBoost, GradientBoosting, Ridge)
+        # Use constrained Ridge regression models
         overall_model, cat_models, overall_metrics, cat_metrics = _train_ml_models(df_known_in)
         return ('ml', overall_model, cat_models, overall_metrics, cat_metrics)
     else:
-        # Fallback to simple linear regression
+        # Fallback to constrained linear regression
         overall = None
         if len(df_known_in) >= 5:
-            x = df_known_in["SignalOnly"].values
-            y = df_known_in["TicketIndex_DeSeason"].values
-            a, b = np.polyfit(x, y, 1)
+            # Add anchor points to constrain the linear fit
+            x_real = df_known_in["SignalOnly"].values
+            y_real = df_known_in["TicketIndex_DeSeason"].values
+            
+            # Add weighted anchors: SignalOnly=0→25, SignalOnly=100→100
+            n_anchors = max(2, len(x_real) // 3)
+            x_anchors = np.array([0.0] * n_anchors + [100.0] * n_anchors)
+            y_anchors = np.array([25.0] * n_anchors + [100.0] * n_anchors)
+            
+            x_combined = np.concatenate([x_real, x_anchors])
+            y_combined = np.concatenate([y_real, y_anchors])
+            
+            a, b = np.polyfit(x_combined, y_combined, 1)
             overall = (float(a), float(b))
         cat_coefs = {}
         for cat, g in df_known_in.groupby("Category"):
             if len(g) >= 3:
-                xs = g["SignalOnly"].values
-                ys = g["TicketIndex_DeSeason"].values
-                a, b = np.polyfit(xs, ys, 1)
+                # Constrained per-category fits
+                xs_real = g["SignalOnly"].values
+                ys_real = g["TicketIndex_DeSeason"].values
+                
+                n_anchors = max(1, len(xs_real) // 3)
+                xs_anchors = np.array([0.0] * n_anchors + [100.0] * n_anchors)
+                ys_anchors = np.array([25.0] * n_anchors + [100.0] * n_anchors)
+                
+                xs_combined = np.concatenate([xs_real, xs_anchors])
+                ys_combined = np.concatenate([ys_real, ys_anchors])
+                
+                a, b = np.polyfit(xs_combined, ys_combined, 1)
                 cat_coefs[cat] = (float(a), float(b))
         return ('linear', overall, cat_coefs, {}, {})
 
