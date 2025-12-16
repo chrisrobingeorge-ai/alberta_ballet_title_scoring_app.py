@@ -215,10 +215,10 @@ def _plain_language_overview_text() -> list:
     # Paragraph 2: Familiarity & Motivation construction
     out.append(P(
         "The methodology begins by measuring public visibility through four digital channels: Wikipedia page traffic, "
-        "Google search trends, YouTube viewing behaviour, and Spotify streaming activity. These raw signals are combined "
+        "Google search trends, YouTube viewing behaviour, and Chartmetric streaming activity. These raw signals are combined "
         "into two interpretable indices. <b>Familiarity</b> measures public recognition—how well-known a title is across "
         "general awareness platforms like Wikipedia and Google. <b>Motivation</b> quantifies active engagement—how eager "
-        "audiences appear to be to interact with the work through platforms like YouTube and Spotify. Both indices are "
+        "audiences appear to be to interact with the work through platforms like YouTube and Chartmetric. Both indices are "
         "normalized to a 0–100+ scale against a reference title, ensuring consistent interpretation across all productions. "
         "This dual-metric approach captures both passive awareness and active interest, providing richer signal than either "
         "dimension alone.",
@@ -361,7 +361,7 @@ def _methodology_glossary_text() -> list:
     out.append(P("Key model components (quick read)", styles["h2"]))
 
     bullets = [
-        "We combine online visibility (Wikipedia, YouTube, Google, Spotify) into two simple "
+        "We combine online visibility (Wikipedia, YouTube, Google, Chartmetric) into two simple "
         "ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> "
         "(people engage with it).",
         "We anchor everything to a <b>benchmark title</b> so scores are on a shared "
@@ -1158,7 +1158,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
     - **PDF table too wide:** The PDF intentionally uses a condensed metric set. For full detail, export CSV.
 
     ### Data privacy
-    - API keys (YouTube/Spotify) are optional and only used for unknown titles when **Use Live Data** is ON.
+    - API keys (YouTube/Chartmetric) are optional and only used for unknown titles when **Use Live Data** is ON.
     """))
 
 # -------------------------
@@ -1167,7 +1167,7 @@ with st.expander("👋 How to use this app (step-by-step)"):
 with st.expander("📘 About This App — Methodology & Glossary"):
     st.markdown(dedent(r"""
     ## Simple Terms
-    This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Spotify) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton.
+    This tool is basically a planning calculator. It looks at how well-known a show is (**Familiarity**) and how excited people seem to be about it (**Motivation**), then turns that into an estimate of how many tickets you might sell. To do that, it pulls clues from the internet (Wikipedia, Google, YouTube, Chartmetric) and combines them with what actually happened in your past seasons. It also remembers how your sales usually split between Calgary and Edmonton.
 
     On top of that, it adjusts for timing and repeats. Some months are just stronger than others, so the tool nudges each title up or down based on when you plan to run it. If you’re remounting something that ran recently, it assumes demand will be a bit lower than the first time and applies a sensible haircut. If you provide marketing history, it also learns roughly how many dollars of paid media you’ve usually spent per single ticket and uses that to suggest marketing budgets by show and by city. The end result is one view that ties together demand, timing, cities, audience segments, and a ballpark paid-media ask for each title and for the season as a whole.
 
@@ -1186,7 +1186,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Google Trends**: proxy for active interest (lightweight heuristic when offline).  
     - **YouTube**: engagement intensity from median view counts across relevant results.  
       Index formula: `50 + min(90, 9·ln(1+median_views))`, then **winsorized** by title **category** (3rd–97th pct).  
-    - **Spotify**: 80th-percentile track popularity near the query (fallback heuristic if API not used).
+    - **Chartmetric**: 80th-percentile track popularity near the query (fallback heuristic if API not used).
 
     **History & context**  
     - **Ticket priors**: per-title median tickets (from your `TICKET_PRIORS_RAW`).  
@@ -1194,16 +1194,16 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     - **Marketing spend history (optional)**: `data/marketing_spend_per_ticket.csv` with per single-ticket $ spend by city for past shows.
 	
     > Unknown titles can be scored **two ways**:
-    > - **Live** (optional keys): Wikipedia + YouTube + Spotify lookups, then category winsorizing.  
+    > - **Live** (optional keys): Wikipedia + YouTube + Chartmetric lookups, then category winsorizing.  
     > - **Estimated** (no keys): baseline medians nudged by inferred category/gender.
 
     ### 2) Feature construction
     **(a) Familiarity & Motivation (raw, pre-normalization)**  
     \[
-    \\text{Familiarity} = 0.55\\cdot Wiki + 0.30\\cdot Trends + 0.15\\cdot Spotify
+    \\text{Familiarity} = 0.55\\cdot Wiki + 0.30\\cdot Trends + 0.15\\cdot Chartmetric
     \]  
     \[
-    \\text{Motivation} = 0.45\\cdot YouTube + 0.25\\cdot Trends + 0.15\\cdot Spotify + 0.15\\cdot Wiki
+    \\text{Motivation} = 0.45\\cdot YouTube + 0.25\\cdot Trends + 0.15\\cdot Chartmetric + 0.15\\cdot Wiki
     \]
 
     **(b) Segment & region multipliers (applied to raw scores)**  
@@ -1294,7 +1294,7 @@ with st.expander("📘 About This App — Methodology & Glossary"):
     ---
     ## Limitations
     - Sparse categories/months reduce model power; app falls back to overall fits or signals-only where needed.  
-    - Google Trends and Spotify heuristics are proxies when live APIs are off—treat as directional.  
+    - Google Trends and Chartmetric heuristics are proxies when live APIs are off—treat as directional.  
     - Title disambiguation (e.g., films vs ballets) is handled heuristically; review unknown-title results.  
 	
     ---
@@ -1685,7 +1685,7 @@ except Exception:
 
 try:
     import spotipy
-    from spotipy.oauth2 import SpotifyClientCredentials
+    from spotipy.oauth2 import ChartmetricClientCredentials
 except Exception:
     spotipy = None
     SpotifyClientCredentials = None
@@ -1695,56 +1695,13 @@ except Exception:
 # -------------------------
 
 BASELINES: dict[str, dict] = {}
-CHARTMETRIC_USE_CASE: dict[str, dict] = {}
-
-def load_chartmetric_use_case(path: str = "data/productions/use_case_chartmetrics.csv") -> None:
-    """
-    Load chartmetric use case data with motivation weights.
-    
-    Expected columns (case-insensitive):
-        title, use, multiplier, score, chartmetric_search_term, notes
-    """
-    global CHARTMETRIC_USE_CASE
-    
-    try:
-        df = pd.read_csv(path)
-    except Exception as e:
-        st.warning(f"Could not load chartmetric use case CSV at '{path}': {e}")
-        CHARTMETRIC_USE_CASE = {}
-        return
-    
-    # Normalize column names
-    colmap = {c.lower(): c for c in df.columns}
-    required = {"title", "multiplier"}
-    missing = [c for c in required if c not in colmap]
-    if missing:
-        st.warning(f"Chartmetric use case CSV is missing required columns: {', '.join(missing)}")
-        CHARTMETRIC_USE_CASE = {}
-        return
-    
-    df[colmap["title"]] = df[colmap["title"]].astype(str).str.strip()
-    
-    use_case_data: dict[str, dict] = {}
-    for _, r in df.iterrows():
-        title = str(r[colmap["title"]]).strip()
-        if not title:
-            continue
-        use_case_data[title] = {
-            "multiplier": float(r[colmap["multiplier"]]),
-            "use": str(r[colmap["use"]]) if "use" in colmap else "UNKNOWN",
-        }
-    
-    CHARTMETRIC_USE_CASE = use_case_data
 
 def load_baselines(path: str = "data/productions/baselines.csv") -> None:
     """
     Load baseline familiarity/motivation inputs from CSV.
 
     Expected columns (case-insensitive):
-        title, wiki, trends, youtube, chartmetric, category, gender
-        
-    Note: The 'chartmetric' column is now combined with the use case multiplier
-    to create 'music_motivation_bonus' = chartmetric_score × multiplier
+        title, wiki, trends, youtube, spotify, category, gender
     """
     global BASELINES
 
@@ -1758,19 +1715,10 @@ def load_baselines(path: str = "data/productions/baselines.csv") -> None:
 
     # Normalize column names
     colmap = {c.lower(): c for c in df.columns}
-    
-    # Support both 'chartmetric' (current) and 'spotify' (legacy) column names
-    chartmetric_col = colmap.get("chartmetric") or colmap.get("spotify")
-    
-    required = {"title", "wiki", "trends", "youtube", "category", "gender"}
+    required = {"title", "wiki", "trends", "youtube", "chartmetric", "category", "gender"}
     missing = [c for c in required if c not in colmap]
     if missing:
         st.error(f"Baselines CSV is missing required columns: {', '.join(missing)}")
-        BASELINES = {}
-        return
-    
-    if not chartmetric_col:
-        st.error("Baselines CSV is missing 'chartmetric' or 'spotify' column")
         BASELINES = {}
         return
 
@@ -1781,31 +1729,18 @@ def load_baselines(path: str = "data/productions/baselines.csv") -> None:
         title = str(r[colmap["title"]]).strip()
         if not title:
             continue
-        
-        chartmetric_score = float(r[chartmetric_col])
-        
-        # Get the motivation multiplier from the use case data
-        multiplier = 0.25  # Default: USE WITH CAUTION
-        if title in CHARTMETRIC_USE_CASE:
-            multiplier = CHARTMETRIC_USE_CASE[title]["multiplier"]
-        
-        # Compute music_motivation_bonus
-        music_motivation_bonus = chartmetric_score * multiplier
-        
         baselines[title] = {
             "wiki":     float(r[colmap["wiki"]]),
             "trends":   float(r[colmap["trends"]]),
             "youtube":  float(r[colmap["youtube"]]),
-            "chartmetric":  chartmetric_score,  # Keep raw score for reference
-            "music_motivation_bonus": music_motivation_bonus,  # New weighted feature
+            "chartmetric":  float(r[colmap["chartmetric"]]),
             "category": str(r[colmap["category"]]),
             "gender":   str(r[colmap["gender"]]),
         }
 
     BASELINES = baselines
 
-# Load use case data first, then baselines (so multipliers are available)
-load_chartmetric_use_case()
+# Load immediately so everything below can use BASELINES
 load_baselines()
 
 SEGMENT_MULT = {
@@ -2089,52 +2024,30 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
         yt_idx = 55.0 + (len(title) * 1.2) % 45.0
     yt_idx = float(np.clip(yt_idx, 45.0, 140.0))
 
-    sp_idx = 0.0
+    cm_idx = 0.0
     try:
         if sp_id and sp_secret and spotipy is not None:
             auth = SpotifyClientCredentials(client_id=sp_id, client_secret=sp_secret)
-            sp = spotipy.Spotify(auth_manager=auth)
+            sp = spotipy.Chartmetric(auth_manager=auth)
             res = sp.search(q=title, type="track,album", limit=10)
             pops = [t.get("popularity", 0) for t in res.get("tracks", {}).get("items", [])]
-            sp_idx = float(np.percentile(pops, 80)) if pops else 0.0
+            cm_idx = float(np.percentile(pops, 80)) if pops else 0.0
     except Exception:
-        sp_idx = 0.0
-    if sp_idx == 0.0:
-        sp_idx = 50.0 + (len(title) * 1.7) % 40.0
+        cm_idx = 0.0
+    if cm_idx == 0.0:
+        cm_idx = 50.0 + (len(title) * 1.7) % 40.0
 
     gender, category = infer_gender_and_category(title)
     yt_idx = _winsorize_youtube_to_baseline(category, yt_idx)
-    
-    # Compute music_motivation_bonus for unknown titles
-    # Use conservative default multiplier of 0.25 (USE WITH CAUTION)
-    music_motivation_bonus = sp_idx * 0.25
 
-    return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_idx, 
-            "chartmetric": sp_idx, "music_motivation_bonus": music_motivation_bonus,
-            "spotify": sp_idx,  # Keep for backward compatibility
+    return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_idx, "chartmetric": cm_idx,
             "gender": gender, "category": category}
 
 # Scoring utilities
 def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tuple[float,float]:
-    """
-    Calculate Familiarity and Motivation scores using the music_motivation_bonus feature.
-    
-    Formulas:
-    - Familiarity = 0.55 × Wiki + 0.30 × Trends + 0.15 × MusicMotivationBonus
-    - Motivation = 0.45 × YouTube + 0.25 × Trends + 0.15 × MusicMotivationBonus + 0.15 × Wiki
-    
-    The music_motivation_bonus replaces the raw chartmetric score and is computed as:
-    music_motivation_bonus = chartmetric_score × motivation_weight
-    where motivation_weight is based on the 'use' classification (1.0, 0.25, or 0.0)
-    """
     gender = entry["gender"]; cat = entry["category"]
-    
-    # Use music_motivation_bonus if available, fallback to legacy 'spotify' field
-    music_bonus = entry.get("music_motivation_bonus", entry.get("spotify", 0.0))
-    
-    fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + music_bonus * 0.15
-    mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + music_bonus * 0.15 + entry["wiki"] * 0.15
-    
+    fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + entry["chartmetric"] * 0.15
+    mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + entry["chartmetric"] * 0.15 + entry["wiki"] * 0.15
     seg = SEGMENT_MULT[seg_key]
     fam *= seg.get(gender,1.0) * seg.get(cat,1.0)
     mot *= seg.get(gender,1.0) * seg.get(cat,1.0)
@@ -2502,7 +2415,7 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
 # -------------------------
 # UI — Config
 # -------------------------
-with st.expander("🔑 API Configuration (YouTube & Spotify — for NEW titles only)", expanded=True):
+with st.expander("🔑 API Configuration (YouTube & Chartmetric — for NEW titles only)", expanded=True):
     st.markdown("""
     **To fetch live data for unknown titles**, enter your API keys below and enable the checkbox.
     These keys are optional — if not provided, the app will use estimated values for new titles.
@@ -2512,12 +2425,12 @@ with st.expander("🔑 API Configuration (YouTube & Spotify — for NEW titles o
         yt_key = st.text_input("YouTube Data API v3 Key", type="password", 
                                help="Get a key from Google Cloud Console → APIs & Services → Credentials")
     with col2:
-        sp_id = st.text_input("Spotify Client ID", type="password",
-                              help="Get credentials from Spotify Developer Dashboard")
-    sp_secret = st.text_input("Spotify Client Secret", type="password",
-                              help="Get this from Spotify Developer Dashboard along with the Client ID")
+        sp_id = st.text_input("Chartmetric Client ID", type="password",
+                              help="Get credentials from Chartmetric Developer Dashboard")
+    sp_secret = st.text_input("Chartmetric Client Secret", type="password",
+                              help="Get this from Chartmetric Developer Dashboard along with the Client ID")
     use_live = st.checkbox("✅ Use Live Data for Unknown Titles", value=False,
-                           help="When enabled, the app will fetch real-time data from YouTube and Spotify for titles not in the baseline")
+                           help="When enabled, the app will fetch real-time data from YouTube and Chartmetric for titles not in the baseline")
     st.caption("Keys are stored only in your browser session and are cleared when you close or refresh the page. They are only used when scoring unknown titles with live fetch enabled.")
 
 # Fixed mode: AB-wide (Province) + General Population
@@ -2670,7 +2583,7 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
         wiki_med = float(base_df["wiki"].median())
         tr_med   = float(base_df["trends"].median())
         yt_med   = float(base_df["youtube"].median())
-        sp_med   = float(base_df["spotify"].median())
+        sp_med   = float(base_df["chartmetric"].median())
     except Exception:
         wiki_med, tr_med, yt_med, sp_med = 60.0, 55.0, 60.0, 58.0
 
@@ -2678,39 +2591,32 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
 
     # gentle category nudges so everything isn't identical
     bumps = {
-        "family_classic":   {"wiki": +6, "trends": +3, "spotify": +2},
+        "family_classic":   {"wiki": +6, "trends": +3, "chartmetric": +2},
         "classic_romance":  {"wiki": +4, "trends": +2},
         "contemporary":     {"youtube": +6, "trends": +2},
-        "pop_ip":           {"spotify": +10, "trends": +5, "youtube": +4},
+        "pop_ip":           {"chartmetric": +10, "trends": +5, "youtube": +4},
         "romantic_tragedy": {"wiki": +3},
         "classic_comedy":   {"trends": +2},
         "dramatic":         {},
         # new categories → reuse nearest neighbour
         "adult_literary_drama":      {"wiki": +3, "trends": +3},              # like dramatic-ish
         "contemporary_mixed_bill":   {"youtube": +4, "trends": +2},           # like contemporary-ish
-        "touring_contemporary_company": {"youtube": +5, "trends": +3, "spotify": +2},  # slightly more pop-facing
+        "touring_contemporary_company": {"youtube": +5, "trends": +3, "chartmetric": +2},  # slightly more pop-facing
     }
     b = bumps.get(category, {})
 
     wiki = wiki_med + b.get("wiki", 0.0)
     tr   = tr_med   + b.get("trends", 0.0)
     yt   = yt_med   + b.get("youtube", 0.0)
-    sp   = sp_med   + b.get("spotify", 0.0)
+    sp   = sp_med   + b.get("chartmetric", 0.0)
 
     # keep within sane bounds
     wiki = float(np.clip(wiki, 30.0, 120.0))
     tr   = float(np.clip(tr,   30.0, 120.0))
     yt   = float(np.clip(yt,   40.0, 140.0))
     sp   = float(np.clip(sp,   35.0, 120.0))
-    
-    # Compute music_motivation_bonus for estimated titles
-    # Use conservative default multiplier of 0.25 (USE WITH CAUTION)
-    music_motivation_bonus = sp * 0.25
 
-    return {"wiki": wiki, "trends": tr, "youtube": yt, 
-            "chartmetric": sp, "music_motivation_bonus": music_motivation_bonus,
-            "spotify": sp,  # Keep for backward compatibility
-            "gender": gender, "category": category}
+    return {"wiki": wiki, "trends": tr, "youtube": yt, "chartmetric": sp, "gender": gender, "category": category}
 
 def _train_ml_models(df_known_in: pd.DataFrame):
     """
@@ -2883,10 +2789,7 @@ def compute_scores_and_store(
             "Gender": entry["gender"], "Category": entry["category"],
             "FamiliarityRaw": fam_raw, "MotivationRaw": mot_raw,
             "WikiIdx": entry["wiki"], "TrendsIdx": entry["trends"],
-            "YouTubeIdx": entry["youtube"], 
-            "ChartmetricIdx": entry.get("chartmetric", entry.get("spotify", 0.0)),
-            "MusicMotivationBonus": entry.get("music_motivation_bonus", 0.0),
-            "SpotifyIdx": entry.get("spotify", 0.0),  # Keep for backward compatibility
+            "YouTubeIdx": entry["youtube"], "ChartmetricIdx": entry["chartmetric"],
             "Source": src,
             # Diagnostic field: lead_gender for export
             "lead_gender": entry["gender"],
@@ -2985,13 +2888,13 @@ def compute_scores_and_store(
             row: A DataFrame row or dict-like object with WikiIdx, TrendsIdx, etc.
         
         Returns:
-            Dict with keys 'wiki', 'trends', 'youtube', 'spotify' containing float values
+            Dict with keys 'wiki', 'trends', 'youtube', 'chartmetric' containing float values
         """
         return {
             "wiki": float(row.get("WikiIdx", 0) or 0),
             "trends": float(row.get("TrendsIdx", 0) or 0),
             "youtube": float(row.get("YouTubeIdx", 0) or 0),
-            "spotify": float(row.get("SpotifyIdx", 0) or 0),
+            "chartmetric": float(row.get("ChartmetricIdx", 0) or 0),
         }
     
     # 4a) Build k-NN index for cold-start fallback
@@ -3001,16 +2904,16 @@ def compute_scores_and_store(
     if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
         try:
             # Build DataFrame for kNN with baseline signals and de-seasonalized ticket index
-            knn_data = df_known[["Title", "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx", 
+            knn_data = df_known[["Title", "WikiIdx", "TrendsIdx", "YouTubeIdx", "ChartmetricIdx", 
                                  "TicketIndex_DeSeason", "Category"]].copy()
             knn_data = knn_data.rename(columns={
                 "WikiIdx": "wiki",
                 "TrendsIdx": "trends", 
                 "YouTubeIdx": "youtube",
-                "SpotifyIdx": "spotify",
+                "ChartmetricIdx": "chartmetric",
                 "TicketIndex_DeSeason": "ticket_index"
             })
-            knn_data = knn_data.dropna(subset=["wiki", "trends", "youtube", "spotify", "ticket_index"])
+            knn_data = knn_data.dropna(subset=["wiki", "trends", "youtube", "chartmetric", "ticket_index"])
             
             if len(knn_data) >= 3:
                 knn_index = build_knn_from_config(
@@ -3030,7 +2933,7 @@ def compute_scores_and_store(
         Use k-NN to predict ticket index from baseline signals.
         
         Args:
-            baseline_signals: Dict with keys 'wiki', 'trends', 'youtube', 'spotify'
+            baseline_signals: Dict with keys 'wiki', 'trends', 'youtube', 'chartmetric'
                 containing the baseline signal values for the title
         
         Returns:
@@ -3187,7 +3090,7 @@ def compute_scores_and_store(
             "wiki": _safe_float(r.get("WikiIdx", 0.0)),
             "trends": _safe_float(r.get("TrendsIdx", 0.0)),
             "youtube": _safe_float(r.get("YouTubeIdx", 0.0)),
-            "spotify": _safe_float(r.get("SpotifyIdx", 0.0)),
+            "chartmetric": _safe_float(r.get("ChartmetricIdx", 0.0)),
             "gender": r.get("Gender", "na"),
             "category": r.get("Category", "dramatic"),
         }
@@ -3478,7 +3381,7 @@ def render_results():
     table_cols = [
         "Title", "Category",
         # Input Signal Variables (Section 1)
-        "WikiIdx", "TrendsIdx", "YouTubeIdx", "SpotifyIdx",
+        "WikiIdx", "TrendsIdx", "YouTubeIdx", "ChartmetricIdx",
         # Familiarity & Motivation (Section 2)
         "Familiarity", "Motivation", "SignalOnly",
         # Ticket Index (Section 4) & Seasonality (Section 5)
@@ -3520,7 +3423,7 @@ def render_results():
             "WikiIdx": "{:.0f}",
             "TrendsIdx": "{:.0f}",
             "YouTubeIdx": "{:.0f}",
-            "SpotifyIdx": "{:.0f}",
+            "ChartmetricIdx": "{:.0f}",
             # Familiarity & Motivation
             "Familiarity": "{:.1f}",
             "Motivation": "{:.1f}",
@@ -3650,7 +3553,7 @@ def render_results():
             "WikiIdx": r.get("WikiIdx", np.nan),
             "TrendsIdx": r.get("TrendsIdx", np.nan),
             "YouTubeIdx": r.get("YouTubeIdx", np.nan),
-            "SpotifyIdx": r.get("SpotifyIdx", np.nan),
+            "ChartmetricIdx": r.get("ChartmetricIdx", np.nan),
             "Familiarity": r.get("Familiarity", np.nan),
             "Motivation": r.get("Motivation", np.nan),
             "SignalOnly": r.get("SignalOnly", np.nan),
@@ -3821,7 +3724,7 @@ def render_results():
             # NOTE: ReturnDecayFactor and ReturnDecayPct removed - remount decay eliminated per audit
             metrics = [
                 "Title","Category","PrimarySegment","SecondarySegment",
-                "WikiIdx","TrendsIdx","YouTubeIdx","ChartmetricIdx","MusicMotivationBonus",
+                "WikiIdx","TrendsIdx","YouTubeIdx","ChartmetricIdx",
                 "Familiarity","Motivation","SignalOnly",
                 # Live Analytics factors
                 "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
@@ -3863,7 +3766,7 @@ def render_results():
 
             # Indices / composites (one decimal)
             idx_rows = [
-                "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+                "WikiIdx","TrendsIdx","YouTubeIdx","ChartmetricIdx",
                 "Familiarity","Motivation","SignalOnly","Composite","TicketIndex used",
                 "TicketIndex_DeSeason_Used","TicketIndex_Predicted",
             ]
@@ -4108,7 +4011,7 @@ def compute_scores_and_store(
             'trends',
             'youtube',
             'wiki',
-            'spotify',
+            'chartmetric',
             'familiarity',
             'motivation',
             'is_remount_recent',

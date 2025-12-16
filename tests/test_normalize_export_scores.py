@@ -36,7 +36,7 @@ def sample_baseline_csv():
         'wiki': [85, 90, 70, 65, 88],
         'trends': [30, 40, 25, 20, 35],
         'youtube': [90, 95, 80, 75, 92],
-        'spotify': [70, 80, 60, 55, 75],
+        'chartmetric': [70, 80, 60, 55, 75],
         'category': ['classical', 'classical', 'classical', 'classical', 'classical'],
         'source': ['historical', 'historical', 'historical', 'historical', 'historical']
     }
@@ -58,7 +58,7 @@ def sample_export_csv():
         'wiki': [88, 92, 75],
         'trends': [32, 42, 28],
         'youtube': [92, 97, 82],
-        'spotify': [72, 82, 65]
+        'chartmetric': [72, 82, 65]
     }
     df = pd.DataFrame(data)
     
@@ -72,7 +72,7 @@ def sample_export_csv():
 
 def test_load_baseline_statistics(sample_baseline_csv):
     """Test that baseline statistics are calculated correctly."""
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     stats = load_baseline_statistics(sample_baseline_csv, signals)
     
     # Check structure
@@ -91,7 +91,7 @@ def test_load_baseline_statistics_values(sample_baseline_csv):
     # Calculate expected values manually
     df = pd.read_csv(sample_baseline_csv)
     
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     stats = load_baseline_statistics(sample_baseline_csv, signals)
     
     # Verify against pandas calculations
@@ -106,7 +106,7 @@ def test_load_baseline_statistics_values(sample_baseline_csv):
 def test_normalize_scores_basic(sample_baseline_csv):
     """Test basic z-score normalization."""
     # Load baseline stats
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     baseline_stats = load_baseline_statistics(sample_baseline_csv, signals)
     
     # Create export data
@@ -115,7 +115,7 @@ def test_normalize_scores_basic(sample_baseline_csv):
         'wiki': [88, 75],
         'trends': [32, 28],
         'youtube': [92, 82],
-        'spotify': [72, 65]
+        'chartmetric': [72, 65]
     }
     export_df = pd.DataFrame(export_data)
     
@@ -227,7 +227,7 @@ def test_normalize_handles_missing_values():
 
 def test_normalize_export_to_baseline_integration(sample_baseline_csv, sample_export_csv):
     """Test the full integration of distribution alignment."""
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     
     # Load baseline stats for verification
     baseline_df = pd.read_csv(sample_baseline_csv)
@@ -259,7 +259,7 @@ def test_normalize_export_to_baseline_integration(sample_baseline_csv, sample_ex
 
 def test_normalize_export_to_baseline_preserves_all_titles(sample_baseline_csv, sample_export_csv):
     """Test that all titles from export are preserved in output."""
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     
     # Load original export
     original_export = pd.read_csv(sample_export_csv)
@@ -279,7 +279,7 @@ def test_normalize_export_to_baseline_preserves_all_titles(sample_baseline_csv, 
 
 def test_output_schema_integrity(sample_baseline_csv, sample_export_csv, tmp_path):
     """Test that output CSV has correct schema."""
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     output_path = tmp_path / "aligned_output.csv"
     
     # Load original
@@ -318,7 +318,7 @@ def test_missing_signal_column_handling(sample_baseline_csv, tmp_path):
     pd.DataFrame(export_data).to_csv(export_path, index=False)
     
     # Should not raise error, but skip missing columns
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     
     # This should work without error
     baseline_stats = load_baseline_statistics(sample_baseline_csv, ['wiki', 'trends'])
@@ -337,10 +337,10 @@ def test_empty_export_file(sample_baseline_csv, tmp_path):
     """Test handling of empty export file."""
     # Create empty export
     export_path = tmp_path / "empty_export.csv"
-    empty_df = pd.DataFrame(columns=['title', 'wiki', 'trends', 'youtube', 'spotify'])
+    empty_df = pd.DataFrame(columns=['title', 'wiki', 'trends', 'youtube', 'chartmetric'])
     empty_df.to_csv(export_path, index=False)
     
-    signals = ['wiki', 'trends', 'youtube', 'spotify']
+    signals = ['wiki', 'trends', 'youtube', 'chartmetric']
     
     # Should handle gracefully (though stats calculation will produce NaN)
     # This is expected behavior for empty data
@@ -352,7 +352,7 @@ def test_empty_export_file(sample_baseline_csv, tmp_path):
     
     # Check empty output
     assert len(aligned_df) == 0
-    assert list(aligned_df.columns) == ['title', 'wiki', 'trends', 'youtube', 'spotify']
+    assert list(aligned_df.columns) == ['title', 'wiki', 'trends', 'youtube', 'chartmetric']
 
 
 if __name__ == '__main__':

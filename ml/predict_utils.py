@@ -37,7 +37,7 @@ try:
 except ImportError:
     KNN_AVAILABLE = False
     KNNFallback = None
-    BASELINE_FEATURES = ["wiki", "trends", "youtube", "spotify"]
+    BASELINE_FEATURES = ["wiki", "trends", "youtube", "chartmetric"]
 
 # Default paths
 DEFAULT_MODEL_PATH = "models/model_xgb_remount_postcovid.joblib"
@@ -356,7 +356,7 @@ def knn_fallback_predict(
     Make a KNN fallback prediction for a cold-start title.
     
     Args:
-        title_baseline: Dict with baseline signals (wiki, trends, youtube, spotify)
+        title_baseline: Dict with baseline signals (wiki, trends, youtube, chartmetric)
         knn_index: A fitted KNNFallback instance
         k: Number of neighbors
         

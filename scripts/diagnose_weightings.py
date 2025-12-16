@@ -48,7 +48,7 @@ def compute_base_score_from_features(row: pd.Series) -> float:
         wiki = float(row.get('wiki', 60))
         trends = float(row.get('trends', 55))
         youtube = float(row.get('youtube', 60))
-        spotify = float(row.get('spotify', 58))
+        spotify = float(row.get('chartmetric', 58))
         
         # Use the familiarity score formula from calc_scores
         base = wiki * 0.55 + trends * 0.30 + spotify * 0.15

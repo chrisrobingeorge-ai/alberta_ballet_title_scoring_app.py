@@ -9,7 +9,7 @@ The Alberta Ballet Title Scoring App stores all baseline data in a single file (
 ### 1. Historical Baselines (`source = "historical"`)
 - **Contains**: Titles that Alberta Ballet has performed with known ticket outcomes
 - **Used for**: Training the ML model and making ticket predictions
-- **Columns**: `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source`, `notes`
+- **Columns**: `title`, `wiki`, `trends`, `youtube`, `chartmetric`, `category`, `gender`, `source`, `notes`
 
 ### 2. Reference Baselines (`source = "external_reference"`)
 - **Contains**: Well-known ballet/performance titles WITHOUT Alberta Ballet history
@@ -47,7 +47,7 @@ For each title, collect the four external signals:
 | `wiki` | Wikipedia | 0-100 | Use the Title Scoring Helper app, or check monthly pageviews |
 | `trends` | Google Trends | 0-100 | Search in Google Trends for Alberta region (past 12 months) |
 | `youtube` | YouTube | 0-100 | Search for official performance videos, note view counts |
-| `spotify` | Spotify | 0-100 | Search for associated music (composer/production) popularity |
+| `chartmetric` | chartmetric | 0-100 | Search for associated music (composer/production) popularity |
 
 **Using the Title Scoring Helper:**
 
@@ -55,14 +55,14 @@ For each title, collect the four external signals:
 streamlit run title_scoring_helper.py
 ```
 
-Enter your titles, optionally add API keys for YouTube/Spotify, and click "Run Scoring" to fetch normalized 0-100 scores.
+Enter your titles, optionally add API keys for YouTube/chartmetric, and click "Run Scoring" to fetch normalized 0-100 scores.
 
 ### Step 3: Add to baselines.csv
 
 Add rows to `data/productions/baselines.csv` with this format:
 
 ```csv
-title,wiki,trends,youtube,spotify,category,gender,source,notes
+title,wiki,trends,youtube,chartmetric,category,gender,source,notes
 My New Title,75,30,85,60,family_classic,female,external_reference,"Brief description"
 ```
 
@@ -108,7 +108,7 @@ if len(duplicates) > 0:
     print(duplicates[['title', 'source']])
 
 # Check signal ranges
-for col in ['wiki', 'trends', 'youtube', 'spotify']:
+for col in ['wiki', 'trends', 'youtube', 'chartmetric']:
     out_of_range = all_baselines[(all_baselines[col] < 0) | (all_baselines[col] > 100)]
     if len(out_of_range) > 0:
         print(f"Warning: {len(out_of_range)} titles have {col} outside 0-100 range")
@@ -126,7 +126,7 @@ from data.loader import load_all_baselines
 all_baselines = load_all_baselines(include_reference=True)
 
 # Find similar titles for a new show
-new_show = {"wiki": 70, "trends": 25, "youtube": 80, "spotify": 55}
+new_show = {"wiki": 70, "trends": 25, "youtube": 80, "chartmetric": 55}
 similar = find_similar_titles(new_show, all_baselines, k=5)
 
 print("Most similar titles:")
@@ -192,7 +192,7 @@ Let's walk through adding "The Nutcracker" as a reference baseline:
    - `wiki`: 95 (extremely high Wikipedia traffic during holiday season)
    - `trends`: 52 (strong seasonal search interest in Alberta)
    - `youtube`: 100 (many high-view professional recordings)
-   - `spotify`: 82 (Tchaikovsky's score is widely streamed)
+   - `chartmetric`: 82 (Tchaikovsky's score is widely streamed)
 
 2. **Determine category**: `family_classic` (quintessential family holiday show)
 

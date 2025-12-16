@@ -106,7 +106,7 @@ def build_title_explanation(
             f"and a <b>Motivation</b> score of {motivation:.1f} ({mot_desc}), reflecting "
             f"{'strong' if signal_only and signal_only > 100 else 'moderate' if signal_only and signal_only > 70 else 'emerging'} "
             f"public visibility across Wikipedia page traffic, Google search patterns, YouTube viewing behavior, "
-            f"and Spotify streaming activity."
+            f"and Chartmetric streaming activity."
         )
     else:
         p1_parts.append(

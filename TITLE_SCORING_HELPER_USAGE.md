@@ -4,7 +4,7 @@
 
 ## What is the Title Scoring Helper?
 
-The Title Scoring Helper (`title_scoring_helper.py`) is a **Streamlit web application** that helps you score new ballet titles on their own without needing historical ticket sales data. It fetches popularity signals from external sources (Wikipedia, Google Trends, YouTube, Spotify) and provides ticket demand forecasts.
+The Title Scoring Helper (`title_scoring_helper.py`) is a **Streamlit web application** that helps you score new ballet titles on their own without needing historical ticket sales data. It fetches popularity signals from external sources (Wikipedia, Google Trends, YouTube, chartmetric) and provides ticket demand forecasts.
 
 ## Quick Start: Scoring a Single Title
 
@@ -29,7 +29,7 @@ Giselle
 For more accurate data, you can provide API keys in the sidebar:
 
 - **YouTube Data API v3 Key** - For video view counts
-- **Spotify Client ID & Secret** - For music popularity scores
+- **chartmetric Client ID & Secret** - For music popularity scores
 
 > **Note**: API keys are optional. If not provided, the app will use fallback values.
 
@@ -43,9 +43,9 @@ For more accurate data, you can provide API keys in the sidebar:
 4. Go to "Credentials" → "Create Credentials" → "API Key"
 5. Copy the key and paste it in the sidebar
 
-#### Spotify Client ID & Secret
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Log in with your Spotify account
+#### chartmetric Client ID & Secret
+1. Go to [chartmetric Developer Dashboard](https://developer.chartmetric.com/dashboard)
+2. Log in with your chartmetric account
 3. Click "Create an App"
 4. Copy the Client ID and Client Secret
 5. Paste both in the sidebar
@@ -67,7 +67,7 @@ Before fetching scores, configure these options:
 
 Click the **"Fetch & Normalize Scores"** button. The app will:
 
-1. Search for the title on Wikipedia, Google Trends, YouTube, and Spotify
+1. Search for the title on Wikipedia, Google Trends, YouTube, and chartmetric
 2. Fetch popularity metrics from each source
 3. Normalize all scores to a 0-100 scale
 4. Display the results in Step 2
@@ -78,7 +78,7 @@ Click the **"Fetch & Normalize Scores"** button. The app will:
 
 You'll see a table showing normalized scores for each signal:
 
-| index | title | wiki | trends | youtube | spotify |
+| index | title | wiki | trends | youtube | chartmetric |
 |-------|-------|------|--------|---------|---------|
 | 1 | Giselle | 75.2 | 42.8 | 68.9 | 55.3 |
 
@@ -86,7 +86,7 @@ You'll see a table showing normalized scores for each signal:
 - **wiki**: Wikipedia pageviews (popularity/awareness)
 - **trends**: Google search interest (current demand)
 - **youtube**: Video views (visual appeal/familiarity)
-- **spotify**: Music popularity (soundtrack recognition)
+- **chartmetric**: Music popularity (soundtrack recognition)
 
 Higher scores (closer to 100) indicate stronger demand signals.
 
@@ -189,7 +189,7 @@ Notice how reference-based gives consistent scores regardless of what else you'r
 
 **Steps**:
 1. Score the title using the helper
-2. Copy the normalized scores (wiki, trends, youtube, spotify)
+2. Copy the normalized scores (wiki, trends, youtube, chartmetric)
 3. Add a row to `data/productions/baselines.csv`:
    ```csv
    Title Name,75,42,69,55,category,gender,external_reference,"Notes"
@@ -210,7 +210,7 @@ Notice how reference-based gives consistent scores regardless of what else you'r
 
 **Possible causes**:
 - API rate limits reached
-- Title name doesn't match Wikipedia/Spotify entries exactly
+- Title name doesn't match Wikipedia/chartmetric entries exactly
 - Network connectivity issues
 
 **Solutions**:
@@ -287,7 +287,7 @@ The Title Scoring Helper provides data-driven estimates, but always consider:
    - Wikipedia: Fetches pageviews over the past 365 days
    - Google Trends: Gets search interest over the past 12 months
    - YouTube: Searches for the title and gets view count of top result
-   - Spotify: Searches for associated tracks and gets popularity score
+   - chartmetric: Searches for associated tracks and gets popularity score
 
 2. **Normalization**:
    - Reference-based: Uses min/max from `baselines.csv` for each signal
@@ -309,7 +309,7 @@ The Title Scoring Helper provides data-driven estimates, but always consider:
 | Wikipedia | [Wikimedia REST API](https://wikimedia.org/api/rest_v1/) | ~200 req/s (generous) |
 | Google Trends | [pytrends](https://github.com/GeneralMills/pytrends) | ~1 req/s (unofficial) |
 | YouTube | [YouTube Data API](https://developers.google.com/youtube/v3) | 10,000 units/day (free) |
-| Spotify | [Web API](https://developer.spotify.com/documentation/web-api) | Varies by tier |
+| chartmetric | [Web API](https://developer.chartmetric.com/documentation/web-api) | Varies by tier |
 
 ---
 
@@ -317,7 +317,7 @@ The Title Scoring Helper provides data-driven estimates, but always consider:
 
 ### Q: Can I use this without API keys?
 
-**A**: Yes! The app works without API keys, but it will use fallback values for YouTube and Spotify, which may be less accurate. Wikipedia and Google Trends don't require keys.
+**A**: Yes! The app works without API keys, but it will use fallback values for YouTube and chartmetric, which may be less accurate. Wikipedia and Google Trends don't require keys.
 
 ### Q: How accurate are the forecasts?
 
@@ -352,7 +352,7 @@ from title_scoring_helper import (
     fetch_wikipedia_views,
     fetch_google_trends_score,
     fetch_youtube_metric,
-    fetch_spotify_metric,
+    fetch_chartmetric_metric,
     normalize_with_reference,
 )
 from ml.scoring import score_runs_for_planning
@@ -364,7 +364,7 @@ signals = {
     "wiki": fetch_wikipedia_views(title),
     "trends": fetch_google_trends_score(title),
     "youtube": fetch_youtube_metric(title),
-    "spotify": fetch_spotify_metric(title),
+    "chartmetric": fetch_chartmetric_metric(title),
 }
 
 # Normalize (you'd need to implement reference loading)
@@ -375,7 +375,7 @@ df = pd.DataFrame([{
     "wiki": signals["wiki"],
     "trends": signals["trends"],
     "youtube": signals["youtube"],
-    "spotify": signals["spotify"],
+    "chartmetric": signals["chartmetric"],
     "genre": "classical",
     "season": "2025-26",
 }])

@@ -23,7 +23,7 @@ Features Used (from modelling_dataset.csv)
 ------------------------------------------
 
 **Baseline Signals (forecast-time safe):**
-- wiki, trends, youtube, spotify
+- wiki, trends, youtube, chartmetric
 
 **Categorical Features:**
 - category, gender

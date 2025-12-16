@@ -435,7 +435,7 @@ class TestCoreDataSchemas:
         assert "wiki" in required
         assert "trends" in required
         assert "youtube" in required
-        assert "spotify" in required
+        assert "chartmetric" in required
     
     def test_productions_segment_priors_schema(self):
         """Test segment_priors.csv has expected schema."""

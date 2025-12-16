@@ -37,7 +37,7 @@ class TestMergeWithBaselines:
             'wiki': [80, 70],
             'trends': [50, 60],
             'youtube': [90, 85],
-            'spotify': [75, 65],
+            'chartmetric': [75, 65],
             'category': ['family_classic', 'pop_ip'],
             'gender': ['female', 'male']
         })
@@ -73,7 +73,7 @@ class TestMergeWithBaselines:
             'wiki': [80, 85],
             'trends': [50, 55],
             'youtube': [90, 95],
-            'spotify': [75, 80],
+            'chartmetric': [75, 80],
             'category': ['family_classic', 'romantic_tragedy'],
             'gender': ['female', 'female']
         })

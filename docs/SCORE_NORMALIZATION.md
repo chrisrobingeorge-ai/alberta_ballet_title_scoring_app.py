@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `normalize_export_scores.py` script aligns new external signal scores (wiki, trends, youtube, spotify) with the baseline calibration set using z-score normalization.
+The `normalize_export_scores.py` script aligns new external signal scores (wiki, trends, youtube, chartmetric) with the baseline calibration set using z-score normalization.
 
 ## Problem
 
@@ -46,7 +46,7 @@ python scripts/normalize_export_scores.py \
   --baselines data/productions/baselines.csv \
   --export 2025_export.csv \
   --output 2025_export_normalized.csv \
-  --signals wiki trends youtube spotify custom_signal
+  --signals wiki trends youtube chartmetric custom_signal
 ```
 
 ### Custom Title Column
@@ -65,12 +65,12 @@ python scripts/normalize_export_scores.py \
 
 Must contain:
 - A title column (default: `title`)
-- Signal columns to normalize (default: `wiki`, `trends`, `youtube`, `spotify`)
+- Signal columns to normalize (default: `wiki`, `trends`, `youtube`, `chartmetric`)
 - At least 30+ titles for stable statistics (current: 288 titles)
 
 Example:
 ```csv
-title,wiki,trends,youtube,spotify,category,source
+title,wiki,trends,youtube,chartmetric,category,source
 Swan Lake,85,30,90,70,classical,external_reference
 The Nutcracker,90,40,95,80,classical,historical
 ...
@@ -85,7 +85,7 @@ Must contain:
 
 Example:
 ```csv
-title,wiki,trends,youtube,spotify,category,notes
+title,wiki,trends,youtube,chartmetric,category,notes
 Swan Lake,88,32,92,75,classical,2025 revival
 New Ballet,75,30,85,65,contemporary,World premiere
 ...
@@ -101,7 +101,7 @@ The script produces a normalized CSV with:
 
 Example output:
 ```csv
-title,wiki,trends,youtube,spotify,category,notes
+title,wiki,trends,youtube,chartmetric,category,notes
 Swan Lake,88.0,32.0,92.0,75.0,classical,2025 revival
 New Ballet,75.0,30.0,85.0,65.0,contemporary,World premiere
 ...
@@ -116,7 +116,7 @@ Using all 288 titles (historical + external reference):
 | wiki    | 57.05 | 17.90   |
 | trends  | 25.48 | 16.65   |
 | youtube | 65.79 | 14.54   |
-| spotify | 53.67 | 19.22   |
+| chartmetric | 53.67 | 19.22   |
 
 ## How It Works
 
@@ -171,7 +171,7 @@ python scripts/normalize_export_scores.py \
   --baselines data/productions/baselines.csv \
   --export 2025_export.csv \
   --output 2025_export_normalized.csv \
-  --signals wiki trends youtube spotify tiktok instagram
+  --signals wiki trends youtube chartmetric tiktok instagram
 ```
 
 ## Troubleshooting

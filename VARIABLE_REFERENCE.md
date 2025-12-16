@@ -64,7 +64,7 @@ When using trained ML models (via `ml/scoring.py`):
 
 The app's forecast is built in these steps:
 
-1. **Signal Collection**: Gather online visibility signals (Wikipedia, Google Trends, YouTube, Spotify)
+1. **Signal Collection**: Gather online visibility signals (Wikipedia, Google Trends, YouTube, chartmetric)
 2. **Index Computation**: Convert signals to Familiarity & Motivation indices (normalized to benchmark = 100)
 3. **Ticket Index**: Use regression on historical data to convert SignalOnly → TicketIndex
 4. **Seasonality**: Apply category×month factor for the planned run date

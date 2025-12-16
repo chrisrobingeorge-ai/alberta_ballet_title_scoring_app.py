@@ -29,7 +29,7 @@ st.set_page_config(page_title="Title Scoring Helper", layout="wide")
 st.title("Title Scoring Helper")
 st.caption(
     "Fetch and normalize 0–100 scores from Wikipedia, Google Trends, "
-    "YouTube, and Spotify for title demand scoring, then estimate "
+    "YouTube, and Chartmetric for title demand scoring, then estimate "
     "ticket demand with uncertainty bands."
 )
 
@@ -47,7 +47,7 @@ with st.expander("ℹ️ How to Use This Tool", expanded=False):
     ### Tips
     
     - **Use Reference-based normalization** (default) for consistency with baselines.csv
-    - **API keys are optional** - Provide YouTube/Spotify keys in the sidebar for better accuracy
+    - **API keys are optional** - Provide YouTube/Chartmetric keys in the sidebar for better accuracy
     - **Score multiple titles** - Enter several titles to compare them side-by-side
     - **Confidence intervals** - Wider ranges indicate higher uncertainty in the forecast
     
@@ -85,10 +85,10 @@ def _get_secret(key: str, default=None):
 
 
 # -----------------------------------------------------------------------------
-# Sidebar: API Configuration (YouTube, Spotify & Wikipedia)
+# Sidebar: API Configuration (YouTube, Chartmetric & Wikipedia)
 # -----------------------------------------------------------------------------
 with st.sidebar.expander(
-    "🔑 API Configuration (YouTube, Spotify & Wikipedia)", expanded=False
+    "🔑 API Configuration (YouTube, Chartmetric & Wikipedia)", expanded=False
 ):
     st.markdown(
         """
@@ -102,13 +102,13 @@ with st.sidebar.expander(
         help="Get a key from Google Cloud Console → APIs & Services → Credentials",
     )
     sp_id_input = st.text_input(
-        "Spotify Client ID",
-        help="Get credentials from Spotify Developer Dashboard",
+        "Chartmetric Client ID (or Spotify Client ID)",
+        help="Get credentials from Chartmetric or Spotify Developer Dashboard",
     )
     sp_secret_input = st.text_input(
-        "Spotify Client Secret",
+        "Chartmetric Client Secret (or Spotify Client Secret)",
         type="password",
-        help="Get this from Spotify Developer Dashboard along with the Client ID",
+        help="Get this from Chartmetric or Spotify Developer Dashboard along with the Client ID",
     )
     wiki_key_input = st.text_input(
         "Wikipedia API Key",
@@ -297,10 +297,11 @@ def fetch_youtube_metric(title: str) -> float:
         return 1.0
 
 
-def fetch_spotify_metric(title: str) -> float:
+def fetch_chartmetric_metric(title: str) -> float:
     """
-    Spotify search-based rough metric: popularity of the top track.
-    If Spotify is not configured or fails, return a small fallback.
+    Chartmetric search-based rough metric: popularity of the top track.
+    Currently using Spotify API as a proxy for Chartmetric data.
+    If API is not configured or fails, return a small fallback.
     """
     if spotify is None:
         return 1.0
@@ -312,7 +313,7 @@ def fetch_spotify_metric(title: str) -> float:
         popularity = tracks[0].get("popularity", 0)
         return float(popularity)
     except Exception as exc:
-        logger.warning("Spotify fetch failed for " + title + ": " + str(exc))
+        logger.warning("Chartmetric fetch failed for " + title + ": " + str(exc))
         return 1.0
 
 
@@ -324,7 +325,7 @@ def fetch_spotify_metric(title: str) -> float:
 def load_reference_distribution() -> Optional[pd.DataFrame]:
     """
     Load the reference distribution from baselines.csv for global normalization.
-    Returns a DataFrame with columns: title, wiki, trends, youtube, spotify.
+    Returns a DataFrame with columns: title, wiki, trends, youtube, chartmetric.
     Returns None if file cannot be loaded.
     """
     try:
@@ -332,7 +333,7 @@ def load_reference_distribution() -> Optional[pd.DataFrame]:
         if not baselines_path.exists():
             return None
         df = pd.read_csv(baselines_path)
-        return df[['title', 'wiki', 'trends', 'youtube', 'spotify']].copy()
+        return df[['title', 'wiki', 'trends', 'youtube', 'chartmetric']].copy()
     except Exception as exc:
         logger.warning(f"Could not load reference distribution: {exc}")
         return None
@@ -367,7 +368,7 @@ def normalize_with_reference(
     
     Args:
         values: List of raw values to normalize
-        signal_name: Name of the signal ('wiki', 'trends', 'youtube', 'spotify')
+        signal_name: Name of the signal ('wiki', 'trends', 'youtube', 'chartmetric')
         reference_df: Optional pre-loaded reference DataFrame. If None, will load it.
     
     Returns:
@@ -461,7 +462,7 @@ if fetch_button and titles:
             wiki_val = fetch_wikipedia_views(title)
             trends_val = fetch_google_trends_score(title)
             yt_val = fetch_youtube_metric(title)
-            sp_val = fetch_spotify_metric(title)
+            sp_val = fetch_chartmetric_metric(title)
 
             rows.append(
                 {
@@ -469,7 +470,7 @@ if fetch_button and titles:
                     "wiki_raw": wiki_val,
                     "trends_raw": trends_val,
                     "youtube_raw": yt_val,
-                    "spotify_raw": sp_val,
+                    "chartmetric_raw": sp_val,
                 }
             )
 
@@ -496,25 +497,25 @@ if fetch_button and titles:
             youtube_norm = normalize_with_reference(
                 df_raw["youtube_raw"].tolist(), "youtube", reference_df
             )
-            spotify_norm = normalize_with_reference(
-                df_raw["spotify_raw"].tolist(), "spotify", reference_df
+            chartmetric_norm = normalize_with_reference(
+                df_raw["chartmetric_raw"].tolist(), "chartmetric", reference_df
             )
         else:
             # Legacy batch normalization
             wiki_norm = normalize_0_100(df_raw["wiki_raw"].tolist())
             trends_norm = normalize_0_100(df_raw["trends_raw"].tolist())
             youtube_norm = normalize_0_100(df_raw["youtube_raw"].tolist())
-            spotify_norm = normalize_0_100(df_raw["spotify_raw"].tolist())
+            chartmetric_norm = normalize_0_100(df_raw["chartmetric_raw"].tolist())
 
         df_raw["wiki"] = wiki_norm
         df_raw["trends"] = trends_norm
         df_raw["youtube"] = youtube_norm
-        df_raw["spotify"] = spotify_norm
+        df_raw["chartmetric"] = chartmetric_norm
 
     st.subheader("Step 2 – Normalized Signals (0–100)")
 
     # Add index column for better readability
-    df_display = df_raw[["title", "wiki", "trends", "youtube", "spotify"]].copy()
+    df_display = df_raw[["title", "wiki", "trends", "youtube", "chartmetric"]].copy()
     df_display.insert(0, "index", range(1, len(df_display) + 1))
 
     st.dataframe(
@@ -543,7 +544,7 @@ if fetch_button and titles:
                 "wiki": row["wiki"],
                 "trends": row["trends"],
                 "youtube": row["youtube"],
-                "spotify": row["spotify"],
+                "chartmetric": row["chartmetric"],
                 "category": default_genre,  # Use 'category' to match model expectations
                 "opening_season": default_season,  # Use 'opening_season' to match model expectations
             }

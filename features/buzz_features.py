@@ -2,7 +2,7 @@
 Social buzz/engagement feature engineering for ballet show predictions.
 
 This module loads social media and online engagement metrics (Wikipedia, Google Trends, 
-YouTube, Spotify) and merges them onto show data based on title matching.
+YouTube, Chartmetric) and merges them onto show data based on title matching.
 
 These features capture the cultural awareness and popularity of each ballet title.
 """
@@ -23,7 +23,7 @@ def load_baselines_data() -> pd.DataFrame:
     Load baselines data containing social/buzz metrics for ballet titles.
     
     Returns:
-        DataFrame with columns: title, wiki, trends, youtube, spotify, category, gender, source
+        DataFrame with columns: title, wiki, trends, youtube, chartmetric, category, gender, source
     """
     path = PRODUCTIONS_DIR / "baselines.csv"
     if not path.exists():
@@ -131,28 +131,11 @@ def compute_youtube_idx(value: float) -> float:
     return float(value)
 
 
-def compute_spotify_idx(value: float) -> float:
-    """
-    Compute Spotify engagement index.
-    
-    The raw value represents track popularity and streaming metrics (0-100 scale).
-    
-    Args:
-        value: Raw Spotify score (0-100)
-        
-    Returns:
-        SpotifyIdx normalized score (0-100)
-    """
-    if pd.isna(value):
-        return 0.0
-    return float(value)
-
-
 def compute_chartmetric_idx(value: float) -> float:
     """
     Compute Chartmetric engagement index.
     
-    The raw value represents music track popularity and streaming metrics (0-100 scale).
+    The raw value represents track popularity and streaming metrics (0-100 scale).
     
     Args:
         value: Raw Chartmetric score (0-100)
@@ -197,7 +180,6 @@ def add_buzz_features(
     - WikiIdx: Wikipedia engagement (pageviews, article quality)
     - TrendsIdx: Google Trends search interest
     - YouTubeIdx: YouTube video engagement
-    - SpotifyIdx: Spotify streaming popularity
     - ChartmetricIdx: Music popularity from Chartmetric (raw score)
     - MusicMotivationBonus: Chartmetric score weighted by motivation factor
     
@@ -231,7 +213,6 @@ def add_buzz_features(
         df_out['WikiIdx'] = 0.0
         df_out['TrendsIdx'] = 0.0
         df_out['YouTubeIdx'] = 0.0
-        df_out['SpotifyIdx'] = 0.0
         df_out['ChartmetricIdx'] = 0.0
         df_out['MusicMotivationBonus'] = 0.0
         return df_out
@@ -243,13 +224,7 @@ def add_buzz_features(
     df_out['_title_normalized'] = df_out[title_column].apply(normalize_title)
     
     # Prepare baselines data for merging
-    # Handle both 'chartmetric' (current) and 'spotify' (legacy) column names
-    base_cols = ['title_normalized', 'wiki', 'trends', 'youtube']
-    if 'chartmetric' in baselines.columns:
-        base_cols.append('chartmetric')
-    if 'spotify' in baselines.columns:
-        base_cols.append('spotify')
-    baselines_subset = baselines[base_cols].copy()
+    baselines_subset = baselines[['title_normalized', 'wiki', 'trends', 'youtube', 'chartmetric']].copy()
     
     # Merge on normalized title
     df_merged = df_out.merge(
@@ -279,22 +254,7 @@ def add_buzz_features(
     df_merged['WikiIdx'] = df_merged['wiki'].apply(compute_wiki_idx).fillna(0.0)
     df_merged['TrendsIdx'] = df_merged['trends'].apply(compute_trends_idx).fillna(0.0)
     df_merged['YouTubeIdx'] = df_merged['youtube'].apply(compute_youtube_idx).fillna(0.0)
-    
-    # Handle spotify column (may not exist in all cases)
-    if 'spotify' in df_merged.columns:
-        df_merged['SpotifyIdx'] = df_merged['spotify'].apply(compute_spotify_idx).fillna(0.0)
-    else:
-        df_merged['SpotifyIdx'] = 0.0
-    
-    # Handle chartmetric column
-    if 'chartmetric' in df_merged.columns:
-        df_merged['ChartmetricIdx'] = df_merged['chartmetric'].apply(compute_chartmetric_idx).fillna(0.0)
-    else:
-        # Fallback to spotify if chartmetric doesn't exist (for backward compatibility)
-        if 'spotify' in df_merged.columns:
-            df_merged['ChartmetricIdx'] = df_merged['spotify'].apply(compute_chartmetric_idx).fillna(0.0)
-        else:
-            df_merged['ChartmetricIdx'] = 0.0
+    df_merged['ChartmetricIdx'] = df_merged['chartmetric'].apply(compute_chartmetric_idx).fillna(0.0)
     
     # Compute music motivation bonus
     df_merged['multiplier'] = df_merged['multiplier'].fillna(0.0)
@@ -305,7 +265,7 @@ def add_buzz_features(
     
     # Select output columns (drop merge artifacts)
     output_cols = [col for col in df_out.columns if col != '_title_normalized'] + \
-                  ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx', 'ChartmetricIdx', 'MusicMotivationBonus']
+                  ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'ChartmetricIdx', 'MusicMotivationBonus']
     
     df_out = df_merged[output_cols].copy()
     
@@ -329,9 +289,9 @@ def compute_composite_buzz_score(
     Compute a composite buzz score from individual indices.
     
     Args:
-        df: DataFrame with WikiIdx, TrendsIdx, YouTubeIdx, SpotifyIdx columns
+        df: DataFrame with WikiIdx, TrendsIdx, YouTubeIdx, ChartmetricIdx columns
         weights: Optional dictionary with weights for each index
-                Default: {'wiki': 0.25, 'trends': 0.25, 'youtube': 0.25, 'spotify': 0.25}
+                Default: {'wiki': 0.25, 'trends': 0.25, 'youtube': 0.25, 'chartmetric': 0.25}
         
     Returns:
         DataFrame with 'CompositeBuzzScore' column added
@@ -347,11 +307,11 @@ def compute_composite_buzz_score(
             'wiki': 0.25,
             'trends': 0.25,
             'youtube': 0.25,
-            'spotify': 0.25
+            'chartmetric': 0.25
         }
     
     # Verify required columns exist
-    required = ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx']
+    required = ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'ChartmetricIdx']
     missing = [col for col in required if col not in df_out.columns]
     
     if missing:
@@ -364,7 +324,7 @@ def compute_composite_buzz_score(
         df_out['WikiIdx'] * weights['wiki'] +
         df_out['TrendsIdx'] * weights['trends'] +
         df_out['YouTubeIdx'] * weights['youtube'] +
-        df_out['SpotifyIdx'] * weights['spotify']
+        df_out['ChartmetricIdx'] * weights['chartmetric']
     )
     
     return df_out
@@ -377,4 +337,4 @@ def get_feature_names() -> list:
     Returns:
         List of buzz feature column names
     """
-    return ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx', 'ChartmetricIdx', 'MusicMotivationBonus']
+    return ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'ChartmetricIdx', 'MusicMotivationBonus']
