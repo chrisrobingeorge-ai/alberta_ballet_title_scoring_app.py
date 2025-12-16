@@ -3,7 +3,7 @@ k-NN Similarity Fallback for Cold-Start Title Predictions.
 
 This module provides k-NN (k-Nearest Neighbors) based predictions for titles
 that don't have historical ticket sales data. It uses baseline signal features
-(wiki, trends, youtube, spotify) to find similar titles with known outcomes.
+(wiki, trends, youtube, chartmetric) to find similar titles with known outcomes.
 
 Enhancements for statistical soundness:
 - Distance-weighted voting (weights='distance')
@@ -37,7 +37,7 @@ except ImportError:
 
 
 # Feature columns used for similarity matching
-BASELINE_FEATURES = ["wiki", "trends", "youtube", "spotify"]
+BASELINE_FEATURES = ["wiki", "trends", "youtube", "chartmetric"]
 
 # Default weights for recency decay
 DEFAULT_RECENCY_DECAY = 0.1  # Decay per year since last run
@@ -168,7 +168,7 @@ class KNNFallback:
         
         Args:
             baseline_df: DataFrame with baseline features and outcomes
-                Required columns: wiki, trends, youtube, spotify, {outcome_col}
+                Required columns: wiki, trends, youtube, chartmetric, {outcome_col}
                 Optional columns: {last_run_col}, title
             outcome_col: Name of the column containing the outcome to predict
             last_run_col: Name of the column containing the last run date (for recency)
@@ -241,8 +241,8 @@ class KNNFallback:
         
         Args:
             title_baseline: Baseline signal values for the title
-                If dict: keys should be feature names (wiki, trends, youtube, spotify)
-                If array/Series: values in order [wiki, trends, youtube, spotify]
+                If dict: keys should be feature names (wiki, trends, youtube, chartmetric)
+                If array/Series: values in order [wiki, trends, youtube, chartmetric]
             k: Number of neighbors to use (defaults to self.k)
             return_neighbors: If True, also return DataFrame of neighbor info
             
@@ -405,7 +405,7 @@ def build_knn_index(
         
     Example:
         >>> knn = build_knn_index(baselines, outcome_col="Total_Tickets")
-        >>> predicted = knn.predict({"wiki": 70, "trends": 40, "youtube": 80, "spotify": 60})
+        >>> predicted = knn.predict({"wiki": 70, "trends": 40, "youtube": 80, "chartmetric": 60})
     """
     knn = KNNFallback(metric=metric, normalize=normalize)
     return knn.build_index(baseline_df, outcome_col=outcome_col, last_run_col=last_run_col)
@@ -456,7 +456,7 @@ def predict_knn(
     This is a convenience function for one-off predictions.
     
     Args:
-        title_baseline: Dict with keys wiki, trends, youtube, spotify
+        title_baseline: Dict with keys wiki, trends, youtube, chartmetric
         knn_index: A fitted KNNFallback instance
         k: Number of neighbors to use
         recency_weight: Weight for recency in neighbor weighting
@@ -467,7 +467,7 @@ def predict_knn(
     Example:
         >>> knn = build_knn_index(baselines_with_history)
         >>> pred = predict_knn(
-        ...     {"wiki": 70, "trends": 40, "youtube": 80, "spotify": 60},
+        ...     {"wiki": 70, "trends": 40, "youtube": 80, "chartmetric": 60},
         ...     knn_index=knn,
         ...     k=5
         ... )
@@ -499,7 +499,7 @@ def find_similar_titles(
     3. Providing context for cold-start predictions
     
     Args:
-        query_baseline: Dict with keys wiki, trends, youtube, spotify
+        query_baseline: Dict with keys wiki, trends, youtube, chartmetric
         reference_df: DataFrame with baseline signal columns
         k: Number of similar titles to return
         metric: Distance metric ('cosine', 'euclidean', 'manhattan')
@@ -511,7 +511,7 @@ def find_similar_titles(
         >>> from data.loader import load_all_baselines
         >>> all_baselines = load_all_baselines(include_reference=True)
         >>> similar = find_similar_titles(
-        ...     {"wiki": 75, "trends": 30, "youtube": 85, "spotify": 70},
+        ...     {"wiki": 75, "trends": 30, "youtube": 85, "chartmetric": 70},
         ...     all_baselines,
         ...     k=5
         ... )
@@ -594,7 +594,7 @@ def estimate_category_benchmark(
         
     Example:
         >>> benchmarks = estimate_category_benchmark("pop_ip", all_baselines)
-        >>> print(benchmarks)  # {'wiki': 72, 'trends': 38, 'youtube': 85, 'spotify': 72}
+        >>> print(benchmarks)  # {'wiki': 72, 'trends': 38, 'youtube': 85, 'chartmetric': 72}
     """
     signal_cols = signal_cols or BASELINE_FEATURES
     
