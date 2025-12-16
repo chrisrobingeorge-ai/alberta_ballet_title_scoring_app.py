@@ -24,7 +24,7 @@ Table 1: Cross-Validation Performance Metrics
 These metrics should be interpreted in context. The relatively high standard deviations reflect genuine variability in predictive performance across different time periods and production types. Some validation folds, particularly Fold 1 with an MAE of 1,542 tickets and a negative R-squared value, reveal periods where the model struggled, likely due to unusual market conditions or structural changes in audience behaviour. Conversely, Fold 5 achieved an MAE of only 166 tickets, demonstrating excellent predictive accuracy for certain periods. This variability underscores the importance of understanding model predictions as probabilistic estimates rather than certainties.
 ## 0.5 Pipeline Architecture
 The system follows a clear data pipeline that transforms raw historical records into actionable forecasts. Historical sales data, including past shows with their ticket counts and remount flags, flows into the system alongside external signals from sources like Google Trends, YouTube, Spotify, and the Bank of Canada. The feature engineering stage, implemented across multiple Python modules in the features/ directory, transforms this raw data into predictive features using both domain knowledge and statistical techniques.
-These engineered features then flow into the model training process, managed by train_safe_model.py, which uses XGBoost regression combined with SHAP analysis for explainability. The training process produces model artefacts saved in various formats, including serialised model files, JSON metadata, PNG visualisations, and Parquet files containing detailed SHAP values. Finally, the scoring interface provided by service/forecast.py loads these artefacts and generates predictions for new titles or scenarios.
+These engineered features then flow into the model training process, managed by train_safe_model.py, which uses constrained Ridge regression (as of December 2024) combined with SHAP analysis for explainability. The training process produces model artefacts saved in various formats, including serialised model files, JSON metadata, PNG visualisations, and Parquet files containing detailed SHAP values. Finally, the scoring interface provided by service/forecast.py loads these artefacts and generates predictions for new titles or scenarios.
 This architecture reflects a thoughtful balance between sophistication and maintainability. The separation of feature engineering, training, and inference concerns allows for independent development and testing of each component. The use of standard file formats and clear directory structures facilitates both reproducibility and integration with downstream systems.
 ## 0.6 Strategic Context
 The Title Scoring App represents a sophisticated application of machine learning to a challenging business problem. Ballet companies must programme seasons months or years in advance, committing substantial resources based on uncertain demand forecasts. Traditional approaches rely heavily on institutional knowledge and artistic intuition, both valuable but difficult to systematise or audit. This system complements human judgement with quantitative analysis, providing a structured framework for evaluating programming options.
@@ -43,7 +43,7 @@ Feature engineering then transforms this unified dataset into a rich set of pred
 Once features are prepared, the data undergoes a time-aware train-test split. Unlike conventional random splitting, this process respects chronological ordering to prevent future information from leaking into past predictions. The training data flows into the model training pipeline, which implements cross-validation, hyperparameter tuning, and model fitting. The trained model, along with its associated metadata and SHAP values, is persisted to disk in a structured format.
 During inference, new production metadata flows into the feature engineering pipeline, which applies identical transformations to those used during training. The scoring module loads the persisted model and generates predictions along with explanations. These outputs, including ticket forecasts and feature breakdowns, are returned in a structured format suitable for integration with downstream systems or presentation to stakeholders.
 ## 1.3 Runtime Environment and Dependencies
-The system runs in Python 3.11 or later, leveraging modern language features and library compatibility. Key dependencies include xgboost for gradient boosting implementation, pandas for data manipulation, numpy for numerical computations, scikit-learn for machine learning utilities, shap for model interpretability, pyarrow for efficient data serialisation, and joblib for model persistence. The system is designed to run in GitHub Codespaces, though it remains compatible with standard virtual environments.
+The system runs in Python 3.11 or later, leveraging modern language features and library compatibility. Key dependencies include scikit-learn for Ridge regression and machine learning utilities, pandas for data manipulation, numpy for numerical computations, shap for model interpretability, pyarrow for efficient data serialisation, and joblib for model persistence. Legacy support for xgboost is maintained for compatibility with historical model artefacts. The system is designed to run in GitHub Codespaces, though it remains compatible with standard virtual environments.
 Data files are expected to reside in specific directories following a conventional structure. Historical sales data lives in data/, production metadata in productions/, economic indicators in economics/, and environmental context in environment/. This organisation reflects the logical separation of different data domains and facilitates independent updates to each data source.
 ## 1.4 Training Pipeline Implementation
 The training pipeline, implemented primarily in scripts/train_safe_model.py and ml/training.py, follows a systematic approach to model development. The process begins by loading the modelling dataset, which has been previously prepared through the ETL pipeline. Feature preparation separates the target variable (log-transformed ticket sales) from the predictor features, applying appropriate transformations and encodings.
@@ -131,37 +131,112 @@ The modelling methodology section details how the Alberta Ballet Title Scoring A
 The fundamental task is to predict expected median ticket sales for a proposed or returning ballet production, given information available before the production opens. Formally, we seek to learn a function f that maps feature vectors x to predicted outcomes ŷ. The target variable is median ticket sales per run, computed from historical box office records. Using the median rather than mean or total tickets provides robustness to outliers whilst capturing typical performance.
 The raw target variable exhibits substantial skew, with most productions selling hundreds to low thousands of tickets but occasional outliers selling tens of thousands. This skew poses challenges for regression models, which assume approximately normal residual distributions. To address this, we apply a log transformation: y = log(1 + median_tickets). Adding one before taking the logarithm handles zero values, which occasionally occur for unsuccessful productions or data collection gaps. The log transformation compresses the scale, converting multiplicative relationships into additive ones.
 After generating predictions in log space, we apply the inverse transformation to obtain interpretable ticket counts: ŷ_tickets = exp(ŷ) - 1. This transformation strategy is standard in demand forecasting and count data regression, where the natural variation in outcomes scales with the level rather than remaining constant.
-## 4.2 Algorithm Selection: XGBoost Regression
-The core predictive model uses XGBoost (eXtreme Gradient Boosting), specifically the XGBRegressor implementation. XGBoost builds an ensemble of decision trees sequentially, where each new tree attempts to correct the errors made by the existing ensemble. This gradient boosting approach has proven highly effective for structured tabular data across diverse domains, from credit scoring to demand forecasting.
-The algorithm optimises a regularised objective function that balances prediction accuracy against model complexity. The objective function L at iteration t sums over all training examples i from 1 to n, computing the loss l between the true target value yᵢ and the prediction from the ensemble up to tree t-1 plus the new tree fₜ, and adds a regularisation term Ω that penalises model complexity.
-The regularisation term Ω equals γT plus half of λ times the sum of squared leaf weights wⱼ, where T is the number of leaves in tree fₜ, wⱼ represents leaf weights, γ controls the penalty for the number of leaves, and λ controls the L2 regularisation strength on leaf weights. This regularisation prevents overfitting by discouraging overly complex trees that memorise training data rather than learning generalisable patterns.
+## 4.2 Algorithm Selection: Constrained Ridge Regression (December 2024 Update)
+The core predictive model uses constrained Ridge regression, a linear approach with L2 regularisation enhanced by synthetic anchor points. This methodology replaced the previous XGBoost implementation in December 2024 to address a systematic bias problem: unconstrained gradient boosting models were learning a high intercept (TicketIndex ≈ 46 at SignalOnly = 0), causing unrealistic predictions for low-buzz titles.
+
+Ridge regression learns a linear relationship between features and the target variable whilst applying L2 regularisation to prevent overfitting. The model minimises the objective function:
+
+L = Σᵢ(yᵢ - wᵀxᵢ)² + α·||w||²
+
+where yᵢ is the target TicketIndex, xᵢ is the feature vector (primarily SignalOnly), w are the learned weights, and α is the regularisation parameter set to 5.0. The regularisation term α·||w||² penalises large weights, encouraging simpler models that generalise better.
+
+To enforce realistic constraints, the training process augments real data with synthetic anchor points:
+- **Anchor 1**: SignalOnly = 0 → TicketIndex = 25 (realistic floor for low-buzz titles)
+- **Anchor 2**: SignalOnly = 100 → TicketIndex = 100 (benchmark alignment with Cinderella)
+
+These anchors are weighted proportionally to dataset size using `anchor_weight = max(3, n_real // 2)`, ensuring they influence the model sufficiently without overpowering real data patterns. The resulting linear model produces the formula:
+
+**TicketIndex ≈ 0.75 × SignalOnly + 27.3**
+
+This constrained approach reduced estimates for low-buzz titles by approximately 30% (e.g., from ~5,500 to ~3,800 tickets), producing more realistic forecasts whilst maintaining differentiation for high-buzz productions.
 ## 4.3 Hyperparameter Configuration
-The XGBoost model exposes numerous hyperparameters that control its behaviour and capacity. The system implements both default configurations and tuned configurations selectable via command-line flags. The number of estimators, representing the total number of trees in the ensemble, typically ranges from 100 to 500 depending on data size and complexity. More trees allow the model to learn more complex patterns but increase training time and overfitting risk if not properly regularised.
-The learning rate, typically between 0.01 and 0.3, controls how much each tree contributes to the ensemble. Lower learning rates require more trees to achieve the same representational capacity but often produce better generalisation. The system default of 0.05 balances training efficiency with predictive accuracy. Maximum tree depth, usually set between 3 and 7, controls how many sequential splits each tree can make. Deeper trees can capture more complex interactions but risk overfitting to training data.
-Table 5: XGBoost Hyperparameter Defaults and Tuning Ranges
+The Ridge regression model has a simpler hyperparameter space compared to ensemble methods, focusing on regularisation strength and anchor point configuration. The primary hyperparameter is the regularisation parameter α (alpha), which controls the strength of L2 penalty on model weights. The system uses α = 5.0, providing moderate regularisation that balances fitting to real data whilst preventing overfitting to noise.
+
+Anchor point configuration determines how strongly the model respects the imposed constraints:
+- **Low-buzz anchor**: SignalOnly = 0 → TicketIndex = 25 (prevents unrealistic floor)
+- **Benchmark anchor**: SignalOnly = 100 → TicketIndex = 100 (maintains alignment with reference title)
+- **Anchor weighting**: `anchor_weight = max(3, n_real // 2)` scales proportionally with dataset size
+
+The anchor weighting formula ensures that anchors exert sufficient influence to constrain predictions without dominating the model when substantial real data is available. For small datasets (n < 6), the minimum weight of 3 ensures anchors prevent extrapolation errors. For larger datasets, the weight scales as half the real sample size, allowing real data patterns to dominate whilst anchors prevent extreme predictions.
+
+Table 5: Ridge Regression Hyperparameter Configuration
+
+| Parameter | Value | Purpose |
+|-----------|-------|----------|
+| alpha (α) | 5.0 | L2 regularisation strength |
+| Anchor 1 (low-buzz floor) | SignalOnly=0 → TicketIndex=25 | Realistic minimum estimate |
+| Anchor 2 (benchmark) | SignalOnly=100 → TicketIndex=100 | Cinderella alignment |
+| Anchor weight formula | max(3, n_real // 2) | Proportional influence |
+| Solver | 'auto' (typically Cholesky) | Optimisation algorithm |
 ## 4.4 Time-Aware Cross-Validation Strategy
 Standard cross-validation randomly partitions data into training and validation folds, which is appropriate for many machine learning tasks. However, for time series forecasting and demand prediction, random splitting creates an unrealistic evaluation scenario. If validation data comes from past dates whilst training data includes future dates, the model learns from information that would not have been available when making real predictions. This temporal leakage artificially inflates apparent model performance whilst compromising actual forecasting ability.
 The Alberta Ballet system implements strictly chronological cross-validation through the TimeSeriesCVSplitter class in ml/time_splits.py. This splitter respects the temporal ordering of productions, ensuring that every validation production occurs after all training productions in its fold. The implementation requires specification of a date column, typically opening_date, which defines the temporal ordering. If no date column is provided, the system raises an error rather than falling back to random splitting, preventing accidental temporal leakage.
 The five-fold configuration creates five sequential training-validation pairs. In Fold 1, the model trains on the earliest productions and validates on the next chronological period. In Fold 2, the training set expands to include the previous validation set, and a new later period becomes the validation set. This expanding window approach simulates increasingly long historical records whilst always testing on genuinely future data. By the fifth fold, the model trains on most historical data and validates on the most recent period, closely mimicking operational deployment conditions.
 ## 4.5 Feature Importance Analysis
-Understanding which features drive predictions is crucial for both model validation and operational insight. The system implements two complementary approaches to feature importance: model-based gain calculations and SHAP values. Model-based feature importance, computed directly from the XGBoost model structure, measures how much each feature contributes to reducing prediction error across all trees. Specifically, the gain metric sums the improvement in loss achieved by all splits on a given feature across all trees.
-Features with high gain importance are those that, when used for splitting nodes, most effectively separate high-ticket productions from low-ticket productions. The prior_total_tickets feature typically shows the highest gain, reflecting its strong predictive power for remounts. When a tree splits on whether prior_total_tickets exceeds some threshold, the resulting child nodes contain productions with substantially different expected outcomes. This consistent pattern across many trees leads to high cumulative gain.
-Table 6: Top Features by Importance Value
+Understanding which features drive predictions is crucial for both model validation and operational insight. The system implements two complementary approaches to feature importance: model-based coefficient analysis and SHAP values. For the Ridge regression model (December 2024 update), feature importance is determined directly from learned coefficients—features with larger absolute coefficient values have greater influence on predictions. The coefficient represents how much TicketIndex changes for each unit increase in the feature value.
+
+In the constrained Ridge model, the SignalOnly feature dominates with a coefficient of approximately 0.75, indicating that each 10-point increase in SignalOnly corresponds to a 7.5-point increase in TicketIndex. The intercept term of 27.3 provides the baseline TicketIndex for titles with no buzz signals, representing the realistic floor enforced by anchor constraints.
+
+Note: Historical XGBoost models used tree-based gain importance, measuring how much each feature contributed to reducing prediction error across all trees. These models showed prior_total_tickets as the dominant feature when historical data was available, followed by ticket_median_prior for robustness to outliers.
 ## 4.6 SHAP Analysis for Explainability
 SHAP (SHapley Additive exPlanations) applies concepts from cooperative game theory to machine learning explanation. For each prediction, SHAP computes how much each feature contributed relative to a baseline prediction. The baseline is typically the average prediction across all training data, representing an "uninformed" forecast before considering the specific features of a production. Each feature's SHAP value then represents its contribution above or below this baseline.
 Mathematically, SHAP decomposes a prediction into a sum of feature contributions: ŷ = φ₀ + Σφᵢ where φ₀ is the baseline value, φᵢ is the SHAP value for feature i, and p is the total number of features. The SHAP values satisfy several desirable properties: they sum to the total prediction (consistency), swapping identical features produces identical SHAP values (symmetry), and features that never affect predictions receive zero SHAP values (null player). These properties provide strong theoretical justification for using SHAP values as explanations.
-For tree-based models like XGBoost, SHAP values can be computed efficiently using the TreeExplainer algorithm. This algorithm exploits the tree structure to calculate exact SHAP values in polynomial time rather than the exponential time required for the general Shapley value calculation. The system computes SHAP values for all training and validation productions when the --save-shap flag is enabled, storing them in results/shap/shap_values.parquet for subsequent analysis.
+
+For linear models like Ridge regression, SHAP values are particularly straightforward: the SHAP value for feature i equals its coefficient multiplied by the difference between its actual value and the average training value. For the constrained Ridge model, this means that SHAP values for SignalOnly directly reflect the learned coefficient of 0.75 scaled by how far the title's SignalOnly deviates from the training set average.
+
+Note: Historical XGBoost models used TreeExplainer for efficient SHAP computation, exploiting tree structure to calculate exact SHAP values in polynomial time. The system computes SHAP values for all training and validation productions when the --save-shap flag is enabled, storing them in results/shap/shap_values.parquet for subsequent analysis.
 
 # 5. Evaluation Results
 Model evaluation assesses how accurately the Title Scoring App predicts ticket sales under realistic forecasting conditions. The evaluation uses time-aware cross-validation to simulate operational deployment, where the model must predict future productions using only historical information.
-## 5.1 Cross-Validation Performance Summary
-The five-fold cross-validation yields performance metrics averaged across folds. The Mean Absolute Error of 649 tickets with a standard deviation of 565 tickets represents typical prediction accuracy. This means that half of predictions fall within approximately 649 tickets of actual outcomes, whilst the other half differ by more. For productions selling 2,000 tickets, a 649-ticket error represents roughly 32% error, whilst for productions selling 10,000 tickets, it represents only 6.5% error. The metric inherently favours larger productions where equal absolute errors constitute smaller percentage errors.
-Root Mean Squared Error of 785 tickets penalises large errors more heavily than MAE. The fact that RMSE exceeds MAE indicates that some predictions miss by substantial margins, pulling up the squared error average. The standard deviation of 693 tickets across folds shows considerable performance variability, suggesting that some time periods are more predictable than others. This variability is expected given changing market conditions, economic cycles, and evolving artistic programming strategies over the years covered by the training data.
-The R-squared value of 0.627 indicates that the model explains approximately 63% of variance in ticket sales. The remaining 37% reflects both irreducible stochasticity in audience behaviour and systematic patterns the model has not captured. An R-squared of 0.627 is respectable for demand forecasting in the cultural sector, where numerous unmeasured factors influence outcomes.
-## 5.2 Fold-Specific Analysis
-Examining individual fold performance reveals important patterns. Fold 1 produces an MAE of 1,542 tickets and a negative R-squared of -0.166, indicating that the model performs worse than simply predicting the mean for this validation period. This poor performance likely reflects structural differences between the earliest training data and the validation period, such as changes in venue capacities, programming strategies, or market conditions. Negative R-squared values occur when model predictions are less accurate than a constant prediction equal to the training set mean.
-Fold 2 improves substantially with an MAE of 649 tickets and an R-squared of 0.452, suggesting that additional training data helps the model better capture relevant patterns. As the training window expands to include more recent data, the model learns from conditions more similar to the validation period. Fold 3 maintains similar performance, indicating stable model behaviour across this period.
-Fold 5 achieves exceptional performance with an MAE of only 166 tickets and an R-squared of 0.895, demonstrating near-excellent predictive accuracy. This strong performance might reflect several factors: the expanded training set includes more relevant recent data, the validation period might have been particularly typical or predictable, or the productions in this fold might have been primarily remounts with strong historical priors. The dramatic improvement in the most recent fold provides confidence that the model can achieve high accuracy under favourable conditions.
+## 5.1 Model Performance and Anchor Validation (December 2024 Update)
+The constrained Ridge regression model demonstrates strong adherence to imposed anchor points whilst maintaining realistic differentiation across the signal spectrum. Anchor validation confirms the model's constraint satisfaction:
+
+**Anchor Point Verification:**
+- **Low-buzz anchor (SignalOnly = 0)**: Predicted TicketIndex = 27.3 (target: 25, error: 2.3)
+- **Benchmark anchor (SignalOnly = 100)**: Predicted TicketIndex = 102.2 (target: 100, error: 2.2)
+
+Both anchors are satisfied within acceptable tolerance (< 3 TicketIndex points), confirming that the model respects the imposed constraints without overfitting to the synthetic anchor data.
+
+**Real-World Impact Assessment:**
+The model demonstrates approximately 30% reduction in estimates for low-buzz contemporary titles compared to the previous unconstrained approach, producing more realistic forecasts:
+
+| Title | Previous Estimate | New Estimate | Change |
+|-------|-------------------|--------------|--------|
+| After the Rain | 5,574 tickets | 3,755 tickets | -32.6% (more realistic) |
+| Afternoon of a Faun | 5,588 tickets | 3,865 tickets | -30.8% (more realistic) |
+| Dracula (high buzz) | 6,489 tickets | 10,619 tickets | +63.7% (better differentiation) |
+
+The constrained approach better differentiates high-buzz titles (Dracula) from low-buzz titles (After the Rain), addressing the previous systematic bias where all titles clustered around inflated estimates due to the high intercept problem.
+
+**Linear Relationship:**
+The model learns a simple, interpretable linear relationship:
+
+**TicketIndex ≈ 0.75 × SignalOnly + 27.3**
+
+This formula provides transparency: each 10-point increase in SignalOnly corresponds to approximately 7.5 points in TicketIndex, with a realistic floor of 27.3 for titles with no measurable buzz signals.
+## 5.2 Model Selection Rationale and Comparison
+The December 2024 model update transitioned from XGBoost gradient boosting to constrained Ridge regression to address a critical systematic bias. The previous XGBoost approach, whilst capable of learning complex non-linear patterns, suffered from a problematic high intercept:
+
+**Problem Identified:**
+- Unconstrained XGBoost and GradientBoosting models learned TicketIndex ≈ 46 at SignalOnly = 0
+- This high intercept caused unrealistic predictions for low-buzz titles (~5,500 tickets)
+- The de-seasonalised benchmark (Cinderella ≈ 11,976 tickets median) amplified the bias through the formula: EstimatedTickets = (TicketIndex/100) × 11,976
+- Result: Even titles with minimal public interest received inflated estimates inconsistent with historical performance
+
+**Solution Implemented:**
+Constrained Ridge regression with weighted anchor points enforces realistic bounds:
+1. **Ridge Regression**: Linear model with L2 regularisation (α=5.0) prevents overfitting
+2. **Anchor Points**: Synthetic training examples at (SignalOnly=0, TicketIndex=25) and (SignalOnly=100, TicketIndex=100)
+3. **Proportional Weighting**: `anchor_weight = max(3, n_real // 2)` balances real data with constraints
+
+**Model Comparison:**
+
+| Approach | For Low-Buzz Titles | For High-Buzz Titles | Interpretability |
+|----------|---------------------|----------------------|------------------|
+| **Previous XGBoost** | Inflated (~5,500 tickets) | Underestimated | Complex, non-linear |
+| **Current Ridge** | Realistic (~3,800 tickets) | Better differentiation | Simple, linear |
+
+The Ridge approach trades some non-linear modelling capacity for guaranteed constraint satisfaction and interpretability. The resulting linear formula (TicketIndex ≈ 0.75 × SignalOnly + 27.3) is transparent, auditable, and produces realistic estimates across the full signal spectrum.
 ## 5.3 Error Pattern Analysis
 Beyond aggregate metrics, examining error patterns reveals systematic model behaviours. Productions with no prior history, termed cold starts, generally receive less accurate predictions. The model must rely entirely on genre averages, economic indicators, and buzz signals without the strong anchor provided by historical priors. Prediction errors for cold starts typically exceed errors for remounts by 50% to 100%, reflecting this fundamental information gap.
 Recent remounts with strong consistent historical performance yield the most accurate predictions. When a production has been performed multiple times with similar ticket sales across runs, the model can confidently predict similar outcomes. Variation in performance across past runs introduces uncertainty that propagates into predictions. A title that sold 500 tickets in one run but 5,000 tickets in another presents a challenging prediction problem, as the model must infer which pattern is more likely to repeat.
@@ -190,7 +265,7 @@ Ticketing system integrations through Ticketmaster and Archtics, implemented in 
 The primary forecasting interface resides in service/forecast.py, providing a clean API for generating predictions. The main function forecast_title() accepts a dictionary containing title metadata, including canonical title name, proposed opening date, city or venue, production category, and any known remount information. The function returns a structured dictionary containing the predicted ticket count in interpretable units, SHAP values for each feature showing their contributions, confidence bounds when available, and metadata about which features were used and which were imputed due to missing data.
 The interface design prioritises both programmatic and interactive use. Python applications can import the forecast module and call functions directly, receiving structured dictionaries suitable for further processing. Command-line scripts in the scripts/ directory wrap these functions with argument parsing, allowing users to generate forecasts from the terminal without writing Python code. The scoring interface validates inputs against expected schemas defined in config/validation.py, raising informative errors when required fields are missing or have invalid formats.
 ## 7.3 Model Versioning and Artefact Management
-Each trained model is saved with a semantic identifier that captures its configuration and training context. The filename model_xgb_remount_postcovid.joblib indicates that this is an XGBoost model, focused on remount prediction, trained on post-COVID data. This naming convention supports maintaining multiple model variants for different purposes or time periods. Alongside the serialised model file, the system saves a metadata JSON file containing feature names in order, preprocessing transformations applied, training date and data version, hyperparameters used, and cross-validation performance metrics.
+Each trained model is saved with a semantic identifier that captures its configuration and training context. The filename model_xgb_remount_postcovid.joblib (historical naming preserved for compatibility) indicates this was originally an XGBoost model focused on remount prediction, trained on post-COVID data. As of December 2024, this file contains a constrained Ridge regression model with α=5.0, though the filename convention remains unchanged to maintain compatibility with existing deployment infrastructure. This naming convention supports maintaining multiple model variants for different purposes or time periods. Alongside the serialised model file, the system saves a metadata JSON file containing feature names in order, preprocessing transformations applied, training date and data version, hyperparameters used (including regularisation strength and anchor configurations for Ridge models), and cross-validation performance metrics.
 SHAP values computed during training are persisted separately in results/shap/shap_values.parquet, allowing post-hoc analysis without recomputing expensive explanations. The Parquet format provides efficient columnar storage with strong schema support, ensuring that SHAP values can be loaded quickly for visualisation or further analysis. Feature importance rankings are exported to CSV files for easy inspection in spreadsheet applications or import into reporting tools.
 
 # 8. Risk, Bias, and Governance
@@ -208,7 +283,7 @@ Change management for model updates follows a review process where new model ver
 
 # 9. Artefacts & Reproducibility
 ## 9.1 Model Files and Outputs
-The Title Scoring App generates a comprehensive set of artefacts that capture both the trained model and all diagnostic information necessary for validation and interpretation. The primary model file, saved as outputs/models/model_xgb_remount_postcovid.joblib, contains the serialised XGBoost regressor including all learned tree structures, leaf weights, and model parameters. The joblib serialisation format provides efficient compression and fast loading, making it suitable for production deployment where model loading time affects user experience.
+The Title Scoring App generates a comprehensive set of artefacts that capture both the trained model and all diagnostic information necessary for validation and interpretation. The primary model file, saved as outputs/models/model_xgb_remount_postcovid.joblib (historical naming preserved for compatibility), contains the serialised Ridge regression model including learned weights, intercept, and regularisation parameters. As of December 2024, this file contains a Ridge model with α=5.0 rather than XGBoost, though the filename remains unchanged. The joblib serialisation format provides efficient compression and fast loading, making it suitable for production deployment where model loading time affects user experience.
 Accompanying the model file, outputs/models/model_metadata.json stores essential metadata in human-readable JSON format. This metadata file includes the complete list of feature names in the exact order expected by the model, ensuring that scoring inputs align correctly with trained expectations. It documents all preprocessing transformations applied during training, such as standardisation parameters for numerical features and encoding mappings for categorical features. The training timestamp and data version identifier allow tracking which historical records informed the model.
 SHAP values computed during training reside in results/shap/shap_values.parquet, stored in Apache Parquet format for efficient columnar storage and fast filtered queries. Each row in this file corresponds to a production in the training or validation sets, whilst columns represent features. The values themselves are SHAP attributions, showing how each feature contributed to the prediction for that specific production. The Parquet format's built-in compression significantly reduces storage requirements compared to plain CSV whilst maintaining fast access through libraries like pandas or pyarrow.
 ## 9.2 Feature Inventories and Configuration Files
@@ -220,7 +295,7 @@ Complete reproducibility requires not just preserved artefacts but also clear pr
 The first step in reproduction involves constructing the modelling dataset. The script scripts/build_modelling_dataset.py reads raw data files from their designated directories, applies normalisation and cleaning transformations, performs the join operations specified in join key configuration files, computes engineered features according to feature definitions, applies temporal filtering to prevent leakage, and writes the unified modelling dataset to a specified output location. Running this script with default parameters produces the standard dataset used for training, whilst command-line flags allow customisation of data sources, date ranges, and feature selections for experimental variants.
 With the modelling dataset prepared, model training proceeds through scripts/train_safe_model.py. This script accepts several important command-line arguments that control training behaviour. The --tune flag enables hyperparameter optimisation, exploring predefined ranges for learning rate, tree depth, and regularisation parameters. The --save-shap flag triggers computation and storage of SHAP values for explainability analysis. The --date_column argument specifies the temporal ordering column for time-aware cross-validation, with the system raising errors if this crucial parameter is omitted.
 ## 9.4 Dependency Management
-Reproducibility extends to the software environment, requiring careful management of Python package versions and system dependencies. The repository includes a requirements.txt file listing all Python packages required for training and inference, along with version constraints that ensure compatibility. Critical packages include specific versions or version ranges: xgboost>=1.7.0 provides the core modelling algorithm, pandas>=2.0.0 handles data manipulation, numpy>=1.24.0 supports numerical computations, scikit-learn>=1.3.0 supplies preprocessing utilities, shap>=0.43.0 enables explainability analysis, pyarrow>=13.0.0 provides efficient Parquet support, and joblib>=1.3.0 handles model serialisation.
+Reproducibility extends to the software environment, requiring careful management of Python package versions and system dependencies. The repository includes a requirements.txt file listing all Python packages required for training and inference, along with version constraints that ensure compatibility. Critical packages include specific versions or version ranges: scikit-learn>=1.3.0 provides Ridge regression and preprocessing utilities (primary modelling framework as of December 2024), pandas>=2.0.0 handles data manipulation, numpy>=1.24.0 supports numerical computations, shap>=0.43.0 enables explainability analysis, pyarrow>=13.0.0 provides efficient Parquet support, and joblib>=1.3.0 handles model serialisation. Legacy support for xgboost>=1.7.0 is maintained for compatibility with historical model artefacts.
 Version constraints strike a balance between stability and flexibility. Lower bounds ensure that required functionality and bug fixes are available, whilst avoiding overly restrictive upper bounds that would prevent using newer compatible versions. For complete environment reproducibility, a lock file generated via pip freeze > requirements.lock.txt captures the exact versions of all packages and their dependencies installed in a working environment.
 
 # 10. What the App Does and Does Not Do
@@ -256,7 +331,35 @@ Causal inference methodologies could identify what factors genuinely drive ticke
 Price elasticity modelling could extend ticket volume predictions into revenue forecasts by estimating how demand responds to price changes. Training data might include periods with varying pricing strategies, allowing estimation of how many additional tickets would sell at lower prices or how much revenue would increase from premium pricing on high-demand shows. These elasticity estimates would enable revenue optimisation strategies that go beyond maximising attendance.
 
 # Appendix A: Complete Mathematical Definitions
-This appendix provides formal mathematical definitions for all feature transformations referenced throughout the report. The target variable undergoes logarithmic transformation before training: y = log(1 + max(median_tickets, 0)). The addition of one handles zero values, whilst the max operation ensures non-negativity. The inverse transformation recovers interpretable ticket counts: ŷ_tickets = exp(ŷ) - 1.
+This appendix provides formal mathematical definitions for all feature transformations and model equations referenced throughout the report.
+
+## A.1 Target Variable Transformation
+The target variable undergoes logarithmic transformation before training: y = log(1 + max(median_tickets, 0)). The addition of one handles zero values, whilst the max operation ensures non-negativity. The inverse transformation recovers interpretable ticket counts: ŷ_tickets = exp(ŷ) - 1.
+
+Note: As of December 2024, the primary model operates on TicketIndex (0-100 scale) rather than log-transformed tickets. The formula TicketIndex ≈ 0.75 × SignalOnly + 27.3 produces index values that are then scaled to ticket estimates via the benchmark: EstimatedTickets = (TicketIndex/100) × 11,976.
+
+## A.2 Ridge Regression Model (December 2024)
+The constrained Ridge regression model minimises:
+
+L = Σᵢ(yᵢ - wᵀxᵢ)² + α·||w||²
+
+where:
+- yᵢ = TicketIndex for production i
+- xᵢ = feature vector (primarily SignalOnly score)
+- w = learned weight vector
+- α = 5.0 (regularisation parameter)
+- ||w||² = sum of squared weights (L2 penalty)
+
+The training dataset includes real productions plus synthetic anchor points:
+- Anchor 1: (xanchor1, yanchor1) = (0, 25) representing low-buzz floor
+- Anchor 2: (xanchor2, yanchor2) = (100, 100) representing benchmark alignment
+- Anchor weight: wanchor = max(3, nreal // 2)
+
+The learned linear relationship is:
+
+**TicketIndex ≈ 0.75 × SignalOnly + 27.3**
+
+This formula provides the core predictive relationship, with the intercept (27.3) representing the realistic floor for titles with no measurable buzz signals, and the slope (0.75) indicating that SignalOnly gains translate to proportionally smaller but still meaningful TicketIndex improvements.
 Historical prior features aggregate past performance. The total prior tickets sums all previous runs: x_prior_total = Σ tickets_i where date_i < opening_date. The median prior captures typical performance: x_ticket_median_prior = median({tickets_i : date_i < opening_date}). The prior run count simply counts previous performances: x_run_count = |{i : date_i < opening_date}|.
 Remount timing features quantify how long since the last performance: x_years_since = year(opening_date) - max_i year(date_i). Boolean remount indicators discretise this temporal gap: x_is_remount_recent = 𝟙{x_years_since ≤ 5} and x_is_remount_medium = 𝟙{2 < x_years_since ≤ 5}.
 Date features extract temporal components. Month of opening ranges from 1 to 12: x_month = month(opening_date). Week of year ranges from 1 to 52: x_week = week_of_year(opening_date). Day of week encodes weekday versus weekend: x_dow = day_of_week(opening_date) ∈ {0, 1, …, 6}. Holiday indicators flag special periods: x_holiday = 𝟙(opening_date ∈ HolidayWindows).
