@@ -8,6 +8,7 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 
 - **Advanced ML Predictions**: Uses constrained Ridge regression for accurate ticket projections
 - **Multi-Factor Scoring**: Combines Wikipedia, Google Trends, YouTube, and chartmetric metrics
+- **Intent Disambiguation Correction**: Adjusts for inflated demand signals from ambiguous titles (e.g., "Cinderella")
 - **Seasonality Adjustment**: Accounts for performance timing and repeat effects
 - **City-Specific Analysis**: Separate projections for Calgary and Edmonton
 - **Revenue Forecasting**: Estimates single ticket revenue by city
@@ -97,6 +98,8 @@ Build complete season plans with:
 
 - [README.md](README.md) - This file, main documentation
 - [docs/NARRATIVE_ENGINE_DOCUMENTATION.md](docs/NARRATIVE_ENGINE_DOCUMENTATION.md) - How narrative generation works
+- [docs/INTENT_DISAMBIGUATION.md](docs/INTENT_DISAMBIGUATION.md) - Intent disambiguation correction for ambiguous titles
+- [docs/INTENT_DISAMBIGUATION_QUICK_REF.md](docs/INTENT_DISAMBIGUATION_QUICK_REF.md) - Quick reference for intent corrections
 - [docs/SCORE_NORMALIZATION.md](docs/SCORE_NORMALIZATION.md) - Score calculation methodology
 - [docs/WEIGHTINGS_QUICK_REFERENCE.md](docs/WEIGHTINGS_QUICK_REFERENCE.md) - Feature weighting reference
 
