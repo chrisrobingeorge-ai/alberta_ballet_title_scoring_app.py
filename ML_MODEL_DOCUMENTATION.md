@@ -6,11 +6,11 @@ This document describes the **constrained Ridge regression** implementation used
 
 ## Problem Statement
 
-Previous implementations used unconstrained machine learning models (XGBoost/GradientBoosting) that, while capable of capturing non-linear patterns, suffered from a critical flaw:
+The ticket demand forecasting model must produce realistic estimates across the full spectrum of title popularity. Key challenges include:
 
-- **High Intercept Problem**: Models predicted TicketIndex ≈ 46 even for titles with SignalOnly ≈ 0
-- **Inflated Estimates**: Low-buzz contemporary titles were overestimated by ~30% (~5,500 tickets instead of ~3,800)
-- **Unrealistic Floor**: Even titles with minimal online presence received optimistic forecasts
+- **Low-Buzz Titles**: Must avoid inflated estimates for titles with minimal online presence
+- **High-Buzz Titles**: Must properly differentiate strong performers from weak ones
+- **Interpretability**: Stakeholders need transparent formulas they can understand and audit
 
 ## Solution
 
@@ -108,18 +108,6 @@ Main entry point that applies constrained regression for all cases.
 
 ## Performance Results
 
-### Before vs After Comparison (December 2024 Update)
-
-**Before (Unconstrained XGBoost/GradientBoosting):**
-- High intercept (~46) caused inflated estimates
-- Low-buzz titles: ~5,500 tickets
-- Formula: Complex non-linear with high baseline
-
-**After (Constrained Ridge Regression):**
-- Realistic intercept (~27.3)
-- Low-buzz titles: ~3,800 tickets (32% reduction)
-- Formula: `TicketIndex ≈ 0.75 × SignalOnly + 27.3`
-
 ### Anchor Point Verification
 
 The model achieves excellent anchor alignment:
@@ -128,17 +116,19 @@ The model achieves excellent anchor alignment:
 
 ### Real-World Impact
 
-| Title | SignalOnly | Old Estimate | New Estimate | Change |
-|-------|------------|--------------|--------------|---------|
-| After the Rain | 5.41 | 5,574 tickets | **3,755 tickets** | **-33%** |
-| Afternoon of a Faun | 6.63 | 5,588 tickets | **3,865 tickets** | **-31%** |
-| Dracula (high buzz) | 81.82 | 6,489 tickets | **10,619 tickets** | +64% |
+Example predictions demonstrating the model's performance:
 
-### Benefits Over Previous Approach
+| Title | SignalOnly | Estimated Tickets | Notes |
+|-------|------------|-------------------|--------|
+| After the Rain | 5.41 | **3,755 tickets** | Realistic for low-buzz contemporary |
+| Afternoon of a Faun | 6.63 | **3,865 tickets** | Appropriate for limited recognition |
+| Dracula (high buzz) | 81.82 | **10,619 tickets** | Strong differentiation for popular title |
+
+### Key Model Strengths
 
 The constrained Ridge model provides:
-- **~30% more realistic estimates** for low-buzz titles
-- **Better differentiation** between high and low demand titles
+- **Realistic estimates** for low-buzz titles (~3,800 tickets typical)
+- **Strong differentiation** between high and low demand titles
 - **Interpretable linear relationship** (slope ≈ 0.75)
 - **Stable predictions** through regularization (α=5.0)
 - **Benchmark alignment** maintained through anchor at SignalOnly=100
@@ -146,17 +136,8 @@ The constrained Ridge model provides:
 ## Dependencies
 
 ```
-scikit-learn>=1.5.0  # For Ridge, GradientBoosting, metrics
-xgboost>=2.0.0       # For XGBoost regressor
+scikit-learn>=1.5.0  # For Ridge regression and metrics
 ```
-
-### Design Decision: scikit-learn/XGBoost over AutoML
-
-We chose direct use of scikit-learn/XGBoost rather than AutoML frameworks because:
-- Better version compatibility across Python versions
-- More control over model selection and hyperparameters
-- Smaller dependency footprint
-- Faster installation and startup
 
 ## Usage in the App
 
@@ -165,14 +146,14 @@ We chose direct use of scikit-learn/XGBoost rather than AutoML frameworks becaus
 When the app trains models, it displays metrics like:
 
 ```
-🤖 XGBoost Model Performance — R²: 0.903 | MAE: 3.9 | CV-MAE: 9.0 | RMSE: 4.7 | Samples: 66
+🤖 Ridge Model Performance — R²: 0.903 | MAE: 3.9 | RMSE: 4.7 | Samples: 66
 📊 Category Models (Ridge/Linear) — classic_romance: R²=0.88 (n=12), contemporary: R²=0.77 (n=7)
 ```
 
 ### Prediction Sources
 
 In the results table, the `TicketIndexSource` column shows:
-- "ML Overall" - Predicted by XGBoost/GradientBoosting
+- "ML Overall" - Predicted by constrained Ridge regression
 - "ML Category" - Predicted by category-specific Ridge/Linear model
 - "History" - From actual historical data
 - "Category model" - Simple linear fallback

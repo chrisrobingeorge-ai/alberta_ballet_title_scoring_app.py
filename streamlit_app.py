@@ -254,15 +254,14 @@ def _plain_language_overview_text() -> list:
     ))
     out.append(SP(1, 8))
 
-    # Paragraph 5: Premiere vs remount handling and XGBoost
+    # Paragraph 5: Premiere vs remount handling and Ridge regression
     out.append(P(
         "Distinguishing premieres from remounts is fundamental to the model's logic. Productions returning after several "
         "years may benefit from renewed interest; those remounted quickly may face modest audience fatigue. The system "
         "quantifies these dynamics through timing features that capture years since last performance. All feature engineering "
-        "feeds into an <b>XGBoost regression model</b>—a gradient-boosted decision tree algorithm that learns nonlinear "
-        "relationships between visibility signals, category membership, timing patterns, and observed ticket sales. "
-        "XGBoost's tree-based structure naturally handles interactions between features (such as how seasonality effects "
-        "differ by category) without requiring manual specification of these relationships.",
+        "feeds into a <b>constrained Ridge regression model</b>—a regularised linear model enhanced with anchor points that "
+        "enforce realistic bounds. The model learns the relationship between visibility signals, category membership, timing patterns, "
+        "and observed ticket sales, with built-in constraints preventing unrealistic predictions for low-buzz titles.",
         styles["body"],
     ))
     out.append(SP(1, 8))
@@ -294,7 +293,7 @@ def _plain_language_overview_text() -> list:
     # Paragraph 8: Summary and scope
     out.append(P(
         "These components—digital visibility measurement, historical demand translation, category and seasonal patterning, "
-        "premiere-remount distinctions, XGBoost nonlinear modelling, SHAP-driven explainability, and macroeconomic context—"
+        "premiere-remount distinctions, constrained Ridge regression, SHAP-driven explainability, and macroeconomic context—"
         "combine to form an empirically grounded forecasting system. The output is a calibrated Ticket Index and city-specific "
         "ticket estimates that support season planning, budgeting, and marketing prioritization. All forecasts should be "
         "interpreted as central expectations with inherent uncertainty; they enable informed scenario planning when combined "

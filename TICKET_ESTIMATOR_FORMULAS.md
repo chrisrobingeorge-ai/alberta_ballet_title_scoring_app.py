@@ -452,8 +452,8 @@ demand:
 
 ## 12. ML Model Variables
 
-### XGBoost Feature Set (Safe Model)
-Features used in the trained XGBoost model:
+### Ridge Regression Feature Set
+Features used in the trained constrained Ridge regression model:
 
 | Feature | Description | Allowed |
 |---------|-------------|---------|

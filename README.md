@@ -6,7 +6,7 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 
 ## Features
 
-- **Advanced ML Predictions**: Uses XGBoost and scikit-learn for accurate ticket projections
+- **Advanced ML Predictions**: Uses constrained Ridge regression for accurate ticket projections
 - **Multi-Factor Scoring**: Combines Wikipedia, Google Trends, YouTube, and chartmetric metrics
 - **Seasonality Adjustment**: Accounts for performance timing and repeat effects
 - **City-Specific Analysis**: Separate projections for Calgary and Edmonton
@@ -66,7 +66,7 @@ make full-pipeline
 This will:
 1. Build the leak-free modelling dataset
 2. Run time-aware backtesting to evaluate prediction methods
-3. Train the final XGBoost model
+3. Train the final Ridge regression model
 
 All outputs are organized in a timestamped directory under `results/<timestamp>/`.
 
@@ -125,10 +125,10 @@ This produces:
 
 #### Step 2: Train Model
 
-Trains XGBoost with time-aware cross-validation:
+Trains constrained Ridge regression with time-aware cross-validation:
 
 ```bash
-python scripts/train_safe_model.py --tune --save-shap
+python scripts/train_safe_model.py --save-shap
 ```
 
 Outputs:
@@ -209,15 +209,15 @@ print(result)
 
 ## Machine Learning Models
 
-The app uses advanced regression models to improve prediction accuracy:
+The app uses a constrained Ridge regression model for ticket demand predictions:
 
-- **XGBoost** for overall predictions (≥8 historical samples)
-- **Gradient Boosting** for medium datasets (5-7 samples)
-- **Ridge Regression** for category-specific models
+- **Constrained Ridge Regression** with anchor points ensuring realistic bounds
 - **k-NN Fallback** for cold-start titles without history
-- Automatic fallback to simple linear regression for small datasets
+- Automatic fallback to simple linear regression when needed
 
-Performance metrics are displayed in the UI including R², MAE, and cross-validated scores.
+The Ridge model uses L2 regularisation (α=5.0) and synthetic anchor points (SignalOnly=0→TicketIndex=25, SignalOnly=100→TicketIndex=100) to prevent unrealistic predictions.
+
+Performance metrics are displayed in the UI including anchor validation and prediction accuracy.
 
 See [ML_MODEL_DOCUMENTATION.md](ML_MODEL_DOCUMENTATION.md) for detailed technical information.
 
@@ -260,7 +260,6 @@ The application uses **114 unique ballet/performance titles** in `data/productio
 - pandas 2.0+
 - numpy 1.21+
 - scikit-learn 1.4+
-- xgboost 2.0+
 - matplotlib 3.0+
 - joblib 1.3+
 
@@ -274,9 +273,6 @@ pip install rapidfuzz
 
 # For SHAP explanations (training scripts)
 pip install shap
-
-# For LightGBM alternative to XGBoost
-pip install lightgbm
 ```
 
 ## Project Structure
