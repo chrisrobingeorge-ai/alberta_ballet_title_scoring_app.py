@@ -207,7 +207,7 @@ From the target correlation analysis (35 shows with historical sales):
 
 Based on the diagnostics, the **effective weighting hierarchy** is:
 
-1. **Base signal** (wiki/trends/spotify/youtube) - Foundation
+1. **Base signal** (wiki/trends/chartmetric/youtube) - Foundation
 2. **Economics** - Meaningful predictor (+10% correlation improvement)
 3. **Live Analytics** - Minor predictor (+0.8% correlation improvement)
 4. **Stone Olafson** - Cosmetic adjustment (0% correlation improvement)

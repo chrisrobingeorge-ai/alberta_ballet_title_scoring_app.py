@@ -64,7 +64,7 @@ Added a dropdown in the helper app to select normalization method:
 
 ### 3. Automatic Reference Distribution Loading
 
-The helper now automatically loads `data/productions/baselines.csv` to get the reference distribution for each signal (wiki, trends, youtube, spotify).
+The helper now automatically loads `data/productions/baselines.csv` to get the reference distribution for each signal (wiki, trends, youtube, chartmetric).
 
 ## Verification Results
 
@@ -130,7 +130,7 @@ Based on analysis of all 288 titles in `baselines.csv`:
 | wiki | 0.87 | 100.00 | 57.05 | 57.00 | 17.87 |
 | trends | 2.00 | 82.00 | 25.48 | 24.00 | 16.62 |
 | youtube | 0.00 | 100.00 | 65.79 | 62.00 | 14.51 |
-| spotify | 0.00 | 100.00 | 53.67 | 52.50 | 19.19 |
+| chartmetric | 0.00 | 100.00 | 53.67 | 52.50 | 19.19 |
 
 **Note:** The `trends` signal only ranges from 2-82, not 0-100. This is normal - Google Trends data rarely hits the full 0-100 range. The normalization maps this range to 0-100 for consistency.
 

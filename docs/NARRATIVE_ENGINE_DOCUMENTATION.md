@@ -30,10 +30,10 @@ Each title explanation follows a consistent 5-paragraph structure:
 - Title, month, and category identification
 - Familiarity score interpretation (0-100+ scale)
 - Motivation score interpretation (0-100+ scale)
-- Digital platform signal sources (Wikipedia, Google, YouTube, Spotify)
+- Digital platform signal sources (Wikipedia, Google, YouTube, chartmetric)
 
 **Example:**
-> This title registers a **Familiarity** score of 135.0 (exceptionally high) and a **Motivation** score of 115.0 (strong), reflecting strong public visibility across Wikipedia page traffic, Google search patterns, YouTube viewing behavior, and Spotify streaming activity.
+> This title registers a **Familiarity** score of 135.0 (exceptionally high) and a **Motivation** score of 115.0 (strong), reflecting strong public visibility across Wikipedia page traffic, Google search patterns, YouTube viewing behavior, and chartmetric streaming activity.
 
 ### 2. Historical & Category Context
 - Premiere vs remount identification

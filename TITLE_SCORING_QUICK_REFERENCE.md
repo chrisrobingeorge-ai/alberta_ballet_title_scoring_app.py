@@ -27,7 +27,7 @@ streamlit run title_scoring_helper.py
 | **wiki** | Wikipedia pageviews | More awareness/interest |
 | **trends** | Google search interest | Current demand |
 | **youtube** | Video views | Visual appeal |
-| **spotify** | Music popularity | Soundtrack recognition |
+| **chartmetric** | Music popularity | Soundtrack recognition |
 
 ### Step 3: Forecasts
 
@@ -80,7 +80,7 @@ streamlit run title_scoring_helper.py
 Add in sidebar for better accuracy (optional):
 
 - **YouTube**: [Google Cloud Console](https://console.cloud.google.com/)
-- **Spotify**: [Developer Dashboard](https://developer.spotify.com/dashboard)
+- **chartmetric**: [Developer Dashboard](https://developer.chartmetric.com/dashboard)
 
 Without keys? App uses fallback values.
 

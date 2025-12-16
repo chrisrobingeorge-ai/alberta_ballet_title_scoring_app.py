@@ -30,7 +30,7 @@ The trained model (`model_xgb_remount_postcovid.joblib`) is an XGBoost model wra
 The model expects 35 features divided into:
 
 **Baseline Signals (4):**
-- `wiki`, `trends`, `youtube`, `spotify` - External demand signals
+- `wiki`, `trends`, `youtube`, `chartmetric` - External demand signals
 
 **Historical Features (7):**
 - `prior_total_tickets`, `prior_run_count`, `ticket_median_prior`
@@ -56,7 +56,7 @@ Top features by importance (from trained model):
 1. `prior_total_tickets` (72.8%) - Historical ticket sales
 2. `prior_run_count` (18.8%) - Number of previous runs
 3. `ticket_median_prior` (6.8%) - Median historical tickets
-4. `spotify` (0.9%) - Spotify popularity
+4. `chartmetric` (0.9%) - chartmetric popularity
 5. `youtube` (0.4%) - YouTube views
 
 **Note:** When using `title_scoring_helper.py` with minimal features (only baseline signals), the model will default missing features to 0, resulting in conservative predictions based primarily on external signals rather than historical data.
@@ -85,7 +85,7 @@ python scripts/build_modelling_dataset.py
 python scripts/train_safe_model.py
 
 # 3. Test the model
-python -c "from ml.scoring import score_runs_for_planning; import pandas as pd; score_runs_for_planning(pd.DataFrame([{'wiki': 50, 'trends': 50, 'youtube': 50, 'spotify': 50, 'genre': 'classical', 'season': '2024-25'}]))"
+python -c "from ml.scoring import score_runs_for_planning; import pandas as pd; score_runs_for_planning(pd.DataFrame([{'wiki': 50, 'trends': 50, 'youtube': 50, 'chartmetric': 50, 'genre': 'classical', 'season': '2024-25'}]))"
 
 # 4. Commit and push (model file is now tracked)
 git add models/model_xgb_remount_postcovid.joblib

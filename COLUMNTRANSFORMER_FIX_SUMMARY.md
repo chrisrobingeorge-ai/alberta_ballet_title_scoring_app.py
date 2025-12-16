@@ -48,7 +48,7 @@ feature_rows.append({
     "wiki": row["wiki"],
     "trends": row["trends"],
     "youtube": row["youtube"],
-    "spotify": row["spotify"],
+    "chartmetric": row["chartmetric"],
     "genre": default_genre,      # ✗ WRONG
     "season": default_season,     # ✗ WRONG
 })
@@ -61,7 +61,7 @@ feature_rows.append({
     "wiki": row["wiki"],
     "trends": row["trends"],
     "youtube": row["youtube"],
-    "spotify": row["spotify"],
+    "chartmetric": row["chartmetric"],
     "category": default_genre,           # ✓ CORRECT
     "opening_season": default_season,    # ✓ CORRECT
 })
@@ -107,7 +107,7 @@ Regenerated `models/model_metadata.json` with the correct 35 features extracted 
 The model requires exactly **35 features**:
 
 ### Numeric Features (31)
-1. `wiki`, `trends`, `youtube`, `spotify` - External demand signals
+1. `wiki`, `trends`, `youtube`, `chartmetric` - External demand signals
 2. `prior_total_tickets`, `prior_run_count`, `ticket_median_prior`, `years_since_last_run` - Historical features
 3. `is_remount_recent`, `is_remount_medium`, `run_count_prior` - Remount features
 4. `month_of_opening`, `holiday_flag`, `opening_year`, `opening_month`, `opening_day_of_week` - Date features
@@ -128,7 +128,7 @@ The model requires exactly **35 features**:
 ### Before Fix
 ```python
 df_input = pd.DataFrame([{
-    'wiki': 80.0, 'trends': 60.0, 'youtube': 70.0, 'spotify': 75.0,
+    'wiki': 80.0, 'trends': 60.0, 'youtube': 70.0, 'chartmetric': 75.0,
     'genre': 'classical',  # ✗ Wrong name
     'season': '2025-26',   # ✗ Wrong name
 }])
@@ -141,7 +141,7 @@ print(df_prepared['opening_season'].values[0]) # Output: 'missing' ✗
 ### After Fix
 ```python
 df_input = pd.DataFrame([{
-    'wiki': 80.0, 'trends': 60.0, 'youtube': 70.0, 'spotify': 75.0,
+    'wiki': 80.0, 'trends': 60.0, 'youtube': 70.0, 'chartmetric': 75.0,
     'category': 'classical',     # ✓ Correct name
     'opening_season': '2025-26', # ✓ Correct name
 }])

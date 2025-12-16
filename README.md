@@ -7,7 +7,7 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 ## Features
 
 - **Advanced ML Predictions**: Uses XGBoost and scikit-learn for accurate ticket projections
-- **Multi-Factor Scoring**: Combines Wikipedia, Google Trends, YouTube, and Spotify metrics
+- **Multi-Factor Scoring**: Combines Wikipedia, Google Trends, YouTube, and chartmetric metrics
 - **Seasonality Adjustment**: Accounts for performance timing and repeat effects
 - **City-Specific Analysis**: Separate projections for Calgary and Edmonton
 - **Revenue Forecasting**: Estimates single ticket revenue by city
@@ -647,7 +647,7 @@ To get started, you need these data files in the `data/` directory:
 | File | Purpose | Minimum Columns |
 |------|---------|-----------------|
 | `data/productions/history_city_sales.csv` | Historical ticket sales | `Show Title`, `Single Tickets - Calgary`, `Single Tickets - Edmonton` |
-| `data/productions/baselines.csv` | Title signal scores | `title`, `wiki`, `trends`, `youtube`, `spotify`, `category`, `gender`, `source` |
+| `data/productions/baselines.csv` | Title signal scores | `title`, `wiki`, `trends`, `youtube`, `chartmetric`, `category`, `gender`, `source` |
 
 Additionally, these config files should exist in `config/`:
 - `ml_feature_inventory_alberta_ballet.csv`
@@ -905,7 +905,7 @@ The app uses optional external APIs for fetching title signals:
 | API | Environment Variable | Purpose |
 |-----|---------------------|---------|
 | YouTube Data API | `YOUTUBE_API_KEY` or `st.secrets["youtube_api_key"]` | Fetch video view counts |
-| Spotify API | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Track popularity scores |
+| chartmetric API | `chartmetric_CLIENT_ID`, `chartmetric_CLIENT_SECRET` | Track popularity scores |
 | Google Trends | (No key required, uses pytrends) | Search interest data |
 | PredictHQ | `PREDICTHQ_API_KEY` | Event demand intelligence |
 
