@@ -724,9 +724,26 @@ def _narrative_for_row(r: dict) -> str:
     """
     try:
         from ml.title_explanation_engine import build_title_explanation
+        from ml.intent_disambiguation import apply_intent_disambiguation
         
         # Convert row dict to format expected by explanation engine
         title_metadata = dict(r)
+        
+        # Apply intent disambiguation correction before generating narrative
+        # This adjusts for inflated demand signals in ambiguous titles (e.g., "Cinderella")
+        try:
+            title_metadata = apply_intent_disambiguation(
+                title_metadata,
+                apply_correction=True,
+                verbose=False
+            )
+            # Use corrected values for narrative
+            title_metadata["Motivation"] = title_metadata.get("Motivation_corrected", title_metadata.get("Motivation"))
+            title_metadata["TicketIndex used"] = title_metadata.get("TicketIndex_corrected", title_metadata.get("TicketIndex used"))
+            title_metadata["EstimatedTickets_Final"] = title_metadata.get("EstimatedTickets_corrected", title_metadata.get("EstimatedTickets_Final"))
+        except (KeyError, ValueError):
+            # If correction fails, continue with original values
+            pass
         
         # Call the explanation engine
         narrative = build_title_explanation(
@@ -3256,6 +3273,14 @@ def compute_scores_and_store(
     # that reduced valid predictions by up to 33%. Region factor is retained and applied
     # via REGION_MULT during score calculation.
     decay_pcts, decay_factors, est_after_decay = [], [], []
+    
+    # Import intent disambiguation correction
+    try:
+        from ml.intent_disambiguation import apply_intent_disambiguation
+        intent_correction_available = True
+    except ImportError:
+        intent_correction_available = False
+    
     for _, r in df.iterrows():
         raw_est = r.get("EstimatedTickets", 0.0)
         est_base = float(raw_est) if pd.notna(raw_est) else 0.0
@@ -3272,6 +3297,42 @@ def compute_scores_and_store(
     df["ReturnDecayPct"] = decay_pcts
     df["ReturnDecayFactor"] = decay_factors
     df["EstimatedTickets_Final"] = est_after_decay
+    
+    # 11b) Apply intent disambiguation correction to adjust for inflated signals
+    # This corrects titles like "Cinderella" where search data includes movies, books, etc.
+    if intent_correction_available:
+        corrected_rows = []
+        for idx, r in df.iterrows():
+            try:
+                # Create metadata dict for correction
+                metadata = {
+                    "Title": r.get("Title", ""),
+                    "Category": r.get("Category", ""),
+                    "Motivation": r.get("Motivation", 0.0),
+                    "TicketIndex used": r.get("TicketIndex used", 0.0),
+                    "EstimatedTickets_Final": r.get("EstimatedTickets_Final", 0.0)
+                }
+                
+                # Apply correction
+                corrected = apply_intent_disambiguation(metadata, apply_correction=True, verbose=False)
+                
+                # Update DataFrame with corrected values
+                df.at[idx, "Motivation_corrected"] = corrected.get("Motivation_corrected")
+                df.at[idx, "TicketIndex_corrected"] = corrected.get("TicketIndex_corrected")
+                df.at[idx, "EstimatedTickets_corrected"] = corrected.get("EstimatedTickets_corrected")
+                df.at[idx, "IntentCorrectionApplied"] = corrected.get("IntentCorrectionApplied", False)
+                df.at[idx, "Motivation_penalty_pct"] = corrected.get("Motivation_penalty_pct", 0.0)
+                
+                # Replace final estimate with corrected value
+                if corrected.get("IntentCorrectionApplied", False):
+                    df.at[idx, "EstimatedTickets_Final"] = int(corrected["EstimatedTickets_corrected"])
+                    df.at[idx, "TicketIndex used"] = corrected["TicketIndex_corrected"]
+                    df.at[idx, "Motivation"] = corrected["Motivation_corrected"]
+                    
+            except (KeyError, ValueError):
+                # If correction fails for this row, keep original values
+                df.at[idx, "IntentCorrectionApplied"] = False
+                df.at[idx, "Motivation_penalty_pct"] = 0.0
 
     # 12) City split (learned title/category → fallback)
     cal_share, edm_share = [], []
@@ -3369,6 +3430,12 @@ def render_results():
         st.caption(f"Seasonality: **ON** · Run month: **{run_month_name}**")
     else:
         st.caption("Seasonality: **OFF**")
+    
+    # Intent disambiguation status
+    if "IntentCorrectionApplied" in df.columns:
+        corrected_count = df["IntentCorrectionApplied"].sum()
+        if corrected_count > 0:
+            st.caption(f"🎯 Intent Disambiguation: **{int(corrected_count)} title(s)** corrected for search ambiguity (e.g., 'Cinderella' includes Disney movies)")
 
     # Add letter score if missing
     def _assign_score(v: float) -> str:
@@ -3424,6 +3491,8 @@ def render_results():
         "TicketIndex used", "TicketIndexSource", "FutureSeasonalityFactor",
         # Composite & Final Tickets (Section 11)
         "Composite", "EstimatedTickets_Final",
+        # Intent Disambiguation (if applied)
+        "IntentCorrectionApplied", "Motivation_penalty_pct",
         # City Split (Section 7)
         "YYC_Singles", "YEG_Singles",
         # Diagnostic & Contextual Fields (Section 14)
@@ -3470,6 +3539,8 @@ def render_results():
             # Composite & Tickets
             "Composite": "{:.1f}",
             "EstimatedTickets_Final": "{:,.0f}",
+            # Intent Disambiguation
+            "Motivation_penalty_pct": "{:.0%}",
             # City Split
             "YYC_Singles": "{:,.0f}",
             "YEG_Singles": "{:,.0f}",
