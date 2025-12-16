@@ -776,6 +776,18 @@ marketing_defaults:
 | `use_for_cold_start` | Use ML model for new titles | true |
 | `confidence_threshold` | R² threshold for fallback to KNN | 0.6 |
 
+### Benchmark Settings (`benchmark`)
+
+The benchmark determines the ticket scale for predictions. The system converts TicketIndex (0-100) to estimated tickets using:
+
+**Formula:** `EstimatedTickets = (TicketIndex / 100) × BenchmarkTickets`
+
+| Key | Description | Default | Notes |
+|-----|-------------|---------|-------|
+| `benchmark_tickets` | Target tickets at TicketIndex=100 | **2754** | Set to P60 (60th percentile) of single-run median performance. This replaced the legacy Cinderella benchmark (11,976) which inflated predictions by ~4.35×. |
+
+**Important:** The benchmark only affects the ticket scale, not the TicketIndex mapping. The Ridge model parameters (slope=0.739, intercept=26.065) and anchors (TI(0)≈25, TI(100)≈100) remain unchanged.
+
 ### Security Settings (`security`)
 
 | Key | Description | Default |

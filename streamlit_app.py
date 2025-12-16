@@ -88,7 +88,7 @@ def load_config(path: str = "config.yaml"):
     global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
     global K_SHRINK, MINF, MAXF, N_MIN
     # New robust forecasting settings
-    global ML_CONFIG, KNN_CONFIG, CALIBRATION_CONFIG
+    global ML_CONFIG, KNN_CONFIG, CALIBRATION_CONFIG, BENCHMARK_CONFIG
 
     if yaml is None:
         # PyYAML not installed – just use hard-coded defaults
@@ -126,7 +126,13 @@ def load_config(path: str = "config.yaml"):
     MAXF = seas_cfg.get("max_factor", MAXF)
     N_MIN = seas_cfg.get("n_min", N_MIN)
 
-    # 6) New robust forecasting settings (opt-in)
+    # 6) Benchmark tickets for scaling TicketIndex to Tickets
+    BENCHMARK_CONFIG = cfg.get("benchmark", {
+        "benchmark_tickets": 2754,  # P60 median (realistic default)
+        "benchmark_title": "Cinderella"
+    })
+
+    # 7) New robust forecasting settings (opt-in)
     ML_CONFIG = cfg.get("model", {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True})
     KNN_CONFIG = cfg.get("knn", {"enabled": True, "k": 5})
     CALIBRATION_CONFIG = cfg.get("calibration", {"enabled": False, "mode": "global"})
@@ -135,6 +141,21 @@ def load_config(path: str = "config.yaml"):
 ML_CONFIG = {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True}
 KNN_CONFIG = {"enabled": True, "k": 5}
 CALIBRATION_CONFIG = {"enabled": False, "mode": "global"}
+BENCHMARK_CONFIG = {"benchmark_tickets": 2754, "benchmark_title": "Cinderella"}  # P60 median default
+
+def get_default_benchmark_tickets() -> float:
+    """
+    Get the default benchmark value for scaling TicketIndex to Tickets.
+    
+    Formula: Tickets = (TicketIndex / 100) × BenchmarkTickets
+    
+    Returns the configured benchmark_tickets value from BENCHMARK_CONFIG.
+    Default: 2754 (P60 single-run median, updated 2025-12-16)
+    
+    Note: This is the single source of truth for the benchmark multiplier.
+    The TicketIndex mapping (SignalOnly → TI) remains unchanged.
+    """
+    return float(BENCHMARK_CONFIG.get("benchmark_tickets", 2754))
 
 def _pct(v, places=0):
     try:
@@ -3120,9 +3141,11 @@ def compute_scores_and_store(
     )
     df["Composite"] = (1.0 - TICKET_BLEND_WEIGHT) * df["SignalOnly"] + TICKET_BLEND_WEIGHT * tickets_component
 
-    # 8) Estimated tickets (future month uses de-seasonalized benchmark)
-    bench_med_future = bench_med_deseason
-    df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * (bench_med_future or 1.0)).round(0)
+    # 8) Estimated tickets using configured benchmark (P60 = 2754 by default)
+    # Formula: Tickets = (TicketIndex / 100) × BenchmarkTickets
+    # This preserves the TicketIndex mapping while using realistic ticket scale
+    default_benchmark = get_default_benchmark_tickets()
+    df["EstimatedTickets"] = ((df["EffectiveTicketIndex"] / 100.0) * default_benchmark).round(0)
 
     # 10) Segment propensity + per-segment tickets
     bench_entry_for_mix = BASELINES[benchmark_title]

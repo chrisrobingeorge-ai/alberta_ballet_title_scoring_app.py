@@ -106,6 +106,17 @@ marketing_defaults:
 # ML Model & Prediction Settings (New Robust Forecasting Features)
 # ============================================================================
 
+# Benchmark tickets for scaling TicketIndex to estimated tickets
+# Tickets = (TicketIndex / 100) × benchmark_tickets
+# Updated 2025-12-16: P60 single-run median for realistic scaling
+benchmark:
+  benchmark_tickets: 2754  # P60 median (down from legacy 11,976 Cinderella total)
+  benchmark_title: "Cinderella"  # Reference title for TicketIndex=100
+  # Alternative benchmarks for scenario analysis:
+  # - P50 median: 2,225 tickets (more conservative)
+  # - P70 median: 3,041 tickets (moderately optimistic)
+  # - Cinderella total: 11,976 tickets (legacy, likely inflated)
+
 # Calibration settings for adjusting model predictions
 calibration:
   enabled: false           # Set to true to apply calibration to predictions
