@@ -3451,8 +3451,11 @@ def render_results():
     # Friendly columns for the table
     df_show = df.rename(columns={
         "TicketMedian": "TicketHistory",
-        "EffectiveTicketIndex": "TicketIndex used",
     }).copy()
+    
+    # Only rename EffectiveTicketIndex if TicketIndex used doesn't already exist
+    if "EffectiveTicketIndex" in df_show.columns and "TicketIndex used" not in df_show.columns:
+        df_show.rename(columns={"EffectiveTicketIndex": "TicketIndex used"}, inplace=True)
 
     def _to_month_name(v):
         try:
