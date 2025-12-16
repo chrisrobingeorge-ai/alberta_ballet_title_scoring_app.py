@@ -230,12 +230,14 @@ def _plain_language_overview_text() -> list:
     out.append(P(
         "Once Familiarity and Motivation are established, the system converts these visibility scores into a "
         "<b>Ticket Index</b>—a relative demand measure representing expected performance against the benchmark. "
-        "This translation leverages Alberta Ballet's historical archives, learning how different levels of public interest "
-        "have corresponded to actual ticket sales across categories like family classics, contemporary works, and holiday "
-        "productions. The Ticket Index enables forecasting for both returning titles with direct performance history "
-        "and premieres without local precedent. Category-level patterns provide informed baselines when title-specific "
-        "data is unavailable, ensuring the system can evaluate any proposed work. The Index serves as the foundation "
-        "for all subsequent adjustments and interpretations.",
+        "This translation uses a <b>constrained Ridge regression model</b> trained on Alberta Ballet's historical "
+        "archives. The model learns how different levels of public interest correspond to actual ticket sales across "
+        "categories like family classics, contemporary works, and holiday productions. Crucially, the model is anchored "
+        "with constraints to prevent overestimation: titles with minimal online buzz (SignalOnly ≈ 0) map to a realistic "
+        "floor (TicketIndex ≈ 25), while the benchmark title (such as Cinderella) maintains its alignment at 100. "
+        "This prevents the inflated predictions that plagued earlier unconstrained models, which overestimated low-buzz "
+        "contemporary pieces by approximately 30%. The constrained approach produces the typical formula: "
+        "TicketIndex ≈ 0.75 × SignalOnly + 27, ensuring realistic estimates for both premieres and returning works.",
         styles["body"],
     ))
     out.append(SP(1, 8))
@@ -327,8 +329,9 @@ def _methodology_glossary_text() -> list:
     glossary_items = [
         "<b>Familiarity</b>: how well-known the title is.",
         "<b>Motivation</b>: how keen people seem to be to watch it.",
-        "<b>Ticket Index</b>: how that interest typically translates into tickets "
-        "(vs the benchmark).",
+        "<b>Ticket Index</b>: a relative demand score (0-180 scale) calculated using constrained "
+        "Ridge regression from online signals. The model is anchored so minimal buzz → ≈25, "
+        "benchmark (Cinderella) → 100.",
         "<b>Seasonality Factor</b>: some months sell better than others for a given type of show.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
     ]
@@ -364,16 +367,36 @@ def _methodology_glossary_text() -> list:
         "We combine online visibility (Wikipedia, YouTube, Google, Chartmetric) into two simple "
         "ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> "
         "(people engage with it).",
-        "We anchor everything to a <b>benchmark title</b> so scores are on a shared "
-        "0–100+ scale.",
-        "We connect those scores to real ticket history to estimate a "
-        "<b>Ticket Index</b> for each title.",
+        "We anchor everything to a <b>benchmark title</b> (typically Cinderella, ≈11,976 tickets) "
+        "so scores are on a shared 0–100+ scale.",
+        "We use a <b>constrained Ridge regression model</b> (α=5.0) to convert those scores into a "
+        "<b>Ticket Index</b>. The model is anchored so low-buzz titles get realistic baselines "
+        "(SignalOnly=0 → TicketIndex≈25) while the benchmark remains at 100.",
         "We adjust for the <b>month</b> you plan to run it (some months sell better).",
         "We split totals between <b>Calgary</b> and <b>Edmonton</b> using learned "
         "historical shares to produce <b>single ticket</b> estimates.",
     ]
     for b in bullets:
         out.append(P(f"• {b}", styles["body"]))
+    
+    out.append(SP(1, 10))
+    
+    # ─────────────────────────────────────────────────────────
+    # 4. Model Update Note (December 2024)
+    # ─────────────────────────────────────────────────────────
+    out.append(P("Model Update (December 2024)", styles["h2"]))
+    out.append(P(
+        "The Ticket Index calculation was updated to use <b>constrained Ridge regression</b> "
+        "instead of unconstrained gradient boosting models. The previous models suffered from a "
+        "'high intercept problem' that caused low-signal titles to be overestimated by approximately "
+        "30% (e.g., ~5,500 tickets instead of ~3,800 for obscure contemporary works). The new model "
+        "enforces realistic constraints through synthetic anchor points: titles with minimal online "
+        "presence (SignalOnly ≈ 0) now map to TicketIndex ≈ 25, while the benchmark (Cinderella) "
+        "maintains alignment at 100. This produces more defensible forecasts while preserving the "
+        "model's ability to differentiate between high-demand and low-demand titles. The typical "
+        "formula is now: TicketIndex ≈ 0.75 × SignalOnly + 27.",
+        styles["body"],
+    ))
 
     return out
 

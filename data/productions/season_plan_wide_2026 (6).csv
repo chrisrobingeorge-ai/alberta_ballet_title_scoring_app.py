@@ -1,0 +1,48 @@
+Metric,Sep-26,Oct-26,Feb-27
+Title,After the Rain,Dracula,Afternoon of a Faun
+Category,contemporary,romantic_tragedy,contemporary
+PrimarySegment,Emerging Adults (18–34),Core Classical (F35–64),Emerging Adults (18–34)
+SecondarySegment,General Population,General Population,General Population
+WikiIdx,0.071227583,40.29133759,0.698048177
+TrendsIdx,0.013827336,73.28308208,0.0
+YouTubeIdx,0.0,61.55251142,0.031953747
+ChartmetricIdx,20.55555556,0.173230041,23.57793559
+Familiarity,6.781222278682794,95.80020432115406,8.503195821627124
+Motivation,4.034024621322441,67.83870789965242,4.761135031354667
+SignalOnly,5.4076234500026175,81.81945611040324,6.632165426490895
+LA_EngagementFactor,1.051,1.073,1.051
+LA_HighSpenderIdx,133.0,154.0,133.0
+LA_ActiveBuyerIdx,116.0,126.0,116.0
+LA_RepeatBuyerIdx,114.0,114.0,114.0
+LA_ArtsAttendIdx,122.0,125.0,122.0
+Econ_Sentiment,1.0853887852631579,1.0853887852631579,1.0853887852631579
+Econ_BocFactor,1.15,1.15,1.15
+Econ_AlbertaFactor,1.0423146421052631,1.0423146421052631,1.0423146421052631
+Econ_Sources,"boc, alberta","boc, alberta","boc, alberta"
+TicketHistory,,6531.0,
+TicketIndex_DeSeason_Used,46.45967483520508,49.36583021760634,46.45967483520508
+TicketIndex used,46.45967483520508,54.53179142487371,45.279384910504916
+TicketIndexSource,ML Overall,History,ML Overall
+FutureSeasonalityFactor,1.0,1.1046464970708612,0.9745953898970083
+HistSeasonalityFactor,,1.1046464970708612,
+Composite,25.933649142603848,65.29502595871648,26.545920130847986
+Score,E,C,E
+EstimatedTickets,5564,6531,5423
+EstimatedTickets_Final,5564,6531,5423
+YYC_Singles,3338,3919,3254
+YEG_Singles,2226,2612,2169
+CityShare_Calgary,0.6,0.6,0.6
+CityShare_Edmonton,0.4,0.4,0.4
+lead_gender,co,male,male
+dominant_audience_segment,Emerging Adults (18–34),Core Classical (F35–64),Emerging Adults (18–34)
+segment_weights,"{""General Population"": 0.242, ""Core Classical (F35\u201364)"": 0.2222, ""Family (Parents w/ kids)"": 0.2272, ""Emerging Adults (18\u201334)"": 0.3086}","{""General Population"": 0.25, ""Core Classical (F35\u201364)"": 0.275, ""Family (Parents w/ kids)"": 0.23, ""Emerging Adults (18\u201334)"": 0.245}","{""General Population"": 0.242, ""Core Classical (F35\u201364)"": 0.2222, ""Family (Parents w/ kids)"": 0.2272, ""Emerging Adults (18\u201334)"": 0.3086}"
+ticket_median_prior,,6531.0,
+prior_total_tickets,,6531.0,
+run_count_prior,0,1,0
+TicketIndex_Predicted,46.45967483520508,,46.45967483520508
+month_of_opening,9,10,2
+holiday_flag,False,False,False
+category_seasonality_factor,1.0,0.9879423802263061,1.0
+kNN_used,False,False,False
+kNN_neighbors,[],[],[]
+LA_Category,contemporary,romantic_tragedy,contemporary

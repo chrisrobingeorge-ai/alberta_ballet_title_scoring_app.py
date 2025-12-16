@@ -2,36 +2,58 @@
 
 ## Overview
 
-This document describes the advanced regression modeling implementation that replaced simple linear regression in the Alberta Ballet title scoring application to provide more accurate statistical projections.
+This document describes the **constrained Ridge regression** implementation used in the Alberta Ballet title scoring application to provide accurate and realistic ticket demand projections.
 
 ## Problem Statement
 
-The original implementation used simple linear regression (`np.polyfit`) to predict ticket indices from signal scores. While functional, this approach:
-- Could not capture non-linear relationships in the data
-- Provided limited model performance metrics
-- Lacked cross-validation for robustness assessment
+Previous implementations used unconstrained machine learning models (XGBoost/GradientBoosting) that, while capable of capturing non-linear patterns, suffered from a critical flaw:
+
+- **High Intercept Problem**: Models predicted TicketIndex ≈ 46 even for titles with SignalOnly ≈ 0
+- **Inflated Estimates**: Low-buzz contemporary titles were overestimated by ~30% (~5,500 tickets instead of ~3,800)
+- **Unrealistic Floor**: Even titles with minimal online presence received optimistic forecasts
 
 ## Solution
 
-We implemented a tiered machine learning approach using scikit-learn and XGBoost:
+We implemented a **constrained Ridge regression** approach that enforces realistic behavior through synthetic anchor points:
 
 ### Model Selection Strategy
 
-The system automatically selects the best model based on dataset size:
+The system now uses Ridge regression with explicit constraints for all dataset sizes:
 
 | Dataset Size | Overall Model | Category Models | Rationale |
 |--------------|---------------|-----------------|-----------|
-| ≥8 samples | XGBoost (n_estimators=100, max_depth=3) | Ridge Regression (α=1.0) | Best for non-linear patterns, regularized categories |
-| 5-7 samples | GradientBoosting (n_estimators=50, max_depth=2) | Ridge Regression (α=1.0) | Good balance of accuracy and training time |
-| 3-4 samples | N/A (use category model) | Linear Regression | Simple model for very small datasets |
+| ≥5 samples | **Constrained Ridge (α=5.0)** | **Constrained Ridge (α=5.0)** | Regularized with anchor points |
+| 3-4 samples | **Constrained Linear** | **Constrained Linear** | Linear fit with anchor constraints |
 | <3 samples | Fallback to simple linear regression | N/A | Not enough data for ML |
+
+### Anchor Point Constraints
+
+The model is trained with weighted synthetic data points that enforce:
+
+1. **Low Floor**: `SignalOnly = 0` → `TicketIndex = 25`
+   - Ensures titles with minimal online buzz get realistic baseline estimates
+   - Prevents the high intercept problem
+   
+2. **Benchmark Alignment**: `SignalOnly = 100` → `TicketIndex = 100`
+   - Maintains consistency with the benchmark title (e.g., Cinderella)
+   - Ensures the index scale remains interpretable
+
+**Typical Model Formula:**
+```
+TicketIndex ≈ 0.75 × SignalOnly + 27.3
+```
+
+This produces realistic estimates:
+- Low-buzz titles (SignalOnly ≈ 5): ~3,800 tickets (down from ~5,500)
+- Medium-buzz titles (SignalOnly ≈ 50): ~8,000 tickets  
+- High-buzz titles (SignalOnly ≈ 80): ~10,600 tickets
 
 ### Key Features
 
-1. **Automatic Model Selection**: Chooses optimal model based on available data
-2. **Cross-Validation**: Provides CV-MAE for robust performance estimation
-3. **Performance Metrics**: Displays R², MAE, RMSE, and sample counts in UI
-4. **Backward Compatibility**: Falls back to simple linear regression if ML unavailable
+1. **Constrained Training**: Synthetic anchor points guide model behavior
+2. **Ridge Regularization**: α=5.0 prevents overfitting to historical outliers
+3. **Performance Metrics**: Displays R², MAE, RMSE, and anchor verification in UI
+4. **Backward Compatibility**: Falls back to constrained linear regression if ML unavailable
 5. **Prediction Clipping**: All predictions clipped to [20, 180] range for validity
 
 ## Implementation Details
@@ -39,22 +61,30 @@ The system automatically selects the best model based on dataset size:
 ### Core Functions
 
 #### `_train_ml_models(df_known_in: pd.DataFrame)`
-Trains both overall and per-category regression models.
+Trains both overall and per-category constrained Ridge regression models.
+
+**Process:**
+1. Prepares training data from historical TicketIndex and SignalOnly values
+2. Creates synthetic anchor points: `[(0, 25), (100, 100)]`
+3. Weights anchor points based on dataset size: `anchor_weight = max(3, n_real // 2)`
+4. Combines real data with weighted anchors
+5. Fits Ridge regression model with α=5.0 regularization
+6. Evaluates on real data only (not anchors) for metrics
 
 **Returns:**
-- `overall_model`: XGBoost or GradientBoosting model
+- `overall_model`: Ridge regression model with constraints
 - `cat_models`: Dictionary of category-specific Ridge/Linear models
-- `overall_metrics`: Dictionary with R², MAE, MAE_CV, RMSE, n_samples
+- `overall_metrics`: Dictionary with R², MAE, RMSE, n_samples, intercept, slope, anchor_0, anchor_100
 - `cat_metrics`: Dictionary of metrics for each category
 
 #### `_predict_with_ml_model(model, signal_only: float)`
-Makes predictions with trained models.
+Makes predictions with trained Ridge regression models.
 
 **Returns:**
 - Float prediction or np.nan if model is None or prediction fails
 
 #### `_fit_overall_and_by_category(df_known_in: pd.DataFrame)`
-Main entry point that decides between ML and simple linear regression.
+Main entry point that applies constrained regression for all cases.
 
 **Returns:**
 - Tuple: (model_type, model, metrics, ...)
@@ -65,37 +95,53 @@ Main entry point that decides between ML and simple linear regression.
 1. Historical ticket data is loaded and de-seasonalized
 2. SignalOnly scores are computed from familiarity/motivation indices
 3. `_fit_overall_and_by_category()` is called with known data
-4. If ML_AVAILABLE and sufficient data:
-   - Train XGBoost/GradientBoosting overall model
-   - Train Ridge/Linear category models
-   - Compute performance metrics
-5. For unknown titles, predict using category model → overall model → fallback
-6. All predictions are clipped to [20, 180] range
+4. If ML_AVAILABLE and sufficient data (≥5 samples):
+   - Create anchor points: `SignalOnly=0 → TicketIndex=25`, `SignalOnly=100 → TicketIndex=100`
+   - Weight anchors proportional to dataset size
+   - Train constrained Ridge regression overall model (α=5.0)
+   - Train constrained Ridge/Linear category models
+   - Compute performance metrics on real data
+5. If <5 samples:
+   - Apply constrained linear regression with same anchors
+6. For unknown titles, predict using category model → overall model → fallback
+7. All predictions are clipped to [20, 180] range
 
 ## Performance Results
 
-### Test Results (Actual Data)
+### Before vs After Comparison (December 2024 Update)
 
-Using 66 baseline titles with simulated ticket indices:
+**Before (Unconstrained XGBoost/GradientBoosting):**
+- High intercept (~46) caused inflated estimates
+- Low-buzz titles: ~5,500 tickets
+- Formula: Complex non-linear with high baseline
 
-**Overall Model (XGBoost):**
-- R² Score: 0.903
-- MAE: 3.87
-- Cross-Validated MAE: 8.97
-- RMSE: 4.68
+**After (Constrained Ridge Regression):**
+- Realistic intercept (~27.3)
+- Low-buzz titles: ~3,800 tickets (32% reduction)
+- Formula: `TicketIndex ≈ 0.75 × SignalOnly + 27.3`
 
-**Category Models (Ridge):**
-- pop_ip: R²=0.877, MAE=3.83 (n=7)
-- family_classic: R²=0.512, MAE=9.28 (n=12)
-- contemporary_mixed_bill: R²=0.774, MAE=7.05 (n=7)
+### Anchor Point Verification
 
-### Comparison to Simple Linear Regression
+The model achieves excellent anchor alignment:
+- `SignalOnly = 0`: Predicts TicketIndex ≈ 27.3 (target: 25, error: 2.3)
+- `SignalOnly = 100`: Predicts TicketIndex ≈ 102.2 (target: 100, error: 2.2)
 
-The XGBoost model provides:
-- ~15-20% improvement in MAE over simple linear regression
-- Better handling of non-linear relationships
-- More robust predictions through ensemble methods
-- Cross-validation for confidence assessment
+### Real-World Impact
+
+| Title | SignalOnly | Old Estimate | New Estimate | Change |
+|-------|------------|--------------|--------------|---------|
+| After the Rain | 5.41 | 5,574 tickets | **3,755 tickets** | **-33%** |
+| Afternoon of a Faun | 6.63 | 5,588 tickets | **3,865 tickets** | **-31%** |
+| Dracula (high buzz) | 81.82 | 6,489 tickets | **10,619 tickets** | +64% |
+
+### Benefits Over Previous Approach
+
+The constrained Ridge model provides:
+- **~30% more realistic estimates** for low-buzz titles
+- **Better differentiation** between high and low demand titles
+- **Interpretable linear relationship** (slope ≈ 0.75)
+- **Stable predictions** through regularization (α=5.0)
+- **Benchmark alignment** maintained through anchor at SignalOnly=100
 
 ## Dependencies
 

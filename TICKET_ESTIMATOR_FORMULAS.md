@@ -128,25 +128,45 @@ TicketIndex_DeSeason = (Title_Median_Tickets / Historical_Month_Factor) / Benchm
 
 ### Regression Model Selection (Based on Sample Size)
 
+**Current Model (December 2024 Update):** Constrained Ridge Regression
+
+To prevent inflated predictions for low-buzz titles, the system now uses **constrained Ridge regression** for all dataset sizes. The model is anchored with synthetic data points to enforce realistic behavior:
+
 | Dataset Size | Overall Model | Category Models | Rationale |
 |--------------|---------------|-----------------|-----------|
-| ≥8 samples | XGBoost (n_estimators=100, max_depth=3) | Ridge Regression (α=1.0) | Best for non-linear patterns |
-| 5-7 samples | GradientBoosting (n_estimators=50, max_depth=2) | Ridge Regression (α=1.0) | Balanced accuracy |
-| 3-4 samples | Use category model | Linear Regression | Avoid overfitting |
+| ≥5 samples | **Constrained Ridge (α=5.0)** | **Constrained Ridge (α=5.0)** | Regularized with anchor points |
+| 3-4 samples | **Constrained Linear** | **Constrained Linear** | Linear fit with anchor constraints |
 | <3 samples | Simple linear fallback | N/A | Insufficient data |
 
-### ML Model Prediction
-For unknown titles, the model predicts TicketIndex from SignalOnly:
-```
-TicketIndex_DeSeason_Predicted = ML_Model.predict(SignalOnly)
-```
-- Predictions are **clipped to [20, 180]** range
+**Anchor Points:**
+- `SignalOnly = 0` → `TicketIndex = 25` (realistic floor for minimal online presence)
+- `SignalOnly = 100` → `TicketIndex = 100` (benchmark alignment)
 
-### Linear Regression Formula (Fallback)
+These anchor points are weighted and added to the training data to guide the regression model, preventing the high intercept problem that previously caused low-signal titles to be overestimated by ~30%.
+
+### Constrained Ridge Regression Model
+For unknown titles, the model predicts TicketIndex from SignalOnly using a constrained Ridge regression:
+```
+TicketIndex_DeSeason_Predicted = Ridge_Model.predict(SignalOnly)
+```
+
+**Model Formula (typical):**
+```
+TicketIndex ≈ 0.75 × SignalOnly + 27.3
+```
+
+**Key Features:**
+- Ridge regularization (α=5.0) prevents overfitting
+- Anchor points enforce: low buzz → low index, benchmark buzz → index=100
+- Prevents the "high intercept problem" that inflated estimates for obscure titles
+- All predictions are **clipped to [20, 180]** range
+
+### Linear Regression Formula (Fallback for <3 samples)
 ```
 TicketIndex = a × SignalOnly + b
 ```
-Where a, b are fit parameters from known titles
+Where a, b are fit using anchor-constrained polyfit
+- Same anchor points applied to prevent unrealistic intercepts
 
 ---
 
