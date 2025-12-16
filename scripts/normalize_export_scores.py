@@ -2,7 +2,7 @@
 """
 Normalize Export Scores
 
-This script normalizes external signal scores (wiki, trends, youtube, spotify)
+This script normalizes external signal scores (wiki, trends, youtube, chartmetric)
 from a new export CSV by aligning them to the baseline distribution using
 z-score normalization.
 

@@ -635,7 +635,7 @@ if __name__ == "__main__":
         "wiki": [80, 95, 86, 74, 77],
         "trends": [18, 45, 32, 14, 30],
         "youtube": [71, 88, 80, 62, 70],
-        "spotify": [71, 75, 80, 62, 70],
+        "chartmetric": [71, 75, 80, 62, 70],
         "ticket_median": [9000, 12000, 8500, 6000, 7500],
         "last_run_date": ["2023-10-15", "2023-12-01", "2024-02-14", "2023-03-10", "2023-09-20"]
     })
@@ -649,7 +649,7 @@ if __name__ == "__main__":
     knn.build_index(test_data, outcome_col="ticket_median", last_run_col="last_run_date")
     
     # Test prediction
-    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "spotify": 65}
+    new_show = {"wiki": 78, "trends": 25, "youtube": 75, "chartmetric": 65}
     print(f"New show baseline: {new_show}")
     
     pred, neighbors = knn.predict(new_show, return_neighbors=True)
@@ -667,11 +667,11 @@ if __name__ == "__main__":
         "wiki": [95, 80, 77, 86, 74],
         "trends": [45, 20, 30, 32, 14],
         "youtube": [88, 100, 70, 80, 62],
-        "spotify": [75, 72, 70, 80, 62],
+        "chartmetric": [75, 72, 70, 80, 62],
         "category": ["family_classic", "family_classic", "classic_romance", "romantic_tragedy", "romantic_tragedy"]
     })
     
-    query = {"wiki": 85, "trends": 35, "youtube": 95, "spotify": 70}
+    query = {"wiki": 85, "trends": 35, "youtube": 95, "chartmetric": 70}
     similar = find_similar_titles(query, reference_data, k=3)
     print(f"\nQuery: {query}")
     print("\nMost similar titles:")

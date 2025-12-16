@@ -4,7 +4,7 @@ num__ticket_median_prior,tree,0.09412218630313873,
 num__trends,tree,0.005287693813443184,
 num__youtube,tree,0.004393182694911957,
 num__wiki,tree,0.002486167009919882,
-num__spotify,tree,0.0,
+num__chartmetric,tree,0.0,
 num__prior_run_count,tree,0.0,
 num__years_since_last_run,tree,0.0,
 num__is_remount_recent,tree,0.0,
@@ -29,7 +29,7 @@ ticket_median_prior,permutation,0.08161820598773167,0.015793275480293564
 wiki,permutation,0.03327250421876915,0.011333570433509434
 youtube,permutation,0.0003113748233724789,0.00016056161266007576
 trends,permutation,1.1967601975804154e-05,5.45566257305057e-06
-spotify,permutation,0.0,0.0
+chartmetric,permutation,0.0,0.0
 prior_run_count,permutation,0.0,0.0
 years_since_last_run,permutation,0.0,0.0
 is_remount_recent,permutation,0.0,0.0
