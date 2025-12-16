@@ -1695,13 +1695,56 @@ except Exception:
 # -------------------------
 
 BASELINES: dict[str, dict] = {}
+CHARTMETRIC_USE_CASE: dict[str, dict] = {}
+
+def load_chartmetric_use_case(path: str = "data/productions/use_case_chartmetrics.csv") -> None:
+    """
+    Load chartmetric use case data with motivation weights.
+    
+    Expected columns (case-insensitive):
+        title, use, multiplier, score, chartmetric_search_term, notes
+    """
+    global CHARTMETRIC_USE_CASE
+    
+    try:
+        df = pd.read_csv(path)
+    except Exception as e:
+        st.warning(f"Could not load chartmetric use case CSV at '{path}': {e}")
+        CHARTMETRIC_USE_CASE = {}
+        return
+    
+    # Normalize column names
+    colmap = {c.lower(): c for c in df.columns}
+    required = {"title", "multiplier"}
+    missing = [c for c in required if c not in colmap]
+    if missing:
+        st.warning(f"Chartmetric use case CSV is missing required columns: {', '.join(missing)}")
+        CHARTMETRIC_USE_CASE = {}
+        return
+    
+    df[colmap["title"]] = df[colmap["title"]].astype(str).str.strip()
+    
+    use_case_data: dict[str, dict] = {}
+    for _, r in df.iterrows():
+        title = str(r[colmap["title"]]).strip()
+        if not title:
+            continue
+        use_case_data[title] = {
+            "multiplier": float(r[colmap["multiplier"]]),
+            "use": str(r[colmap["use"]]) if "use" in colmap else "UNKNOWN",
+        }
+    
+    CHARTMETRIC_USE_CASE = use_case_data
 
 def load_baselines(path: str = "data/productions/baselines.csv") -> None:
     """
     Load baseline familiarity/motivation inputs from CSV.
 
     Expected columns (case-insensitive):
-        title, wiki, trends, youtube, spotify, category, gender
+        title, wiki, trends, youtube, chartmetric, category, gender
+        
+    Note: The 'chartmetric' column is now combined with the use case multiplier
+    to create 'music_motivation_bonus' = chartmetric_score × multiplier
     """
     global BASELINES
 
@@ -1715,10 +1758,19 @@ def load_baselines(path: str = "data/productions/baselines.csv") -> None:
 
     # Normalize column names
     colmap = {c.lower(): c for c in df.columns}
-    required = {"title", "wiki", "trends", "youtube", "spotify", "category", "gender"}
+    
+    # Support both 'chartmetric' (current) and 'spotify' (legacy) column names
+    chartmetric_col = colmap.get("chartmetric") or colmap.get("spotify")
+    
+    required = {"title", "wiki", "trends", "youtube", "category", "gender"}
     missing = [c for c in required if c not in colmap]
     if missing:
         st.error(f"Baselines CSV is missing required columns: {', '.join(missing)}")
+        BASELINES = {}
+        return
+    
+    if not chartmetric_col:
+        st.error("Baselines CSV is missing 'chartmetric' or 'spotify' column")
         BASELINES = {}
         return
 
@@ -1729,18 +1781,31 @@ def load_baselines(path: str = "data/productions/baselines.csv") -> None:
         title = str(r[colmap["title"]]).strip()
         if not title:
             continue
+        
+        chartmetric_score = float(r[chartmetric_col])
+        
+        # Get the motivation multiplier from the use case data
+        multiplier = 0.25  # Default: USE WITH CAUTION
+        if title in CHARTMETRIC_USE_CASE:
+            multiplier = CHARTMETRIC_USE_CASE[title]["multiplier"]
+        
+        # Compute music_motivation_bonus
+        music_motivation_bonus = chartmetric_score * multiplier
+        
         baselines[title] = {
             "wiki":     float(r[colmap["wiki"]]),
             "trends":   float(r[colmap["trends"]]),
             "youtube":  float(r[colmap["youtube"]]),
-            "spotify":  float(r[colmap["spotify"]]),
+            "chartmetric":  chartmetric_score,  # Keep raw score for reference
+            "music_motivation_bonus": music_motivation_bonus,  # New weighted feature
             "category": str(r[colmap["category"]]),
             "gender":   str(r[colmap["gender"]]),
         }
 
     BASELINES = baselines
 
-# Load immediately so everything below can use BASELINES
+# Load use case data first, then baselines (so multipliers are available)
+load_chartmetric_use_case()
 load_baselines()
 
 SEGMENT_MULT = {
@@ -2039,15 +2104,37 @@ def fetch_live_for_unknown(title: str, yt_key: Optional[str], sp_id: Optional[st
 
     gender, category = infer_gender_and_category(title)
     yt_idx = _winsorize_youtube_to_baseline(category, yt_idx)
+    
+    # Compute music_motivation_bonus for unknown titles
+    # Use conservative default multiplier of 0.25 (USE WITH CAUTION)
+    music_motivation_bonus = sp_idx * 0.25
 
-    return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_idx, "spotify": sp_idx,
+    return {"wiki": wiki_idx, "trends": trends_idx, "youtube": yt_idx, 
+            "chartmetric": sp_idx, "music_motivation_bonus": music_motivation_bonus,
+            "spotify": sp_idx,  # Keep for backward compatibility
             "gender": gender, "category": category}
 
 # Scoring utilities
 def calc_scores(entry: Dict[str, float | str], seg_key: str, reg_key: str) -> Tuple[float,float]:
+    """
+    Calculate Familiarity and Motivation scores using the music_motivation_bonus feature.
+    
+    Formulas:
+    - Familiarity = 0.55 × Wiki + 0.30 × Trends + 0.15 × MusicMotivationBonus
+    - Motivation = 0.45 × YouTube + 0.25 × Trends + 0.15 × MusicMotivationBonus + 0.15 × Wiki
+    
+    The music_motivation_bonus replaces the raw chartmetric score and is computed as:
+    music_motivation_bonus = chartmetric_score × motivation_weight
+    where motivation_weight is based on the 'use' classification (1.0, 0.25, or 0.0)
+    """
     gender = entry["gender"]; cat = entry["category"]
-    fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + entry["spotify"] * 0.15
-    mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + entry["spotify"] * 0.15 + entry["wiki"] * 0.15
+    
+    # Use music_motivation_bonus if available, fallback to legacy 'spotify' field
+    music_bonus = entry.get("music_motivation_bonus", entry.get("spotify", 0.0))
+    
+    fam = entry["wiki"] * 0.55 + entry["trends"] * 0.30 + music_bonus * 0.15
+    mot = entry["youtube"] * 0.45 + entry["trends"] * 0.25 + music_bonus * 0.15 + entry["wiki"] * 0.15
+    
     seg = SEGMENT_MULT[seg_key]
     fam *= seg.get(gender,1.0) * seg.get(cat,1.0)
     mot *= seg.get(gender,1.0) * seg.get(cat,1.0)
@@ -2615,8 +2702,15 @@ def estimate_unknown_title(title: str) -> Dict[str, float | str]:
     tr   = float(np.clip(tr,   30.0, 120.0))
     yt   = float(np.clip(yt,   40.0, 140.0))
     sp   = float(np.clip(sp,   35.0, 120.0))
+    
+    # Compute music_motivation_bonus for estimated titles
+    # Use conservative default multiplier of 0.25 (USE WITH CAUTION)
+    music_motivation_bonus = sp * 0.25
 
-    return {"wiki": wiki, "trends": tr, "youtube": yt, "spotify": sp, "gender": gender, "category": category}
+    return {"wiki": wiki, "trends": tr, "youtube": yt, 
+            "chartmetric": sp, "music_motivation_bonus": music_motivation_bonus,
+            "spotify": sp,  # Keep for backward compatibility
+            "gender": gender, "category": category}
 
 def _train_ml_models(df_known_in: pd.DataFrame):
     """
@@ -2789,7 +2883,10 @@ def compute_scores_and_store(
             "Gender": entry["gender"], "Category": entry["category"],
             "FamiliarityRaw": fam_raw, "MotivationRaw": mot_raw,
             "WikiIdx": entry["wiki"], "TrendsIdx": entry["trends"],
-            "YouTubeIdx": entry["youtube"], "SpotifyIdx": entry["spotify"],
+            "YouTubeIdx": entry["youtube"], 
+            "ChartmetricIdx": entry.get("chartmetric", entry.get("spotify", 0.0)),
+            "MusicMotivationBonus": entry.get("music_motivation_bonus", 0.0),
+            "SpotifyIdx": entry.get("spotify", 0.0),  # Keep for backward compatibility
             "Source": src,
             # Diagnostic field: lead_gender for export
             "lead_gender": entry["gender"],
@@ -3724,7 +3821,7 @@ def render_results():
             # NOTE: ReturnDecayFactor and ReturnDecayPct removed - remount decay eliminated per audit
             metrics = [
                 "Title","Category","PrimarySegment","SecondarySegment",
-                "WikiIdx","TrendsIdx","YouTubeIdx","SpotifyIdx",
+                "WikiIdx","TrendsIdx","YouTubeIdx","ChartmetricIdx","MusicMotivationBonus",
                 "Familiarity","Motivation","SignalOnly",
                 # Live Analytics factors
                 "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",

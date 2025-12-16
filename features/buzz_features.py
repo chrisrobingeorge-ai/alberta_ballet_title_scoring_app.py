@@ -39,6 +39,31 @@ def load_baselines_data() -> pd.DataFrame:
     return df
 
 
+def load_chartmetric_use_case_data() -> pd.DataFrame:
+    """
+    Load chartmetric use case data with motivation weights.
+    
+    This file contains the mapping of titles to their chartmetric scores along with
+    a 'use' classification (USE, USE WITH CAUTION, DO NOT USE) and corresponding
+    multiplier weights (1.0, 0.25, 0.0).
+    
+    Returns:
+        DataFrame with columns: title, use, multiplier, score, chartmetric_search_term, notes
+    """
+    path = PRODUCTIONS_DIR / "use_case_chartmetrics.csv"
+    if not path.exists():
+        warnings.warn(f"Chartmetric use case data not found at {path}")
+        return pd.DataFrame()
+    
+    df = pd.read_csv(path)
+    
+    # Normalize title column for matching (lowercase, strip whitespace)
+    if 'title' in df.columns:
+        df['title_normalized'] = df['title'].str.lower().str.strip()
+    
+    return df
+
+
 def normalize_title(title: str) -> str:
     """
     Normalize a title for matching (lowercase, strip whitespace).
@@ -123,6 +148,44 @@ def compute_spotify_idx(value: float) -> float:
     return float(value)
 
 
+def compute_chartmetric_idx(value: float) -> float:
+    """
+    Compute Chartmetric engagement index.
+    
+    The raw value represents music track popularity and streaming metrics (0-100 scale).
+    
+    Args:
+        value: Raw Chartmetric score (0-100)
+        
+    Returns:
+        ChartmetricIdx normalized score (0-100)
+    """
+    if pd.isna(value):
+        return 0.0
+    return float(value)
+
+
+def compute_music_motivation_bonus(chartmetric_score: float, motivation_weight: float) -> float:
+    """
+    Compute music motivation bonus from chartmetric score and motivation weight.
+    
+    The motivation weight is derived from the 'use' classification:
+    - "USE" = 1.0 (full music motivation signal)
+    - "USE WITH CAUTION" = 0.25 (limited music motivation signal)
+    - "DO NOT USE" = 0.0 (no music motivation signal)
+    
+    Args:
+        chartmetric_score: Normalized Chartmetric score (0-100)
+        motivation_weight: Multiplier based on use classification (0.0, 0.25, or 1.0)
+        
+    Returns:
+        Music motivation bonus score (0-100)
+    """
+    if pd.isna(chartmetric_score) or pd.isna(motivation_weight):
+        return 0.0
+    return float(chartmetric_score) * float(motivation_weight)
+
+
 def add_buzz_features(
     df: pd.DataFrame, 
     title_column: str = 'show_title'
@@ -135,6 +198,8 @@ def add_buzz_features(
     - TrendsIdx: Google Trends search interest
     - YouTubeIdx: YouTube video engagement
     - SpotifyIdx: Spotify streaming popularity
+    - ChartmetricIdx: Music popularity from Chartmetric (raw score)
+    - MusicMotivationBonus: Chartmetric score weighted by motivation factor
     
     Args:
         df: DataFrame with show data
@@ -167,13 +232,24 @@ def add_buzz_features(
         df_out['TrendsIdx'] = 0.0
         df_out['YouTubeIdx'] = 0.0
         df_out['SpotifyIdx'] = 0.0
+        df_out['ChartmetricIdx'] = 0.0
+        df_out['MusicMotivationBonus'] = 0.0
         return df_out
+    
+    # Load chartmetric use case data
+    chartmetric_use = load_chartmetric_use_case_data()
     
     # Normalize titles for matching
     df_out['_title_normalized'] = df_out[title_column].apply(normalize_title)
     
     # Prepare baselines data for merging
-    baselines_subset = baselines[['title_normalized', 'wiki', 'trends', 'youtube', 'spotify']].copy()
+    # Handle both 'chartmetric' (current) and 'spotify' (legacy) column names
+    base_cols = ['title_normalized', 'wiki', 'trends', 'youtube']
+    if 'chartmetric' in baselines.columns:
+        base_cols.append('chartmetric')
+    if 'spotify' in baselines.columns:
+        base_cols.append('spotify')
+    baselines_subset = baselines[base_cols].copy()
     
     # Merge on normalized title
     df_merged = df_out.merge(
@@ -184,15 +260,52 @@ def add_buzz_features(
         suffixes=('', '_baselines')
     )
     
+    # Merge chartmetric use case data for motivation weights
+    if not chartmetric_use.empty:
+        chartmetric_subset = chartmetric_use[['title_normalized', 'multiplier', 'use']].copy()
+        df_merged = df_merged.merge(
+            chartmetric_subset,
+            left_on='_title_normalized',
+            right_on='title_normalized',
+            how='left',
+            suffixes=('', '_chartmetric')
+        )
+    else:
+        warnings.warn("No chartmetric use case data available. Setting motivation weights to 0.")
+        df_merged['multiplier'] = 0.0
+        df_merged['use'] = 'DO NOT USE'
+    
     # Compute indices (fill missing with 0 - no buzz)
     df_merged['WikiIdx'] = df_merged['wiki'].apply(compute_wiki_idx).fillna(0.0)
     df_merged['TrendsIdx'] = df_merged['trends'].apply(compute_trends_idx).fillna(0.0)
     df_merged['YouTubeIdx'] = df_merged['youtube'].apply(compute_youtube_idx).fillna(0.0)
-    df_merged['SpotifyIdx'] = df_merged['spotify'].apply(compute_spotify_idx).fillna(0.0)
+    
+    # Handle spotify column (may not exist in all cases)
+    if 'spotify' in df_merged.columns:
+        df_merged['SpotifyIdx'] = df_merged['spotify'].apply(compute_spotify_idx).fillna(0.0)
+    else:
+        df_merged['SpotifyIdx'] = 0.0
+    
+    # Handle chartmetric column
+    if 'chartmetric' in df_merged.columns:
+        df_merged['ChartmetricIdx'] = df_merged['chartmetric'].apply(compute_chartmetric_idx).fillna(0.0)
+    else:
+        # Fallback to spotify if chartmetric doesn't exist (for backward compatibility)
+        if 'spotify' in df_merged.columns:
+            df_merged['ChartmetricIdx'] = df_merged['spotify'].apply(compute_chartmetric_idx).fillna(0.0)
+        else:
+            df_merged['ChartmetricIdx'] = 0.0
+    
+    # Compute music motivation bonus
+    df_merged['multiplier'] = df_merged['multiplier'].fillna(0.0)
+    df_merged['MusicMotivationBonus'] = df_merged.apply(
+        lambda row: compute_music_motivation_bonus(row['ChartmetricIdx'], row['multiplier']),
+        axis=1
+    )
     
     # Select output columns (drop merge artifacts)
     output_cols = [col for col in df_out.columns if col != '_title_normalized'] + \
-                  ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx']
+                  ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx', 'ChartmetricIdx', 'MusicMotivationBonus']
     
     df_out = df_merged[output_cols].copy()
     
@@ -264,4 +377,4 @@ def get_feature_names() -> list:
     Returns:
         List of buzz feature column names
     """
-    return ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx']
+    return ['WikiIdx', 'TrendsIdx', 'YouTubeIdx', 'SpotifyIdx', 'ChartmetricIdx', 'MusicMotivationBonus']

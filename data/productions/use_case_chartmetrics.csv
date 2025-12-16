@@ -1,0 +1,282 @@
+﻿title,use,multiplier,score,chartmetric_search_term,notes
+A Month in the Country,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin – household classical name.
+A Streetcar Named Desire,DO NOT USE,0,0, Peter Salem,Score by Peter Salem; not a public music brand.
+Adagio Hammerklavier,USE WITH CAUTION,0.25,23.10410959, Ludwig van Beethoven,Beethoven – household classical name.
+Addams Family,USE,1,35.53561644, Vic Mizzy,Strong film/musical brand; recognizable property.
+After the Rain,USE WITH CAUTION,0.25,19.62773973, Arvo Pärt,Arvo Pärt – modern classical niche with decent streams.
+Afternoon of a Faun,USE WITH CAUTION,0.25,22.51369863, Claude Debussy,Debussy – household classical name.
+Agon,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky – household classical name.
+Aladdin,DO NOT USE,0,0," Joby Talbot (""Aladdin Ballet"")",Ballet score (Talbot) isn’t what the public knows.
+Alice in Wonderland,DO NOT USE,0,0," Joby Talbot (""Alice's Adventures in Wonderland"")","Ballet score (Talbot); public recognition is story, not music."
+All of Us,USE,1,79.07260274, The Tragically Hip,Uses The Tragically Hip – major Canadian rock band.
+Allegro Brillante,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky – household classical name.
+Anastasia,USE WITH CAUTION,0.25,15.30616438, Bohuslav Martinů,"Martinů/Tchaikovsky – classical, not a pop signal."
+Angels' Atlas,DO NOT USE,0,0, Owen Belton,Owen Belton + choral works; niche/collage.
+Anna Karenina,DO NOT USE,0,0, Ilya Demutsky,"Demutsky – contemporary ballet composer, not public brand."
+Apollo,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky – household classical name.
+Appalachian Spring,USE WITH CAUTION,0.25,18.8119863, Aaron Copland,Copland – very well-known classical but still “art music”.
+Approximate Sonata,DO NOT USE,0,0, Thom Willems,Thom Willems – Forsythe’s composer; niche.
+Artifact,DO NOT USE,0,0, Thom Willems,Willems + Bach collage; not a clean popularity proxy.
+Artifact Suite,DO NOT USE,0,0, Thom Willems,Same as above.
+Autobiography,DO NOT USE,0,0, Jlin,Jlin is niche experimental; streams don’t map to ballet audience.
+Away We Go,DO NOT USE,0,0, (mixed bill) ,Mixed bill title; no single score.
+Balanchine,DO NOT USE,0,0, *no Chartmetric term*,"Choreographer, not a specific ballet."
+Ballet BC,DO NOT USE,0,0, *no single artist*,Company.
+Ballet Imperial,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky concerto – household classical name.
+Ballet Jazz de Montreal,DO NOT USE,1,88.3890411,Leonard Cohen,Company.
+Balletboyz,DO NOT USE,0,0, *no single artist*,Company.
+BalletX,DO NOT USE,0,0, *company: not applicable*,Company.
+Beauty and the Beast,USE,1,0.661643836, Philip Feeney,Disney/Menken association; very strong music/property brand.
+Beethoven,USE WITH CAUTION,0.25,23.10410959, Ludwig van Beethoven,"Generic; classical composer, not title-specific."
+Bella Figura,DO NOT USE,0,0, Giovanni Pergolesi / Samuel Barber / Arvo Pärt,Multi-composer collage; no single music popularity signal.
+Betroffenheit,DO NOT USE,0,0, Owen Belton,Sound design + niche composer; not a streaming brand.
+Billy the Kid,USE WITH CAUTION,0.25,18.8119863, Aaron Copland,Copland – well-known classical.
+Birthday Offering,USE WITH CAUTION,0.25,17.73938356, Alexander Glazunov,"Glazunov et al. – classical, but not especially famous."
+Black Cake,DO NOT USE,0,0," Handel / Bach (search: ""George Frideric Handel"")",Collage of baroque/other composers.
+Blake Works,USE,1,90.54657534, James Blake,James Blake – mainstream recording artist.
+Blanche Neige,USE WITH CAUTION,0.25,20.74075342, Gustav Mahler,Uses Mahler – household classical but niche for audiences.
+Body and Soul,DO NOT USE,0,0," Sharon Eyal collaborators (search: ""Ori Lichtik"")",Electronic score; composer(s) not a broad public brand.
+Botero,DO NOT USE,0,0," Latin classical/folk mix; no single term (use: ""Colombian Classical"")",Production-specific Latin mix; no consistent source.
+Brandenburg,USE WITH CAUTION,0.25,23.15308219, Johann Sebastian Bach,Bach – household classical name.
+Caravaggio,DO NOT USE,0,0, Bruno Moretti,Bruno Moretti – obscure to public.
+Carbon Life,USE,1,94.3739726, Mark Ronson,Mark Ronson/Andrew Wyatt – pop producers with strong profiles.
+Carmen,USE WITH CAUTION,0.25,9.610273973, Rodion Shchedrin,"Bizet/Shchedrin – very famous classical, but not pop."
+Carmina Burana,USE WITH CAUTION,0.25,19.19794521, Carl Orff,Orff – hugely known classical cantata.
+Charlie Chaplin,USE WITH CAUTION,0.25,19.3130137, Charlie Chaplin ,"Film music niche; name recognition, music less so."
+Charlotte's Web,DO NOT USE,0,0, *no standard score* (search composer of your production),Children’s ballet; music isn’t a known brand.
+Chopiniana,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin – household classical name.
+Chroma,USE,1,81.3390411," Joby Talbot (""Chroma"") and The White Stripes",Uses The White Stripes tracks alongside Talbot.
+Cinderella,USE WITH CAUTION,0.25,21.17260274, Sergei Prokofiev,Prokofiev – household classical; story does the work.
+Complexions,DO NOT USE,0,0, *company: not applicable*,Company.
+Concerto,USE WITH CAUTION,0.25,21.17260274, Sergei Prokofiev,Prokofiev piano concerto – classical name.
+Concerto Barocco,USE WITH CAUTION,0.25,23.15308219, Johann Sebastian Bach,Bach – household classical name.
+Concerto DSCH,USE WITH CAUTION,0.25,21.37945205, Dmitri Shostakovich,Shostakovich – well-known classical composer.
+Contact,USE,1,92.97945205," Sting (""Sting"")",Sting / show music – mainstream recording artist.
+Coppelia,USE WITH CAUTION,0.25,20.13664384, Léo Delibes,Delibes – classical; recognition limited outside ballet.
+Dance Theatre of Harlem,DO NOT USE,0,0, *company: not applicable*,Company.
+Dances at a Gathering,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin – household classical.
+Dangerous Liaisons,USE WITH CAUTION,0.25,18.47979452, Craig Armstrong,Often Craig Armstrong (film composer) – mild public profile.
+Daphnis et Chloe,USE WITH CAUTION,0.25,21.86712329, Maurice Ravel,Ravel – household classical name.
+Dark Matters,DO NOT USE,0,0, Owen Belton,Owen Belton – niche.
+Death in Venice,USE WITH CAUTION,0.25,19.73253425, Benjamin Britten,Britten – modern classical; niche.
+Deep River,DO NOT USE,0,0, Carl Davis (or “Deep River ,Spiritual/collage arrangements; messy signal.
+Der Wolf,DO NOT USE,0,0, *use your production composer*,Production-specific score.
+deViate,DO NOT USE,0,0, *mixed works: no single term*,"Mixed program/work, not a specific score."
+Diavolo,DO NOT USE,0,0, *company: not applicable*,Company.
+Die Fledermaus,USE WITH CAUTION,0.25,20.66027397, Johann Strauss II,Johann Strauss II – household classical name.
+Divertimento No. 15,USE WITH CAUTION,0.25,23.1130137, Wolfgang Amadeus Mozart,Mozart – household classical.
+Don Quixote,USE WITH CAUTION,0.25,15.82808219, Ludwig Minkus,"Minkus – known in ballet, not to the public."
+Dona Peron,DO NOT USE,0,0, Peter Salem,Salem score; composer not a public draw.
+Dracula,USE WITH CAUTION,0.25,0.165410959, Philip Feeney,"Feeney/Liszt etc.; story > music, but film/novel resonance."
+Duende,USE WITH CAUTION,0.25,22.51369863, Claude Debussy,Debussy – household classical.
+Dybbuk,USE WITH CAUTION,0.25,21.10958904, Leonard Bernstein,"Bernstein – big 20C name, but this piece less known."
+Elite Syncopations,USE,1,67.78356164, Scott Joplin,Scott Joplin & ragtime – recognisable to general audiences.
+Emergence,DO NOT USE,0,0, Owen Belton,Owen Belton – niche.
+Emma Bovary,DO NOT USE,0,0, Leif Ove Andsnes (recordings),Non-standard ballet; score not a public brand.
+Enemy in the Figure,DO NOT USE,0,0, Thom Willems,Thom Willems – niche.
+Enigma Variations,USE WITH CAUTION,0.25,21.08561644, Edward Elgar,Elgar – well-known classical.
+Episodes,USE WITH CAUTION,0.25,14.4260274, Anton Webern,"Webern – modern classical, niche."
+Etudes,USE WITH CAUTION,0.25,10.61386986, Knudåge Riisager (after Carl Czerny),Classical etude orchestration (Czerny/Riisager).
+Façade,USE WITH CAUTION,0.25,17.88047945, William Walton,"Walton – 20C classical, modest recognition."
+Falling Angels,USE WITH CAUTION,0.25,19.19794521, Steve Reich,Steve Reich – modern classical niche but streamed.
+Fancy Free,USE WITH CAUTION,0.25,21.10958904, Leonard Bernstein,"Bernstein – household name, but classical side."
+Fiddle and the Drum,USE,1,88.29178082, Joni Mitchell,Joni Mitchell songs.
+Five Tangos,USE,1,76.30136986, Astor Piazzolla,Astor Piazzolla – big tango/crossover streaming profile.
+Flight Pattern,USE WITH CAUTION,0.25,16.16472603, Henryk Górecki,"Górecki – modern classical, famous but niche."
+Flower Festival in Genzano,DO NOT USE,0,0, Edvard Helsted,Helsted/Paulli – obscure.
+Forgotten Land,USE WITH CAUTION,0.25,19.73253425, Benjamin Britten,Britten – modern classical.
+Four Seasons,USE,1,89.88767123," Antonio Vivaldi or ""Max Richter ",Vivaldi / Max Richter Recomposed – both very strong streaming brands.
+Frankenstein,USE WITH CAUTION,0.25,8.017465753, Lowell Liebermann,Lowell Liebermann – modern classical; niche.
+Giselle,USE WITH CAUTION,0.25,17.72328767, Adolphe Adam,"Adolphe Adam – known in ballet, not elsewhere."
+Glass Pieces,USE,1,84.33835616, Philip Glass,Philip Glass – major contemporary brand composer.
+Gloria,USE WITH CAUTION,0.25,19.68116438, Francis Poulenc,Poulenc – modern classical.
+Goldberg Variations,USE WITH CAUTION,0.25,23.15308219, Johann Sebastian Bach,Bach – household classical name.
+Gone,DO NOT USE,0,0, contemporary ballet; no standard term,Non-standard; composer not central.
+Grand Pas de Deux Esmeralda,DO NOT USE,0,0, Cesare Pugni,Pugni – very niche outside ballet.
+Great Gatsby,USE WITH CAUTION,0.25,0, “The Great Gatsby Soundtrack” (Craig Armstrong / jazz),Often jazz/film composers; some public recognition.
+Grimm,DO NOT USE,0,0, Frank Moon,Modern score; composer not general-audience recognizable.
+Grosse Fuge,USE WITH CAUTION,0.25,23.10410959, Ludwig van Beethoven,Beethoven – household classical name.
+Handmaid's Tale,USE WITH CAUTION,0.25,8.238013699, Poul Ruders,Ruders – modern classical niche; story is main draw.
+Hansel & Gretel,USE WITH CAUTION,0.25,20.71986301, Engelbert Humperdinck,"Humperdinck – opera known, but not a pop signal."
+Harlequinade,DO NOT USE,0,0, Riccardo Drigo,Drigo – niche ballet composer.
+Herman Schmerman,DO NOT USE,0,0, Thom Willems,Willems – niche.
+Illuminations,USE WITH CAUTION,0.25,19.73253425, Benjamin Britten,Britten – modern classical.
+In G Major,USE WITH CAUTION,0.25,21.86712329," Maurice Ravel (""Piano Concerto in G"")",Ravel Piano Concerto – classical brand.
+In the Middle Somewhat Elevated,DO NOT USE,0,0, Thom Willems,Willems – niche.
+In the Night,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin – household classical.
+In the Upper Room,USE,1,84.33835616, Philip Glass,Philip Glass – strong crossover presence.
+Infra,USE,1,86.87123288, Max Richter,Max Richter – major contemporary crossover.
+Initials R.B.M.E.,USE WITH CAUTION,0.25,22.27465753, Johannes Brahms,Brahms – household classical.
+Interplay,USE WITH CAUTION,0.25,11.51164384, Morton Gould,Morton Gould – light-classical; modest.
+Jardi Tancat,USE WITH CAUTION,0.25,9.453082192, Maria del Mar Bonet,Maria del Mar Bonet – regionally known singer-songwriter.
+Jewels,USE WITH CAUTION,0.25,21.35342466," ""Tchaikovsky / Fauré / Stravinsky"" (or search each jewel separately)",Fauré/Stravinsky/Tchaikovsky – classical trio.
+Jewels: Diamonds,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Jewels: Emeralds,USE WITH CAUTION,0.25,21.57328767, Gabriel Fauré,Fauré.
+Jewels: Rubies,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Jungle Book,USE WITH CAUTION,0.25,17.55582192, Joe Power / Akram Khan collaborators,"Some productions use commissioned scores; brand is story, not music."
+L'Europe galante,USE WITH CAUTION,0.25,9.428082192, André Campra,"Campra – baroque, niche but classical."
+La Bayadere,USE WITH CAUTION,0.25,15.82808219, Ludwig Minkus,Minkus – ballet-specific.
+La Boutique fantasque,USE WITH CAUTION,0.25,19.0109589," Ottorino Respighi (""Rossini-Respighi"")",Rossini/Respighi – classical.
+La Esmeralda,DO NOT USE,0,0, Cesare Pugni,Pugni – niche.
+La Fille mal gardee,USE WITH CAUTION,0.25,10.64006849," Ferdinand Hérold (""Lanchbery arrangement"")",Hérold/Lanchbery – classical but little brand value.
+La Source,USE WITH CAUTION,0.25,20.13664384, Léo Delibes,Delibes/Minkus – classical.
+La Sylphide,USE WITH CAUTION,0.25,1.58869863, Herman Severin Løvenskiold,Løvenskiold – ballet niche.
+La Traviata,USE WITH CAUTION,0.25,21.29623288, Giuseppe Verdi,Verdi – household opera name.
+La Valse,USE WITH CAUTION,0.25,21.86712329, Maurice Ravel,Ravel – classical.
+La Vivandiere,DO NOT USE,0,0, Cesare Pugni,Pugni – niche.
+Lady Chatterley's Lover,DO NOT USE,0,0, Philip Feeney,Feeney; music not a public driver.
+Las Hermanas,USE WITH CAUTION,0.25,10.10616438, Frank Martin,"Frank Martin – modern classical, niche."
+Le Baiser de la fee,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Le Corsaire,USE WITH CAUTION,0.25,17.72328767, Adolphe Adam,Adam + others – ballet niche.
+Le Jeune Homme et la Mort,USE WITH CAUTION,0.25,23.15308219, Johann Sebastian Bach,Bach – household classical.
+Le Parc,USE WITH CAUTION,0.25,23.1130137, Wolfgang Amadeus Mozart,Mozart – household classical.
+Les elemens,USE WITH CAUTION,0.25,9.448630137, Jean-Féry Rebel,Rebel – baroque; niche.
+Les fetes d'Hebe,USE WITH CAUTION,0.25,19.7890411, Jean-Philippe Rameau,Rameau – baroque; niche but classical.
+Les Indes galantes,USE WITH CAUTION,0.25,19.7890411, Jean-Philippe Rameau,Rameau.
+Les Patineurs,USE WITH CAUTION,0.25,13.79143836, Giacomo Meyerbeer,Meyerbeer – classical but not widely recognized.
+Les Presages,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Les Rendezvous,USE WITH CAUTION,0.25,10.86746575, Daniel Auber,Auber – light classical.
+Les Saisons,USE WITH CAUTION,0.25,17.73938356, Alexander Glazunov,Glazunov – classical.
+Les Sylphides,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin.
+Liebeslieder Walzer,USE WITH CAUTION,0.25,22.27465753, Johannes Brahms,Brahms.
+Liliom,USE WITH CAUTION,0.25,18.7890411, Michel Legrand,Michel Legrand – film/songwriter with some public recognition.
+Limb's Theorem,DO NOT USE,0,0, Thom Willems,Willems – niche.
+Limen,USE WITH CAUTION,0.25,13.80068493, Kaija Saariaho,"Kaija Saariaho – modern classical, niche."
+Love in the Time of Cholera,USE WITH CAUTION,0.25,19.07534247, Astor Piazzolla,Often Piazzolla/Latin; moderate recognition.
+Macbeth,USE WITH CAUTION,0.25,21.29623288, Giuseppe Verdi,Often Verdi – household classical.
+Manon,USE WITH CAUTION,0.25,19.94726027, Jules Massenet,Massenet – classical; title sells on story.
+Mayerling,USE WITH CAUTION,0.25,21.75171233, Franz Liszt,Liszt – household classical.
+Midsummer Night's Dream,USE WITH CAUTION,0.25,21.81541096, Felix Mendelssohn,Mendelssohn – household classical.
+Minus 16,DO NOT USE,0,0," “Ohad Naharin music” (various artists; best search is: ""Traditional Hebrew songs"")","Collage of various songs; messy, not comparable."
+Misericordes,USE WITH CAUTION,0.25,19.62773973, Arvo Pärt,Arvo Pärt – modern classical niche.
+Momix,DO NOT USE,0,0, *company*,Company.
+Monotones I,USE WITH CAUTION,0.25,21.97568493, Erik Satie,Erik Satie – fairly well-known classical.
+Monotones II,USE WITH CAUTION,0.25,21.97568493, Erik Satie,Erik Satie.
+Movements for Piano and Orchestra,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Movin' Out,USE,1,94.67123288, Billy Joel,Billy Joel songbook.
+Multiplicity Forms of Silence and Emptiness,USE WITH CAUTION,0.25,23.15308219, Johann Sebastian Bach,Bach – household classical.
+Na Floresta,USE WITH CAUTION,0.25,17.96232877, Heitor Villa-Lobos,"Villa-Lobos – well-known classical, but not pop."
+Nijinsky,USE WITH CAUTION,0.25,21.37945205, Dmitri Shostakovich (Neumeier version),Depends on version (often Shostakovich or collage); classical.
+No More Play,USE WITH CAUTION,0.25,14.4260274, Anton Webern,Webern – modern classical niche.
+Odessa,USE WITH CAUTION,0.25,5.423287671, Leonid Desyatnikov,Desyatnikov – modern classical; some recognition.
+On the Dnieper,USE WITH CAUTION,0.25,21.17260274, Sergei Prokofiev,Prokofiev – household classical.
+Once Upon a Time,DO NOT USE,0,0, find production composer (no standard),Too many versions; no stable music brand.
+Ondine,USE WITH CAUTION,0.25,10.05684932, Hans Werner Henze,Hans Werner Henze – modern classical.
+"One Flat Thing, Reproduced",DO NOT USE,0,0,Thom Willems,Willems – niche.
+Onegin,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky (Stolze arrangements),Tchaikovsky.
+Othello,USE WITH CAUTION,0.25,12.62191781, Elliot Goldenthal,Elliot Goldenthal – film composer with some recognition.
+Other Dances,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin.
+Our Canada,USE,1,87.18630137, Gordon Lightfoot,Gordon Lightfoot – major folk/country artist.
+Paquita,USE WITH CAUTION,0.25,15.82808219, Ludwig Minkus,Minkus – ballet niche.
+Pas/Parts,DO NOT USE,0,0, Thom Willems,Willems – niche.
+Peeping Tom: Dance Theatre Productions,DO NOT USE,0,0, *company*,Company/collective.
+Peer Gynt,USE WITH CAUTION,0.25,21.54075342, Edvard Grieg,Grieg – household classical.
+Peter and the Wolf,USE WITH CAUTION,0.25,21.17260274, Sergei Prokofiev,Prokofiev – famous classical narrative piece.
+Peter Pan,USE WITH CAUTION,0.25,13.82568493, Stephen Warbeck (most common),Some versions use Stephen Warbeck/others; story more than score.
+Petite Mort,USE WITH CAUTION,0.25,23.1130137, Wolfgang Amadeus Mozart,Mozart.
+Petrouchka,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Phi,USE,1,94.65890411,David Bowie,Sigur Rós – strong alt/post-rock brand.
+Pinocchio,USE WITH CAUTION,0.25,19.8260274, Nino Rota (most standard),Often Rota or modern film-style scores; some recognition but varied.
+Poeme de l'extase,USE WITH CAUTION,0.25,19.51986301, Alexander Scriabin,Scriabin – classical niche.
+Polovtsian Dances,USE WITH CAUTION,0.25,18.48664384, Alexander Borodin,Borodin – classical.
+Polyphonia,USE WITH CAUTION,0.25,16.5359589, György Ligeti,"Ligeti – modern classical, niche."
+Prodigal Son,USE WITH CAUTION,0.25,21.17260274, Sergei Prokofiev,Prokofiev.
+Pulcinella,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Push Comes to Shove,USE WITH CAUTION,0.25,16.94589041, Scott Joplin (ragtime),Ragtime collage (Joplin etc.) – some general familiarity.
+Puss in Boots,USE WITH CAUTION,0.25,19.19794521, Tchaikovsky (Sleeping Beauty character dance),Usually from Tchaikovsky; household classical.
+Raymonda,USE WITH CAUTION,0.25,17.73938356, Alexander Glazunov,Glazunov – classical.
+Remanso,USE WITH CAUTION,0.25,17.63321918, Enrique Granados,Granados – classical.
+Requiem,USE WITH CAUTION,0.25,21.57328767, Gabriel Fauré,"Fauré – classical, widely recorded."
+Requiem for a Rose,USE WITH CAUTION,0.25,22.18630137, Franz Schubert,Schubert – household classical.
+Rhapsody,USE WITH CAUTION,0.25,21.90308219, Sergei Rachmaninoff,Rachmaninoff – household classical.
+Rite of Spring,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky – very famous classical work.
+Rodeo,USE WITH CAUTION,0.25,18.8119863, Aaron Copland,Copland – well-known classical.
+Romeo and Juliet,USE WITH CAUTION,0.25,21.17260274, Sergei Prokofiev,Prokofiev.
+Russian Seasons,USE WITH CAUTION,0.25,5.423287671, Leonid Desyatnikov,Desyatnikov – modern classical.
+Scenes de Ballet,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Sechs Tanze,USE WITH CAUTION,0.25,23.1130137, Wolfgang Amadeus Mozart,Mozart.
+Secus,DO NOT USE,0,0," search ""Ohad Naharin music"" (collage; no single term)",Collage; no single artist.
+Serenade,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Seven Sonatas,USE WITH CAUTION,0.25,19.275, Domenico Scarlatti,Scarlatti – classical.
+Shaping Sound,DO NOT USE,0,0, *commercial dance company*,Commercial dance company; no single score.
+Shostakovich Trilogy,USE WITH CAUTION,0.25,21.37945205, Dmitri Shostakovich,Shostakovich – classical.
+Sinatra Suite,USE,1,94.03835616, Frank Sinatra,Frank Sinatra songs.
+Sinfonietta,USE WITH CAUTION,0.25,18.17705479, Leoš Janáček,Janáček – modern classical.
+Slava's Snow Show,DO NOT USE,0,0," Arvo Pärt / Mahler (search: ""Arvo Pärt"")","Collage; show driven by clowning, not music recognition."
+Sleeping Beauty,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Sleepless,USE WITH CAUTION,0.25,14.81541096, David Lang,David Lang – modern classical niche.
+Snow White,USE WITH CAUTION,0.25,17.8260274, Edouard Lalo or Gustav Mahler (depends on production),"Often Lalo/Mahler; varied, classical."
+Spartacus,USE WITH CAUTION,0.25,19.38493151, Aram Khachaturian,Khachaturian – classical.
+Square Dance,USE WITH CAUTION,0.25,21.94589041, Antonio Vivaldi,Vivaldi/Corelli – classical.
+Stepping Stones,USE WITH CAUTION,0.25,17.18321918, John Cage,John Cage – modern classical niche.
+Stravinsky Violin Concerto,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Swan Lake,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Sylvia,USE WITH CAUTION,0.25,20.13664384, Léo Delibes,Delibes.
+Symphonic Variations,USE WITH CAUTION,0.25,19.5739726, César Franck,Franck.
+Symphony in C,USE WITH CAUTION,0.25,21.21335616, Georges Bizet,Bizet.
+Symphony in Three Movements,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Symphony of Psalms,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+Taj Express,USE,1,95.48630137, A.R. Rahman,A.R. Rahman and Bollywood film tracks – strong brand.
+Tango Fire,USE,1,76.30136986, Astor Piazzolla,Piazzolla & classic tango – strong crossover.
+Tarantella,USE WITH CAUTION,0.25,10.27465753, Louis Moreau Gottschalk,Gottschalk – classical/light-classical.
+Tchaikovsky Pas de Deux,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Thais Pas de Deux,USE WITH CAUTION,0.25,19.94726027, Jules Massenet,Massenet.
+The Age of Anxiety,USE WITH CAUTION,0.25,21.10958904, Leonard Bernstein,Bernstein – compositional side; niche but known.
+The Bright Stream,USE WITH CAUTION,0.25,21.37945205, Dmitri Shostakovich,Shostakovich.
+The Bronze Horseman,USE WITH CAUTION,0.25,12.86267123, Reinhold Glière,Glière/Glazunov – classical.
+The Cage,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+The Catherine Wheel,USE,1,79.29315068, David Byrne,David Byrne – rock/pop figure.
+The Concert,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin.
+The Contract,DO NOT USE,0,0, Harry Somers,"Harry Somers – modern classical, niche; story-driven."
+The Dream,USE WITH CAUTION,0.25,21.81541096, Felix Mendelssohn,Mendelssohn.
+The Firebird,USE WITH CAUTION,0.25,19.94143836, Igor Stravinsky,Stravinsky.
+The Flames of Paris,USE WITH CAUTION,0.25,0.124657534, Boris Asafyev,Asafyev – classical but niche.
+The Fountain of Bakhchisarai,USE WITH CAUTION,0.25,0.124657534, Boris Asafyev,Asafyev.
+The Four Temperaments,USE WITH CAUTION,0.25,15.94760274, Paul Hindemith,Hindemith – modern classical.
+The Frog Prince,DO NOT USE,0,0, contemporary children's score (varies),Children’s ballet; music varies/obscure.
+The Golden Age,USE WITH CAUTION,0.25,21.37945205, Dmitri Shostakovich,Shostakovich.
+The Invitation,USE WITH CAUTION,0.25,13.51232877, Malcolm Arnold,Malcolm Arnold – classical.
+The Lady of the Camellias,USE WITH CAUTION,0.25,22.7119863, Frédéric Chopin,Chopin.
+The Leaves Are Fading,USE WITH CAUTION,0.25,21.94589041, Antonín Dvořák,Dvořák.
+The Little Humpbacked Horse,USE WITH CAUTION,0.25,9.610273973, Rodion Shchedrin,Pugni/Shchedrin – classical/ballet niche.
+The Little Mermaid,USE WITH CAUTION,0.25,12.425, Lera Auerbach,Lera Auerbach – modern classical.
+The Man in Black,USE,1,93.07123288, Johnny Cash,Johnny Cash songs.
+The Merry Widow,USE WITH CAUTION,0.25,15.53493151, Franz Lehár,Lehár – operetta composer with some recognition.
+The Pharaoh's Daughter,USE WITH CAUTION,0.25,7.495890411, Cesare Pugni,Pugni – ballet niche.
+The Pied Piper,DO NOT USE,0,0, no standard,No standard popular score.
+The Prince & the Pauper,DO NOT USE,0,0, no standard,"No stable, widely known score."
+The Red Poppy,USE WITH CAUTION,0.25,12.86267123, Reinhold Glière,Glière – classical.
+The Red Shoes,USE WITH CAUTION,0.25,18.06506849," Bernard Herrmann (""Red Shoes Soundtrack"")",Bernard Herrmann film music – known to cinephiles.
+The Seagull,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky / Stolze arrangements,Stolze/Tchaikovsky – classical.
+The Seasons' Canon,USE,1,89.88767123, Antonio Vivaldi,Vivaldi (Four Seasons) in recomposed form – huge streaming presence.
+The Secret Garden,DO NOT USE,0,0, no standard,Score varies; not music-led.
+The Snow Maiden,USE WITH CAUTION,0.25,19.68047945, Nikolai Rimsky-Korsakov,Rimsky-Korsakov – classical.
+The Snow Queen,USE WITH CAUTION,0.25,," various; search: ""Snow Queen soundtrack""",Various classical/film-like scores; mixed.
+The Steadfast Tin Soldier,USE WITH CAUTION,0.25,21.21335616, Georges Bizet,Often Bizet or similar; classical.
+The Stone Angel,DO NOT USE,0,0, no standard,Commissioned modern score; obscure.
+The Taming of the Shrew,USE WITH CAUTION,0.25,19.275, Domenico Scarlatti (Stolze),Scarlatti (via Stolze) – classical.
+The Times They Are A-Changin,USE,1,93.56575342, Bob Dylan,Bob Dylan songs.
+The Two of Us,DO NOT USE,0,0, no standard,Non-standard; composer not central.
+The Two Pigeons,USE WITH CAUTION,0.25,8.901369863, André Messager,Messager – classical.
+The Vertiginous Thrill of Exactitude,USE WITH CAUTION,0.25,22.18630137, Franz Schubert,Schubert – classical.
+Theme and Variations,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Third Symphony of Gustav Mahler,USE WITH CAUTION,0.25,20.74075342, Gustav Mahler,Mahler – famous classical but niche.
+Trockadero,DO NOT USE,0,0, *company*,Company.
+Trois Gnossiennes,USE WITH CAUTION,0.25,21.97568493, Erik Satie,Erik Satie.
+Unleashed,DO NOT USE,0,0, no single term (mixed program),"Mixed bill title, not a score."
+Valse Fantaisie,USE WITH CAUTION,0.25,16.08047945, Mikhail Glinka,Glinka – classical.
+Variations Serieuses,USE WITH CAUTION,0.25,21.81541096, Felix Mendelssohn,Mendelssohn.
+Vienna Waltzes,USE WITH CAUTION,0.25,20.66027397, Johann Strauss II,Strauss/Lehár/R. Strauss – classical but not pop.
+Watermill,DO NOT USE,0,0, Teiji Ito,Teiji Ito – very niche.
+West Side Story Suite,USE,1,84.43835616, Leonard Bernstein,Leonard Bernstein’s West Side Story – huge property.
+Western Symphony,USE WITH CAUTION,0.25,10.27465753, Louis Moreau Gottschalk,Gottschalk/adaptations – light-classical; modest signal.
+Whereabouts Unknown,DO NOT USE,0,0, Thom Willems,Willems – niche.
+Whipped Cream,USE WITH CAUTION,0.25,20.62260274, Richard Strauss,Richard Strauss – classical.
+Who Cares?,USE,1,83.5890411, George Gershwin,George Gershwin – songs as American standards.
+Wings of Wax,DO NOT USE,0,0, John Cage / Claudio Monteverdi / J.S. Bach (collage),Multi-composer collage.
+Winter Dreams,USE WITH CAUTION,0.25,22.54554795, Pyotr Ilyich Tchaikovsky,Tchaikovsky.
+Winter Gala,DO NOT USE,0,0, *not applicable*,Gala title only.
+Winter's Tale,USE WITH CAUTION,0.25,17.55582192, Joby Talbot,"Joby Talbot – known in ballet, but not public."
+Within the Golden Hour,USE WITH CAUTION,0.25,14.37123288, Ezio Bosso,"Ezio Bosso – modern classical crossover, limited brand."
+Wizard of Oz,USE,1,72.62328767, Harold Arlen,Harold Arlen songs from the film.
+Woolf Works,USE,1,86.87123288, Max Richter,Max Richter – big contemporary crossover composer.
