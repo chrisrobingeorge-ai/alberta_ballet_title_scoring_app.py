@@ -1,5 +1,4 @@
-
-Alberta Ballet Title Scoring App
+[Alberta_Ballet_Technical_Report_UPDATED_BENCHMARK.md](https://github.com/user-attachments/files/24185851/Alberta_Ballet_Technical_Report_UPDATED_BENCHMARK.md)Alberta Ballet Title Scoring App
 
 Technical & Executive Deep Analysis Report
 
@@ -371,3 +370,20 @@ Performance metrics documented: Confirmed. Cross-validation results including MA
 Error analysis by segment available: Confirmed. Diagnostic scripts analyse prediction errors by production category, city, and remount status.
 
 — End of Document —
+
+### 🎯 Benchmark Title Justification
+
+The model uses a **benchmark production** to convert normalized TicketIndex scores into real-world ticket estimates. In this case, the chosen benchmark is **_Cinderella_**, which had a **de-seasonalized median of approximately 12,000 tickets**.
+
+This selection is intentional:
+- **_Cinderella_ represents the highest-performing production in our history, aside from _The Nutcracker_**, which is considered a **structural outlier** due to its annual repetition, holiday timing, and deep cultural resonance.
+- Using _Cinderella_ as the benchmark avoids the distortion of modeling every show as a “holiday blockbuster,” while still anchoring the model to a production with broad appeal, familiarity, and production value.
+- This provides a **realistic upper-bound reference** for main-stage narrative ballets, while not artificially inflating ticket estimates across the board.
+
+#### Why not a mid-range title like *Giselle*?
+While *Giselle* or a smaller mixed-bill production could offer a more “average” benchmark, this would:
+- **Compress the score range** between hits and underperformers
+- **Under-represent upside potential** for shows with high cultural buzz or narrative weight
+- Risk creating **overly conservative estimates** in the upper tier
+
+Therefore, *Cinderella* was chosen as the most suitable **“non-outlier high-performer”**, balancing realism and aspiration.
