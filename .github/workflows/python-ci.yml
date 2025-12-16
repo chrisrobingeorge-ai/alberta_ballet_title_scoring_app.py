@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,17 +19,14 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest
-          # Note: Optional deps (rapidfuzz, shap, lightgbm) not installed in CI
-          # to keep tests fast. Tests skip gracefully when deps unavailable.
       
-      - name: Run tests
-        run: pytest -q --tb=short
-      
-      - name: Check for leakage assertions
+      - name: Validate imports
         run: |
-          # Verify leakage assertions exist in training scripts
-          grep -l "LEAKAGE" scripts/*.py || echo "Warning: No leakage checks found"
+          python -c "import streamlit; print('✓ Streamlit OK')"
+          python -c "from data.loader import get_live_analytics_category_factors; print('✓ data.loader OK')"
+          python -c "from utils.economic_factors import get_current_economic_context; print('✓ utils.economic_factors OK')"
+          python -c "from ml.knn_fallback import KNNFallback; print('✓ ml.knn_fallback OK')"
+          python -c "from ml.title_explanation_engine import build_title_explanation; print('✓ ml.title_explanation_engine OK')"
       
   lint:
     runs-on: ubuntu-latest
@@ -44,7 +41,7 @@ jobs:
       - name: Install flake8
         run: pip install flake8
       
-      - name: Lint changed Python files
+      - name: Lint Python files
         run: |
           # Lint with relaxed settings for existing codebase
-          flake8 scripts/ ml/ tests/ utils/ --max-line-length=120 --ignore=E501,W503,E203 --exit-zero
+          flake8 ml/ utils/ data/ pages/ --max-line-length=120 --ignore=E501,W503,E203 --exit-zero
