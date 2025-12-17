@@ -1721,7 +1721,13 @@ def load_baselines(path: str = "data/productions/baselines.csv") -> None:
     Load baseline familiarity/motivation inputs from CSV.
 
     Expected columns (case-insensitive):
-        title, wiki, trends, youtube, spotify, category, gender
+        title, wiki, trends, youtube, chartmetric, category, gender, intentratio
+    
+    IntentRatio represents the proportion of search traffic that is performance-specific:
+        - Family classics & pop_ip: 0.10-0.15 (high ambiguity - searches may include movies, books)
+        - Contemporary works: 0.40-0.50 (high clarity - more performance-specific searches)
+        - Classical ballets: 0.25-0.35 (medium clarity)
+    Values are adjusted based on signal strength (popular titles may have more noise).
     """
     global BASELINES
 
@@ -1757,6 +1763,14 @@ def load_baselines(path: str = "data/productions/baselines.csv") -> None:
             "category": str(r[colmap["category"]]),
             "gender":   str(r[colmap["gender"]]),
         }
+        # Add IntentRatio if available (optional column)
+        # IntentRatio: proportion of search traffic that is performance-specific (0.0-1.0)
+        # Lower values indicate ambiguous searches (movies, books), higher values indicate clear ballet intent
+        if "intentratio" in colmap:
+            try:
+                baselines[title]["intentratio"] = float(r[colmap["intentratio"]])
+            except (ValueError, TypeError):
+                baselines[title]["intentratio"] = np.nan
 
     BASELINES = baselines
 
@@ -2845,6 +2859,8 @@ def compute_scores_and_store(
             "Source": src,
             # Diagnostic field: lead_gender for export
             "lead_gender": entry["gender"],
+            # IntentRatio: proportion of search traffic that is performance-specific
+            "IntentRatio": entry.get("intentratio", np.nan),
         })
 
     df = pd.DataFrame(rows)
@@ -3434,6 +3450,8 @@ def render_results():
         "WikiIdx", "TrendsIdx", "YouTubeIdx", "ChartmetricIdx",
         # Familiarity & Motivation (Section 2)
         "Familiarity", "Motivation", "SignalOnly",
+        # IntentRatio: search traffic clarity metric
+        "IntentRatio",
         # Ticket Index (Section 4) & Seasonality (Section 5)
         "TicketIndex used", "TicketIndexSource", "FutureSeasonalityFactor",
         # Composite & Final Tickets (Section 11)
@@ -3478,6 +3496,8 @@ def render_results():
             "Familiarity": "{:.1f}",
             "Motivation": "{:.1f}",
             "SignalOnly": "{:.1f}",
+            # IntentRatio as percentage
+            "IntentRatio": "{:.1%}",
             # Ticket Index & Seasonality
             "TicketIndex used": "{:.1f}",
             "FutureSeasonalityFactor": "{:.3f}",
@@ -3607,6 +3627,7 @@ def render_results():
             "Familiarity": r.get("Familiarity", np.nan),
             "Motivation": r.get("Motivation", np.nan),
             "SignalOnly": r.get("SignalOnly", np.nan),
+            "IntentRatio": r.get("IntentRatio", np.nan),
             
             # Live Analytics factors
             "LA_EngagementFactor": r.get("LA_EngagementFactor", 1.0),
