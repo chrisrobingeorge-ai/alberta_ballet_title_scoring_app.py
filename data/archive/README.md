@@ -7,7 +7,7 @@ This directory contains CSV files that were previously in `data/economics/` but 
 The following 13 CSV files were moved here after a comprehensive code review on 2025-12-17:
 
 1. `author_index_economics_art_culture.csv`
-2. `business_entrants.csv`
+2. `business_entrants.csv` ⚠️ *Empty file (1 byte)*
 3. `business_exits.csv`
 4. `calgary_creative_industries.csv`
 5. `calgary_creative_industries_report.csv`
@@ -16,9 +16,11 @@ The following 13 CSV files were moved here after a comprehensive code review on 
 8. `economics_arts.csv`
 9. `farm_cash_receipts.csv`
 10. `funding_npo_performing_arts.csv`
-11. `gdp_basics.csv`
+11. `gdp_basics.csv` ⚠️ *Empty file (1 byte)*
 12. `net_migration.csv`
 13. `spotlight_all_waves_master_metrics.csv`
+
+**Note:** Two files (`business_entrants.csv` and `gdp_basics.csv`) were found to be essentially empty (1 byte each) and are archived here for completeness. These could potentially be deleted in the future.
 
 ## Verification Process
 
