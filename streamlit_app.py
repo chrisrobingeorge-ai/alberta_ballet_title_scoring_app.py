@@ -3371,18 +3371,18 @@ def render_results():
         st.caption("Seasonality: **OFF**")
 
 	# --- Intent Ratio Display ---
-	intent_ratio = None
+    intent_ratio = None
 	if "IntentRatio" in df.columns and df["IntentRatio"].notna().any():
 	    intent_ratio = df["IntentRatio"].dropna().astype(float).median()  # or mean()
 	
-	if intent_ratio is not None:
-	    st.metric("Intent Ratio", f"{intent_ratio:.1%}")
-	    if intent_ratio < 0.05:
-	        st.caption("⚠️ High ambiguity — search volume likely includes unrelated content (e.g., movies, books).")
-	    elif intent_ratio > 0.30:
-	        st.caption("✅ High clarity — search traffic is performance-specific.")
-	    else:
-	        st.caption("ℹ️ Mixed signal — may benefit from clearer marketing messaging.")
+    if intent_ratio is not None:
+        st.metric("Intent Ratio", f"{intent_ratio:.1%}")
+        if intent_ratio < 0.05:
+            st.caption("⚠️ High ambiguity — search volume likely includes unrelated content (e.g., movies, books).")
+        elif intent_ratio > 0.30:
+            st.caption("✅ High clarity — search traffic is performance-specific.")
+        else:
+            st.caption("ℹ️ Mixed signal — may benefit from clearer marketing messaging.")
 
     # Add letter score if missing
     def _assign_score(v: float) -> str:
