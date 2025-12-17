@@ -1099,7 +1099,7 @@ st.set_page_config(page_title="Alberta Ballet — Title Familiarity & Motivation
 # Configuration Validation at Startup
 # -------------------------
 try:
-    from config.validation import validate_config, validate_data_files
+    from config.validation import validate_config, validate_data_files  # type: ignore[import]
     
     config_ok, config_errors = validate_config()
     data_ok, data_errors = validate_data_files()
@@ -3986,73 +3986,3 @@ if run:
 
 if st.session_state.get("results") is not None:
     render_results()
-
-
-def _xgb_predict_tickets(feature_df: pd.DataFrame) -> np.ndarray:
-    try:
-        import xgboost as xgb
-    except ImportError:
-        raise RuntimeError('xgboost not installed; cannot use XGB ticket model')
-    model_path = ML_CONFIG.get('path', 'model_xgb_remount_postcovid.json')
-    booster = xgb.Booster()
-    booster.load_model(model_path)
-    dmx = xgb.DMatrix(feature_df.values, feature_names=list(feature_df.columns))
-    preds = booster.predict(dmx)
-    return np.maximum(preds, 0.0)
-
-
-def compute_scores_and_store(
-    titles: pd.DataFrame,
-    segment: str,
-    region: str,
-    use_live: bool,
-    yt_key: str,
-    sp_id: str,
-    sp_secret: str,
-    benchmark_title: str,
-    proposed_run_date: date,
-    postcovid_factor: float,
-):
-    """Wrapper that preserves UI but uses XGB model as ticket brain.
-
-    - Keeps Stone Olafson, econ, city split, and live signals flow intact.
-    - Replaces hand-built ticket combination with trained XGB model.
-    """
-    # existing helper builds enriched plan_df with all the right columns
-    plan_df = build_season_plan(
-        titles=titles,
-        segment=segment,
-        region=region,
-        use_live=use_live,
-        yt_key=yt_key,
-        sp_id=sp_id,
-        sp_secret=sp_secret,
-        benchmark_title=benchmark_title,
-        proposed_run_date=proposed_run_date,
-        postcovid_factor=postcovid_factor,
-    )
-
-    # Select feature columns for XGB from enriched plan_df
-    feature_cols = [
-        c for c in plan_df.columns
-        if c in [
-            'prior_total_tickets',
-            'ticket_median_prior',
-            'trends',
-            'youtube',
-            'wiki',
-            'chartmetric',
-            'familiarity',
-            'motivation',
-            'is_remount_recent',
-            'postcovid_factor',
-        ]
-    ]
-    if not feature_cols:
-        raise RuntimeError('No matching feature columns found for XGB model')
-
-    feat_df = plan_df[feature_cols].copy().fillna(0.0).astype(float)
-    tickets = _xgb_predict_tickets(feat_df)
-
-    plan_df['EstimatedTickets_Final'] = tickets
-    st.session_state['results'] = plan_df
