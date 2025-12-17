@@ -2,12 +2,12 @@ title,wiki,trends,youtube,chartmetric,category,gender,source,notes1,notes2,Inten
 A Month in the Country,0.088084481,0.0,0.026314851,23.78559644,romantic_tragedy,female,external_reference,Ashton romantic ballet,Chopin  household classical name.,0.4
 A Streetcar Named Desire,20.81431909,3.726868389,0.07423905,0.0,adult_literary_drama,female,external_reference,Tennessee Williams drama,Score by Peter Salem; not a public music brand.,0.25
 Adagio Hammerklavier,0.021882542,0.011061868,0.0,24.19625565,contemporary,co,external_reference,Van Manen abstract work,Beethoven  household classical name.,0.5
-Addams Family,61.02371866,48.15745392,23.15068493,37.21540779,pop_ip,male,external_reference,,Strong film/musical brand; recognizable property.,0.09999999999999999
+Addams Family,61.02371866,48.15745392,23.15068493,37.21540779,pop_ip,male,external_reference,,Strong film/musical brand; recognizable property.,0.1
 After the Rain,0.071227583,0.013827336,0.0,20.55555556,contemporary,co,external_reference,Wheeldon romantic duet,Arvo Part  modern classical niche with decent streams.,0.5
 Afternoon of a Faun,0.698048177,0.0,0.031953747,23.57793559,contemporary,male,external_reference,Robbins/Nijinsky classic,Debussy  household classical name.,0.5
 Agon,0.000317786,0.0,0.024435219,20.88408292,contemporary,co,external_reference,Balanchine neoclassical,Stravinsky  household classical name.,0.5
-Aladdin,14.01930288,61.48011259,61.32970386,0.0,family_classic,male,external_reference,High pop culture recognition,Ballet score (Talbot) isnt what the public knows.,0.09999999999999999
-Alice in Wonderland,0.76119457,56.77527164,19.78883115,0.0,family_classic,female,historical,"Ballet score (Talbot); public recognition is story, not music.",,0.09999999999999999
+Aladdin,14.01930288,61.48011259,61.32970386,0.0,family_classic,male,external_reference,High pop culture recognition,Ballet score (Talbot) isnt what the public knows.,0.1
+Alice in Wonderland,0.76119457,56.77527164,19.78883115,0.0,family_classic,female,historical,"Ballet score (Talbot); public recognition is story, not music.",,0.1
 All of Us,0.0,0.0,0.0,82.81041532,pop_ip,co,historical,Uses The Tragically Hip  major Canadian rock band.,,0.25
 Allegro Brillante,0.048844323,0.0,0.0,23.61129044,contemporary,co,external_reference,Balanchine neoclassical,Tchaikovsky  household classical name.,0.5
 Anastasia,0.222572556,0.016592802,0.0,16.02969657,adult_literary_drama,female,external_reference,MacMillan dramatic ballet,"Martin/Tchaikovsky  classical, not a pop signal.",0.35
@@ -26,8 +26,8 @@ Ballet Imperial,0.003659504,0.002765467,0.022555586,23.61129044,contemporary,co,
 Ballet Jazz de Montreal,0.0,0.0,0.0,0.0,pop_ip,co,historical,Leonard Cohen,,0.25
 Balletboyz,0.042921093,0.030420138,0.0,0.0,touring_contemporary_company,male,historical,Company.,,0.35
 BalletX,0.0,0.0,0.0,0.0,touring_contemporary_company,co,external_reference,Company.,,0.35
-Beauty and the Beast,14.4233128,51.41844899,51.6786274,0.692920164,family_classic,female,external_reference,Disney/Menken association; very strong music/property brand.,,0.09999999999999999
-Beethoven,69.83104558,53.2510462,86.8596882,24.19625565,contemporary,co,external_reference,"Generic; classical composer, not title-specific.",,0.35000000000000003
+Beauty and the Beast,14.4233128,51.41844899,51.6786274,0.692920164,family_classic,female,external_reference,Disney/Menken association; very strong music/property brand.,,0.1
+Beethoven,69.83104558,53.2510462,86.8596882,24.19625565,contemporary,co,external_reference,"Generic; classical composer, not title-specific.",,0.35
 Bella Figura,0.109495419,0.0,0.0,0.0,contemporary,co,external_reference,Kylian contemporary,Multi-composer collage; no single music popularity signal.,0.5
 Betroffenheit,0.0,0.0,0.0,0.0,contemporary,co,external_reference,Pite/Young theatrical,Sound design + niche composer; not a streaming brand.,0.5
 Billy the Kid,0.328044742,0.033185605,0.0,19.70124094,contemporary,male,external_reference,American Western theme,Copland  well-known classical.,0.5
@@ -42,11 +42,11 @@ Caravaggio,22.14690196,7.134905117,0.033073569,0.0,adult_literary_drama,male,ext
 Carbon Life,0.0,0.0,0.0,98.83509074,contemporary,co,external_reference,McGregor contemporary,Mark Ronson/Andrew Wyatt  pop producers with strong profiles.,0.5
 Carmen,15.5252568,0.157631625,94.06392694,10.06455778,romantic_tragedy,female,external_reference,Highly recognizable dramatic story,"Bizet/Shchedrin  very famous classical, but not pop.",0.3
 Carmina Burana,3.979259568,3.492784946,4.120153777,20.10544438,adult_literary_drama,female,external_reference,Orff  hugely known classical cantata.,,0.35
-Charlie Chaplin,100.0,19.70042014,13.00833127,20.22595223,family_classic,male,external_reference,"Film music niche; name recognition, music less so.",,0.09999999999999999
+Charlie Chaplin,100.0,19.70042014,13.00833127,20.22595223,family_classic,male,external_reference,"Film music niche; name recognition, music less so.",,0.1
 Charlotte's Web,14.2020499,8.361224828,4.033655036,0.0,family_classic,female,external_reference,E.B. White children's classic,Childrens ballet; music isnt a known brand.,0.15
 Chopiniana,0.00951487,0.016592802,0.0,23.78559644,romantic_tragedy,female,external_reference,Romantic era ballet,Chopin  household classical name.,0.4
 Chroma,0.088436699,0.024889204,0.045111173,85.18398967,contemporary_mixed_bill,co,external_reference,McGregor/White Stripes,Uses The White Stripes tracks alongside Talbot.,0.5
-Cinderella,23.33055081,99.83249581,100.0,22.17344523,family_classic,female,historical, highest demand title,Prokofiev  household classical; story does the work.,0.09999999999999999
+Cinderella,23.33055081,99.83249581,100.0,22.17344523,family_classic,female,historical, highest demand title,Prokofiev  household classical; story does the work.,0.1
 Complexions,0.0,0.022123737,0.013157425,0.0,pop_ip,co,historical,Company.,,0.25
 Concerto,0.036578166,0.0,0.0,22.17344523,contemporary,co,external_reference,MacMillan neoclassical,Prokofiev piano concerto  classical name.,0.5
 Concerto Barocco,0.073916353,0.0,0.0,24.24754322,contemporary,co,external_reference,Balanchine neoclassical,Bach  household classical name.,0.5
@@ -160,7 +160,7 @@ Nijinsky,3.744458568,0.045283392,0.003307357,22.39007244,contemporary,male,histo
 No More Play,0.0,0.0,0.0,15.10795496,contemporary,co,external_reference,Kylian contemporary,Webern  modern classical niche.,0.5
 Odessa,0.0,0.012231266,0.026458855,5.679649953,contemporary,co,external_reference,Contemporary work,Desyatnikov  modern classical; some recognition.,0.5
 On the Dnieper,0.038590289,0.0,0.0,22.17344523,romantic_tragedy,co,external_reference,Ratmansky Prokofiev,Prokofiev  household classical.,0.4
-Once Upon a Time,1.609873359,70.89860504,40.93871154,0.0,family_classic,co,historical,Too many versions; no stable music brand.,,0.09999999999999999
+Once Upon a Time,1.609873359,70.89860504,40.93871154,0.0,family_classic,co,historical,Too many versions; no stable music brand.,,0.1
 Ondine,0.000317786,0.0,0.0,10.53224303,romantic_tragedy,female,external_reference,Ashton water nymph,Hans Werner Henze  modern classical.,0.4
 "One Flat Thing, Reproduced",0.000417094,0.0,0.0,0.0,contemporary,co,external_reference,Forsythe abstract,Willems  niche.,0.5
 Onegin,0.004164054,0.452556839,0.06283978,23.61129044,romantic_tragedy,male,external_reference,Pushkin literary classic,Tchaikovsky.,0.4
@@ -172,7 +172,7 @@ Pas/Parts,0.0,0.0,0.0,0.0,contemporary,co,external_reference,Forsythe abstract,W
 Peeping Tom: Dance Theatre Productions,0.0,0.0,0.03383338,0.0,touring_contemporary_company,co,external_reference,Company/collective.,,0.35
 Peer Gynt,6.558543413,1.29700407,0.28194483,22.55899863,adult_literary_drama,male,external_reference,Ibsen literary work,Grieg  household classical.,0.25
 Peter and the Wolf,6.645660532,1.225101925,1.338298124,22.17344523,family_classic,male,external_reference,Prokofiev children's classic,Prokofiev  famous classical narrative piece.,0.15
-Peter Pan,0.320980522,58.87772193,30.3196347,14.47923391,family_classic,male,external_reference,Some versions use Stephen Warbeck/others; story more than score.,,0.09999999999999999
+Peter Pan,0.320980522,58.87772193,30.3196347,14.47923391,family_classic,male,external_reference,Some versions use Stephen Warbeck/others; story more than score.,,0.1
 Petite Mort,0.07664977,0.027654671,0.024435219,24.20558066,contemporary,co,external_reference,Kylian Mozart,Mozart.,0.5
 Petrouchka,2.185736317,0.011061868,0.024435219,20.88408292,adult_literary_drama,male,external_reference,Stravinsky/Fokine classic,Stravinsky.,0.35
 Phi,0.0,0.013827336,0.030074115,87.30363676,pop_ip,male,historical,David Bowie,,0.25
@@ -205,7 +205,7 @@ Sinfonietta,0.0,0.013827336,0.0,19.03629581,contemporary,co,external_reference,K
 Slava's Snow Show,0.000357509,0.141038822,0.001879632,0.0,family_classic,male,historical,Petipa classical,"Collage; show driven by clowning, not music recognition.",0.25
 Sleeping Beauty,15.56059278,21.64755469,12.57114576,23.61129044,classic_romance,female,historical,Tchaikovsky.,,0.3
 Sleepless,0.0,0.0,0.0,15.51574493,adult_literary_drama,co,external_reference,Contemporary work,David Lang  modern classical niche.,0.35
-Snow White,23.86737204,93.2160804,60.73059361,18.66867513,family_classic,female,external_reference,Fairy tale classic,"Often Lalo/Mahler; varied, classical.",0.09999999999999999
+Snow White,23.86737204,93.2160804,60.73059361,18.66867513,family_classic,female,external_reference,Fairy tale classic,"Often Lalo/Mahler; varied, classical.",0.1
 Spartacus,27.69629368,0.0,0.0,20.30126964,adult_literary_drama,male,external_reference,Grigorovich epic,Khachaturian  classical.,0.25
 Square Dance,0.030875546,4.770430747,0.050750069,22.98328671,contemporary,co,external_reference,Balanchine neoclassical,Vivaldi/Corelli  classical.,0.5
 Stepping Stones,0.0,0.0,0.03383338,17.99548096,contemporary,co,external_reference,Kylian contemporary,John Cage  modern classical niche.,0.5
@@ -239,7 +239,7 @@ The Invitation,0.015001547,0.058355364,0.024435219,14.15106521,adult_literary_dr
 The Lady of the Camellias,3.273561793,0.013827336,0.041351908,23.78559644,adult_literary_drama,female,external_reference,French literary drama,Chopin.,0.35
 The Leaves Are Fading,0.0,0.0,0.0,22.98328671,contemporary_mixed_bill,co,external_reference,Tudor romantic work,Dvorak.,0.5
 The Little Humpbacked Horse,0.157040004,0.0,0.0,10.06455778,family_classic,male,external_reference,Russian fairy tale,Pugni/Shchedrin  classical/ballet niche.,0.25
-The Little Mermaid,19.91513907,98.15745392,71.41552511,13.01233771,family_classic,female,external_reference,Disney-style family appeal,Lera Auerbach  modern classical.,0.09999999999999999
+The Little Mermaid,19.91513907,98.15745392,71.41552511,13.01233771,family_classic,female,external_reference,Disney-style family appeal,Lera Auerbach  modern classical.,0.1
 The Man in Black,0.0,0.0,0.028194483,97.47076968,contemporary,male,external_reference,Contemporary work,Johnny Cash songs.,0.5
 The Merry Widow,0.065001743,0.179755362,0.035713012,16.26927767,classic_comedy,female,external_reference,Lehar  operetta composer with some recognition.,,0.4
 The Pharaoh's Daughter,0.248755812,0.0,0.0,7.850225952,classic_romance,female,external_reference,Petipa Egyptian,Pugni  ballet niche.,0.4
@@ -278,5 +278,5 @@ Winter Dreams,0.030489255,0.0,0.0,23.61129044,contemporary,female,external_refer
 Winter Gala,0.0,0.013827336,0.0,0.0,contemporary_mixed_bill,co,historical,Gala title only.,,0.5
 Winter's Tale,0.274849773,0.0,0.0,18.38569687,romantic_tragedy,co,external_reference,Wheeldon Shakespeare,"Joby Talbot  known in ballet, but not public.",0.4
 Within the Golden Hour,0.048239102,0.013827336,0.0,15.05057026,contemporary_mixed_bill,co,external_reference,Wheeldon abstract,"Ezio Bosso  modern classical crossover, limited brand.",0.5
-Wizard of Oz,23.34753668,62.31155778,26.94063927,76.056237,family_classic,female,historical,Harold Arlen songs from the film.,,0.09999999999999999
+Wizard of Oz,23.34753668,62.31155778,26.94063927,76.056237,family_classic,female,historical,Harold Arlen songs from the film.,,0.1
 Woolf Works,0.204128194,0.0,0.0,90.9776917,contemporary,female,external_reference,McGregor Virginia Woolf,Max Richter  big contemporary crossover composer.,0.5
