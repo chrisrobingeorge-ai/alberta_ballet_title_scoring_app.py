@@ -3369,12 +3369,12 @@ def render_results():
         st.caption(f"Seasonality: **ON** · Run month: **{run_month_name}**")
     else:
         st.caption("Seasonality: **OFF**")
-
-	# --- Intent Ratio Display ---
+    
+    # --- Intent Ratio Display ---
     intent_ratio = None
-	if "IntentRatio" in df.columns and df["IntentRatio"].notna().any():
-	    intent_ratio = df["IntentRatio"].dropna().astype(float).median()  # or mean()
-	
+    if "IntentRatio" in df.columns and df["IntentRatio"].notna().any():
+        intent_ratio = df["IntentRatio"].dropna().astype(float).median()  # or mean()
+    
     if intent_ratio is not None:
         st.metric("Intent Ratio", f"{intent_ratio:.1%}")
         if intent_ratio < 0.05:
