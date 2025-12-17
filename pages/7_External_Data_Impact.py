@@ -654,7 +654,7 @@ with tab_economic:
             
             with col2:
                 st.markdown("**Recent Data**")
-                recent_oil = oil_df.sort_values("date", ascending=False).head(10)
+                recent_oil = oil_df.sort_values("date", ascending=False)
                 st.dataframe(recent_oil, hide_index=True, height=300)
         else:
             st.info("Oil price data not available")
@@ -686,7 +686,7 @@ with tab_economic:
             
             with col2:
                 st.markdown("**Recent Data**")
-                recent_unemp = unemp_df.sort_values("date", ascending=False).head(15)
+                recent_unemp = unemp_df.sort_values("date", ascending=False)
                 st.dataframe(recent_unemp, hide_index=True, height=300)
         else:
             st.info("Unemployment data not available")
@@ -991,7 +991,7 @@ with tab_arts:
         if file_path.exists():
             with st.expander(f"📊 {title}"):
                 df = pd.read_csv(file_path)
-                st.dataframe(df.head(20), use_container_width=True)
+                st.dataframe(df, use_container_width=True)
                 st.caption(f"Rows: {len(df)}, Columns: {len(df.columns)}")
     
     st.divider()
@@ -1011,7 +1011,7 @@ with tab_arts:
             with col1:
                 st.markdown("**Key Tourism Metrics**")
                 st.dataframe(
-                    tourism_df[["category", "metric_name", "metric_value", "unit"]].head(10),
+                    tourism_df[["category", "metric_name", "metric_value", "unit"]],
                     hide_index=True
                 )
             
@@ -1087,7 +1087,7 @@ with tab_files:
             # Show preview in expander
             if df is not None:
                 with st.expander(f"Preview {filename}"):
-                    st.dataframe(df.head(10), use_container_width=True)
+                    st.dataframe(df, use_container_width=True)
                     st.caption(f"Columns: {', '.join(df.columns.tolist())}")
         
         st.divider()
