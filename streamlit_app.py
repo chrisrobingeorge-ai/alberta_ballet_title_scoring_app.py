@@ -3339,6 +3339,7 @@ def compute_scores_and_store(
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
         "postcovid_factor": POSTCOVID_FACTOR,
+        "ticket_medians": TICKET_MEDIANS,
     }
 
 # -------------------------
@@ -3876,8 +3877,9 @@ def render_results():
 
         # Full PDF report download (outside expander, always visible)
         try:
-            # Get the benchmark median from TICKET_MEDIANS and convert to float
-            benchmark_median = TICKET_MEDIANS.get(benchmark_title)
+            # Get the benchmark median from session state and convert to float
+            ticket_medians = R.get("ticket_medians", {})
+            benchmark_median = ticket_medians.get(benchmark_title)
             if benchmark_median is not None:
                 benchmark_median = float(benchmark_median)
             
