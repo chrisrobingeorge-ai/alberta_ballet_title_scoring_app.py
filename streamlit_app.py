@@ -2967,7 +2967,7 @@ def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
                 
                 a, b = np.polyfit(xs_combined, ys_combined, 1)
                 cat_coefs[cat] = (float(a), float(b))
-        return ('linear', overall, cat_coefs, {}, {})
+        return ('linear', overall, cat_coefs, {}, {}, None)
 
 def compute_scores_and_store(
     titles,
