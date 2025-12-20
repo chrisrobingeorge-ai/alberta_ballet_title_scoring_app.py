@@ -3876,9 +3876,9 @@ def render_results():
 
         # Full PDF report download (outside expander, always visible)
         try:
-            # Get the benchmark median from TICKET_MEDIANS
-            benchmark_median = TICKET_MEDIANS.get(benchmark_title, None)
-            if benchmark_median:
+            # Get the benchmark median from TICKET_MEDIANS and convert to float
+            benchmark_median = TICKET_MEDIANS.get(benchmark_title)
+            if benchmark_median is not None:
                 benchmark_median = float(benchmark_median)
             
             methodology_paragraphs = _methodology_glossary_text(
