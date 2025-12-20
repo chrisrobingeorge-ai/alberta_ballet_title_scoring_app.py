@@ -293,7 +293,7 @@ def _plain_language_overview_text() -> list:
     return out
 
 
-def _methodology_glossary_text(benchmark_title: str = "Cinderella", benchmark_median: Optional[float] = None) -> list:
+def _methodology_glossary_text() -> list:
     """
     Build the 'Methodology & Glossary' section for the PDF report.
     
@@ -301,22 +301,12 @@ def _methodology_glossary_text(benchmark_title: str = "Cinderella", benchmark_me
     _plain_language_overview_text() which now appears near the beginning of the PDF.
     This function now contains only the glossary and technical reference sections.
 
-    Args:
-        benchmark_title: Name of the benchmark title (default: "Cinderella")
-        benchmark_median: Median ticket count for the benchmark title (computed from history)
-
     Returns a list of ReportLab Flowables (Paragraphs, Spacers).
     """
     styles = _make_styles()
     P = Paragraph
     SP = Spacer
     out = []
-
-    # Format benchmark tickets for display
-    if benchmark_median is not None and benchmark_median > 0:
-        bench_tickets_str = f"≈{int(round(benchmark_median)):,} tickets"
-    else:
-        bench_tickets_str = "historical median"
 
     # ─────────────────────────────────────────────────────────
     # 1. Plain-language glossary
@@ -326,9 +316,9 @@ def _methodology_glossary_text(benchmark_title: str = "Cinderella", benchmark_me
     glossary_items = [
         "<b>Familiarity</b>: how well-known the title is.",
         "<b>Motivation</b>: how keen people seem to be to watch it.",
-        f"<b>Ticket Index</b>: a relative demand score (0-180 scale) calculated using constrained "
-        f"Ridge regression from online signals. The model is anchored so minimal buzz → ≈25, "
-        f"benchmark ({benchmark_title}) → 100.",
+        "<b>Ticket Index</b>: a relative demand score (0-180 scale) calculated using constrained "
+        "Ridge regression from online signals. The model is anchored so minimal buzz → ≈25, "
+        "benchmark (Cinderella) → 100.",
         "<b>Seasonality Factor</b>: some months sell better than others for a given type of show.",
         "<b>YYC/YEG split</b>: we use your history to split totals between the two cities.",
     ]
@@ -364,7 +354,7 @@ def _methodology_glossary_text(benchmark_title: str = "Cinderella", benchmark_me
         "We combine online visibility (Wikipedia, YouTube, Google, Chartmetric) into two simple "
         "ideas: <b>Familiarity</b> (people know it) and <b>Motivation</b> "
         "(people engage with it).",
-        f"We anchor everything to a <b>benchmark title</b> (typically {benchmark_title}, {bench_tickets_str}) "
+        "We anchor everything to a <b>benchmark title</b> (typically Cinderella, ≈10,978 tickets) "
         "so scores are on a shared 0–100+ scale.",
         "We use a <b>constrained Ridge regression model</b> (α=5.0) to convert those scores into a "
         "<b>Ticket Index</b>. The model is anchored so low-buzz titles get realistic baselines "
@@ -3477,7 +3467,6 @@ def compute_scores_and_store(
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
         "postcovid_factor": POSTCOVID_FACTOR,
-        "ticket_medians": TICKET_MEDIANS,
     }
 
 # -------------------------
@@ -4020,16 +4009,7 @@ def render_results():
 
         # Full PDF report download (outside expander, always visible)
         try:
-            # Get the benchmark median from session state and convert to float
-            ticket_medians = R.get("ticket_medians", {})
-            benchmark_median = ticket_medians.get(benchmark_title)
-            if benchmark_median is not None:
-                benchmark_median = float(benchmark_median)
-            
-            methodology_paragraphs = _methodology_glossary_text(
-                benchmark_title=benchmark_title,
-                benchmark_median=benchmark_median
-            )
+            methodology_paragraphs = _methodology_glossary_text()
             pdf_bytes = build_full_pdf_report(
                 methodology_paragraphs=methodology_paragraphs,
                 plan_df=plan_df,
