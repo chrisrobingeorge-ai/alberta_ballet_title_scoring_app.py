@@ -20,7 +20,7 @@ jobs:
         run: |
           pip install -r requirements.txt
       
-      - name: Validate imports
+      - name: Validate imports (Core modules only)
         run: |
           python -c "import streamlit; print('✓ Streamlit OK')"
           python -c "from data.loader import get_live_analytics_category_factors; print('✓ data.loader OK')"
