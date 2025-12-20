@@ -821,7 +821,11 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
     ))
     blocks.append(Spacer(1, 0.15*inch))
     
-    for _, rr in plan_df.iterrows():
+    for idx, (_, rr) in enumerate(plan_df.iterrows()):
+        # Add page break before title if not first (prevents narrative + SHAP from spanning pages awkwardly)
+        if idx > 0:
+            blocks.append(PageBreak())
+        
         # Generate the comprehensive narrative with SHAP data if available
         narrative_text = _narrative_for_row(rr, shap_explainer=shap_explainer)
         blocks.append(RLParagraph(narrative_text, styles["body"]))
@@ -849,7 +853,7 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
                         
                         shap_table = Table(table_data, colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch])
                         shap_table.setStyle(TableStyle([
-                            ("FONT", (0,0), (-1,-1), "Helvetica", 8),
+                            ("FONT", (0,0), (-1,-1), "Helvetica", 9),
                             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#e8e8f0")),
                             ("TEXTCOLOR", (0,0), (-1,0), colors.HexColor("#333333")),
                             ("LINEABOVE", (0,0), (-1,0), 0.75, colors.grey),
@@ -881,8 +885,8 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
                 import logging
                 logging.debug(f"SHAP visualization failed for {rr.get('Title', 'Unknown')}: {e}")
         
-        # Increased spacing between titles to accommodate longer narratives and SHAP tables
-        blocks.append(Spacer(1, 0.25*inch))
+        # Spacing after content (reduced from 0.25*inch since page breaks handle separation)
+        blocks.append(Spacer(1, 0.15*inch))
     
     blocks.append(Spacer(1, 0.2*inch))
     return blocks
