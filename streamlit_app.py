@@ -3467,6 +3467,8 @@ def compute_scores_and_store(
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
         "postcovid_factor": POSTCOVID_FACTOR,
+        "model_type": model_type,
+        "overall_explainer": overall_explainer,
     }
 
 # -------------------------
@@ -3479,6 +3481,8 @@ def render_results():
 
     df = R["df"]
     postcovid_factor = float(R.get("postcovid_factor", 1.0))
+    model_type = R.get("model_type", "linear")
+    overall_explainer = R.get("overall_explainer", None)
 
     import calendar
 
