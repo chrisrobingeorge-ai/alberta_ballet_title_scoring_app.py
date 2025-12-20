@@ -317,3 +317,304 @@ def explain_predictions(
         print("✓ SHAP explanation complete")
     
     return explanations
+
+
+# ============================================================================
+# VISUALIZATION FUNCTIONS
+# ============================================================================
+
+def create_waterfall_plot(
+    explanation: Dict[str, Any],
+    max_features: int = 5,
+    show: bool = False
+) -> Optional[Any]:
+    """
+    Create SHAP waterfall plot for a single prediction.
+    
+    Shows how individual features contribute to the prediction, starting from 
+    the base value and accumulating SHAP contributions.
+    
+    Args:
+        explanation: Output from SHAPExplainer.explain_single()
+        max_features: Maximum number of features to display
+        show: Whether to display the plot immediately
+    
+    Returns:
+        Matplotlib figure object or None if visualization unavailable
+    
+    Example:
+        Waterfall shows: Base(36) → +Wiki(+6) → +YouTube(+4) → Final(48)
+    """
+    if not SHAP_AVAILABLE:
+        warnings.warn("SHAP not available for visualization")
+        return None
+    
+    try:
+        import matplotlib.pyplot as plt
+        
+        # Extract top features
+        drivers = get_top_shap_drivers(
+            explanation, 
+            n_top=max_features, 
+            min_impact=0.1
+        )
+        
+        if not drivers:
+            warnings.warn("Insufficient signal for waterfall visualization")
+            return None
+        
+        # Prepare data for waterfall
+        values = [explanation['base_value']]
+        labels = ['Base value']
+        colors_list = []
+        
+        cumulative = explanation['base_value']
+        for driver in drivers:
+            values.append(driver['shap'])
+            labels.append(driver['name'].title())
+            colors_list.append('green' if driver['shap'] > 0 else 'red')
+            cumulative += driver['shap']
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Plot waterfall
+        x_pos = np.arange(len(values))
+        ax.bar(x_pos[0], values[0], color='gray', alpha=0.7, label='Base')
+        
+        running_total = values[0]
+        for i in range(1, len(values)):
+            if values[i] > 0:
+                ax.bar(x_pos[i], values[i], bottom=running_total, color=colors_list[i-1], alpha=0.7)
+            else:
+                ax.bar(x_pos[i], values[i], bottom=running_total + values[i], color=colors_list[i-1], alpha=0.7)
+            running_total += values[i]
+        
+        ax.axhline(y=explanation['prediction'], color='black', linestyle='--', linewidth=2, label=f'Final: {explanation["prediction"]:.0f}')
+        
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(labels, rotation=45, ha='right')
+        ax.set_ylabel('Ticket Count')
+        ax.set_title(f'SHAP Waterfall: How features drive prediction')
+        ax.legend()
+        ax.grid(axis='y', alpha=0.3)
+        
+        plt.tight_layout()
+        
+        if show:
+            plt.show()
+        
+        return fig
+    
+    except Exception as e:
+        warnings.warn(f"Could not create waterfall plot: {e}")
+        return None
+
+
+def create_force_plot_data(
+    explanation: Dict[str, Any],
+    max_features: int = 5
+) -> Dict[str, Any]:
+    """
+    Prepare data for SHAP force plot visualization (text-based representation).
+    
+    Shows positive (pushing up) and negative (pushing down) contributions.
+    
+    Args:
+        explanation: Output from SHAPExplainer.explain_single()
+        max_features: Maximum features to include
+    
+    Returns:
+        Dictionary with structured plot data suitable for web display or PDF
+    
+    Example output structure:
+        {
+            'base_value': 36.4,
+            'prediction': 48.2,
+            'positive_contributions': [
+                {'feature': 'wiki', 'value': 5.8},
+                {'feature': 'youtube', 'value': 3.6}
+            ],
+            'negative_contributions': []
+        }
+    """
+    drivers = get_top_shap_drivers(explanation, n_top=max_features, min_impact=0.5)
+    
+    positive = [d for d in drivers if d['shap'] > 0]
+    negative = [d for d in drivers if d['shap'] < 0]
+    
+    return {
+        'base_value': float(explanation['base_value']),
+        'prediction': float(explanation['prediction']),
+        'positive_contributions': [
+            {'feature': d['name'], 'contribution': float(d['shap'])}
+            for d in sorted(positive, key=lambda x: x['shap'], reverse=True)
+        ],
+        'negative_contributions': [
+            {'feature': d['name'], 'contribution': float(d['shap'])}
+            for d in sorted(negative, key=lambda x: x['shap'])
+        ],
+        'total_positive': sum(d['shap'] for d in positive),
+        'total_negative': sum(d['shap'] for d in negative)
+    }
+
+
+def create_bar_plot(
+    explanations: List[Dict[str, Any]],
+    show: bool = False
+) -> Optional[Any]:
+    """
+    Create SHAP bar plot showing average feature importance across multiple predictions.
+    
+    Args:
+        explanations: List of explanation dictionaries from SHAPExplainer
+        show: Whether to display immediately
+    
+    Returns:
+        Matplotlib figure object or None
+    
+    Useful for understanding which features drive predictions on average.
+    """
+    if not SHAP_AVAILABLE or not explanations:
+        return None
+    
+    try:
+        import matplotlib.pyplot as plt
+        
+        # Aggregate feature importance across explanations
+        feature_impacts = {}
+        for exp in explanations:
+            for contrib in exp['feature_contributions']:
+                fname = contrib['name']
+                if fname not in feature_impacts:
+                    feature_impacts[fname] = []
+                feature_impacts[fname].append(abs(contrib['shap']))
+        
+        # Calculate mean absolute impact
+        mean_impacts = {fname: np.mean(vals) for fname, vals in feature_impacts.items()}
+        
+        # Sort by importance
+        sorted_features = sorted(mean_impacts.items(), key=lambda x: x[1], reverse=True)
+        features = [f[0] for f in sorted_features[:8]]  # Top 8
+        impacts = [f[1] for f in sorted_features[:8]]
+        
+        # Create bar plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        colors = plt.cm.RdYlGn(np.linspace(0.2, 0.8, len(features)))
+        ax.barh(features, impacts, color=colors)
+        ax.set_xlabel('Mean |SHAP value| (Average impact)')
+        ax.set_title('Feature Importance: Average SHAP contributions')
+        ax.grid(axis='x', alpha=0.3)
+        
+        plt.tight_layout()
+        
+        if show:
+            plt.show()
+        
+        return fig
+    
+    except Exception as e:
+        warnings.warn(f"Could not create bar plot: {e}")
+        return None
+
+
+def create_html_force_plot(
+    explanation: Dict[str, Any],
+    title: str = "SHAP Force Plot"
+) -> str:
+    """
+    Create HTML representation of force plot for web display or PDF embedding.
+    
+    Args:
+        explanation: Output from SHAPExplainer.explain_single()
+        title: Title for the visualization
+    
+    Returns:
+        HTML string with force plot visualization
+    """
+    force_data = create_force_plot_data(explanation, max_features=5)
+    
+    # Build HTML
+    html_parts = [
+        f'<div style="font-family: monospace; background: #f5f5f5; padding: 15px; border-radius: 8px;">',
+        f'<h3>{title}</h3>',
+        f'<p style="font-size: 14px; margin: 10px 0;"><b>Prediction:</b> {force_data["prediction"]:.1f} tickets</p>',
+        f'<div style="margin: 20px 0;">',
+        f'<p style="font-weight: bold; color: #333;">Base Value: {force_data["base_value"]:.1f}</p>'
+    ]
+    
+    # Positive contributions
+    if force_data['positive_contributions']:
+        html_parts.append('<div style="margin-left: 20px; color: green;">')
+        html_parts.append('<p style="font-weight: bold;">Pushing Up:</p>')
+        for item in force_data['positive_contributions']:
+            html_parts.append(f'<p style="margin: 5px 0;">→ {item["feature"].title()}: +{item["contribution"]:.1f}</p>')
+        html_parts.append('</div>')
+    
+    # Negative contributions
+    if force_data['negative_contributions']:
+        html_parts.append('<div style="margin-left: 20px; color: red;">')
+        html_parts.append('<p style="font-weight: bold;">Pushing Down:</p>')
+        for item in force_data['negative_contributions']:
+            html_parts.append(f'<p style="margin: 5px 0;">← {item["feature"].title()}: {item["contribution"]:.1f}</p>')
+        html_parts.append('</div>')
+    
+    html_parts.extend([
+        '</div>',
+        f'<p style="border-top: 1px solid #999; padding-top: 10px; margin-top: 15px; font-weight: bold;">',
+        f'Final: {force_data["prediction"]:.1f} tickets</p>',
+        '</div>'
+    ])
+    
+    return '\n'.join(html_parts)
+
+
+def save_shap_plots(
+    explanation: Dict[str, Any],
+    output_dir: str = "."
+) -> Dict[str, str]:
+    """
+    Save SHAP plots to disk (for PDF embedding or web display).
+    
+    Args:
+        explanation: Output from SHAPExplainer.explain_single()
+        output_dir: Directory to save plots to
+    
+    Returns:
+        Dictionary mapping plot type to file path
+        
+    Example:
+        {
+            'waterfall': '/path/to/waterfall.png',
+            'force': '/path/to/force.html'
+        }
+    """
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    
+    saved_files = {}
+    
+    # Save waterfall plot
+    try:
+        import matplotlib.pyplot as plt
+        fig = create_waterfall_plot(explanation, show=False)
+        if fig:
+            path = os.path.join(output_dir, 'shap_waterfall.png')
+            fig.savefig(path, dpi=150, bbox_inches='tight')
+            saved_files['waterfall'] = path
+            plt.close(fig)
+    except Exception as e:
+        warnings.warn(f"Could not save waterfall plot: {e}")
+    
+    # Save force plot as HTML
+    try:
+        html = create_html_force_plot(explanation)
+        path = os.path.join(output_dir, 'shap_force.html')
+        with open(path, 'w') as f:
+            f.write(html)
+        saved_files['force'] = path
+    except Exception as e:
+        warnings.warn(f"Could not save force plot: {e}")
+    
+    return saved_files
+
