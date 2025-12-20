@@ -32,14 +32,30 @@ import warnings
 import hashlib
 import pickle
 import os
+import logging
 from pathlib import Path
+
+# Setup logging
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+def set_shap_logging_level(level: str = "INFO") -> None:
+    """Configure SHAP module logging level (DEBUG, INFO, WARNING, ERROR)."""
+    log_level = getattr(logging, level.upper(), logging.INFO)
+    logger.setLevel(log_level)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(log_level)
+        formatter = logging.Formatter('%(asctime)s - SHAP - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
 try:
     import shap
     SHAP_AVAILABLE = True
 except ImportError:
     SHAP_AVAILABLE = False
-    warnings.warn("SHAP not installed. Install with: pip install shap")
+    logger.warning("SHAP not installed. Install with: pip install shap")
 
 
 class SHAPExplainer:
@@ -80,9 +96,34 @@ class SHAPExplainer:
             feature_names: Optional list of feature names. If None, uses X_train.columns
             sample_size: Number of background samples to use (max 100 for speed)
             cache_dir: Optional directory for caching SHAP explanations
+            
+        Raises:
+            ImportError: If SHAP not installed
+            ValueError: If X_train is invalid or empty
+            TypeError: If model doesn't have predict method
         """
         if not SHAP_AVAILABLE:
             raise ImportError("SHAP not installed. Run: pip install shap")
+        
+        # Validate inputs
+        if not hasattr(model, 'predict'):
+            raise TypeError("Model must have a 'predict' method")
+        
+        if X_train is None or len(X_train) == 0:
+            raise ValueError("X_train cannot be empty")
+        
+        if isinstance(X_train, pd.DataFrame):
+            # Check for NaN/inf values
+            if X_train.isnull().any().any():
+                n_missing = X_train.isnull().sum().sum()
+                logger.warning(f"X_train contains {n_missing} NaN values - they will be handled")
+                X_train = X_train.fillna(0)
+            
+            if np.isinf(X_train.values).any():
+                logger.warning("X_train contains infinite values - they will be clipped")
+                X_train = X_train.clip(-1e10, 1e10)
+        else:
+            raise TypeError("X_train must be a pandas DataFrame")
         
         self.model = model
         self.X_train = X_train
@@ -91,23 +132,36 @@ class SHAPExplainer:
         self.cache_dir = cache_dir
         self._explanation_cache = {}  # In-memory cache
         
+        logger.debug(f"Initializing SHAPExplainer with {len(X_train)} training samples, {self.n_features} features")
+        
         # Setup disk cache if requested
         if cache_dir:
-            Path(cache_dir).mkdir(parents=True, exist_ok=True)
+            try:
+                Path(cache_dir).mkdir(parents=True, exist_ok=True)
+                logger.debug(f"Cache directory created: {cache_dir}")
+            except Exception as e:
+                logger.warning(f"Could not create cache directory {cache_dir}: {e}")
+                self.cache_dir = None
         
         # Create explainer (uses SHAP's kernel explainer by default)
         # For Ridge regression: KernelExplainer is model-agnostic and accurate
-        n_background = min(sample_size, len(X_train))
-        background_data = shap.sample(X_train, n_background)
-        
-        self.explainer = shap.KernelExplainer(
-            model=self.model.predict,
-            data=background_data,
-            link="identity"  # Linear output (ticket counts)
-        )
-        
-        # Cache base value (expected model output)
-        self.base_value = self.explainer.expected_value
+        try:
+            n_background = min(sample_size, len(X_train))
+            background_data = shap.sample(X_train, n_background)
+            logger.debug(f"Creating KernelExplainer with {n_background} background samples")
+            
+            self.explainer = shap.KernelExplainer(
+                model=self.model.predict,
+                data=background_data,
+                link="identity"  # Linear output (ticket counts)
+            )
+            
+            # Cache base value (expected model output)
+            self.base_value = self.explainer.expected_value
+            logger.debug(f"SHAP explainer created successfully. Base value: {self.base_value:.2f}")
+        except Exception as e:
+            logger.error(f"Failed to create SHAP explainer: {e}")
+            raise
     
     def _get_cache_key(self, feature_dict: Dict[str, float]) -> str:
         """Generate cache key for a prediction based on input features."""
@@ -196,21 +250,29 @@ class SHAPExplainer:
             use_cache: Whether to use caching (speeds up repeated queries)
         
         Returns:
-            Structured explanation for that single prediction:
-            {
-                'prediction': float,
-                'base_value': float,
-                'shap_values': np.array (1D),
-                'feature_names': list,
-                'feature_values': dict,
-                'feature_contributions': list of dicts with keys:
-                    - name: feature name
-                    - value: input value
-                    - shap: contribution amount
-                    - direction: "up" or "down"
-                    - abs_impact: absolute SHAP value
-            }
+            Structured explanation for that single prediction
+            
+        Raises:
+            ValueError: If X_single has invalid format or missing features
         """
+        # Validate input
+        if not isinstance(X_single, pd.Series):
+            raise TypeError("X_single must be a pandas Series")
+        
+        if len(X_single) == 0:
+            raise ValueError("X_single cannot be empty")
+        
+        # Check for NaN values and warn
+        if X_single.isnull().any():
+            n_missing = X_single.isnull().sum()
+            logger.warning(f"X_single contains {n_missing} NaN values - filling with 0")
+            X_single = X_single.fillna(0)
+        
+        # Check for inf values
+        if np.isinf(X_single.values).any():
+            logger.warning("X_single contains infinite values - clipping")
+            X_single = X_single.clip(-1e10, 1e10)
+        
         # Try to get from cache
         feature_dict = X_single.to_dict()
         cache_key = self._get_cache_key(feature_dict) if use_cache else None
@@ -218,45 +280,53 @@ class SHAPExplainer:
         if cache_key:
             cached = self._load_from_cache(cache_key)
             if cached:
+                logger.debug(f"SHAP explanation found in cache (key: {cache_key[:8]}...)")
                 return cached
         
         # Compute explanation
-        X_df = pd.DataFrame([X_single])
-        result = self.explain(X_df)
+        try:
+            X_df = pd.DataFrame([X_single])
+            result = self.explain(X_df)
+            
+            # Build feature contributions list
+            feature_contributions = []
+            for fname, fval, shap_val in zip(
+                result['feature_names'],
+                result['feature_values'][0],
+                result['shap_values'][0]
+            ):
+                direction = "up" if shap_val > 0 else "down"
+                feature_contributions.append({
+                    'name': fname,
+                    'value': float(fval),
+                    'shap': float(shap_val),
+                    'direction': direction,
+                    'abs_impact': abs(float(shap_val))
+                })
+            
+            # Sort by absolute impact (biggest contributors first)
+            feature_contributions.sort(key=lambda x: x['abs_impact'], reverse=True)
+            
+            explanation = {
+                'prediction': float(result['predictions'][0]),
+                'base_value': float(self.base_value),
+                'shap_values': result['shap_values'][0],
+                'feature_names': result['feature_names'],
+                'feature_values': dict(zip(result['feature_names'], result['feature_values'][0])),
+                'feature_contributions': feature_contributions
+            }
+            
+            # Cache the result
+            if cache_key:
+                self._save_to_cache(cache_key, explanation)
+                logger.debug(f"SHAP explanation cached (key: {cache_key[:8]}...)")
+            
+            logger.debug(f"SHAP explanation computed: prediction={explanation['prediction']:.1f}")
+            return explanation
         
-        # Build feature contributions list
-        feature_contributions = []
-        for fname, fval, shap_val in zip(
-            result['feature_names'],
-            result['feature_values'][0],
-            result['shap_values'][0]
-        ):
-            direction = "up" if shap_val > 0 else "down"
-            feature_contributions.append({
-                'name': fname,
-                'value': float(fval),
-                'shap': float(shap_val),
-                'direction': direction,
-                'abs_impact': abs(float(shap_val))
-            })
-        
-        # Sort by absolute impact (biggest contributors first)
-        feature_contributions.sort(key=lambda x: x['abs_impact'], reverse=True)
-        
-        explanation = {
-            'prediction': float(result['predictions'][0]),
-            'base_value': float(self.base_value),
-            'shap_values': result['shap_values'][0],
-            'feature_names': result['feature_names'],
-            'feature_values': dict(zip(result['feature_names'], result['feature_values'][0])),
-            'feature_contributions': feature_contributions
-        }
-        
-        # Cache the result
-        if cache_key:
-            self._save_to_cache(cache_key, explanation)
-        
-        return explanation
+        except Exception as e:
+            logger.error(f"Failed to compute SHAP explanation: {e}")
+            raise
 
 
 def get_top_shap_drivers(
