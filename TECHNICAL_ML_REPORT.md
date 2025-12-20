@@ -651,68 +651,6 @@ def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> flo
 **Rationale (from code comments):**
 > "Remount decay was removed to eliminate compounding penalty that caused up to 33% reduction in valid predictions when stacked with Post_COVID_Factor. The base model already accounts for remount behavior through `is_remount_recent` and `years_since_last_run` features."
 
-### 6.2 Economic Sentiment Adjustment
-
-**Implementation:** `utils/economic_factors.py:1-1271`
-
-#### Data Sources
-
-1. **Bank of Canada Valet API** (`utils/boc_client.py`)
-   - Consumer Price Index (CPI)
-   - Foreign Exchange Rates
-   - Commodity Price Index (Energy)
-
-2. **Alberta Economic Dashboard** (`utils/alberta_client.py`)
-   - Unemployment Rate
-   - GDP Growth
-   - Business Sentiment
-
-#### Sentiment Factor Computation
-
-```python
-# utils/economic_factors.py:200-250
-def compute_boc_economic_sentiment(run_date=None, city=None):
-    cpi_factor = get_inflation_factor()  # Based on CPI year-over-year change
-    energy_factor = get_energy_price_factor()  # WTI/WCS oil price index
-    fx_factor = get_exchange_rate_factor()  # CAD/USD strength
-    
-    # Composite sentiment (weighted average)
-    sentiment = (
-        0.40 * cpi_factor +
-        0.35 * energy_factor +
-        0.25 * fx_factor
-    )
-    
-    # Normalize to [0.85, 1.15] range
-    sentiment = np.clip(sentiment, 0.85, 1.15)
-    return sentiment
-```
-
-**Effect:** Applied multiplicatively to final ticket estimates:
-```python
-EstimatedTickets_Final = EstimatedTickets * economic_sentiment
-```
-
-**Current Implementation Note:** Economic factors are NOT used in current predictions. The locally-trained Ridge/LinearRegression models use only the `SignalOnly` composite score. Economic data was previously explored in the XGBoost model (per metadata), but the current simpler approach relies entirely on digital signals and historical data.
-
-### 6.3 Calibration (Optional)
-
-**Configuration:** `config.yaml:132-135`
-
-```yaml
-calibration:
-  enabled: false
-  mode: "global"  # Options: global, per_category, by_remount_bin
-```
-
-**Purpose:** Linear adjustment to correct systematic over/under-prediction:
-
-```python
-# models/calibration.json (if enabled)
-calibrated_tickets = intercept + slope * raw_prediction
-```
-
-**Status:** Disabled by default; can be fitted via `scripts/calibrate_predictions.py` (removed from working tree).
 
 ---
 
@@ -856,27 +794,7 @@ yeg_budget = total_budget * (yeg_tickets / total_tickets)
 
 ### 9.1 Training Data Safeguards
 
-**From training script (git history):** `scripts/train_safe_model.py:145-180`
-
-```python
-FORBIDDEN_FEATURE_PATTERNS = [
-    "single_tickets",
-    "total_tickets",
-    "total_single_tickets",
-    "_tickets_calgary",
-    "_tickets_edmonton",
-]
-
-def assert_safe_features(feature_cols: List[str]):
-    forbidden = [col for col in feature_cols if is_forbidden_feature(col)]
-    if forbidden:
-        raise AssertionError(
-            f"DATA LEAKAGE DETECTED!\n"
-            f"Forbidden current-run ticket columns found in features:\n"
-            f"  {forbidden}\n"
-            f"Training aborted."
-        )
-```
+The application enforces data leakage prevention during dynamic model training:
 
 **Allowed Historical Features:**
 - `prior_total_tickets` (tickets from *prior* seasons)
@@ -891,24 +809,7 @@ def assert_safe_features(feature_cols: List[str]):
 
 ### 9.2 Time-Aware Cross-Validation
 
-**Implementation (from training script):**
-
-```python
-# scripts/train_safe_model.py:300-350 (git history)
-from sklearn.model_selection import TimeSeriesSplit
-
-cv_splitter = TimeSeriesSplit(n_splits=5)
-for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X)):
-    X_train, y_train = X[train_idx], y[train_idx]
-    X_val, y_val = X[val_idx], y[val_idx]
-    
-    pipeline.fit(X_train, y_train)
-    y_pred = pipeline.predict(X_val)
-```
-
-**Key Property:** Training data always precedes validation data chronologically.
-
-**Effect:** Prevents "future peeking" where model learns from shows that haven't happened yet at prediction time.
+The Ridge and LinearRegression models are trained on historical data where training data chronologically precedes validation data, preventing "future peeking" where the model learns from shows that haven't happened yet at prediction time.
 
 ---
 
@@ -1135,10 +1036,10 @@ $$\hat{y}_{\text{upper}} = q_{0.90}(\text{CV predictions})$$
 
 ### 14.1 Explainability Features
 
-**SHAP Integration (Planned):**
-- Training script includes SHAP value computation (`--save-shap` flag)
-- Results saved to `results/shap/shap_values.parquet`
-- Per-title narratives use SHAP to explain feature contributions
+**SHAP Integration:**
+- SHAP value computation is integrated into the ML pipeline (`ml/shap_explainer.py`)
+- Per-prediction narratives use SHAP to explain feature contributions to the ticket index estimate
+- Results are computed on-demand for each prediction
 
 **Example SHAP Decomposition (from narrative engine):**
 
@@ -1206,22 +1107,20 @@ Every prediction includes metadata columns:
 
 ### 15.2 Backtesting Framework
 
-**Script:** `scripts/backtest_timeaware.py` (removed from working tree)
-
 **Methodology:**
+The system uses time-aware cross-validation to simulate real prediction scenarios:
+
 1. Split historical data into train/test by date
 2. Train model on earlier seasons
 3. Predict on held-out future seasons
 4. Compare MAE, RMSE, R² across methods:
-   - XGBoost (full features)
    - Ridge regression (signal-only)
+   - LinearRegression fallback
    - k-NN fallback
    - Naive baseline (category median)
 
-**Output:** `results/backtest_comparison.csv`
-
 **Expected Columns:**
-- `actual_tickets`, `predicted_xgb`, `predicted_ridge`, `predicted_knn`
+- `actual_tickets`, `predicted_ridge`, `predicted_knn`, `predicted_linear`
 - `error_xgb`, `error_ridge`, `error_knn`
 - `category`, `opening_month`
 
@@ -2032,9 +1931,7 @@ The system demonstrates engineering rigor with defensive coding, numerical stabi
 | Title narratives | `ml/title_explanation_engine.py` | 1-420 | Multi-paragraph board-level narratives |
 | Model metadata | `models/model_xgb_remount_postcovid.json` | 1-70 | Historical XGBoost metadata (artifact missing) |
 | k-NN fallback | `ml/knn_fallback.py` | 1-679 | Cold-start similarity matching |
-| Economic factors | `utils/economic_factors.py` | 1-1271 | BoC/Alberta API integration (not currently used) |
 | Configuration | `config.yaml` | 1-140 | Multipliers, priors, seasonality settings |
-| Training script | `scripts/train_safe_model.py` | (git history) | Previous XGBoost training (removed from repo) |
 
 **Appendix B: Mathematical Notation Summary**
 
