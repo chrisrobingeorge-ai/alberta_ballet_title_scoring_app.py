@@ -3668,12 +3668,17 @@ def render_results():
 
     # === 📅 Build a Season (assign titles to months) ===
     st.subheader("📅 Build a Season (assign titles to months)")
-    default_year = (datetime.utcnow().year + 1)
-    season_year = st.number_input(
-        "Season year (start of season)",
+    # Season naming convention: year in which the season ENDS
+    # For Sept 2026 - May 2027, input 2027
+    current_year = datetime.utcnow().year
+    default_end_year = current_year + 2  # Default to two years ahead
+    season_end_year = st.number_input(
+        "Season year (end of season, e.g., 2027 for Sept 2026 - May 2027)",
         min_value=2000, max_value=2100,
-        value=default_year, step=1
+        value=default_end_year, step=1
     )
+    # Calculate start year from end year
+    season_year = season_end_year - 1
 
     # Infer benchmark tickets for conversion to attendance
     bench_med_deseason_est = None
@@ -3926,7 +3931,7 @@ def render_results():
             st.download_button(
                 "⬇️ Download Season Summary (Board View) CSV",
                 data=summary_csv_bytes,
-                file_name=f"season_summary_board_{season_year}.csv",
+                file_name=f"season_summary_board_{season_end_year}.csv",
                 mime="text/csv",
                 key="download_season_summary_csv"
             )
@@ -4004,7 +4009,7 @@ def render_results():
             st.download_button(
                 "⬇️ Download Season (wide) CSV",
                 df_wide.reset_index().rename(columns={"index":"Metric"}).to_csv(index=False).encode("utf-8"),
-                file_name=f"season_plan_wide_{season_year}.csv",
+                file_name=f"season_plan_wide_{season_end_year}.csv",
                 mime="text/csv",
                 key="download_season_wide_csv"
             )
@@ -4024,14 +4029,14 @@ def render_results():
             pdf_bytes = build_full_pdf_report(
                 methodology_paragraphs=methodology_paragraphs,
                 plan_df=plan_df,
-                season_year=int(season_year),
+                season_year=int(season_end_year),
                 org_name="Alberta Ballet",
                 shap_explainer=overall_explainer if model_type == 'ml' else None
             )
             st.download_button(
                 "⬇️ Download Full PDF Report",
                 data=pdf_bytes,
-                file_name=f"alberta_ballet_season_report_{season_year}.pdf",
+                file_name=f"alberta_ballet_season_report_{season_end_year}.pdf",
                 mime="application/pdf",
                 key="download_pdf_report"
             )
@@ -4118,7 +4123,7 @@ def render_results():
         st.download_button(
             "Download Season Summary CSV",
             data=csv_bytes,
-            file_name=f"season_financial_summary_{season_year}.csv",
+            file_name=f"season_financial_summary_{season_end_year}.csv",
             mime="text/csv",
             width='content',
         )

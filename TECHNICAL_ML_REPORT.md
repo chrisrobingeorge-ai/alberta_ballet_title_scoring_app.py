@@ -1711,7 +1711,292 @@ is above baseline but not exceptionally high.
 
 ---
 
-## 18. Conclusion
+## 18. PDF Report Generation & Accuracy Audit
+
+### 18.1 Overview
+
+The Alberta Ballet Title Scoring App generates comprehensive PDF season reports suitable for board presentation. This section documents the PDF generation pipeline, data flows, accuracy checks, and known limitations.
+
+**Report Structure:**
+1. Title page (organization name, season year)
+2. Plain-language overview (methodology explanation for non-technical audience)
+3. Season summary table (board view with star ratings)
+4. Season rationale (per-title narratives with SHAP breakdowns)
+5. Methodology & glossary (technical reference)
+6. Full season table (complete metrics)
+
+### 18.2 Season Year Naming Convention
+
+**Critical: Season naming follows end-year convention**
+
+- Season starting September 2026, ending May 2027 → **2027 Season**
+- User inputs the END year (2027), not start year (2026)
+- PDF filename: `alberta_ballet_season_report_2027.pdf`
+- Calculation: `season_year_display = user_input`; `start_year = user_input - 1`
+
+**Code Location:** `streamlit_app.py` lines 3655-3677  
+**Implementation:**
+```python
+season_end_year = st.number_input("Season year (end of season...)", value=2027)
+season_year = season_end_year - 1  # 2026 for calculations
+# Pass season_end_year to PDF generation
+```
+
+### 18.3 Data Accuracy Checks
+
+#### 3.1 Month Ordering & Calendar Logic
+
+The PDF orders shows by calendar month: September → October → January → February → March → May.
+
+**Order Map:** `streamlit_app.py` lines 495-502
+```python
+order_map = {
+    "September": 0, "October": 1, "January": 2,
+    "February": 3, "March": 4, "May": 5
+}
+```
+
+**Validation:** Verify that December (month 12) is NOT in the allowed_months list. If December needs to be added, update lines 3684-3686 AND update _run_year_for_month() to handle month 12 correctly.
+
+**Current Status:** ✓ Correct (December not included, months 1-12 handled correctly)
+
+#### 3.2 Year Calculation for Calendar Dates
+
+Function: `_run_year_for_month(month_num: int, start_year: int) -> int`  
+**Location:** `streamlit_app.py` line 3707
+
+**Logic:**
+- Months 9, 10, 12 (Sep, Oct, Dec) → use `start_year`
+- Months 1-8, 11 → use `start_year + 1`
+
+**Example:**
+- Input: September 2026 → year = 2026 (same year)
+- Input: January 2027 → year = 2027 (next year)
+
+**Validation:** Correct. This properly handles the season spanning two calendar years.
+
+**Edge Case:** If December is added to allowed_months, it MUST use `start_year` not `start_year + 1`.
+
+#### 3.3 Ticket Index Calculation
+
+**Data Column Priority** (lines 550-556):
+1. `TicketIndex used` (preferred, most recent naming)
+2. `EffectiveTicketIndex` (fallback)
+3. `TicketIndex_DeSeason_Used` (fallback)
+4. Default: 100
+
+**Concern:** Verify that input data has at least ONE of these columns. If none exist, all shows default to 100 (neutral benchmark), which masks missing data errors.
+
+**Recommendation:** Add validation check at app startup to ensure at least one index column exists.
+
+#### 3.4 City Split Calculation (YYC/YEG)
+
+**Data Columns:**
+- `YYC_Singles`: Calgary tickets (integer)
+- `YEG_Singles`: Edmonton tickets (integer)
+
+**Fallback Logic** (lines 548-549):
+```python
+est_tickets = yyc + yeg  # Sum of two cities
+if est_tickets is None or pd.isna(est_tickets):
+    # Fallback to EstimatedTickets_Final or EstimatedTickets
+```
+
+**Validation:** ✓ Proper fallback chain prevents NULL estimates.
+
+**Concern:** If both YYC_Singles and YEG_Singles are NULL, and EstimatedTickets is also NULL, the estimate becomes 0. Verify historical data includes at least one of these columns.
+
+#### 3.5 Estimated Tickets Calculation
+
+**Priority** (lines 539-549):
+1. `EstimatedTickets_Final` (post-adjustment)
+2. `EstimatedTickets` (raw model output)
+3. `YYC_Singles + YEG_Singles` (city split sum)
+4. Default: 0
+
+**Validation:** ✓ Proper fallback chain.
+
+### 18.4 Narrative Generation Accuracy
+
+#### 4.1 SHAP Value Extraction
+
+**Signal Columns Used:** `wiki`, `trends`, `youtube`, `chartmetric` (lines 718-722)
+
+**Issue:** If these column names don't match input data exactly, SHAP computation silently fails and narratives lack SHAP-driven explanations.
+
+**Validation Needed:**
+```python
+# Check input data has these columns
+required_signals = ['wiki', 'trends', 'youtube', 'chartmetric']
+if not all(col in df.columns for col in required_signals):
+    st.warning(f"Missing signal columns: expected {required_signals}")
+```
+
+#### 4.2 Narrative Style & Accuracy
+
+**Location:** `ml/title_explanation_engine.py` lines 31-150
+
+**Potential Issues:**
+
+1. **Intent Ratio Interpretation** (lines 88-103)
+   - If `IntentRatio < 0.05`: Warns about inflated non-performance-related signals
+   - **Accuracy Check:** Verify IntentRatio column exists; if missing, this warning is skipped
+
+2. **Remount vs Premiere Logic** (lines 105-121)
+   - Uses `IsRemount` flag or `ReturnDecayPct > 0`
+   - Uses `YearsSinceLastRun` for temporal context
+   - **Accuracy Check:** If these columns missing, defaults to "premiere" assumption
+
+3. **Seasonality Description** (lines 159-176)
+   - Thresholds: >1.05 favorable, <0.95 unfavorable
+   - **Issue:** For near-neutral values (0.98-1.02), description is generic
+   - **Accuracy:** Reasonable, but could be more precise
+
+4. **SHAP Feature Mapping** (lines 211-234 of title_explanation_engine.py)
+   - Maps technical feature names to readable descriptions
+   - **Risk:** Unmapped features fall back to generic "feature_name" description
+   - **Recommendation:** Log warnings for unmapped features
+
+**Example Unmapped Feature:**
+If input data has `new_feature_xyz` that SHAP includes, narrative will say:
+> "Key upward drivers include new feature xyz..."
+
+This is readable but less informative than hand-mapped descriptions.
+
+#### 4.3 Ticket Forecasting Accuracy
+
+**Board-level interpretation** (lines 236-255 of title_explanation_engine.py):
+- Categorizes Ticket Index into tiers: exceptional (≥120), strong (≥105), benchmark (≥95), etc.
+- Converts Index to ticket counts using YYC_Singles + YEG_Singles
+
+**Accuracy Check:** Verify that ticket counts are consistent with the Index and seasonality:
+```
+Effective_Index = TicketIndex used × FutureSeasonalityFactor
+Expected_Tickets ≈ Effective_Index × benchmark_multiplier
+```
+
+If EstimatedTickets ≠ Expected_Tickets, investigate whether:
+- City split adjustment has been applied
+- Benchmark multiplier is correct
+- RemountDecay has been applied
+
+### 18.5 SHAP Table Generation
+
+**Location:** `streamlit_app.py` lines 823-856
+
+**Data Flow:**
+1. Extract signal values from row: `{wiki, trends, youtube, chartmetric}`
+2. Call `shap_explainer.explain_single(pd.Series(signal_input))`
+3. Call `build_shap_table(explanation, n_features=4)`
+4. Convert DataFrame to ReportLab Table
+
+**Potential Issues:**
+
+1. **Empty Signal Input:** If all signal columns are NULL, `signal_input = {}` (empty dict)
+   - Result: SHAP computation may fail silently
+   - **Fix:** Add check `if len(available_signals) > 0` before calling explainer
+
+2. **Column Name Mismatch:** SHAP explainer was trained on specific signal names
+   - If input data uses different column names, signals map incorrectly
+   - **Example:** Explainer trained on `wiki`, but input data has `wikipedia_score`
+   - **Fix:** Normalize column names before SHAP extraction
+
+3. **SHAP Table Formatting:** 4-column format assumes consistent feature count
+   - If title has fewer than 4 signals available, table may have blank cells
+   - **Current behavior:** ✓ Uses `n_features=4`, so table always shows top 4 (or all available)
+
+**Validation Status:** ✓ Proper error handling with try/except
+
+### 18.6 PDF Rendering Accuracy
+
+#### 6.1 Column Width Constraints
+
+**Season Summary Table** (lines 576-631):
+- Column widths hardcoded for landscape page
+- Fit test: 8 columns × variable widths ≤ page width (9 inches landscape)
+
+**Validation:** All column widths should sum to ≤ 8.5 inches (accounting for margins).
+
+**Current widths** (lines 606-607):
+```python
+colWidths=[1.0*inch, 1.5*inch, 1.2*inch, 1.0*inch, 0.8*inch, 0.8*inch, 1.0*inch, 0.8*inch]
+# Total: 8.7 inches (OVER 8.5 limit - may cause overflow)
+```
+
+**⚠️ ISSUE FOUND:** Column widths exceed page width. Some columns may be clipped or text wrapped unexpectedly.
+
+**Fix:** Reduce widest columns slightly:
+```python
+colWidths=[0.9*inch, 1.4*inch, 1.0*inch, 0.95*inch, 0.75*inch, 0.75*inch, 0.95*inch, 0.75*inch]
+# Total: 8.05 inches (safe)
+```
+
+#### 6.2 SHAP Table Width
+
+**SHAP Decomposition Table** (lines 826-827):
+```python
+colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch]
+# Total: 5.2 inches (safe for landscape page)
+```
+
+**Status:** ✓ Fits within page width
+
+#### 6.3 Font Sizing
+
+**Body text:** 10pt Helvetica (lines 388)
+**Small text:** 8pt Helvetica (lines 392)
+**SHAP table text:** 8pt Helvetica (line 828)
+
+**Concern:** 8pt font may be difficult for board members with vision challenges. Consider minimum 9pt for critical tables.
+
+**Recommendation:** Increase SHAP table font to 9pt for readability.
+
+#### 6.4 Page Break Logic
+
+**PDF sections:**
+1. Title page (no break after)
+2. Plain-language overview → PageBreak
+3. Season summary (no break after)
+4. Season rationale (no break after per title; single PageBreak at end)
+5. Methodology → PageBreak
+6. Full season table (no break after)
+
+**Concern:** Long narratives + SHAP tables may exceed page height for Season Rationale section, causing unexpected page breaks mid-title.
+
+**Recommendation:** Add per-title page breaks if length exceeds threshold (currently absent).
+
+### 18.7 Known Limitations & Caveats
+
+1. **SHAP Accuracy Dependence:** Per-title SHAP explanations are only as accurate as the underlying model and feature inputs. If model is miscalibrated or features are noisy, SHAP values may be misleading.
+
+2. **Narrative Fallback:** If SHAP computation fails, narratives still generate but lack signal-attribution details. Board may not realize a SHAP-less explanation is less informative.
+
+3. **Missing Column Handling:** Multiple data columns can serve as fallbacks (e.g., TicketIndex, EstimatedTickets). If wrong column is selected, calculations may be silently inaccurate.
+
+4. **Economic Indicator Integration:** Current plain-language overview mentions economic factors, but actual SHAP contributions from economics features are not itemized in per-title narratives.
+
+### 18.8 Recommendations
+
+**High Priority:**
+1. Add startup validation to ensure required columns exist (wiki, trends, youtube, chartmetric, TicketIndex used or equivalent)
+2. Reduce Season Summary table column widths to prevent clipping (adjust to 8.05 inches total)
+3. Increase SHAP table font to 9pt for accessibility
+4. Add per-title page break logic if combined narrative + SHAP table exceeds 7 inches
+
+**Medium Priority:**
+1. Log warnings when SHAP features are unmapped (ml/title_explanation_engine.py)
+2. Add confidence intervals or uncertainty estimates to ticket forecasts
+3. Include economic feature contributions in SHAP narratives (if meaningful)
+4. Add visual waterfall plots for SHAP breakdowns (currently text-only)
+
+**Low Priority:**
+1. Support additional months (December) with corresponding validation
+2. Add multi-season comparison PDF (trends over time)
+3. Support PDF password protection for confidential seasons
+
+---
+
+## 19. Conclusion
 
 The Alberta Ballet Title Scoring Application implements a sophisticated multi-model ML pipeline that effectively combines:
 
