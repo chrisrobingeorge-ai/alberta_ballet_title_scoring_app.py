@@ -3722,6 +3722,10 @@ def render_results():
         cat = str(r.get("Category", ""))
         run_year = _run_year_for_month(m_num, int(season_year))
         run_date = date(run_year, int(m_num), 15)
+        
+        # For display purposes (Month column in season plan), use season_end_year
+        # to keep the season naming consistent throughout all UI/PDF references
+        display_year = season_end_year
 
         # seasonality + index for the chosen month
         f_season = float(seasonality_factor(cat, run_date))
@@ -3758,7 +3762,7 @@ def render_results():
         yeg_singles = int(round(yeg_total))
 
         plan_rows.append({
-            "Month": f"{m_name} {run_year}",
+            "Month": f"{m_name} {display_year}",
             "Title": title_sel,
             "Category": cat,
             "PrimarySegment": r.get("PredictedPrimarySegment", ""),
