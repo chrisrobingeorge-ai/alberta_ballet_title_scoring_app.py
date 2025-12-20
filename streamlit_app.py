@@ -2967,7 +2967,7 @@ def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
                 
                 a, b = np.polyfit(xs_combined, ys_combined, 1)
                 cat_coefs[cat] = (float(a), float(b))
-        return ('linear', overall, cat_coefs, {}, {})
+        return ('linear', overall, cat_coefs, {}, {}, None)
 
 def compute_scores_and_store(
     titles,
@@ -3467,6 +3467,8 @@ def compute_scores_and_store(
         "unknown_est": unknown_used_est,
         "unknown_live": unknown_used_live,
         "postcovid_factor": POSTCOVID_FACTOR,
+        "model_type": model_type,
+        "overall_explainer": overall_explainer,
     }
 
 # -------------------------
@@ -3479,6 +3481,8 @@ def render_results():
 
     df = R["df"]
     postcovid_factor = float(R.get("postcovid_factor", 1.0))
+    model_type = R.get("model_type", "linear")
+    overall_explainer = R.get("overall_explainer", None)
 
     import calendar
 

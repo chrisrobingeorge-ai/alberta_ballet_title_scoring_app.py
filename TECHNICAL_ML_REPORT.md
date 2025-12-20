@@ -1,9 +1,9 @@
 # Alberta Ballet Title Scoring Application: Technical ML Pipeline Report
 
 **Document Type:** Engineering Analysis & Technical Audit  
-**Generated:** December 17, 2025  
+**Generated:** December 20, 2025  
 **Repository:** chrisrobingeorge-ai/alberta_ballet_title_scoring_app.py  
-**Primary Implementation File:** `streamlit_app.py` (4059 lines)
+**Primary Implementation File:** `streamlit_app.py` (4140 lines)
 
 ---
 
@@ -33,7 +33,7 @@ Raw Input Signals → Feature Engineering → ML Prediction → Post-Processing 
                  [Multipliers]      [k-NN Fallback]      [Decay Factors]   [Marketing Est.]
 ```
 
-**File:** `streamlit_app.py:2830-4059` (main prediction pipeline)
+**File:** `streamlit_app.py:2830-4140` (main prediction pipeline)
 
 **Note:** Models are trained dynamically at runtime using user-supplied historical data, not pre-trained artifacts.
 
@@ -901,11 +901,6 @@ else:
 - `run_count_prior` (number of prior productions)
 - `years_since_last_run`
 
-#### Economic Indicators (if available)
-- `consumer_confidence_prairies`
-- `energy_index`
-- `inflation_adjustment_factor`
-
 ### 11.2 PDF Report Structure
 
 **Function:** `build_full_pdf_report()` (`streamlit_app.py:1040-1120`)
@@ -1011,11 +1006,6 @@ else:
 - **Scenario:** Entirely new category (e.g., "drone ballet") with no priors
 - **Mitigation:** k-NN fallback finds *any* similar historical show
 - **Residual Risk:** Similarity to "contemporary" may under/overestimate demand
-
-**Case 4: Economic Shock Events**
-- **Scenario:** Sudden recession, pandemic lockdowns
-- **Mitigation:** `economic_sentiment` factor adjusts for macro conditions
-- **Residual Risk:** Model trained on pre-2020 data may not capture magnitude of disruption
 
 ### 13.3 Uncertainty Quantification
 
@@ -1870,8 +1860,6 @@ colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch]
 
 3. **Missing Column Handling:** Multiple data columns can serve as fallbacks (e.g., TicketIndex, EstimatedTickets). If wrong column is selected, calculations may be silently inaccurate.
 
-4. **Economic Indicator Integration:** Current plain-language overview mentions economic factors, but actual SHAP contributions from economics features are not itemized in per-title narratives.
-
 ### 18.8 Recommendations
 
 **High Priority:**
@@ -1883,8 +1871,7 @@ colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch]
 **Medium Priority:**
 1. Log warnings when SHAP features are unmapped (ml/title_explanation_engine.py)
 2. Add confidence intervals or uncertainty estimates to ticket forecasts
-3. Include economic feature contributions in SHAP narratives (if meaningful)
-4. Add visual waterfall plots for SHAP breakdowns (currently text-only)
+3. Add visual waterfall plots for SHAP breakdowns (currently text-only)
 
 **Low Priority:**
 1. Support additional months (December) with corresponding validation
@@ -1926,7 +1913,7 @@ The system demonstrates engineering rigor with defensive coding, numerical stabi
 
 | Component | File | Lines | Purpose |
 |-----------|------|-------|---------|
-| Main application | `streamlit_app.py` | 1-4108 | UI, pipeline orchestration, prediction logic |
+| Main application | `streamlit_app.py` | 1-4140 | UI, pipeline orchestration, prediction logic |
 | SHAP explainability | `ml/shap_explainer.py` | 1-841 | Per-prediction SHAP decomposition & narratives |
 | Title narratives | `ml/title_explanation_engine.py` | 1-420 | Multi-paragraph board-level narratives |
 | Model metadata | `models/model_xgb_remount_postcovid.json` | 1-70 | Historical XGBoost metadata (artifact missing) |
