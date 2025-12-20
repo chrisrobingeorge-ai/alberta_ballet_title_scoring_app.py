@@ -6,7 +6,7 @@ in the Season Report PDF. Each narrative explains:
 - Signal positioning (Familiarity & Motivation)
 - Historical & category context
 - Seasonal & macro factors
-- SHAP-based driver summary
+- SHAP-based driver summary (computed from actual predictions)
 - Board-level interpretation
 
 All explanations are programmatically derived from features, predictions, and SHAP values.
@@ -19,6 +19,12 @@ Date: December 2025
 from typing import Dict, List, Optional, Tuple, Any
 import pandas as pd
 import numpy as np
+
+try:
+    from ml.shap_explainer import SHAPExplainer, format_shap_narrative, get_top_shap_drivers
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
 
 
 def build_title_explanation(

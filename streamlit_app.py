@@ -55,6 +55,12 @@ except ImportError:
 # They were only adding computational overhead with no predictive value
 ECON_FACTORS_AVAILABLE = False
 
+try:
+    from ml.shap_explainer import SHAPExplainer, format_shap_narrative
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
+
 # k-NN fallback for cold-start predictions
 try:
     from ml.knn_fallback import KNNFallback, build_knn_from_config
@@ -699,7 +705,7 @@ def _make_season_summary_table_pdf(plan_df: pd.DataFrame) -> Table:
     return table
 
 
-def _narrative_for_row(r: dict) -> str:
+def _narrative_for_row(r: dict, shap_explainer=None) -> str:
     """
     Generate a comprehensive SHAP-driven narrative for a single title in the Season Rationale.
     
@@ -720,11 +726,24 @@ def _narrative_for_row(r: dict) -> str:
         # Convert row dict to format expected by explanation engine
         title_metadata = dict(r)
         
+        # Compute SHAP values if explainer available
+        shap_values = None
+        if shap_explainer and SHAP_AVAILABLE:
+            try:
+                signal_only = float(r.get("SignalOnly", 0))
+                explanation = shap_explainer.explain_single(pd.Series({'SignalOnly': signal_only}))
+                # Convert to dict format expected by explanation engine
+                shap_values = {name: float(val) for name, val in zip(explanation['feature_names'], explanation['shap_values'])}
+            except Exception as e:
+                # SHAP computation failed, continue with None
+                import logging
+                logging.debug(f"SHAP computation failed for {r.get('Title', 'Unknown')}: {e}")
+        
         # Call the explanation engine
         narrative = build_title_explanation(
             title_metadata=title_metadata,
             prediction_outputs=None,  # Could be enhanced with model metadata
-            shap_values=None,  # Could be enhanced with actual SHAP values if available
+            shap_values=shap_values,  # Now populated with actual SHAP values if available
             style="board"
         )
         
@@ -758,7 +777,7 @@ def _narrative_for_row(r: dict) -> str:
         return " ".join(parts)
 
 
-def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
+def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> list:
     """
     Build comprehensive SHAP-driven narratives for each title in the season.
     
@@ -766,21 +785,27 @@ def _build_month_narratives(plan_df: "pd.DataFrame") -> list:
     - Signal positioning, historical context, seasonal factors, SHAP drivers, and 
       board-level interpretation.
     
-    Returns a list of ReportLab Flowables with expanded spacing to accommodate longer narratives.
+    Args:
+        plan_df: DataFrame with title/prediction data
+        shap_explainer: Optional SHAPExplainer for per-title decomposition
+    
+    Returns:
+        A list of ReportLab Flowables with expanded spacing to accommodate longer narratives.
     """
     styles = _make_styles()
     blocks = [Paragraph("Season Rationale (by month)", styles["h1"])]
     blocks.append(Paragraph(
         "Each title below receives a comprehensive explanation derived from the model's feature analysis, "
-        "SHAP value attributions, and learned historical patterns. These narratives provide transparent "
+        f"{'SHAP value attributions, ' if shap_explainer and SHAP_AVAILABLE else ''}"
+        "and learned historical patterns. These narratives provide transparent "
         "insight into what drives each forecast.",
         styles["small"]
     ))
     blocks.append(Spacer(1, 0.15*inch))
     
     for _, rr in plan_df.iterrows():
-        # Generate the comprehensive narrative
-        narrative_text = _narrative_for_row(rr)
+        # Generate the comprehensive narrative with SHAP data if available
+        narrative_text = _narrative_for_row(rr, shap_explainer=shap_explainer)
         blocks.append(Paragraph(narrative_text, styles["body"]))
         
         # Increased spacing between titles to accommodate longer narratives
@@ -1016,13 +1041,14 @@ def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
 def build_full_pdf_report(methodology_paragraphs: list,
                           plan_df: "pd.DataFrame",
                           season_year: int,
-                          org_name: str = "Alberta Ballet") -> bytes:
+                          org_name: str = "Alberta Ballet",
+                          shap_explainer=None) -> bytes:
     """
     Returns a PDF as bytes containing:
       1) Title page
       2) How This Forecast Works — A Plain-Language Overview (NEW: replaces old methodology intro)
       3) Season Summary (Board View) - Clean, leadership-friendly overview
-      4) Season Rationale (per month/title)
+      4) Season Rationale (per month/title) - With SHAP explanations if available
       5) Methodology & Glossary
       6) 🗓️ Full Season Table (all metrics) - Replaces old "Season Table (Technical Details)"
     """
@@ -1060,8 +1086,8 @@ def build_full_pdf_report(methodology_paragraphs: list,
     story.append(_make_season_summary_table_pdf(plan_df))
     story.append(Spacer(1, 0.3*inch))
 
-    # (3) Season Rationale
-    story.extend(_build_month_narratives(plan_df))
+    # (3) Season Rationale - with SHAP explanations if available
+    story.extend(_build_month_narratives(plan_df, shap_explainer=shap_explainer))
     story.append(PageBreak())
 
     # (4) Methodology & Glossary
@@ -2649,19 +2675,22 @@ def _train_ml_models(df_known_in: pd.DataFrame):
     Train regression models (Constrained Ridge for overall, Ridge for categories) 
     to predict TicketIndex_DeSeason from SignalOnly.
     
+    Also initializes SHAP explainers for per-prediction explanations.
+    
     Constrained model ensures:
     - SignalOnly = 0 → TicketIndex ≈ 25 (realistic floor for minimal buzz)
     - SignalOnly = 100 → TicketIndex = 100 (benchmark alignment)
     
-    Returns models and their performance metrics.
+    Returns models, explainers, and their performance metrics.
     """
     if not ML_AVAILABLE:
-        return None, {}, {}, {}
+        return None, {}, {}, {}, None
     
     import warnings
     warnings.filterwarnings('ignore')
     
     overall_model = None
+    overall_explainer = None
     overall_metrics = {}
     cat_models = {}
     cat_metrics = {}
@@ -2699,6 +2728,20 @@ def _train_ml_models(df_known_in: pd.DataFrame):
             model.fit(X, y)
             overall_model = model
             
+            # Create SHAP explainer for per-prediction explanations
+            if SHAP_AVAILABLE:
+                try:
+                    overall_explainer = SHAPExplainer(
+                        model=model,
+                        X_train=pd.DataFrame(X_original, columns=['SignalOnly']),
+                        feature_names=['SignalOnly']
+                    )
+                except Exception as e:
+                    # SHAP creation failed, continue without it
+                    import logging
+                    logging.debug(f"SHAP explainer creation failed: {e}")
+                    overall_explainer = None
+            
             # Calculate metrics on REAL data only (not anchors)
             y_pred_real = model.predict(X_original)
             mae = mean_absolute_error(y_original, y_pred_real)
@@ -2716,11 +2759,13 @@ def _train_ml_models(df_known_in: pd.DataFrame):
                 'intercept': float(model.intercept_),
                 'slope': float(model.coef_[0]),
                 'anchor_0': float(anchor_preds[0]),  # Should be ~25
-                'anchor_100': float(anchor_preds[1])  # Should be ~100
+                'anchor_100': float(anchor_preds[1]),  # Should be ~100
+                'shap_available': overall_explainer is not None
             }
         except Exception as e:
             # Silently fall back to None if training fails
             overall_model = None
+            overall_explainer = None
     
     # Train per-category models if enough data per category
     for cat, g in df_known_in.groupby("Category"):
@@ -2753,7 +2798,7 @@ def _train_ml_models(df_known_in: pd.DataFrame):
                 # Silently skip categories with issues
                 continue
     
-    return overall_model, cat_models, overall_metrics, cat_metrics
+    return overall_model, cat_models, overall_metrics, cat_metrics, overall_explainer
 
 def _predict_with_ml_model(model, signal_only: float) -> float:
     """Helper to make prediction with a scikit-learn or XGBoost model."""
@@ -2777,8 +2822,8 @@ def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
     """
     if ML_AVAILABLE and len(df_known_in) >= 3:
         # Use constrained Ridge regression models
-        overall_model, cat_models, overall_metrics, cat_metrics = _train_ml_models(df_known_in)
-        return ('ml', overall_model, cat_models, overall_metrics, cat_metrics)
+        overall_model, cat_models, overall_metrics, cat_metrics, overall_explainer = _train_ml_models(df_known_in)
+        return ('ml', overall_model, cat_models, overall_metrics, cat_metrics, overall_explainer)
     else:
         # Fallback to constrained linear regression
         overall = None
@@ -3029,7 +3074,7 @@ def compute_scores_and_store(
             return np.nan, "Not enough data", "[]"
     
     if model_type == 'ml':
-        _, overall_model, cat_models, overall_metrics, cat_metrics = model_result
+        _, overall_model, cat_models, overall_metrics, cat_metrics, overall_explainer = model_result
         
         # Model performance metrics available for debugging if needed
         # (Hidden from UI to avoid confusion - metrics stored in session state)
@@ -3057,7 +3102,8 @@ def compute_scores_and_store(
             return np.nan, "Not enough data", "[]"
     else:
         # Linear regression fallback
-        _, overall_coef, cat_coefs, _, _ = model_result
+        _, overall_coef, cat_coefs, _, _, _ = model_result
+        overall_explainer = None  # Linear fallback has no SHAP explainer
         
         # 5) Impute missing TicketIndex with linear models, with kNN fallback
         def _predict_ticket_index_deseason(signal_only: float, category: str, baseline_signals: dict) -> tuple[float, str, str]:
@@ -3864,7 +3910,8 @@ def render_results():
                 methodology_paragraphs=methodology_paragraphs,
                 plan_df=plan_df,
                 season_year=int(season_year),
-                org_name="Alberta Ballet"
+                org_name="Alberta Ballet",
+                shap_explainer=overall_explainer if model_type == 'ml' else None
             )
             st.download_button(
                 "⬇️ Download Full PDF Report",
