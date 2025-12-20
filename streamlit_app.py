@@ -730,8 +730,19 @@ def _narrative_for_row(r: dict, shap_explainer=None) -> str:
         shap_values = None
         if shap_explainer and SHAP_AVAILABLE:
             try:
-                signal_only = float(r.get("SignalOnly", 0))
-                explanation = shap_explainer.explain_single(pd.Series({'SignalOnly': signal_only}))
+                # Prepare feature input for SHAP
+                signal_columns = ['wiki', 'trends', 'youtube', 'chartmetric']
+                available_signals = [col for col in signal_columns if col in r]
+                
+                if len(available_signals) > 0:
+                    # Multi-feature SHAP: use actual signal values
+                    signal_input = {col: float(r.get(col, 0)) for col in available_signals}
+                    explanation = shap_explainer.explain_single(pd.Series(signal_input))
+                else:
+                    # Fallback: use SignalOnly if individual signals unavailable
+                    signal_only = float(r.get("SignalOnly", 0))
+                    explanation = shap_explainer.explain_single(pd.Series({'SignalOnly': signal_only}))
+                
                 # Convert to dict format expected by explanation engine
                 shap_values = {name: float(val) for name, val in zip(explanation['feature_names'], explanation['shap_values'])}
             except Exception as e:
@@ -2729,13 +2740,55 @@ def _train_ml_models(df_known_in: pd.DataFrame):
             overall_model = model
             
             # Create SHAP explainer for per-prediction explanations
+            # Train a separate 4-feature model for SHAP to decompose individual signal contributions
+            overall_explainer = None
             if SHAP_AVAILABLE:
                 try:
-                    overall_explainer = SHAPExplainer(
-                        model=model,
-                        X_train=pd.DataFrame(X_original, columns=['SignalOnly']),
-                        feature_names=['SignalOnly']
-                    )
+                    # Extract individual signal columns if available
+                    signal_columns = ['wiki', 'trends', 'youtube', 'chartmetric']
+                    available_signals = [col for col in signal_columns if col in df_known_in.columns]
+                    
+                    if len(available_signals) > 0:
+                        # Train 4-feature model for detailed SHAP explanations
+                        X_signals = df_known_in[available_signals].values
+                        y_signals = df_known_in['TicketIndex_DeSeason'].values
+                        
+                        # Use same anchor strategy but in higher dimensions
+                        n_real_signals = len(df_known_in)
+                        anchor_weight_signals = max(3, n_real_signals // 2)
+                        
+                        # Create anchor points: [0,0,0,0] → 25 and [mean,mean,mean,mean] → 100
+                        anchor_points = np.array([
+                            [0.0] * len(available_signals),  # No signal → 25 tickets
+                            [X_signals.mean(axis=0)]  # Average signals → 100 tickets
+                        ])
+                        anchor_values = np.array([25.0, 100.0])
+                        
+                        X_anchors_weighted = np.repeat(anchor_points, anchor_weight_signals, axis=0)
+                        y_anchors_weighted = np.repeat(anchor_values, anchor_weight_signals)
+                        
+                        # Combine with real data
+                        X_shap = np.vstack([X_signals, X_anchors_weighted])
+                        y_shap = np.concatenate([y_signals, y_anchors_weighted])
+                        
+                        # Train 4-feature Ridge model for SHAP
+                        shap_model = Ridge(alpha=5.0, random_state=42)
+                        shap_model.fit(X_shap, y_shap)
+                        
+                        # Create SHAP explainer on the 4-feature model
+                        overall_explainer = SHAPExplainer(
+                            model=shap_model,
+                            X_train=pd.DataFrame(X_signals, columns=available_signals),
+                            feature_names=available_signals,
+                            sample_size=min(100, len(X_signals))
+                        )
+                    else:
+                        # Fallback: use 1-feature model if signals unavailable
+                        overall_explainer = SHAPExplainer(
+                            model=model,
+                            X_train=pd.DataFrame(X_original, columns=['SignalOnly']),
+                            feature_names=['SignalOnly']
+                        )
                 except Exception as e:
                     # SHAP creation failed, continue without it
                     import logging
