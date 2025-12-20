@@ -6,7 +6,7 @@ This module integrates with external APIs to fetch macroeconomic data and comput
 economic sentiment factors for the Alberta Ballet title scoring application.
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 from datetime import datetime
 import logging
 
