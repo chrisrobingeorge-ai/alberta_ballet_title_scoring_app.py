@@ -11,10 +11,12 @@
 
 This report documents the complete machine learning pipeline for the Alberta Ballet Title Scoring Application, derived exclusively from executable code analysis. The system implements a hybrid predictive architecture combining:
 
-1. **XGBoost Gradient Boosting** (primary model: `xgboost.sklearn.XGBRegressor`)
-2. **k-Nearest Neighbors fallback** for cold-start predictions
-3. **Constrained Ridge Regression** for signal-to-ticket translation
+1. **Dynamically-Trained Ridge Regression** (locally trained on user-supplied historical data)
+2. **LinearRegression Fallback** (when insufficient historical data exists)
+3. **k-Nearest Neighbors fallback** for cold-start predictions
 4. **Multi-factor digital signal aggregation** from Wikipedia, Google Trends, YouTube, and Chartmetric
+
+**Key Implementation Detail:** The application does NOT use a pre-trained XGBoost model. Instead, it trains Ridge regression models dynamically at runtime using user-provided historical production data. This design allows the system to adapt to each user's specific dataset while maintaining robust predictions through anchor-point constraints.
 
 The application predicts ballet production ticket sales by synthesizing online visibility metrics with historical performance data, applying seasonality adjustments, and decomposing forecasts by city (Calgary/Edmonton) and audience segment.
 
@@ -27,32 +29,42 @@ The application predicts ballet production ticket sales by synthesizing online v
 ```
 Raw Input Signals → Feature Engineering → ML Prediction → Post-Processing → City/Segment Split
      ↓                    ↓                    ↓               ↓                  ↓
-  [API Calls]    [Normalization]    [XGBoost/KNN]    [Seasonality]     [Learned Priors]
-                 [Multipliers]      [Ridge Fallback]  [Decay Factors]   [Marketing Est.]
+  [Baselines]   [Normalization]    [Ridge/Linear]       [Seasonality]     [Learned Priors]
+                 [Multipliers]      [k-NN Fallback]      [Decay Factors]   [Marketing Est.]
 ```
 
 **File:** `streamlit_app.py:2830-4059` (main prediction pipeline)
 
+**Note:** Models are trained dynamically at runtime using user-supplied historical data, not pre-trained artifacts.
+
 ### 1.2 Model Selection Hierarchy
 
-The system employs a three-tier fallback strategy (lines 3046-3100):
+The system employs a four-tier fallback strategy based on data availability (streamlit_app.py:3185-3225):
 
 1. **Tier 1 - Historical Data** (`TicketIndexSource = "History"`)
    - Direct lookup from `BASELINES` dictionary containing 282 reference productions
    - Median ticket sales from prior runs used as ground truth
+   - **Activated when:** Title exists in user's historical data with known ticket sales
 
-2. **Tier 2 - ML Models** (Ridge Regression or XGBoost)
-   - **Category-specific Ridge models** (per production category)
-   - **Overall Ridge model** (cross-category aggregation)
-   - **XGBoost ensemble** (if trained artifact available)
+2. **Tier 2 - ML Models** (Dynamically-Trained Regression)
+   - **Category-specific Ridge Regression models** (trained if ≥5 samples per category)
+   - **Overall Ridge Regression model** (trained if ≥3 total samples available)
+   - **Category-specific LinearRegression** (trained if 3-4 samples per category)
+   - **Overall LinearRegression** (fallback if ≥3 total samples available)
+   - **Activated when:** User provides historical data AND `ML_AVAILABLE = True`
+   - **Deactivated when:** Fewer than 3 historical samples available
+   - **Note:** Models are trained on demand at runtime, not pre-trained
 
 3. **Tier 3 - k-NN Fallback** (`ml/knn_fallback.py:1-679`)
    - Cosine similarity matching against baseline signals
    - Distance-weighted voting with recency decay
    - Returns nearest-neighbor median as prediction
+   - **Activated when:** k-NN index successfully built from reference data AND prediction from Tier 2 returns NaN
+   - **Deactivated when:** Fewer than 3 reference records available
 
 4. **Tier 4 - Signal-Only Estimate**
-   - Falls back to `SignalOnly` composite score if no historical/model data exists
+   - Falls back to `SignalOnly` composite score if all other predictions unavailable
+   - **Activated when:** All previous tiers fail to produce prediction
 
 ---
 
@@ -213,97 +225,40 @@ SignalOnly = 0.50 * Familiarity + 0.50 * Motivation
 
 ## 3. Machine Learning Models
 
-### 3.1 Primary Model: XGBoost Regressor
+### 3.1 Dynamically-Trained Ridge Regression (Primary Model)
 
-**Artifact Location:** `models/model_xgb_remount_postcovid.joblib`  
-**Training Script:** `scripts/train_safe_model.py` (removed from working tree, commit `44c7798`)
+**Architecture:** Locally-trained regression models created at runtime based on user-supplied historical data
 
-#### Model Architecture
+**Implementation:** `streamlit_app.py:2923-2980` (`_fit_overall_and_by_category` function)
 
-```python
-# From git history: scripts/train_safe_model.py:400-420
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from xgboost import XGBRegressor
+#### Model Training Strategy
 
-pipeline = Pipeline([
-    ("preprocessor", ColumnTransformer([...])),  # One-hot encoding + scaling
-    ("model", XGBRegressor(
-        n_estimators=100,
-        max_depth=3,
-        learning_rate=0.1,
-        random_state=42,
-        objective='reg:squarederror',
-        n_jobs=-1,
-        verbosity=0
-    ))
-])
-```
-
-**Verified Hyperparameters (from loaded artifact):**
-- `n_estimators`: 100 boosting rounds
-- `max_depth`: 3 (shallow trees prevent overfitting on small dataset)
-- `learning_rate`: 0.1 (η = 0.1 in XGBoost notation)
-- `objective`: reg:squarederror (L2 loss for regression)
-- `random_state`: 42 (reproducibility seed)
-
-#### Feature Set (35 total features)
-
-**From:** `models/model_metadata.json:4-40`
-
-**Numeric Features (31):**
-1. **Digital Signals:** `wiki`, `trends`, `youtube`, `chartmetric`
-2. **Historical Priors:** `prior_total_tickets`, `prior_run_count`, `ticket_median_prior`, `years_since_last_run`
-3. **Remount Indicators:** `is_remount_recent`, `is_remount_medium`, `run_count_prior`
-4. **Temporal Features:** `month_of_opening`, `holiday_flag`, `opening_year`, `opening_month`, `opening_day_of_week`, `opening_week_of_year`, `opening_quarter`
-5. **Seasonal Flags:** `opening_is_winter`, `opening_is_spring`, `opening_is_summer`, `opening_is_autumn`, `opening_is_holiday_season`, `opening_is_weekend`
-6. **Run Duration:** `run_duration_days`
-7. **Economic Indicators:** `consumer_confidence_prairies`, `energy_index`, `inflation_adjustment_factor`, `city_median_household_income`
-8. **Audience Analytics:** `aud__engagement_factor` (from Live Analytics data)
-9. **Donor Research:** `res__arts_share_giving` (arts giving share from Nanos research)
-
-**Categorical Features (4):**
-- `category` (e.g., "family_classic", "contemporary", "pop_ip")
-- `gender` (lead dancer gender: "female", "male", "co", "na")
-- `opening_season` (e.g., "Fall", "Winter", "Spring")
-- `opening_date` (encoded as categorical month-year)
-
-**Preprocessing:** One-hot encoding expands categoricals to 67 total features after transformation.
-
-#### Model Performance
-
-**From:** `models/model_xgb_remount_postcovid.json:50-60`
-
-**5-Fold Time-Aware Cross-Validation:**
-- **MAE:** 696.4 ± 365.7 tickets
-- **RMSE:** 821.5 ± 375.8 tickets
-- **R²:** 0.800 ± 0.134
-
-**Training Set Metrics (n=25):**
-- **MAE:** 2.46 tickets (near-perfect fit, risk of overfitting)
-- **R²:** 0.9999935
-- **MAE (log-scale):** 0.00024
-
-**Inference Implementation:** `streamlit_app.py:3991-4001`
+The system trains regression models dynamically when users provide historical production data. Rather than relying on pre-trained artifacts, this approach adapts to each user's specific dataset:
 
 ```python
-def _xgb_predict_tickets(feature_df: pd.DataFrame) -> np.ndarray:
-    import xgboost as xgb
-    model_path = ML_CONFIG.get('path', 'model_xgb_remount_postcovid.joblib')
-    booster = xgb.Booster()
-    booster.load_model(model_path)
-    dmx = xgb.DMatrix(feature_df.values, feature_names=list(feature_df.columns))
-    preds = booster.predict(dmx)
-    return np.maximum(preds, 0.0)  # Floor at zero tickets
+# streamlit_app.py:2923-2980
+def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
+    if ML_AVAILABLE and len(df_known_in) >= 3:
+        # Use constrained Ridge regression models
+        overall_model, cat_models, ... = _train_ml_models(df_known_in)
+        return ('ml', overall_model, cat_models, ...)
+    else:
+        # Fallback to constrained LinearRegression if data insufficient
+        overall = None
+        if len(df_known_in) >= 5:
+            # Fit linear model with anchor point constraints
+            a, b = np.polyfit(x_combined, y_combined, 1)
+            overall = (float(a), float(b))
+        return ('linear', overall, cat_coefs, ...)
 ```
 
-**Note:** Code loads XGBoost as `Booster` directly, but artifact is actually a `Pipeline` containing `XGBRegressor`. In practice, the model is loaded via joblib as a Pipeline (lines 3996-3998 show git history intent vs. current implementation discrepancy).
+**Note on Historical XGBoost Artifacts:** The file `models/model_xgb_remount_postcovid.json` contains metadata from a previous XGBoost training effort. However, the corresponding trained model artifact (`models/model_xgb_remount_postcovid.joblib`) does not exist in the repository. The application does NOT load or use this artifact. This historical metadata is retained for documentation purposes only.
 
-### 3.2 Fallback Model: Constrained Ridge Regression
+### 3.2 Constrained Ridge Regression
 
-**Implementation:** `streamlit_app.py:2655-2770`
+**Implementation:** `streamlit_app.py:2655-2770` and `streamlit_app.py:2923-2980`
 
-When XGBoost artifact is unavailable or training data is insufficient, the system falls back to Ridge regression with synthetic anchor points.
+When sufficient historical data exists (≥3 samples), the system trains Ridge regression models with synthetic anchor points to ensure realistic predictions.
 
 #### Training Logic
 
@@ -365,11 +320,54 @@ for cat, g in df_known_in.groupby("Category"):
 2. If 3-4 samples → Linear regression (no regularization)
 3. If <3 samples → Skip, fall back to overall model
 
-### 3.3 k-Nearest Neighbors Cold-Start Fallback
+### 3.3 LinearRegression Fallback Model
+
+**Implementation:** `streamlit_app.py:2945-2980`
+
+When scikit-learn is unavailable (`ML_AVAILABLE = False`) or for legacy compatibility, the system falls back to constrained LinearRegression using NumPy's `polyfit`.
+
+#### Fallback Activation Conditions
+
+```python
+# streamlit_app.py:2945-2950
+if ML_AVAILABLE and len(df_known_in) >= 3:
+    # Use Ridge regression (primary path)
+    ...
+else:
+    # Use LinearRegression fallback (legacy path)
+    if len(df_known_in) >= 5:
+        a, b = np.polyfit(x_combined, y_combined, 1)
+        overall = (float(a), float(b))
+```
+
+**Activated when:**
+- `ML_AVAILABLE = False` (scikit-learn not installed), OR
+- `len(df_known_in) < 3` (insufficient historical data)
+
+#### Constraint Implementation
+
+```python
+# streamlit_app.py:2960-2975
+# Add weighted anchor points
+n_anchors = max(2, len(x_real) // 3)
+x_anchors = np.array([0.0] * n_anchors + [100.0] * n_anchors)
+y_anchors = np.array([25.0] * n_anchors + [100.0] * n_anchors)
+
+x_combined = np.concatenate([x_real, x_anchors])
+y_combined = np.concatenate([y_real, y_anchors])
+
+a, b = np.polyfit(x_combined, y_combined, 1)
+```
+
+**Formula:** Linear fit minimizes $\sum_i (y_i - (ax_i + b))^2$ with weighted anchor points pulling the line toward:
+- $(x=0, y=25)$ for minimal buzz
+- $(x=100, y=100)$ for benchmark alignment
+
+### 3.4 k-Nearest Neighbors Cold-Start Fallback
 
 **Implementation:** `ml/knn_fallback.py:1-679`
 
-When neither XGBoost nor Ridge models can provide predictions (e.g., entirely new category or missing historical data), the system uses k-NN similarity matching.
+When neither Ridge nor LinearRegression models can provide predictions (e.g., entirely new category, missing baseline signals, or insufficient historical data), the system uses k-NN similarity matching.
 
 #### Algorithm Configuration
 
@@ -695,7 +693,7 @@ def compute_boc_economic_sentiment(run_date=None, city=None):
 EstimatedTickets_Final = EstimatedTickets * economic_sentiment
 ```
 
-**Current Implementation Note:** Economic factors are integrated as features in XGBoost model (`consumer_confidence_prairies`, `energy_index`, `inflation_adjustment_factor`) rather than as post-hoc multipliers.
+**Current Implementation Note:** Economic factors are NOT used in current predictions. The locally-trained Ridge/LinearRegression models use only the `SignalOnly` composite score. Economic data was previously explored in the XGBoost model (per metadata), but the current simpler approach relies entirely on digital signals and historical data.
 
 ### 6.3 Calibration (Optional)
 
@@ -809,8 +807,8 @@ yeg_budget = total_budget * (yeg_tickets / total_tickets)
    └─ Train/load Ridge regression models
 
 4. ML Prediction
-   ├─ Load XGBoost model (if available)
-   ├─ Else use Ridge regression (overall + per-category)
+   ├─ Train/load Ridge regression (if available, with anchors)
+   ├─ Else use LinearRegression (legacy fallback)
    ├─ Else fallback to k-NN (if enabled)
    └─ Else use SignalOnly as proxy
 
@@ -847,7 +845,7 @@ yeg_budget = total_budget * (yeg_tickets / total_tickets)
 | `Familiarity` | $0.55 \cdot \text{Wiki} + 0.30 \cdot \text{Trends} + 0.15 \cdot \text{Chartmetric}$ | [~30, ~140] | Static awareness |
 | `Motivation` | $0.45 \cdot \text{YouTube} + 0.25 \cdot \text{Trends} + 0.15 \cdot \text{Chartmetric} + 0.15 \cdot \text{Wiki}$ | [~30, ~140] | Active engagement |
 | `SignalOnly` | $0.50 \cdot \text{Fam} + 0.50 \cdot \text{Mot}$ | [~20, ~150] | Composite online visibility |
-| `TicketIndex_DeSeason` | Ridge($\text{SignalOnly}$) or XGBoost(features) | [20, 180] | Seasonality-neutral demand |
+| `TicketIndex_DeSeason` | Ridge($\text{SignalOnly}$) or Linear($\text{SignalOnly}$) | [20, 180] | Seasonality-neutral demand |
 | `FutureSeasonalityFactor` | Learned from history with shrinkage | [0.70, 1.25] | Month × Category boost/penalty |
 | `EffectiveTicketIndex` | $\text{TicketIndex} \times \text{SeasonalityFactor}$ | [14, 225] | Final demand index |
 | `EstimatedTickets` | $(\text{EffectiveTicketIndex} / 100) \times \text{BenchmarkMedian}$ | [0, 15000] | Absolute ticket forecast |
@@ -1036,15 +1034,15 @@ else:
 
 **Prediction (Offline Mode):**
 - Feature engineering: O(n) for n titles (~10ms per title)
-- ML inference: O(n × f) for f features (~5ms per title with Ridge, ~15ms with XGBoost)
+- Feature engineering: O(n) for n titles (~10ms per title)
+- ML inference: O(n) for Ridge regression (~2ms per title), O(n) for LinearRegression (~1ms)
 - k-NN search: O(n × k × d) for k neighbors, d dimensions (~20ms per title)
-- **Total per title:** ~50ms (entire season of 6 shows: ~300ms)
+- **Total per title:** ~30ms (entire season of 6 shows: ~200ms)
 
 ### 12.2 Memory Footprint
 
 **Loaded Artifacts:**
-- XGBoost model (joblib): ~150 KB
-- BASELINES dictionary: ~25 KB (282 titles × 6 signals)
+- BASELINES dictionary: ~25 KB (281 titles × 6 signals)
 - SEASONALITY_TABLE: ~2 KB (10 categories × 12 months)
 - Historical data (if uploaded): ~50-500 KB
 
@@ -1057,11 +1055,11 @@ else:
 ### 12.3 Scalability Limits
 
 **Current Constraints:**
-- **Training data size:** n=25 samples (XGBoost model metadata)
-  - Risk: Overfitting with high R² (0.9999935) on training set
-  - Mitigation: max_depth=3, CV validation, regularization
+- **Training data size:** Varies by user dataset (typically 10-50 productions)
+  - Benefit: Models adapt to user's specific context
+  - Limitation: Insufficient data (< 3 samples) triggers fallback to k-NN or defaults
 
-- **Historical baseline size:** 282 reference titles in `data/productions/baselines.csv`
+- **Historical baseline size:** 281 reference titles in `data/productions/baselines.csv`
   - Benefit: Comprehensive reference library for similarity matching
   - Drawback: Manual updates required when new titles are added
 
@@ -1081,7 +1079,7 @@ else:
 ### 13.1 Core Assumptions
 
 1. **Digital signals correlate with ticket demand**
-   - Validity: Partially supported by R²=0.80 in CV
+   - Validity: Supported by local Ridge model training on user data
    - Caveat: YouTube views for "Nutcracker" include movie trailers, TV specials
 
 2. **Past performance predicts future results**
@@ -2000,8 +1998,8 @@ colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch]
 
 The Alberta Ballet Title Scoring Application implements a sophisticated multi-model ML pipeline that effectively combines:
 
-1. **Gradient Boosting (XGBoost)** with 35 engineered features
-2. **Constrained Ridge Regression** with anchor-point learning
+1. **Ridge Regression** (dynamically trained on user data) with anchor-point constraints
+2. **LinearRegression** (fallback when scikit-learn unavailable) with anchor-point constraints
 3. **k-Nearest Neighbors** with recency-weighted similarity
 4. **Digital signal fusion** from 4 external APIs
 5. **Seasonality learning** with shrinkage regularization
@@ -2009,18 +2007,19 @@ The Alberta Ballet Title Scoring Application implements a sophisticated multi-mo
 
 **Strengths:**
 - Robust to missing data (4-tier fallback strategy)
+- Adaptive to user's dataset (locally-trained models)
 - Transparent predictions (source attribution, k-NN neighbors)
-- Prevents data leakage (time-aware CV, forbidden feature checks)
+- Prevents data leakage (only historical features used)
 - Handles cold-start (k-NN similarity for new titles)
 
 **Limitations:**
-- Small training dataset (n=25, risk of overfitting)
+- Depends on user-provided training data (< 3 samples triggers fallback)
 - No uncertainty quantification (point estimates only)
-- Manual baseline management (282 reference titles in baselines.csv)
+- Manual baseline management (281 reference titles in baselines.csv)
 - API dependency for live data (rate limits, availability)
 
 **Overall Assessment:**
-The system demonstrates engineering rigor with defensive coding, numerical stability safeguards, and multi-level validation. The hybrid model architecture appropriately balances accuracy (when data is available) with graceful degradation (when data is sparse). For stakeholder presentation, the code-derived evidence supports deployment for production forecasting with recommended enhancements to uncertainty quantification and data quality monitoring.
+The system demonstrates engineering rigor with defensive coding, numerical stability safeguards, and multi-level validation. The locally-trained model architecture appropriately balances accuracy (when data is available) with graceful degradation (when data is sparse). For stakeholder presentation, the code-derived evidence supports deployment for production forecasting with recommended enhancements to uncertainty quantification and data quality monitoring.
 
 ---
 
@@ -2031,12 +2030,11 @@ The system demonstrates engineering rigor with defensive coding, numerical stabi
 | Main application | `streamlit_app.py` | 1-4108 | UI, pipeline orchestration, prediction logic |
 | SHAP explainability | `ml/shap_explainer.py` | 1-841 | Per-prediction SHAP decomposition & narratives |
 | Title narratives | `ml/title_explanation_engine.py` | 1-420 | Multi-paragraph board-level narratives |
-| XGBoost model | `models/model_xgb_remount_postcovid.joblib` | - | Trained sklearn Pipeline with XGBRegressor |
-| Model metadata | `models/model_metadata.json` | 1-70 | Training date, features, CV metrics |
+| Model metadata | `models/model_xgb_remount_postcovid.json` | 1-70 | Historical XGBoost metadata (artifact missing) |
 | k-NN fallback | `ml/knn_fallback.py` | 1-679 | Cold-start similarity matching |
-| Economic factors | `utils/economic_factors.py` | 1-1271 | BoC/Alberta API integration |
+| Economic factors | `utils/economic_factors.py` | 1-1271 | BoC/Alberta API integration (not currently used) |
 | Configuration | `config.yaml` | 1-140 | Multipliers, priors, seasonality settings |
-| Training script | `scripts/train_safe_model.py` | (git history) | XGBoost training with leak prevention |
+| Training script | `scripts/train_safe_model.py` | (git history) | Previous XGBoost training (removed from repo) |
 
 **Appendix B: Mathematical Notation Summary**
 

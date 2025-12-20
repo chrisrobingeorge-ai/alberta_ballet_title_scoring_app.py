@@ -1,0 +1,84 @@
+{
+  "test_1_model_artifacts": {
+    "json_metadata_exists": true,
+    "joblib_model_exists": false,
+    "issues": [
+      "CRITICAL: Actual trained model (joblib) does not exist. Only metadata (.json) present. Code tries to load: 'models/model_xgb_remount_postcovid.joblib'"
+    ],
+    "metadata": {
+      "training_date": "2025-12-10T19:24:03.435178",
+      "n_samples": 25,
+      "cv_metrics": {
+        "mae_mean": 696.4172607421879,
+        "mae_std": 365.6753098174917,
+        "rmse_mean": 821.5059880311728,
+        "rmse_std": 375.8254997659734,
+        "r2_mean": 0.8000639481590991,
+        "r2_std": 0.13449091816919342,
+        "n_folds": 5
+      },
+      "features_count": 35
+    }
+  },
+  "test_2_baseline_data": {
+    "baselines_loaded": true,
+    "count": 281,
+    "sample_keys": [
+      "title",
+      "wiki",
+      "trends"
+    ]
+  },
+  "test_3_feature_engineering": {
+    "signal_construction": {},
+    "issues": [
+      "Feature engineering failed: The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+    ]
+  },
+  "test_4_config_multipliers": {
+    "config_loaded": true,
+    "segment_multipliers": {
+      "core_female": 1.12
+    },
+    "issues": []
+  },
+  "test_5_ridge_regression": {
+    "ridge_training": true,
+    "anchor_behavior": {
+      "anchor_0_predicted": 22.74722683561953,
+      "anchor_0_expected": 25.0,
+      "anchor_0_error": 2.2527731643804714,
+      "anchor_100_predicted": 104.3325951897644,
+      "anchor_100_expected": 100.0,
+      "anchor_100_error": 4.332595189764405,
+      "model_intercept": 22.74722683561953,
+      "model_slope": 0.8158536835414488
+    },
+    "issues": []
+  },
+  "test_6_seasonality": {
+    "seasonality_tested": true,
+    "factors": {
+      "raw_factor": 1.4,
+      "shrunk_factor": 2.1999999999999997,
+      "clipped_factor": 1.15,
+      "K_SHRINK": 3.0
+    },
+    "issues": []
+  },
+  "test_7_knn_fallback": {
+    "knn_available": true,
+    "conditions": {
+      "knn_enabled": true,
+      "module_available": true,
+      "min_records_required": 3,
+      "k_default": 5
+    },
+    "issues": []
+  },
+  "test_8_edge_cases": {
+    "tests_run": 3,
+    "tests_passed": 3,
+    "issues": []
+  }
+}
