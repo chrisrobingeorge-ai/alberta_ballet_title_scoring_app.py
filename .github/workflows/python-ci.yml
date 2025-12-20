@@ -24,6 +24,7 @@ jobs:
         run: |
           python -c "import streamlit; print('✓ Streamlit OK')"
           python -c "from data.loader import get_live_analytics_category_factors; print('✓ data.loader OK')"
+          python -c "from utils.economic_factors import get_current_economic_context; print('✓ utils.economic_factors OK')"
           python -c "from ml.knn_fallback import KNNFallback; print('✓ ml.knn_fallback OK')"
           python -c "from ml.title_explanation_engine import build_title_explanation; print('✓ ml.title_explanation_engine OK')"
       
