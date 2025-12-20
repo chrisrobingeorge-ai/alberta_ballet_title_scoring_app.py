@@ -51,27 +51,9 @@ except ImportError:
         return {}
 
 # Economic factors integration
-try:
-    from utils.economic_factors import (
-        compute_boc_economic_sentiment,
-        compute_alberta_economic_sentiment,
-        get_current_economic_context,
-        is_boc_live_enabled,
-        is_alberta_live_enabled,
-    )
-    ECON_FACTORS_AVAILABLE = True
-except ImportError:
-    ECON_FACTORS_AVAILABLE = False
-    def compute_boc_economic_sentiment(run_date=None, city=None):
-        return 1.0, {"source": "unavailable", "factor": 1.0}
-    def compute_alberta_economic_sentiment(run_date=None, city=None):
-        return 1.0, {"source": "unavailable", "factor": 1.0}
-    def get_current_economic_context(include_boc=True, include_alberta=True, use_cache=True):
-        return {"combined_sentiment": 1.0, "sources_available": []}
-    def is_boc_live_enabled():
-        return False
-    def is_alberta_live_enabled():
-        return False
+# Economic factors removed - model gave them 0% feature importance
+# They were only adding computational overhead with no predictive value
+ECON_FACTORS_AVAILABLE = False
 
 # k-NN fallback for cold-start predictions
 try:
@@ -2976,7 +2958,7 @@ def compute_scores_and_store(
         }
     
     # 4a) Build k-NN index for cold-start fallback
-    # Uses baseline signals (wiki, trends, youtube, spotify) to find similar titles
+    # Uses baseline signals (wiki, trends, youtube, chartmetric) to find similar titles
     knn_index = None
     knn_enabled = KNN_CONFIG.get("enabled", True)
     if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
@@ -3256,21 +3238,12 @@ def compute_scores_and_store(
     # This maps the show category to the Live Analytics category structure
     df["LA_Category"] = df["Category"]  # Default to show category
 
-    # 10b) Economic sentiment factor (BoC + Alberta data)
-    try:
-        econ_context = get_current_economic_context(include_boc=True, include_alberta=True)
-        econ_sentiment = float(econ_context.get("combined_sentiment", 1.0))
-        econ_sources = econ_context.get("sources_available", [])
-        boc_sentiment = econ_context.get("boc_sentiment")
-        alberta_sentiment = econ_context.get("alberta_sentiment")
-    except Exception as e:
-        # Log but don't fail - economic data is supplemental
-        import logging
-        logging.getLogger(__name__).debug(f"Error fetching economic context: {e}")
-        econ_sentiment = 1.0
-        econ_sources = []
-        boc_sentiment = None
-        alberta_sentiment = None
+    # Economic factors removed - provided zero predictive value
+    # (Feature importance: 0.00% across all economic indicators)
+    econ_sentiment = 1.0
+    econ_sources = []
+    boc_sentiment = None
+    alberta_sentiment = None
 
     df["Econ_Sentiment"] = econ_sentiment
     df["Econ_BocFactor"] = boc_sentiment if boc_sentiment is not None else np.nan

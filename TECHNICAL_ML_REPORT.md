@@ -38,7 +38,7 @@ Raw Input Signals → Feature Engineering → ML Prediction → Post-Processing 
 The system employs a three-tier fallback strategy (lines 3046-3100):
 
 1. **Tier 1 - Historical Data** (`TicketIndexSource = "History"`)
-   - Direct lookup from `BASELINES` dictionary containing 19 known productions
+   - Direct lookup from `BASELINES` dictionary containing 282 reference productions
    - Median ticket sales from prior runs used as ground truth
 
 2. **Tier 2 - ML Models** (Ridge Regression or XGBoost)
@@ -60,14 +60,20 @@ The system employs a three-tier fallback strategy (lines 3046-3100):
 
 ### 2.1 Digital Signal Acquisition
 
+**Data Source:** Manually curated baseline signals from external platforms (not live API calls)
+
 **Implementation:** `streamlit_app.py:1982-2060`
 
-Four primary signals are extracted per title:
+Four primary signals are stored and referenced from the `baselines.csv` file, which contains manually collected data from the following sources:
 
 #### Wikipedia Pageview Index
+**Source:** https://pageviews.wmcloud.org/  
+**Data Collection Period:** January 1, 2020 to present  
+**Metric:** Average daily pageviews over the collection period
+
 ```python
 # streamlit_app.py:2015-2030
-wiki_raw = fetch_wikipedia_views_for_page(w_title)  # Annual average daily views
+wiki_raw = baseline_signals['wiki']  # Retrieved from precomputed baselines.csv
 wiki_idx = 40.0 + min(110.0, (math.log1p(max(0.0, wiki_raw)) * 20.0))
 ```
 
@@ -77,46 +83,54 @@ $$\text{WikiIdx} = 40 + \min(110, \ln(1 + \text{views}_{\text{daily}}) \times 20
 **Range:** [40, 150] (log-scaled to dampen outlier influence)
 
 #### Google Trends Index
+**Source:** https://trends.google.com/trends/explore  
+**Data Collection Period:** January 1, 2022 to present  
+**Metric:** Relative search volume (0-100 scale, normalized via bridge calibration with Giselle as control)
+
 ```python
 # streamlit_app.py:2032
-trends_idx = 60.0 + (len(title) % 40)  # Fallback when API unavailable
+trends_idx = baseline_signals['trends']  # Retrieved from precomputed baselines.csv
 ```
 
-**Live Mode:** Pulls relative search volume (0-100 scale) from Google Trends API  
-**Offline Mode:** Heuristic based on title length (prevents cold-start failures)
+**Bridge Calibration Protocol:** To normalize disparate Google Trends batches, a control title (Giselle) with known average score of 14.17 is used to rescale all batches to a common master axis.
 
 #### YouTube Engagement Index
+**Source:** https://trends.google.com/trends/explore  
+**Data Collection Period:** January 10, 2023 to present  
+**Metric:** View counts from top-ranked YouTube videos, indexed against Cinderella benchmark
+
 ```python
 # streamlit_app.py:2035-2055, 1940-1950
-filtered_ids = [video IDs where _looks_like_our_title(video_title, query_title)]
-views = [int(video.statistics.viewCount) for video in filtered_ids]
-yt_idx = 50.0 + min(90.0, np.log1p(median(views)) * 9.0)
+yt_value = baseline_signals['youtube']  # Retrieved from precomputed baselines.csv
+yt_idx = 50.0 + min(90.0, np.log1p(max(0.0, yt_value)) * 9.0)
 ```
 
 **Formula:**  
-$$\text{YouTubeIdx} = 50 + \min(90, \ln(1 + \text{median}(\text{views})) \times 9)$$
+$$\text{YouTubeIdx} = 50 + \min(90, \ln(1 + \text{indexed view count}) \times 9)$$
 
-**Filtering Logic** (`streamlit_app.py:1925-1935`):
+**Indexing Logic:** Raw YouTube view counts are indexed against Cinderella as the benchmark title:
 ```python
-def _looks_like_our_title(video_title: str, query_title: str) -> bool:
-    vt_tokens = [a-z0-9]+ tokens from video_title
-    qt_tokens = [a-z0-9]+ tokens from query_title
-    overlap = sum(1 for t in qt_tokens if t in vt_tokens)
-    has_ballet_hint = any(h in vt for h in ["ballet", "pas", "variation", ...])
-    return (overlap >= max(1, len(qt) // 2)) and has_ballet_hint
+YouTube_indexed_score = (view_count_title / view_count_cinderella) * 100
 ```
 
-This prevents contamination from non-ballet content (e.g., movie trailers, pop songs).
+**Winsorization** (`streamlit_app.py:1958-1970`): YouTube indices are clipped to category-specific ranges (3rd to 97th percentile) to prevent viral videos from distorting forecasts.
 
 #### Chartmetric Streaming Index
+**Source:** https://app.chartmetric.com/  
+**Data Collection Period:** Last 2 years of data  
+**Metric:** Weighted artist rank scores from streaming platforms (Spotify, Apple Music, Amazon, Deezer, YouTube Music, Shazam) and social platforms (TikTok, Instagram, Twitter/X, Facebook)
+
 ```python
 # streamlit_app.py:2057-2065
-pops = [track.popularity for track in chartmetric_search_results]
-cm_idx = float(np.percentile(pops, 80)) if pops else 50.0 + (len(title) * 1.7) % 40
+cm_value = baseline_signals['chartmetric']  # Retrieved from precomputed baselines.csv
+cm_idx = float(cm_value) if cm_value else 50.0
 ```
 
-**Data Source:** Chartmetric API (music streaming analytics)  
-**Metric:** 80th percentile of Spotify popularity scores for title-related tracks
+**Data Source:** Chartmetric platform (manually collected, not API)  
+**Normalization:** Raw artist rank scores are inverted and normalized to 0-100 scale:
+```python
+Chartmetric_normalized = 100 * (1 - (artist_rank / max_rank))
+```
 
 ### 2.2 Signal Winsorization
 
@@ -432,6 +446,45 @@ prediction = sum(outcomes * weights_normalized)
 
 $$\hat{y} = \sum_{i=1}^{k} w_i^{\text{norm}} \cdot y_i$$
 
+#### Activation Conditions & Data Requirements
+
+**Critical:** The k-NN fallback is only invoked when **ALL** of the following conditions are met:
+
+```python
+# streamlit_app.py:2971-2972
+knn_enabled = KNN_CONFIG.get("enabled", True)
+if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
+    # Build and use KNN index
+```
+
+**Required Conditions:**
+
+| Condition | Source | Default | Impact if False |
+|-----------|--------|---------|-----------------|
+| `knn_enabled = true` | `config.yaml:113` | Enabled | KNN completely skipped |
+| `KNN_FALLBACK_AVAILABLE = true` | Import check | True (if scikit-learn installed) | KNN unavailable; falls back to Ridge |
+| `len(df_known) >= 3` | Data loader | Depends on your data | **KNN not activated**; uses ML model or defaults |
+
+**Implication:** If a show type (category) has fewer than 3 historical performances in your dataset, the k-NN index cannot be built for that category. The system will fall back to the next predictor tier (Ridge regression or defaults) instead.
+
+**Data Requirement Details:**
+- Minimum index size: 3 records (sklearn requires `n_neighbors ≤ n_samples`)
+- Recommended: ≥5 records per category for reliable distance weighting
+- Actual neighbors used: `k=5` (from `config.yaml:114`), capped at available records
+
+**Error Handling:**
+```python
+# streamlit_app.py:2973-2995
+if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
+    try:
+        knn_index = build_knn_from_config(...)
+    except Exception as e:
+        # If build fails for any reason, continue without KNN
+        knn_index = None
+```
+
+If KNN index construction fails (e.g., missing columns), the exception is silently caught and the system continues to the next fallback tier. No prediction errors occur.
+
 ---
 
 ## 4. Seasonality Adjustment
@@ -458,18 +511,18 @@ for cat in categories:
 ```
 
 **Parameters (from `config.yaml:85-95`):**
-- `K_SHRINK`: 0.50 (50% shrinkage toward neutral)
-- `MINF`: 0.70 (floor at -30% penalty)
-- `MAXF`: 1.25 (ceiling at +25% boost)
-- `N_MIN`: 2 (minimum samples required per category-month)
+- `K_SHRINK`: 3.0 (shrinkage for months with limited historical data)
+- `MINF`: 0.90 (floor at -10% penalty)
+- `MAXF`: 1.15 (ceiling at +15% boost)
+- `N_MIN`: 3 (minimum samples required per category-month)
 
 **Shrinkage Formula:**
 $$F_{\text{shrunk}} = 1 + K \cdot (F_{\text{raw}} - 1)$$
 
 **Example:**
 - Raw factor for December family shows: 1.40 (40% boost)
-- Shrunk: $1 + 0.5 \times (1.4 - 1) = 1.20$
-- Clipped: $\min(1.25, \max(0.70, 1.20)) = 1.20$
+- Shrunk: $1 + 3.0 \times (1.4 - 1) = 2.20$ (strong correction if raw factor is far from 1)
+- Clipped: $\min(1.15, \max(0.90, 2.20)) = 1.15$
 
 **Purpose:** Prevents overfitting to small samples (e.g., one very successful December run inflating all December forecasts).
 
@@ -991,7 +1044,7 @@ else:
 
 **Loaded Artifacts:**
 - XGBoost model (joblib): ~150 KB
-- BASELINES dictionary: ~5 KB (19 titles × 6 signals)
+- BASELINES dictionary: ~25 KB (282 titles × 6 signals)
 - SEASONALITY_TABLE: ~2 KB (10 categories × 12 months)
 - Historical data (if uploaded): ~50-500 KB
 
@@ -1008,9 +1061,9 @@ else:
   - Risk: Overfitting with high R² (0.9999935) on training set
   - Mitigation: max_depth=3, CV validation, regularization
 
-- **Historical baseline size:** 19 hardcoded titles
-  - Benefit: Fast lookup, stable reference points
-  - Drawback: New title categories require manual baseline additions
+- **Historical baseline size:** 282 reference titles in `data/productions/baselines.csv`
+  - Benefit: Comprehensive reference library for similarity matching
+  - Drawback: Manual updates required when new titles are added
 
 - **API rate limits:**
   - YouTube: 10,000 quota units/day (~100 titles if careful)
@@ -1249,7 +1302,7 @@ The Alberta Ballet Title Scoring Application implements a sophisticated multi-mo
 **Limitations:**
 - Small training dataset (n=25, risk of overfitting)
 - No uncertainty quantification (point estimates only)
-- Manual baseline management (19 hardcoded titles)
+- Manual baseline management (282 reference titles in baselines.csv)
 - API dependency for live data (rate limits, availability)
 
 **Overall Assessment:**
