@@ -796,16 +796,22 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
     - Signal positioning, historical context, seasonal factors, SHAP drivers, and 
       board-level interpretation.
     
+    Also includes SHAP force plot visualizations if explainer available.
+    
     Args:
         plan_df: DataFrame with title/prediction data
         shap_explainer: Optional SHAPExplainer for per-title decomposition
     
     Returns:
-        A list of ReportLab Flowables with expanded spacing to accommodate longer narratives.
+        A list of ReportLab Flowables with expanded spacing to accommodate longer narratives
+        and SHAP visualizations.
     """
+    from reportlab.platypus import Paragraph as RLParagraph
+    from reportlab.lib.styles import ParagraphStyle
+    
     styles = _make_styles()
-    blocks = [Paragraph("Season Rationale (by month)", styles["h1"])]
-    blocks.append(Paragraph(
+    blocks = [RLParagraph("Season Rationale (by month)", styles["h1"])]
+    blocks.append(RLParagraph(
         "Each title below receives a comprehensive explanation derived from the model's feature analysis, "
         f"{'SHAP value attributions, ' if shap_explainer and SHAP_AVAILABLE else ''}"
         "and learned historical patterns. These narratives provide transparent "
@@ -817,7 +823,47 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
     for _, rr in plan_df.iterrows():
         # Generate the comprehensive narrative with SHAP data if available
         narrative_text = _narrative_for_row(rr, shap_explainer=shap_explainer)
-        blocks.append(Paragraph(narrative_text, styles["body"]))
+        blocks.append(RLParagraph(narrative_text, styles["body"]))
+        
+        # Add SHAP force plot visualization if available
+        if shap_explainer and SHAP_AVAILABLE:
+            try:
+                # Extract signal values for SHAP
+                signal_columns = ['wiki', 'trends', 'youtube', 'chartmetric']
+                available_signals = [col for col in signal_columns if col in rr.index]
+                
+                if len(available_signals) > 0:
+                    signal_input = {col: float(rr.get(col, 0)) for col in available_signals}
+                    explanation = shap_explainer.explain_single(pd.Series(signal_input))
+                    
+                    # Create force plot HTML representation
+                    from ml.shap_explainer import create_html_force_plot
+                    html_force = create_html_force_plot(
+                        explanation, 
+                        title=f"SHAP Breakdown: {rr.get('Title', 'Title')}"
+                    )
+                    
+                    # Add as styled paragraph (simplified for PDF)
+                    # Note: Full HTML rendering in PDF is limited; this is text-based
+                    force_data = {
+                        'base': explanation['base_value'],
+                        'prediction': explanation['prediction'],
+                        'drivers': explanation['feature_contributions'][:3]
+                    }
+                    
+                    shap_text = f"SHAP Drivers: Base {force_data['base']:.0f}"
+                    for driver in force_data['drivers']:
+                        sign = '+' if driver['shap'] > 0 else ''
+                        shap_text += f" {driver['name']}({sign}{driver['shap']:.0f})"
+                    
+                    blocks.append(RLParagraph(
+                        f"<i>{shap_text}</i>",
+                        styles["small"]
+                    ))
+            except Exception as e:
+                # Silently skip SHAP visualization if it fails
+                import logging
+                logging.debug(f"SHAP visualization failed for {rr.get('Title', 'Unknown')}: {e}")
         
         # Increased spacing between titles to accommodate longer narratives
         blocks.append(Spacer(1, 0.2*inch))
