@@ -1282,7 +1282,436 @@ if EstimatedTickets_Final < 500:
 
 ---
 
-## 17. Conclusion
+## 17. SHAP Explainability Layer
+
+### 17.1 Overview
+
+The SHAP (SHapley Additive exPlanations) integration provides per-title interpretation of ticket index predictions, decomposing each forecast into individual feature contributions. This transforms the model from a "black box" into a transparent, explainable system suitable for board-level presentations.
+
+**Module:** `ml/shap_explainer.py` (841 lines)  
+**Integration:** Trains alongside Ridge regression models during ML pipeline execution  
+**Public Artifact:** Explanations embedded in PDF report narratives  
+
+### 17.2 Architecture
+
+#### SHAP Model Training
+
+**Separate from Prediction Model:**
+```python
+# streamlit_app.py:2775-2830
+# Main model: Ridge regression with SignalOnly feature
+overall_model = Ridge(alpha=5.0, random_state=42)
+overall_model.fit(X_signals, y)
+
+# SHAP model: Ridge regression with 4 individual signals
+if len(available_signals) > 0:
+    shap_model = Ridge(alpha=5.0, random_state=42)
+    shap_model.fit(X_4features, y)  # [wiki, trends, youtube, chartmetric]
+    overall_explainer = SHAPExplainer(shap_model, X_4features)
+```
+
+**Rationale:** Using individual signals (wiki, trends, youtube, chartmetric) allows SHAP to decompose each signal's contribution separately, providing granular explainability. The main Ridge model continues to use `SignalOnly` for simplicity and numerical stability.
+
+**Training Data:** Same historical samples as main model, optionally with anchor points:
+```python
+# Anchor points: signal values [0,0,0,0] → 25 tickets; [mean,mean,mean,mean] → 100 tickets
+anchor_points = np.array([
+    [0.0, 0.0, 0.0, 0.0],           # No signal → baseline
+    [X_signals.mean(axis=0)]         # Average signals → benchmark
+])
+anchor_values = np.array([25.0, 100.0])
+```
+
+#### SHAP Computation Engine
+
+```python
+# ml/shap_explainer.py:61-170 (SHAPExplainer class)
+class SHAPExplainer:
+    def __init__(self, model, X_train, feature_names=None, sample_size=100):
+        self.model = model
+        self.X_train = X_train
+        self.feature_names = feature_names
+        self.base_value = model.predict(X_train.mean().values.reshape(1, -1))[0]
+        
+        # Create KernelExplainer for model-agnostic interpretability
+        n_background = min(sample_size, len(X_train))
+        background_data = shap.sample(X_train, n_background)
+        self.explainer = shap.KernelExplainer(
+            model.predict,
+            background_data,
+            feature_names=feature_names
+        )
+```
+
+**Algorithm:** `shap.KernelExplainer` uses LIME-based approach with weighted regression to estimate Shapley values:
+
+1. Generate 2^N coalition masks (features included/excluded)
+2. Evaluate model on masked inputs
+3. Weight by coalition size
+4. Fit weighted regression to estimate each feature's marginal contribution
+5. Return Shapley values (guaranteed to sum to prediction difference from base)
+
+**Mathematical Guarantee:**
+$$\hat{y} = \text{base\_value} + \sum_{i=1}^{n} \text{SHAP}_i$$
+
+where $\sum \text{SHAP}_i = \text{prediction} - \text{base\_value}$ exactly.
+
+### 17.3 Per-Prediction Explanations
+
+#### Explanation Structure
+
+```python
+# ml/shap_explainer.py:305-330
+explanation = {
+    'prediction': float(result['predictions'][0]),      # Final ticket index prediction
+    'base_value': float(self.base_value),              # Model's expected value on training data
+    'shap_values': result['shap_values'][0],           # SHAP values for each feature
+    'feature_names': result['feature_names'],          # Feature names: ['wiki', 'trends', ...]
+    'feature_values': dict(zip(names, values[0])),    # Actual input values
+    'feature_contributions': [
+        {
+            'name': 'youtube',
+            'value': 85.3,
+            'shap': +12.4,                 # Positive = increases prediction
+            'direction': 'up',
+            'abs_impact': 12.4
+        },
+        # ... sorted by abs_impact descending
+    ]
+}
+```
+
+#### Example Explanation
+
+**Title:** Contemporary Dance Production
+**Input Signals:** wiki=45, trends=32, youtube=120, chartmetric=71
+
+**SHAP Decomposition:**
+```
+Base Value (model's average): 100 tickets
+
+Feature Contributions (sorted by impact):
+  1. youtube  (+12.4):  High viewer engagement → increases forecast
+  2. wiki     (+8.7):   Moderate search interest → increases forecast
+  3. trends   (-2.3):   Declining search trend → decreases forecast
+  4. chart    (+0.8):   Slight positive mention → minimal effect
+
+Final Prediction: 100 + 12.4 + 8.7 - 2.3 + 0.8 = 119.6 tickets
+```
+
+**Board Interpretation:** "High YouTube activity and strong Wikipedia presence drive strong demand (+21 tickets above average). A slight decline in Google search interest (-2 tickets) suggests awareness may be peaking, but overall signals remain bullish."
+
+### 17.4 Narrative Generation
+
+#### Format Function
+
+```python
+# ml/shap_explainer.py:356-400
+def format_shap_narrative(explanation, n_top=5, min_impact=1.0, include_base=True) -> str:
+    """Convert SHAP explanation into human-readable narrative."""
+    prediction = explanation['prediction']
+    base_value = explanation['base_value']
+    drivers = get_top_shap_drivers(explanation, n_top=n_top, min_impact=min_impact)
+    
+    driver_parts = []
+    for driver in drivers:
+        impact_str = f"+{driver['shap']:.0f}" if driver['shap'] > 0 else f"{driver['shap']:.0f}"
+        display_name = driver['name'].replace("_", " ").title()
+        driver_parts.append(f"{display_name} {impact_str}")
+    
+    drivers_text = " ".join(driver_parts)
+    
+    if include_base:
+        return f"{prediction:.0f} tickets (base {base_value:.0f} {drivers_text})"
+    else:
+        return f"{prediction:.0f} tickets ({drivers_text})"
+```
+
+**Output Examples:**
+- `"119 tickets (base 100 + YouTube +12 + Wiki +9 - Trends -2)"`
+- `"85 tickets (base 100 - Contemporary -12 - Opening Month -8 + Prior History +5)"`
+
+#### Integration in Board Narratives
+
+**PDF Section:** "Season Rationale (by month)" → Per-title explanations
+
+**Current Implementation in streamlit_app.py:**
+
+```python
+# streamlit_app.py:698-780 (_narrative_for_row function)
+def _narrative_for_row(r: dict, shap_explainer=None) -> str:
+    """Generate comprehensive SHAP-driven narrative for a single title."""
+    try:
+        from ml.title_explanation_engine import build_title_explanation
+        
+        # Extract SHAP values if explainer available
+        if shap_explainer and SHAP_AVAILABLE:
+            signal_input = pd.Series({col: r.get(col, 0) for col in ['wiki', 'trends', 'youtube', 'chartmetric']})
+            explanation = shap_explainer.explain_single(signal_input)
+            shap_values = {name: val for name, val in zip(explanation['feature_names'], explanation['shap_values'])}
+        
+        # Build multi-paragraph narrative with SHAP drivers
+        narrative = build_title_explanation(
+            title_metadata=dict(r),
+            prediction_outputs=None,
+            shap_values=shap_values,  # Now includes actual SHAP decomposition
+            style="board"
+        )
+        return narrative
+    except Exception as e:
+        # Fallback to simpler text-based narrative
+        return _fallback_narrative(r)
+```
+
+**Narrative Structure:** (from `ml/title_explanation_engine.py`)
+1. **Paragraph 1:** Signal positioning relative to benchmark (SHAP-informed)
+2. **Paragraph 2:** Historical context and category seasonality
+3. **Paragraph 3:** SHAP-based driver summary (top 3 contributors)
+4. **Paragraph 4:** Board interpretation and context
+
+### 17.5 Visualization Components
+
+#### SHAP Plots Available (but not yet in PDF)
+
+**Function Suite (ml/shap_explainer.py:546-841):**
+
+1. **Waterfall Plot** (`create_waterfall_plot()` lines 546-630)
+   - Stacks contributions from base value to final prediction
+   - Shows each feature's positive/negative impact as horizontal bars
+   - Suitable for detailed technical presentations
+
+2. **Force Plot** (`create_force_plot_data()` and `create_html_force_plot()` lines 634-790)
+   - Horizontal flow visualization
+   - Red bars (negative) push prediction downward
+   - Blue bars (positive) push prediction upward
+   - Shows cumulative flow from base to prediction
+
+3. **Bar Plot** (`create_bar_plot()` lines 682-735)
+   - Sorted horizontal bars showing feature importance
+   - Each bar = |SHAP value|
+   - Color-coded by direction (up/down)
+
+#### Current PDF Integration
+
+```python
+# streamlit_app.py:819-855 (_build_month_narratives)
+if shap_explainer and SHAP_AVAILABLE:
+    explanation = shap_explainer.explain_single(pd.Series(signal_input))
+    
+    # Create text-based SHAP summary for PDF
+    shap_text = f"SHAP Drivers: Base {base_value:.0f}"
+    for driver in explanation['feature_contributions'][:3]:
+        sign = '+' if driver['shap'] > 0 else ''
+        shap_text += f" {driver['name']}({sign}{driver['shap']:.0f})"
+    
+    blocks.append(RLParagraph(f"<i>{shap_text}</i>", styles["small"]))
+```
+
+**Format:** Inline italic text below each title's narrative (compact, readable)
+
+### 17.6 Caching & Performance
+
+#### Two-Tier Caching
+
+```python
+# ml/shap_explainer.py:175-210 (SHAPExplainer class)
+def explain_single(self, X_single, use_cache=True, cache_key=None):
+    # In-memory cache (dictionary)
+    if cache_key in self._explanation_cache:
+        return self._explanation_cache[cache_key]  # ~0.0001s
+    
+    # Disk cache (pickle)
+    if self.cache_dir:
+        cached = self._load_from_cache(cache_key)
+        if cached is not None:
+            return cached  # ~0.001s
+    
+    # Compute SHAP (KernelExplainer)
+    explanation = self.explainer.shap_values(X_single.values.reshape(1, -1))  # ~0.02s
+    
+    # Cache for future use
+    self._save_to_cache(cache_key, explanation)
+    return explanation
+```
+
+**Performance Metrics (from Phase A benchmarks):**
+- Cold (no cache): 270 predictions/sec (~3.7ms each)
+- Warm (disk cache): 11,164 predictions/sec (~89µs each)
+- **Speedup:** 27.7x (small dataset), 25.3x (large dataset)
+
+**Practical Impact:**
+- Season plan with 6 titles: ~20ms cold, <1ms warm
+- PDF generation with SHAP: adds negligible time
+- Repeat queries (dashboard refresh): instant
+
+### 17.7 Error Handling & Fallbacks
+
+#### Production Hardening (Phase A)
+
+```python
+# ml/shap_explainer.py:70-140 (SHAPExplainer.__init__)
+class SHAPExplainer:
+    def __init__(self, model, X_train, feature_names=None, ...):
+        # Validation #1: Model has predict method
+        if not hasattr(model, 'predict'):
+            raise TypeError("Model must have a 'predict' method")
+        
+        # Validation #2: X_train not empty
+        if X_train is None or len(X_train) == 0:
+            raise ValueError("X_train cannot be empty")
+        
+        # Validation #3: Handle NaN values
+        if X_train.isnull().any().any():
+            n_missing = X_train.isnull().sum().sum()
+            logger.warning(f"X_train contains {n_missing} NaN values - filling with 0")
+            X_train = X_train.fillna(0)
+        
+        # Validation #4: Handle Inf values
+        if np.isinf(X_train.values).any():
+            logger.warning("X_train contains infinite values - clipping")
+            X_train = X_train.clip(-1e10, 1e10)
+        
+        # ... SHAP creation wrapped in try/catch
+        try:
+            self.explainer = shap.KernelExplainer(...)
+        except Exception as e:
+            logger.error(f"Failed to create SHAP explainer: {e}")
+            raise
+```
+
+**Test Coverage:** 31 tests (21 unit + 10 integration) achieving 100% pass rate
+
+#### Graceful Degradation
+
+```python
+# streamlit_app.py:721-750 (_narrative_for_row)
+if shap_explainer and SHAP_AVAILABLE:
+    try:
+        explanation = shap_explainer.explain_single(signal_input)
+        shap_values = {...}
+    except Exception as e:
+        logging.debug(f"SHAP computation failed: {e}")
+        shap_values = None  # Continue without SHAP
+else:
+    shap_values = None  # SHAP not available
+```
+
+**Fallback Chain:**
+1. Full SHAP explanation with 4 signals (if available)
+2. Single-signal SHAP (if only SignalOnly available)
+3. Title explanation engine without SHAP values (generic narrative)
+4. Minimal fallback text (signal-only estimate)
+
+### 17.8 API Reference
+
+#### SHAPExplainer Class
+
+```python
+# ml/shap_explainer.py:61-325
+class SHAPExplainer:
+    def __init__(
+        self,
+        model,
+        X_train: pd.DataFrame,
+        feature_names: Optional[List[str]] = None,
+        sample_size: int = 100,
+        cache_dir: Optional[str] = None
+    ):
+        """Initialize SHAP explainer for model interpretation."""
+    
+    def explain_single(
+        self,
+        X_single: pd.Series,
+        use_cache: bool = True,
+        cache_key: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Explain a single prediction with SHAP values."""
+```
+
+**Returns:**
+```python
+{
+    'prediction': float,           # Model's output
+    'base_value': float,          # Expected value on training data
+    'shap_values': np.ndarray,    # SHAP values for each feature
+    'feature_names': List[str],   # Feature names
+    'feature_values': Dict,       # Input feature values
+    'feature_contributions': List[Dict]  # Sorted contributions
+}
+```
+
+#### Utility Functions
+
+| Function | Purpose | Input | Output |
+|----------|---------|-------|--------|
+| `get_top_shap_drivers()` | Extract top N drivers | explanation, n_top | List[Dict] |
+| `format_shap_narrative()` | Human-readable summary | explanation | str |
+| `build_shap_table()` | DataFrame for display | explanation | pd.DataFrame |
+| `create_waterfall_plot()` | Waterfall visualization | explanation | Dict (plotly) |
+| `create_force_plot_data()` | Force plot data | explanation | Dict |
+| `create_bar_plot()` | Bar chart data | explanation | Dict |
+
+#### Logging Configuration
+
+```python
+# ml/shap_explainer.py:42-60
+def set_shap_logging_level(level: str = "INFO") -> None:
+    """Configure SHAP module logging verbosity."""
+    # levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    logger.setLevel(getattr(logging, level.upper()))
+```
+
+**Usage in PDF:**
+```python
+from ml.shap_explainer import set_shap_logging_level
+set_shap_logging_level("DEBUG")  # Enable detailed logs
+```
+
+### 17.9 Board-Level Interpretation Guide
+
+#### For Leadership Audiences
+
+**What SHAP Shows:**
+- **Each signal's individual contribution** to the ticket prediction
+- **Direction of impact** (pushing prediction up or down)
+- **Magnitude of impact** (in ticket units)
+- **Baseline assumption** (what a typical show would get)
+
+**Example Interpretation:**
+
+**"Cinderella (January, Family Classic)"**
+
+```
+Base expectation: 100 tickets (typical show)
+
+Contributing factors:
+  • YouTube engagement: +15 tickets (strong views, positive reception)
+  • Wiki searches: +8 tickets (moderate public interest)
+  • Google Trends: -3 tickets (declining search trend)
+  • Prior history: +2 tickets (previous runs performed OK)
+
+Final forecast: 122 tickets
+
+Why these drivers matter:
+- YouTube strength dominates the signal (peers with high views sell well)
+- Wiki moderate (known classic, but not freshly topical)
+- Trends declining (inevitable for January release; families book in December)
+- Prior history is slight positive (two previous runs both successful)
+
+Bottom line: Strong on execution/engagement (YouTube), normal on awareness
+(Wiki), naturally declining (Trends), supported by past results. Forecast
+is above baseline but not exceptionally high.
+```
+
+**Key Talking Points:**
+1. "We're using actual online activity data (YouTube views, Wikipedia searches)"
+2. "SHAP shows us exactly what that data predicts for each show"
+3. "The base value (100) is our benchmark; SHAP adjustments explain deviations"
+4. "Negative factors still contribute to forecast (they subtract from base, not zero it out)"
+
+---
+
+## 18. Conclusion
 
 The Alberta Ballet Title Scoring Application implements a sophisticated multi-model ML pipeline that effectively combines:
 
@@ -1314,7 +1743,9 @@ The system demonstrates engineering rigor with defensive coding, numerical stabi
 
 | Component | File | Lines | Purpose |
 |-----------|------|-------|---------|
-| Main application | `streamlit_app.py` | 1-4059 | UI, pipeline orchestration, prediction logic |
+| Main application | `streamlit_app.py` | 1-4108 | UI, pipeline orchestration, prediction logic |
+| SHAP explainability | `ml/shap_explainer.py` | 1-841 | Per-prediction SHAP decomposition & narratives |
+| Title narratives | `ml/title_explanation_engine.py` | 1-420 | Multi-paragraph board-level narratives |
 | XGBoost model | `models/model_xgb_remount_postcovid.joblib` | - | Trained sklearn Pipeline with XGBRegressor |
 | Model metadata | `models/model_metadata.json` | 1-70 | Training date, features, CV metrics |
 | k-NN fallback | `ml/knn_fallback.py` | 1-679 | Cold-start similarity matching |

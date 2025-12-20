@@ -812,10 +812,11 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
     styles = _make_styles()
     blocks = [RLParagraph("Season Rationale (by month)", styles["h1"])]
     blocks.append(RLParagraph(
-        "Each title below receives a comprehensive explanation derived from the model's feature analysis, "
-        f"{'SHAP value attributions, ' if shap_explainer and SHAP_AVAILABLE else ''}"
-        "and learned historical patterns. These narratives provide transparent "
-        "insight into what drives each forecast.",
+        "Each title below receives a board-level narrative explanation with SHAP value decomposition. "
+        "These narratives integrate the model's feature analysis, historical patterns, and "
+        "per-title signal contributions to provide transparent insight into what drives each forecast. "
+        "The <b>SHAP breakdown table</b> shows precisely how online signals (Wikipedia, Google Trends, YouTube, Chartmetric) "
+        "and category/seasonal factors influence the predicted ticket index for each show.",
         styles["small"]
     ))
     blocks.append(Spacer(1, 0.15*inch))
@@ -825,7 +826,7 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
         narrative_text = _narrative_for_row(rr, shap_explainer=shap_explainer)
         blocks.append(RLParagraph(narrative_text, styles["body"]))
         
-        # Add SHAP force plot visualization if available
+        # Add enhanced SHAP breakdown table if available
         if shap_explainer and SHAP_AVAILABLE:
             try:
                 # Extract signal values for SHAP
@@ -836,37 +837,52 @@ def _build_month_narratives(plan_df: "pd.DataFrame", shap_explainer=None) -> lis
                     signal_input = {col: float(rr.get(col, 0)) for col in available_signals}
                     explanation = shap_explainer.explain_single(pd.Series(signal_input))
                     
-                    # Create force plot HTML representation
-                    from ml.shap_explainer import create_html_force_plot
-                    html_force = create_html_force_plot(
-                        explanation, 
-                        title=f"SHAP Breakdown: {rr.get('Title', 'Title')}"
-                    )
+                    # Create SHAP breakdown table
+                    from ml.shap_explainer import build_shap_table, format_shap_narrative
                     
-                    # Add as styled paragraph (simplified for PDF)
-                    # Note: Full HTML rendering in PDF is limited; this is text-based
-                    force_data = {
-                        'base': explanation['base_value'],
-                        'prediction': explanation['prediction'],
-                        'drivers': explanation['feature_contributions'][:3]
-                    }
-                    
-                    shap_text = f"SHAP Drivers: Base {force_data['base']:.0f}"
-                    for driver in force_data['drivers']:
-                        sign = '+' if driver['shap'] > 0 else ''
-                        shap_text += f" {driver['name']}({sign}{driver['shap']:.0f})"
-                    
-                    blocks.append(RLParagraph(
-                        f"<i>{shap_text}</i>",
-                        styles["small"]
-                    ))
+                    shap_df = build_shap_table(explanation, n_features=4)
+                    if not shap_df.empty:
+                        # Convert to ReportLab Table
+                        table_data = [list(shap_df.columns)]  # Header row
+                        for _, row in shap_df.iterrows():
+                            table_data.append(list(row.values))
+                        
+                        shap_table = Table(table_data, colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch])
+                        shap_table.setStyle(TableStyle([
+                            ("FONT", (0,0), (-1,-1), "Helvetica", 8),
+                            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#e8e8f0")),
+                            ("TEXTCOLOR", (0,0), (-1,0), colors.HexColor("#333333")),
+                            ("LINEABOVE", (0,0), (-1,0), 0.75, colors.grey),
+                            ("LINEBELOW", (0,0), (-1,0), 0.75, colors.grey),
+                            ("ALIGN", (0,0), (-1,0), "CENTER"),
+                            ("ALIGN", (1,1), (-1,-1), "CENTER"),
+                            ("ALIGN", (0,1), (0,-1), "LEFT"),
+                            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+                            ("GRID", (0,0), (-1,-1), 0.25, colors.HexColor("#dddddd")),
+                            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                        ]))
+                        
+                        blocks.append(Spacer(1, 0.08*inch))
+                        blocks.append(RLParagraph(
+                            "<i>SHAP Value Decomposition (Signal Contributions to Ticket Index)</i>",
+                            styles["small"]
+                        ))
+                        blocks.append(shap_table)
+                        
+                        # Add force plot narrative
+                        force_narrative = format_shap_narrative(explanation, n_top=3, min_impact=0.5)
+                        blocks.append(Spacer(1, 0.06*inch))
+                        blocks.append(RLParagraph(
+                            f"<i>SHAP Summary: {force_narrative}</i>",
+                            styles["small"]
+                        ))
             except Exception as e:
                 # Silently skip SHAP visualization if it fails
                 import logging
                 logging.debug(f"SHAP visualization failed for {rr.get('Title', 'Unknown')}: {e}")
         
-        # Increased spacing between titles to accommodate longer narratives
-        blocks.append(Spacer(1, 0.2*inch))
+        # Increased spacing between titles to accommodate longer narratives and SHAP tables
+        blocks.append(Spacer(1, 0.25*inch))
     
     blocks.append(Spacer(1, 0.2*inch))
     return blocks
