@@ -214,7 +214,7 @@ VERIFICATION SUMMARY
 
 ### TECHNICAL_ML_REPORT.md Coverage
 
-#### Section 17: SHAP Explainability Layer (Lines 1174-1599)
+#### Section 17: SHAP Explainability Layer (Lines 1177-1599)
 
 The report contains comprehensive SHAP documentation:
 
@@ -428,7 +428,7 @@ SHAPExplainer(
 ### Related Files
 - `ml/shap_explainer.py` - Core SHAP implementation
 - `streamlit_app.py` - Application integration (lines 2798-2852, 4026)
-- `TECHNICAL_ML_REPORT.md` - Section 17 (lines 1172-1599)
+- `TECHNICAL_ML_REPORT.md` - Section 17 (lines 1177-1599)
 - `SHAP_IMPLEMENTATION_GUIDE.md` - Historical implementation notes
 - `SHAP_IMPLEMENTATION_COMPLETE.txt` - Completion marker
 

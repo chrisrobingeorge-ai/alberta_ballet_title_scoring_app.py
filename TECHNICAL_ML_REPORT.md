@@ -1045,9 +1045,9 @@ TicketIndex = 115
 ```
 
 **Current Status:** ✅ SHAP is fully operational and actively being executed.
-- SHAP explainer is instantiated during Ridge model training when sufficient historical data exists (≥5 samples)
-- SHAP values are computed for each title in PDF reports
-- Results are embedded in board-level narratives and decomposition tables
+- SHAP explainer is instantiated during Ridge model training when sufficient historical data exists (≥5 samples) - `streamlit_app.py:2835-2840`
+- SHAP values are computed for each title in PDF reports - `streamlit_app.py:730, 832`
+- Results are embedded in board-level narratives and decomposition tables - passed to PDF generation at `streamlit_app.py:4026`
 
 ### 14.2 Provenance Tracking
 
