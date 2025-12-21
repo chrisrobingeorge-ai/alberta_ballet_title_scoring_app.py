@@ -68,6 +68,11 @@ if SHAP_AVAILABLE:
             X_signals = df_known_in[available_signals].values
             y_signals = df_known_in['TicketIndex_DeSeason'].values
             
+            # Add anchor points (lines 2823-2828)
+            # ... anchor point logic ...
+            X_shap = np.vstack([X_signals, X_anchors_weighted])
+            y_shap = np.concatenate([y_signals, y_anchors_weighted])
+            
             # Train Ridge model
             shap_model = Ridge(alpha=5.0, random_state=42)
             shap_model.fit(X_shap, y_shap)
@@ -209,7 +214,7 @@ VERIFICATION SUMMARY
 
 ### TECHNICAL_ML_REPORT.md Coverage
 
-#### Section 17: SHAP Explainability Layer (Lines 1172-1599)
+#### Section 17: SHAP Explainability Layer (Lines 1174-1599)
 
 The report contains comprehensive SHAP documentation:
 
