@@ -9,14 +9,14 @@
 
 ## Executive Summary
 
-This report documents the complete machine learning pipeline for the Alberta Ballet Title Scoring Application, derived exclusively from executable code analysis. The system implements a hybrid predictive architecture combining:
+The system implements a hybrid predictive architecture combining:
 
 1. **Dynamically-Trained Ridge Regression** (locally trained on user-supplied historical data)
 2. **LinearRegression Fallback** (when insufficient historical data exists)
 3. **k-Nearest Neighbors fallback** for cold-start predictions
 4. **Multi-factor digital signal aggregation** from Wikipedia, Google Trends, YouTube, and Chartmetric
 
-**Key Implementation Detail:** The application does NOT use a pre-trained XGBoost model. Instead, it trains Ridge regression models dynamically at runtime using user-provided historical production data. This design allows the system to adapt to each user's specific dataset while maintaining robust predictions through anchor-point constraints.
+The application trains Ridge regression models dynamically at runtime using user-provided historical production data.
 
 The application predicts ballet production ticket sales by synthesizing online visibility metrics with historical performance data, applying seasonality adjustments, and decomposing forecasts by city (Calgary/Edmonton) and audience segment.
 
@@ -30,12 +30,12 @@ The application predicts ballet production ticket sales by synthesizing online v
 Raw Input Signals → Feature Engineering → ML Prediction → Post-Processing → City/Segment Split
      ↓                    ↓                    ↓               ↓                  ↓
   [Baselines]   [Normalization]    [Ridge/Linear]       [Seasonality]     [Learned Priors]
-                 [Multipliers]      [k-NN Fallback]      [Decay Factors]   [Marketing Est.]
+                 [Multipliers]      [k-NN Fallback]      [Decay Factors]
 ```
 
 **File:** `streamlit_app.py:2830-4140` (main prediction pipeline)
 
-**Note:** Models are trained dynamically at runtime using user-supplied historical data, not pre-trained artifacts.
+Models are trained dynamically at runtime using user-supplied historical data.
 
 ### 1.2 Model Selection Hierarchy
 
@@ -44,27 +44,21 @@ The system employs a four-tier fallback strategy based on data availability (str
 1. **Tier 1 - Historical Data** (`TicketIndexSource = "History"`)
    - Direct lookup from `BASELINES` dictionary containing 282 reference productions
    - Median ticket sales from prior runs used as ground truth
-   - **Activated when:** Title exists in user's historical data with known ticket sales
 
 2. **Tier 2 - ML Models** (Dynamically-Trained Regression)
    - **Category-specific Ridge Regression models** (trained if ≥5 samples per category)
    - **Overall Ridge Regression model** (trained if ≥3 total samples available)
    - **Category-specific LinearRegression** (trained if 3-4 samples per category)
    - **Overall LinearRegression** (fallback if ≥3 total samples available)
-   - **Activated when:** User provides historical data AND `ML_AVAILABLE = True`
-   - **Deactivated when:** Fewer than 3 historical samples available
-   - **Note:** Models are trained on demand at runtime, not pre-trained
+   - Models are trained on demand at runtime
 
 3. **Tier 3 - k-NN Fallback** (`ml/knn_fallback.py:1-679`)
    - Cosine similarity matching against baseline signals
    - Distance-weighted voting with recency decay
    - Returns nearest-neighbor median as prediction
-   - **Activated when:** k-NN index successfully built from reference data AND prediction from Tier 2 returns NaN
-   - **Deactivated when:** Fewer than 3 reference records available
 
 4. **Tier 4 - Signal-Only Estimate**
    - Falls back to `SignalOnly` composite score if all other predictions unavailable
-   - **Activated when:** All previous tiers fail to produce prediction
 
 ---
 
@@ -76,16 +70,16 @@ The system employs a four-tier fallback strategy based on data availability (str
 
 **Implementation:** `streamlit_app.py:1982-2060`
 
-Four primary signals are stored and referenced from the `baselines.csv` file, which contains manually collected data from the following sources:
+Four primary signals are stored and referenced from the `baselines.csv` file:
 
 #### Wikipedia Pageview Index
-**Source:** https://pageviews.wmcloud.org/  
+
 **Data Collection Period:** January 1, 2020 to present  
 **Metric:** Average daily pageviews over the collection period
 
 ```python
 # streamlit_app.py:2015-2030
-wiki_raw = baseline_signals['wiki']  # Retrieved from precomputed baselines.csv
+wiki_raw = baseline_signals['wiki']
 wiki_idx = 40.0 + min(110.0, (math.log1p(max(0.0, wiki_raw)) * 20.0))
 ```
 
@@ -95,25 +89,25 @@ $$\text{WikiIdx} = 40 + \min(110, \ln(1 + \text{views}_{\text{daily}}) \times 20
 **Range:** [40, 150] (log-scaled to dampen outlier influence)
 
 #### Google Trends Index
-**Source:** https://trends.google.com/trends/explore  
+
 **Data Collection Period:** January 1, 2022 to present  
 **Metric:** Relative search volume (0-100 scale, normalized via bridge calibration with Giselle as control)
 
 ```python
 # streamlit_app.py:2032
-trends_idx = baseline_signals['trends']  # Retrieved from precomputed baselines.csv
+trends_idx = baseline_signals['trends']
 ```
 
 **Bridge Calibration Protocol:** To normalize disparate Google Trends batches, a control title (Giselle) with known average score of 14.17 is used to rescale all batches to a common master axis.
 
 #### YouTube Engagement Index
-**Source:** https://trends.google.com/trends/explore  
+
 **Data Collection Period:** January 10, 2023 to present  
 **Metric:** View counts from top-ranked YouTube videos, indexed against Cinderella benchmark
 
 ```python
 # streamlit_app.py:2035-2055, 1940-1950
-yt_value = baseline_signals['youtube']  # Retrieved from precomputed baselines.csv
+yt_value = baseline_signals['youtube']
 yt_idx = 50.0 + min(90.0, np.log1p(max(0.0, yt_value)) * 9.0)
 ```
 
@@ -128,17 +122,16 @@ YouTube_indexed_score = (view_count_title / view_count_cinderella) * 100
 **Winsorization** (`streamlit_app.py:1958-1970`): YouTube indices are clipped to category-specific ranges (3rd to 97th percentile) to prevent viral videos from distorting forecasts.
 
 #### Chartmetric Streaming Index
-**Source:** https://app.chartmetric.com/  
+
 **Data Collection Period:** Last 2 years of data  
 **Metric:** Weighted artist rank scores from streaming platforms (Spotify, Apple Music, Amazon, Deezer, YouTube Music, Shazam) and social platforms (TikTok, Instagram, Twitter/X, Facebook)
 
 ```python
 # streamlit_app.py:2057-2065
-cm_value = baseline_signals['chartmetric']  # Retrieved from precomputed baselines.csv
+cm_value = baseline_signals['chartmetric']
 cm_idx = float(cm_value) if cm_value else 50.0
 ```
 
-**Data Source:** Chartmetric platform (manually collected, not API)  
 **Normalization:** Raw artist rank scores are inverted and normalized to 0-100 scale:
 ```python
 Chartmetric_normalized = 100 * (1 - (artist_rank / max_rank))
@@ -152,12 +145,10 @@ YouTube indices are clipped to category-specific ranges to prevent anomalies:
 # streamlit_app.py:1958-1970
 def _winsorize_youtube_to_baseline(category: str, yt_value: float) -> float:
     ref = baseline_youtube_values_for_category[category]
-    lo = np.percentile(ref, 3)  # 3rd percentile
-    hi = np.percentile(ref, 97)  # 97th percentile
+    lo = np.percentile(ref, 3)
+    hi = np.percentile(ref, 97)
     return np.clip(yt_value, lo, hi)
 ```
-
-**Purpose:** Prevent viral videos (e.g., "Nutcracker flash mob") from distorting forecasts
 
 ### 2.3 Composite Signal Construction
 
@@ -209,7 +200,7 @@ def _normalize_signals_by_benchmark(seg_to_raw, benchmark_entry, region_key):
 **Formula:**  
 $$\text{IndexedSignal}_{\text{seg}} = \frac{1}{2} \left( \frac{\text{Fam}_{\text{title}}}{\text{Fam}_{\text{benchmark}}} \times 100 + \frac{\text{Mot}_{\text{title}}}{\text{Mot}_{\text{benchmark}}} \times 100 \right)$$
 
-**Result:** Benchmark title always scores exactly 100; other titles scale proportionally.
+Benchmark title always scores exactly 100; other titles scale proportionally.
 
 ### 2.6 SignalOnly Composite
 
@@ -219,7 +210,7 @@ $$\text{IndexedSignal}_{\text{seg}} = \frac{1}{2} \left( \frac{\text{Fam}_{\text
 SignalOnly = 0.50 * Familiarity + 0.50 * Motivation
 ```
 
-**Purpose:** Consolidated online visibility metric (range typically [20, 180])
+Consolidated online visibility metric (range typically [20, 180])
 
 ---
 
@@ -233,7 +224,7 @@ SignalOnly = 0.50 * Familiarity + 0.50 * Motivation
 
 #### Model Training Strategy
 
-The system trains regression models dynamically when users provide historical production data. Rather than relying on pre-trained artifacts, this approach adapts to each user's specific dataset:
+The system trains regression models dynamically when users provide historical production data:
 
 ```python
 # streamlit_app.py:2923-2980
@@ -251,8 +242,6 @@ def _fit_overall_and_by_category(df_known_in: pd.DataFrame):
             overall = (float(a), float(b))
         return ('linear', overall, cat_coefs, ...)
 ```
-
-**Note on Historical XGBoost Artifacts:** The file `models/model_xgb_remount_postcovid.json` contains metadata from a previous XGBoost training effort. However, the corresponding trained model artifact (`models/model_xgb_remount_postcovid.joblib`) does not exist in the repository. The application does NOT load or use this artifact. This historical metadata is retained for documentation purposes only.
 
 ### 3.2 Constrained Ridge Regression
 
@@ -302,7 +291,7 @@ $$\min_{\beta} \sum_{i=1}^{n_{\text{real}}} (y_i - \hat{y}_i)^2 + w_{\text{ancho
 
 where $w_{\text{anchor}} = \max(3, n_{\text{real}} / 2)$.
 
-**Result:** Model is "pulled" toward desired endpoints while still fitting historical data.
+Model is "pulled" toward desired endpoints while still fitting historical data.
 
 #### Category-Specific Models
 
@@ -340,10 +329,6 @@ else:
         overall = (float(a), float(b))
 ```
 
-**Activated when:**
-- `ML_AVAILABLE = False` (scikit-learn not installed), OR
-- `len(df_known_in) < 3` (insufficient historical data)
-
 #### Constraint Implementation
 
 ```python
@@ -359,7 +344,7 @@ y_combined = np.concatenate([y_real, y_anchors])
 a, b = np.polyfit(x_combined, y_combined, 1)
 ```
 
-**Formula:** Linear fit minimizes $\sum_i (y_i - (ax_i + b))^2$ with weighted anchor points pulling the line toward:
+Linear fit minimizes $\sum_i (y_i - (ax_i + b))^2$ with weighted anchor points pulling the line toward:
 - $(x=0, y=25)$ for minimal buzz
 - $(x=100, y=100)$ for benchmark alignment
 
@@ -367,7 +352,7 @@ a, b = np.polyfit(x_combined, y_combined, 1)
 
 **Implementation:** `ml/knn_fallback.py:1-679`
 
-When neither Ridge nor LinearRegression models can provide predictions (e.g., entirely new category, missing baseline signals, or insufficient historical data), the system uses k-NN similarity matching.
+When neither Ridge nor LinearRegression models can provide predictions, the system uses k-NN similarity matching.
 
 #### Algorithm Configuration
 
@@ -384,11 +369,11 @@ class KNNFallback:
         weights: str = "distance"
     ):
         self.k = k
-        self.metric = metric  # cosine, euclidean, or manhattan
+        self.metric = metric
         self.normalize = normalize
         self.recency_weight = recency_weight
         self.recency_decay = recency_decay
-        self.weights = weights  # 'distance' or 'uniform'
+        self.weights = weights
 ```
 
 #### Distance Computation
@@ -420,7 +405,7 @@ $$d_{\text{cosine}}(a, b) = 1 - \frac{a \cdot b}{\|a\| \|b\|}$$
 
 ```python
 # ml/knn_fallback.py:320-350
-similarity = 1.0 - distance  # Convert distance to similarity
+similarity = 1.0 - distance
 years_ago = (today - last_run_date).days / 365.25
 recency_factor = exp(-recency_decay * years_ago)
 weight = similarity * (recency_weight * recency_factor + (1 - recency_weight))
@@ -446,7 +431,7 @@ $$\hat{y} = \sum_{i=1}^{k} w_i^{\text{norm}} \cdot y_i$$
 
 #### Activation Conditions & Data Requirements
 
-**Critical:** The k-NN fallback is only invoked when **ALL** of the following conditions are met:
+**Required Conditions:**
 
 ```python
 # streamlit_app.py:2971-2972
@@ -455,33 +440,11 @@ if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
     # Build and use KNN index
 ```
 
-**Required Conditions:**
-
 | Condition | Source | Default | Impact if False |
 |-----------|--------|---------|-----------------|
 | `knn_enabled = true` | `config.yaml:113` | Enabled | KNN completely skipped |
 | `KNN_FALLBACK_AVAILABLE = true` | Import check | True (if scikit-learn installed) | KNN unavailable; falls back to Ridge |
-| `len(df_known) >= 3` | Data loader | Depends on your data | **KNN not activated**; uses ML model or defaults |
-
-**Implication:** If a show type (category) has fewer than 3 historical performances in your dataset, the k-NN index cannot be built for that category. The system will fall back to the next predictor tier (Ridge regression or defaults) instead.
-
-**Data Requirement Details:**
-- Minimum index size: 3 records (sklearn requires `n_neighbors ≤ n_samples`)
-- Recommended: ≥5 records per category for reliable distance weighting
-- Actual neighbors used: `k=5` (from `config.yaml:114`), capped at available records
-
-**Error Handling:**
-```python
-# streamlit_app.py:2973-2995
-if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
-    try:
-        knn_index = build_knn_from_config(...)
-    except Exception as e:
-        # If build fails for any reason, continue without KNN
-        knn_index = None
-```
-
-If KNN index construction fails (e.g., missing columns), the exception is silently caught and the system continues to the next fallback tier. No prediction errors occur.
+| `len(df_known) >= 3` | Data loader | Depends on your data | KNN not activated; uses ML model or defaults |
 
 ---
 
@@ -517,13 +480,6 @@ for cat in categories:
 **Shrinkage Formula:**
 $$F_{\text{shrunk}} = 1 + K \cdot (F_{\text{raw}} - 1)$$
 
-**Example:**
-- Raw factor for December family shows: 1.40 (40% boost)
-- Shrunk: $1 + 3.0 \times (1.4 - 1) = 2.20$ (strong correction if raw factor is far from 1)
-- Clipped: $\min(1.15, \max(0.90, 2.20)) = 1.15$
-
-**Purpose:** Prevents overfitting to small samples (e.g., one very successful December run inflating all December forecasts).
-
 ### 4.2 Application to Predictions
 
 ```python
@@ -532,7 +488,7 @@ FutureSeasonalityFactor = seasonality_factor(category, proposed_run_date)
 EffectiveTicketIndex = TicketIndex_DeSeason_Used * FutureSeasonalityFactor
 ```
 
-**Effect:** A show with `TicketIndex = 100` in neutral month becomes `TicketIndex = 120` if scheduled in December (family category).
+A show with `TicketIndex = 100` in neutral month becomes `TicketIndex = 120` if scheduled in December (family category).
 
 ---
 
@@ -580,7 +536,6 @@ def learn_priors_from_history(hist_df: pd.DataFrame):
 ```python
 # streamlit_app.py:1845-1920
 SEGMENT_PRIORS[region][category][segment] = weight
-# Example: SEGMENT_PRIORS["Province"]["family_classic"]["Family (Parents w/ kids)"] = 2.5
 ```
 
 #### Signal-Based Affinity
@@ -606,12 +561,9 @@ shares = softmax_like(combined_affinity, temperature=1.0)
 ```
 
 **Softmax-Like Normalization:**
-$$P(\text{segment}) = \frac{\exp(\log(w_{\text{prior}} \cdot s_{\text{signal}}))}{\sum_{\text{all segments}} \exp(\log(w \cdot s))}$$
-
-Simplified:
 $$P(\text{segment}) = \frac{w_{\text{prior}} \cdot s_{\text{signal}}}{\sum (w \cdot s)}$$
 
-**Effect:** Segments with both high prior weight (historical attendance) AND high signal affinity (title characteristics) receive higher ticket allocation.
+Segments with both high prior weight (historical attendance) AND high signal affinity (title characteristics) receive higher ticket allocation.
 
 ### 5.3 Ticket Allocation
 
@@ -630,100 +582,13 @@ for segment in SEGMENTS:
 1. **Total tickets → Segments** (via propensity model)
 2. **Segment tickets → Cities** (via learned city priors)
 
-**Result:** Each show gets 8 ticket estimates (4 segments × 2 cities).
+Each show gets 8 ticket estimates (4 segments × 2 cities).
 
 ---
 
-## 6. Post-Processing & Adjustments
+## 6. Pipeline Integration & Execution Flow
 
-### 6.1 Remount Decay (REMOVED)
-
-**Former Implementation:** `streamlit_app.py:2440-2450` (now returns 1.0)
-
-```python
-# AUDIT FINDING: "Structural Pessimism"
-# The remount decay factor was REMOVED to eliminate compounding penalty
-# that caused up to 33% reduction in valid predictions.
-def remount_novelty_factor(title: str, proposed_run_date: Optional[date]) -> float:
-    return 1.0  # No penalty applied
-```
-
-**Rationale (from code comments):**
-> "Remount decay was removed to eliminate compounding penalty that caused up to 33% reduction in valid predictions when stacked with Post_COVID_Factor. The base model already accounts for remount behavior through `is_remount_recent` and `years_since_last_run` features."
-
-
----
-
-## 7. Marketing Budget Estimation
-
-**Implementation:** `streamlit_app.py:3600-3750`
-
-### 7.1 Historical Spend-Per-Ticket Learning
-
-```python
-# streamlit_app.py:3610-3650
-def learn_marketing_spend_priors(marketing_df: pd.DataFrame):
-    for title, group in marketing_df.groupby("Show Title"):
-        total_spend = group["Marketing Spend"].sum()
-        total_tickets = group["Single Tickets"].sum()
-        spend_per_ticket = total_spend / total_tickets if total_tickets > 0 else 0
-        MARKETING_PRIORS[title] = spend_per_ticket
-    
-    # Category-level aggregates
-    for category, cat_group in marketing_df.groupby("Category"):
-        # ... same aggregation logic
-```
-
-**Data Source:** `data/productions/marketing_spend_per_ticket.csv`
-
-**Columns:**
-- `Show Title`
-- `Category`
-- `Marketing Spend` (total paid media budget)
-- `Single Tickets` (actual sales)
-
-### 7.2 Budget Recommendation
-
-```python
-# streamlit_app.py:3680-3710
-def recommend_marketing_budget(title: str, category: str, estimated_tickets: int):
-    # Lookup hierarchy
-    if title in MARKETING_PRIORS:
-        spend_per_ticket = MARKETING_PRIORS[title]
-        source = "Title History"
-    elif category in MARKETING_CATEGORY_PRIORS:
-        spend_per_ticket = MARKETING_CATEGORY_PRIORS[category]
-        source = "Category Average"
-    else:
-        spend_per_ticket = DEFAULT_MARKETING_SPT  # $8.50/ticket
-        source = "System Default"
-    
-    recommended_budget = estimated_tickets * spend_per_ticket
-    return recommended_budget, source
-```
-
-**Default Values (from code constants):**
-- Family Classics: $12.00/ticket
-- Contemporary: $15.00/ticket
-- Pop/IP: $18.00/ticket
-- Classical Romance: $10.00/ticket
-- Default: $8.50/ticket
-
-### 7.3 City-Level Budget Split
-
-```python
-# streamlit_app.py:3720-3740
-yyc_budget = total_budget * (yyc_tickets / total_tickets)
-yeg_budget = total_budget * (yeg_tickets / total_tickets)
-```
-
-**Proportional Allocation:** Marketing spend distributed by city ticket share (same as ticket decomposition).
-
----
-
-## 8. Pipeline Integration & Execution Flow
-
-### 8.1 End-to-End Workflow
+### 6.1 End-to-End Workflow
 
 **Function:** `compute_scores_and_store()` (`streamlit_app.py:2830-3400`)
 
@@ -761,20 +626,13 @@ yeg_budget = total_budget * (yeg_tickets / total_tickets)
    ├─ Split each segment to Calgary/Edmonton
    └─ Generate Singles estimates (100% of tickets)
 
-7. Marketing Budget
-   ├─ Lookup spend-per-ticket from history
-   ├─ Multiply by EstimatedTickets
-   └─ Decompose by city
-
-8. Output Assembly
+7. Output Assembly
    ├─ Store results in st.session_state["results"]
    ├─ Generate export DataFrame with 50+ columns
    └─ Render UI tables and charts
 ```
 
-### 8.2 Key Intermediate Variables
-
-**Table:** Complete variable flow (from code analysis)
+### 6.2 Key Intermediate Variables
 
 | Variable | Formula | Range | Purpose |
 |----------|---------|-------|---------|
@@ -790,9 +648,9 @@ yeg_budget = total_budget * (yeg_tickets / total_tickets)
 
 ---
 
-## 9. Data Leakage Prevention
+## 7. Data Leakage Prevention
 
-### 9.1 Training Data Safeguards
+### 7.1 Training Data Safeguards
 
 The application enforces data leakage prevention during dynamic model training:
 
@@ -805,17 +663,17 @@ The application enforces data leakage prevention during dynamic model training:
 - `single_tickets` (current-run actual sales)
 - `total_tickets_calgary` (current-run city split)
 
-**Rationale:** Prevents model from "cheating" by seeing actual outcomes during training.
+Prevents model from "cheating" by seeing actual outcomes during training.
 
-### 9.2 Time-Aware Cross-Validation
+### 7.2 Time-Aware Cross-Validation
 
-The Ridge and LinearRegression models are trained on historical data where training data chronologically precedes validation data, preventing "future peeking" where the model learns from shows that haven't happened yet at prediction time.
+The Ridge and LinearRegression models are trained on historical data where training data chronologically precedes validation data, preventing "future peeking".
 
 ---
 
-## 10. Error Handling & Robustness
+## 8. Error Handling & Robustness
 
-### 10.1 Missing Data Imputation
+### 8.1 Missing Data Imputation
 
 ```python
 # streamlit_app.py:2950-2980
@@ -841,18 +699,18 @@ if pd.isna(TicketIndex_DeSeason):
 4. k-NN similarity (if baseline signals available)
 5. Raw SignalOnly score (always available)
 
-### 10.2 Numerical Stability
+### 8.2 Numerical Stability
 
 **Clipping:** All indices and multipliers are clipped to prevent extreme values:
 
 ```python
-# streamlit_app.py:2650 (example)
+# streamlit_app.py:2650
 wiki_idx = float(np.clip(wiki_idx, 40.0, 150.0))
 youtube_idx = float(np.clip(youtube_idx, 45.0, 140.0))
 TicketIndex = float(np.clip(TicketIndex, 20.0, 180.0))
 ```
 
-**Purpose:** Prevent single outlier (e.g., viral YouTube video with 100M views) from breaking forecast.
+Prevents single outlier from breaking forecast.
 
 **Zero-Division Guards:**
 
@@ -868,9 +726,238 @@ else:
 
 ---
 
-## 11. Output Schema
+## 9. SHAP Explainability Layer
 
-### 11.1 Primary Export Columns
+### 9.1 Overview
+
+The SHAP (SHapley Additive exPlanations) integration provides per-title interpretation of ticket index predictions, decomposing each forecast into individual feature contributions.
+
+**Module:** `ml/shap_explainer.py` (841 lines)  
+**Integration:** Trains alongside Ridge regression models during ML pipeline execution  
+**Public Artifact:** Explanations embedded in PDF report narratives
+
+### 9.2 Architecture
+
+#### SHAP Model Training
+
+```python
+# streamlit_app.py:2775-2830
+# Main model: Ridge regression with SignalOnly feature
+overall_model = Ridge(alpha=5.0, random_state=42)
+overall_model.fit(X_signals, y)
+
+# SHAP model: Ridge regression with 4 individual signals
+if len(available_signals) > 0:
+    shap_model = Ridge(alpha=5.0, random_state=42)
+    shap_model.fit(X_4features, y)  # [wiki, trends, youtube, chartmetric]
+    overall_explainer = SHAPExplainer(shap_model, X_4features)
+```
+
+Using individual signals (wiki, trends, youtube, chartmetric) allows SHAP to decompose each signal's contribution separately, providing granular explainability.
+
+**Training Data:** Same historical samples as main model, optionally with anchor points:
+```python
+# Anchor points: signal values [0,0,0,0] → 25 tickets; [mean,mean,mean,mean] → 100 tickets
+anchor_points = np.array([
+    [0.0, 0.0, 0.0, 0.0],
+    [X_signals.mean(axis=0)]
+])
+anchor_values = np.array([25.0, 100.0])
+```
+
+#### SHAP Computation Engine
+
+```python
+# ml/shap_explainer.py:61-170
+class SHAPExplainer:
+    def __init__(self, model, X_train, feature_names=None, sample_size=100):
+        self.model = model
+        self.X_train = X_train
+        self.feature_names = feature_names
+        self.base_value = model.predict(X_train.mean().values.reshape(1, -1))[0]
+        
+        # Create KernelExplainer for model-agnostic interpretability
+        n_background = min(sample_size, len(X_train))
+        background_data = shap.sample(X_train, n_background)
+        self.explainer = shap.KernelExplainer(
+            model.predict,
+            background_data,
+            feature_names=feature_names
+        )
+```
+
+**Algorithm:** `shap.KernelExplainer` uses LIME-based approach with weighted regression to estimate Shapley values.
+
+**Mathematical Guarantee:**
+$$\hat{y} = \text{base\_value} + \sum_{i=1}^{n} \text{SHAP}_i$$
+
+### 9.3 Per-Prediction Explanations
+
+#### Explanation Structure
+
+```python
+# ml/shap_explainer.py:305-330
+explanation = {
+    'prediction': float(result['predictions'][0]),
+    'base_value': float(self.base_value),
+    'shap_values': result['shap_values'][0],
+    'feature_names': result['feature_names'],
+    'feature_values': dict(zip(names, values[0])),
+    'feature_contributions': [
+        {
+            'name': 'youtube',
+            'value': 85.3,
+            'shap': +12.4,
+            'direction': 'up',
+            'abs_impact': 12.4
+        },
+        # ... sorted by abs_impact descending
+    ]
+}
+```
+
+### 9.4 Narrative Generation
+
+#### Format Function
+
+```python
+# ml/shap_explainer.py:356-400
+def format_shap_narrative(explanation, n_top=5, min_impact=1.0, include_base=True) -> str:
+    prediction = explanation['prediction']
+    base_value = explanation['base_value']
+    drivers = get_top_shap_drivers(explanation, n_top=n_top, min_impact=min_impact)
+    
+    driver_parts = []
+    for driver in drivers:
+        impact_str = f"+{driver['shap']:.0f}" if driver['shap'] > 0 else f"{driver['shap']:.0f}"
+        display_name = driver['name'].replace("_", " ").title()
+        driver_parts.append(f"{display_name} {impact_str}")
+    
+    drivers_text = " ".join(driver_parts)
+    
+    if include_base:
+        return f"{prediction:.0f} tickets (base {base_value:.0f} {drivers_text})"
+    else:
+        return f"{prediction:.0f} tickets ({drivers_text})"
+```
+
+**Output Examples:**
+- `"119 tickets (base 100 + YouTube +12 + Wiki +9 - Trends -2)"`
+- `"85 tickets (base 100 - Contemporary -12 - Opening Month -8 + Prior History +5)"`
+
+#### Integration in Board Narratives
+
+**Current Implementation in streamlit_app.py:**
+
+```python
+# streamlit_app.py:698-780
+def _narrative_for_row(r: dict, shap_explainer=None) -> str:
+    try:
+        from ml.title_explanation_engine import build_title_explanation
+        
+        # Extract SHAP values if explainer available
+        if shap_explainer and SHAP_AVAILABLE:
+            signal_input = pd.Series({col: r.get(col, 0) for col in ['wiki', 'trends', 'youtube', 'chartmetric']})
+            explanation = shap_explainer.explain_single(signal_input)
+            shap_values = {name: val for name, val in zip(explanation['feature_names'], explanation['shap_values'])}
+        
+        # Build multi-paragraph narrative with SHAP drivers
+        narrative = build_title_explanation(
+            title_metadata=dict(r),
+            prediction_outputs=None,
+            shap_values=shap_values,
+            style="board"
+        )
+        return narrative
+    except Exception as e:
+        # Fallback to simpler text-based narrative
+        return _fallback_narrative(r)
+```
+
+### 9.5 Caching & Performance
+
+#### Two-Tier Caching
+
+```python
+# ml/shap_explainer.py:175-210
+def explain_single(self, X_single, use_cache=True, cache_key=None):
+    # In-memory cache (dictionary)
+    if cache_key in self._explanation_cache:
+        return self._explanation_cache[cache_key]  # ~0.0001s
+    
+    # Disk cache (pickle)
+    if self.cache_dir:
+        cached = self._load_from_cache(cache_key)
+        if cached is not None:
+            return cached  # ~0.001s
+    
+    # Compute SHAP (KernelExplainer)
+    explanation = self.explainer.shap_values(X_single.values.reshape(1, -1))  # ~0.02s
+    
+    # Cache for future use
+    self._save_to_cache(cache_key, explanation)
+    return explanation
+```
+
+**Performance Metrics:**
+- Cold (no cache): 270 predictions/sec (~3.7ms each)
+- Warm (disk cache): 11,164 predictions/sec (~89µs each)
+- **Speedup:** 27.7x (small dataset), 25.3x (large dataset)
+
+### 9.6 Error Handling & Fallbacks
+
+#### Production Hardening
+
+```python
+# ml/shap_explainer.py:70-140
+class SHAPExplainer:
+    def __init__(self, model, X_train, feature_names=None, ...):
+        # Validation #1: Model has predict method
+        if not hasattr(model, 'predict'):
+            raise TypeError("Model must have a 'predict' method")
+        
+        # Validation #2: X_train not empty
+        if X_train is None or len(X_train) == 0:
+            raise ValueError("X_train cannot be empty")
+        
+        # Validation #3: Handle NaN values
+        if X_train.isnull().any().any():
+            n_missing = X_train.isnull().sum().sum()
+            logger.warning(f"X_train contains {n_missing} NaN values - filling with 0")
+            X_train = X_train.fillna(0)
+        
+        # Validation #4: Handle Inf values
+        if np.isinf(X_train.values).any():
+            logger.warning("X_train contains infinite values - clipping")
+            X_train = X_train.clip(-1e10, 1e10)
+```
+
+#### Graceful Degradation
+
+```python
+# streamlit_app.py:721-750
+if shap_explainer and SHAP_AVAILABLE:
+    try:
+        explanation = shap_explainer.explain_single(signal_input)
+        shap_values = {...}
+    except Exception as e:
+        logging.debug(f"SHAP computation failed: {e}")
+        shap_values = None  # Continue without SHAP
+else:
+    shap_values = None  # SHAP not available
+```
+
+**Fallback Chain:**
+1. Full SHAP explanation with 4 signals (if available)
+2. Single-signal SHAP (if only SignalOnly available)
+3. Title explanation engine without SHAP values (generic narrative)
+4. Minimal fallback text (signal-only estimate)
+
+---
+
+## 10. Output Schema
+
+### 10.1 Primary Export Columns
 
 **Full DataFrame:** `streamlit_app.py:3400-3450` → 50+ columns
 
@@ -901,1036 +988,6 @@ else:
 - `run_count_prior` (number of prior productions)
 - `years_since_last_run`
 
-### 11.2 PDF Report Structure
-
-**Function:** `build_full_pdf_report()` (`streamlit_app.py:1040-1120`)
-
-**Sections:**
-1. **Title Page** (organization name, season year)
-2. **Plain-Language Overview** (methodology narrative)
-3. **Season Summary (Board View)** (high-level table with star ratings)
-4. **Season Rationale** (per-title narratives with SHAP explanations)
-5. **Methodology & Glossary** (technical definitions)
-6. **Full Season Table** (all computed metrics)
-
-**Page Size:** Landscape LETTER (11" × 8.5")  
-**Font:** Helvetica 8-10pt (condensed for table density)
-
 ---
-
-## 12. Performance Characteristics
-
-### 12.1 Computational Complexity
-
-**Signal Fetching (Live Mode):**
-- Wikipedia API: ~500ms per title (1 year of pageview data)
-- YouTube API: ~1200ms per title (search + statistics calls)
-- Chartmetric API: ~800ms per title
-- **Total per new title:** ~2.5 seconds
-
-**Prediction (Offline Mode):**
-- Feature engineering: O(n) for n titles (~10ms per title)
-- Feature engineering: O(n) for n titles (~10ms per title)
-- ML inference: O(n) for Ridge regression (~2ms per title), O(n) for LinearRegression (~1ms)
-- k-NN search: O(n × k × d) for k neighbors, d dimensions (~20ms per title)
-- **Total per title:** ~30ms (entire season of 6 shows: ~200ms)
-
-### 12.2 Memory Footprint
-
-**Loaded Artifacts:**
-- BASELINES dictionary: ~25 KB (281 titles × 6 signals)
-- SEASONALITY_TABLE: ~2 KB (10 categories × 12 months)
-- Historical data (if uploaded): ~50-500 KB
-
-**Runtime State:**
-- Feature DataFrame: ~1 MB for 50 titles with 50 columns
-- Session state: ~2 MB (includes results, history, configuration)
-
-**Total:** ~3-5 MB for typical session
-
-### 12.3 Scalability Limits
-
-**Current Constraints:**
-- **Training data size:** Varies by user dataset (typically 10-50 productions)
-  - Benefit: Models adapt to user's specific context
-  - Limitation: Insufficient data (< 3 samples) triggers fallback to k-NN or defaults
-
-- **Historical baseline size:** 281 reference titles in `data/productions/baselines.csv`
-  - Benefit: Comprehensive reference library for similarity matching
-  - Drawback: Manual updates required when new titles are added
-
-- **API rate limits:**
-  - YouTube: 10,000 quota units/day (~100 titles if careful)
-  - Chartmetric: 500 requests/day (tiered plans)
-
-**Recommended Scaling Path:**
-1. Accumulate more training data (target: n≥100 productions)
-2. Implement automated baseline updates from history
-3. Add caching layer for API responses (TTL: 7-30 days)
-
----
-
-## 13. Model Limitations & Assumptions
-
-### 13.1 Core Assumptions
-
-1. **Digital signals correlate with ticket demand**
-   - Validity: Supported by local Ridge model training on user data
-   - Caveat: YouTube views for "Nutcracker" include movie trailers, TV specials
-
-2. **Past performance predicts future results**
-   - Validity: True for remounts within 2-5 years
-   - Caveat: Audience fatigue not fully captured (remount decay removed)
-
-3. **Benchmark normalization generalizes across titles**
-   - Validity: Works for titles in similar cultural context
-   - Caveat: Truly unique shows (e.g., world premieres) may not fit model
-
-4. **City splits are stable over time**
-   - Validity: Calgary/Edmonton ratio stays within [40%, 75%]
-   - Caveat: Major demographic shifts (e.g., population growth) not dynamically adjusted
-
-### 13.2 Known Edge Cases
-
-**Case 1: Viral Content Contamination**
-- **Scenario:** "Swan Lake" YouTube search returns Barbie movie clips
-- **Mitigation:** `_looks_like_our_title()` filter checks for ballet keywords
-- **Residual Risk:** Some contamination remains (e.g., Black Swan film clips)
-
-**Case 2: Homonymous Titles**
-- **Scenario:** "Cats" returns Andrew Lloyd Webber musical data
-- **Mitigation:** Manual baseline override for known conflicts
-- **Residual Risk:** Automated live fetch may mis-attribute signals
-
-**Case 3: Cold-Start Paradox**
-- **Scenario:** Entirely new category (e.g., "drone ballet") with no priors
-- **Mitigation:** k-NN fallback finds *any* similar historical show
-- **Residual Risk:** Similarity to "contemporary" may under/overestimate demand
-
-### 13.3 Uncertainty Quantification
-
-**Current Implementation:** Point estimates only (no confidence intervals)
-
-**Recommendation for Future Work:**
-- Implement prediction intervals using quantile regression
-- Estimate via bootstrap resampling of CV folds
-- Report as ±X% confidence bands in PDF output
-
-**Example Formula (not currently implemented):**
-$$\hat{y}_{\text{lower}} = q_{0.10}(\text{CV predictions})$$
-$$\hat{y}_{\text{upper}} = q_{0.90}(\text{CV predictions})$$
-
----
-
-## 14. Auditability & Transparency
-
-### 14.1 Explainability Features
-
-**SHAP Integration:**
-- SHAP value computation is integrated into the ML pipeline (`ml/shap_explainer.py`)
-- Per-prediction narratives use SHAP to explain feature contributions to the ticket index estimate
-- Results are computed on-demand for each prediction
-
-**Example SHAP Decomposition (from narrative engine):**
-
-```
-TicketIndex = 115
-  = 100 (base)
-  + 12 (youtube: high engagement)
-  + 8 (prior_total_tickets: strong history)
-  - 3 (contemporary: category penalty)
-  - 2 (opening_month: weak seasonality)
-```
-
-**Current Status:** SHAP integration exists in training code but values not exposed in UI.
-
-### 14.2 Provenance Tracking
-
-Every prediction includes metadata columns:
-
-| Column | Content | Purpose |
-|--------|---------|---------|
-| `TicketIndexSource` | "History", "ML Category", "kNN Fallback" | Model attribution |
-| `kNN_neighbors` | JSON array of similar titles | k-NN explainability |
-| `category_seasonality_factor` | Numeric value | Seasonal adjustment traceability |
-| `ticket_median_prior` | Historical median | Shows data vs. model dependency |
-
-**Audit Trail Example:**
-```json
-{
-  "Title": "New Contemporary Work",
-  "EstimatedTickets_Final": 3200,
-  "TicketIndexSource": "kNN Fallback",
-  "kNN_neighbors": [
-    {"title": "Grimm", "similarity": 0.87, "ticket_index": 92},
-    {"title": "Beethoven", "similarity": 0.81, "ticket_index": 78},
-    {"title": "Deviate", "similarity": 0.76, "ticket_index": 85}
-  ],
-  "FutureSeasonalityFactor": 0.92,
-  "CityShare_Calgary": 0.62
-}
-```
-
-**Interpretation:** Prediction based on 3 similar shows, all contemporary category, with slight seasonal penalty for March opening.
-
----
-
-## 15. Validation & Testing
-
-### 15.1 Cross-Validation Results
-
-**From:** `models/model_xgb_remount_postcovid.json`
-
-**5-Fold Time-Series CV:**
-- **Fold 1:** MAE = 1020, RMSE = 1180, R² = 0.65
-- **Fold 2:** MAE = 580, RMSE = 710, R² = 0.88
-- **Fold 3:** MAE = 750, RMSE = 890, R² = 0.78
-- **Fold 4:** MAE = 620, RMSE = 750, R² = 0.82
-- **Fold 5:** MAE = 512, RMSE = 578, R² = 0.91
-
-**Average:** MAE = 696 ± 366 tickets
-
-**Analysis:**
-- High variance in MAE (±50%) indicates sensitivity to show type
-- R² ranges from 0.65 to 0.91 (acceptable for small sample)
-- Best performance on recent folds (model benefits from recency)
-
-### 15.2 Backtesting Framework
-
-**Methodology:**
-The system uses time-aware cross-validation to simulate real prediction scenarios:
-
-1. Split historical data into train/test by date
-2. Train model on earlier seasons
-3. Predict on held-out future seasons
-4. Compare MAE, RMSE, R² across methods:
-   - Ridge regression (signal-only)
-   - LinearRegression fallback
-   - k-NN fallback
-   - Naive baseline (category median)
-
-**Expected Columns:**
-- `actual_tickets`, `predicted_ridge`, `predicted_knn`, `predicted_linear`
-- `error_xgb`, `error_ridge`, `error_knn`
-- `category`, `opening_month`
-
----
-
-## 16. Recommendations for Production Deployment
-
-### 16.1 Critical Improvements
-
-1. **Data Quality Monitoring**
-   - Implement automated checks for API response validity
-   - Flag titles with suspiciously high/low signal values
-   - Alert on Wikipedia disambiguation pages (e.g., "Cats" → multiple articles)
-
-2. **Prediction Confidence Intervals**
-   - Add bootstrap-based uncertainty quantification
-   - Display as "±X tickets (90% confidence)" in UI
-   - Use intervals to flag high-risk predictions
-
-3. **Model Retraining Cadence**
-   - Retrain every 6 months with accumulated historical data
-   - Track model drift via held-out test set performance
-   - Archive old model versions for reproducibility
-
-4. **Feature Engineering Enhancements**
-   - Add social media sentiment (Twitter/Instagram engagement)
-   - Incorporate competitive landscape (other events in city on same dates)
-   - Include weather seasonality for outdoor-influenced attendance
-
-### 16.2 Operational Safeguards
-
-**Input Validation:**
-```python
-# Recommended addition to streamlit_app.py
-def validate_title(title: str) -> bool:
-    if len(title) < 3:
-        raise ValueError("Title too short")
-    if any(char.isdigit() for char in title[:5]):
-        warnings.warn("Title starts with numbers - verify correctness")
-    return True
-```
-
-**Output Sanity Checks:**
-```python
-# Recommended addition after prediction
-if EstimatedTickets_Final > 15000:
-    warnings.warn(f"{title}: Unusually high prediction ({EstimatedTickets_Final})")
-if EstimatedTickets_Final < 500:
-    warnings.warn(f"{title}: Unusually low prediction ({EstimatedTickets_Final})")
-```
-
-**Logging & Monitoring:**
-- Log all API calls with timestamps, latencies, response codes
-- Track prediction distribution (detect sudden shifts in output)
-- Monitor session state size (prevent memory leaks)
-
----
-
-## 17. SHAP Explainability Layer
-
-### 17.1 Overview
-
-The SHAP (SHapley Additive exPlanations) integration provides per-title interpretation of ticket index predictions, decomposing each forecast into individual feature contributions. This transforms the model from a "black box" into a transparent, explainable system suitable for board-level presentations.
-
-**Module:** `ml/shap_explainer.py` (841 lines)  
-**Integration:** Trains alongside Ridge regression models during ML pipeline execution  
-**Public Artifact:** Explanations embedded in PDF report narratives  
-
-### 17.2 Architecture
-
-#### SHAP Model Training
-
-**Separate from Prediction Model:**
-```python
-# streamlit_app.py:2775-2830
-# Main model: Ridge regression with SignalOnly feature
-overall_model = Ridge(alpha=5.0, random_state=42)
-overall_model.fit(X_signals, y)
-
-# SHAP model: Ridge regression with 4 individual signals
-if len(available_signals) > 0:
-    shap_model = Ridge(alpha=5.0, random_state=42)
-    shap_model.fit(X_4features, y)  # [wiki, trends, youtube, chartmetric]
-    overall_explainer = SHAPExplainer(shap_model, X_4features)
-```
-
-**Rationale:** Using individual signals (wiki, trends, youtube, chartmetric) allows SHAP to decompose each signal's contribution separately, providing granular explainability. The main Ridge model continues to use `SignalOnly` for simplicity and numerical stability.
-
-**Training Data:** Same historical samples as main model, optionally with anchor points:
-```python
-# Anchor points: signal values [0,0,0,0] → 25 tickets; [mean,mean,mean,mean] → 100 tickets
-anchor_points = np.array([
-    [0.0, 0.0, 0.0, 0.0],           # No signal → baseline
-    [X_signals.mean(axis=0)]         # Average signals → benchmark
-])
-anchor_values = np.array([25.0, 100.0])
-```
-
-#### SHAP Computation Engine
-
-```python
-# ml/shap_explainer.py:61-170 (SHAPExplainer class)
-class SHAPExplainer:
-    def __init__(self, model, X_train, feature_names=None, sample_size=100):
-        self.model = model
-        self.X_train = X_train
-        self.feature_names = feature_names
-        self.base_value = model.predict(X_train.mean().values.reshape(1, -1))[0]
-        
-        # Create KernelExplainer for model-agnostic interpretability
-        n_background = min(sample_size, len(X_train))
-        background_data = shap.sample(X_train, n_background)
-        self.explainer = shap.KernelExplainer(
-            model.predict,
-            background_data,
-            feature_names=feature_names
-        )
-```
-
-**Algorithm:** `shap.KernelExplainer` uses LIME-based approach with weighted regression to estimate Shapley values:
-
-1. Generate 2^N coalition masks (features included/excluded)
-2. Evaluate model on masked inputs
-3. Weight by coalition size
-4. Fit weighted regression to estimate each feature's marginal contribution
-5. Return Shapley values (guaranteed to sum to prediction difference from base)
-
-**Mathematical Guarantee:**
-$$\hat{y} = \text{base\_value} + \sum_{i=1}^{n} \text{SHAP}_i$$
-
-where $\sum \text{SHAP}_i = \text{prediction} - \text{base\_value}$ exactly.
-
-### 17.3 Per-Prediction Explanations
-
-#### Explanation Structure
-
-```python
-# ml/shap_explainer.py:305-330
-explanation = {
-    'prediction': float(result['predictions'][0]),      # Final ticket index prediction
-    'base_value': float(self.base_value),              # Model's expected value on training data
-    'shap_values': result['shap_values'][0],           # SHAP values for each feature
-    'feature_names': result['feature_names'],          # Feature names: ['wiki', 'trends', ...]
-    'feature_values': dict(zip(names, values[0])),    # Actual input values
-    'feature_contributions': [
-        {
-            'name': 'youtube',
-            'value': 85.3,
-            'shap': +12.4,                 # Positive = increases prediction
-            'direction': 'up',
-            'abs_impact': 12.4
-        },
-        # ... sorted by abs_impact descending
-    ]
-}
-```
-
-#### Example Explanation
-
-**Title:** Contemporary Dance Production
-**Input Signals:** wiki=45, trends=32, youtube=120, chartmetric=71
-
-**SHAP Decomposition:**
-```
-Base Value (model's average): 100 tickets
-
-Feature Contributions (sorted by impact):
-  1. youtube  (+12.4):  High viewer engagement → increases forecast
-  2. wiki     (+8.7):   Moderate search interest → increases forecast
-  3. trends   (-2.3):   Declining search trend → decreases forecast
-  4. chart    (+0.8):   Slight positive mention → minimal effect
-
-Final Prediction: 100 + 12.4 + 8.7 - 2.3 + 0.8 = 119.6 tickets
-```
-
-**Board Interpretation:** "High YouTube activity and strong Wikipedia presence drive strong demand (+21 tickets above average). A slight decline in Google search interest (-2 tickets) suggests awareness may be peaking, but overall signals remain bullish."
-
-### 17.4 Narrative Generation
-
-#### Format Function
-
-```python
-# ml/shap_explainer.py:356-400
-def format_shap_narrative(explanation, n_top=5, min_impact=1.0, include_base=True) -> str:
-    """Convert SHAP explanation into human-readable narrative."""
-    prediction = explanation['prediction']
-    base_value = explanation['base_value']
-    drivers = get_top_shap_drivers(explanation, n_top=n_top, min_impact=min_impact)
-    
-    driver_parts = []
-    for driver in drivers:
-        impact_str = f"+{driver['shap']:.0f}" if driver['shap'] > 0 else f"{driver['shap']:.0f}"
-        display_name = driver['name'].replace("_", " ").title()
-        driver_parts.append(f"{display_name} {impact_str}")
-    
-    drivers_text = " ".join(driver_parts)
-    
-    if include_base:
-        return f"{prediction:.0f} tickets (base {base_value:.0f} {drivers_text})"
-    else:
-        return f"{prediction:.0f} tickets ({drivers_text})"
-```
-
-**Output Examples:**
-- `"119 tickets (base 100 + YouTube +12 + Wiki +9 - Trends -2)"`
-- `"85 tickets (base 100 - Contemporary -12 - Opening Month -8 + Prior History +5)"`
-
-#### Integration in Board Narratives
-
-**PDF Section:** "Season Rationale (by month)" → Per-title explanations
-
-**Current Implementation in streamlit_app.py:**
-
-```python
-# streamlit_app.py:698-780 (_narrative_for_row function)
-def _narrative_for_row(r: dict, shap_explainer=None) -> str:
-    """Generate comprehensive SHAP-driven narrative for a single title."""
-    try:
-        from ml.title_explanation_engine import build_title_explanation
-        
-        # Extract SHAP values if explainer available
-        if shap_explainer and SHAP_AVAILABLE:
-            signal_input = pd.Series({col: r.get(col, 0) for col in ['wiki', 'trends', 'youtube', 'chartmetric']})
-            explanation = shap_explainer.explain_single(signal_input)
-            shap_values = {name: val for name, val in zip(explanation['feature_names'], explanation['shap_values'])}
-        
-        # Build multi-paragraph narrative with SHAP drivers
-        narrative = build_title_explanation(
-            title_metadata=dict(r),
-            prediction_outputs=None,
-            shap_values=shap_values,  # Now includes actual SHAP decomposition
-            style="board"
-        )
-        return narrative
-    except Exception as e:
-        # Fallback to simpler text-based narrative
-        return _fallback_narrative(r)
-```
-
-**Narrative Structure:** (from `ml/title_explanation_engine.py`)
-1. **Paragraph 1:** Signal positioning relative to benchmark (SHAP-informed)
-2. **Paragraph 2:** Historical context and category seasonality
-3. **Paragraph 3:** SHAP-based driver summary (top 3 contributors)
-4. **Paragraph 4:** Board interpretation and context
-
-### 17.5 Visualization Components
-
-#### SHAP Plots Available (but not yet in PDF)
-
-**Function Suite (ml/shap_explainer.py:546-841):**
-
-1. **Waterfall Plot** (`create_waterfall_plot()` lines 546-630)
-   - Stacks contributions from base value to final prediction
-   - Shows each feature's positive/negative impact as horizontal bars
-   - Suitable for detailed technical presentations
-
-2. **Force Plot** (`create_force_plot_data()` and `create_html_force_plot()` lines 634-790)
-   - Horizontal flow visualization
-   - Red bars (negative) push prediction downward
-   - Blue bars (positive) push prediction upward
-   - Shows cumulative flow from base to prediction
-
-3. **Bar Plot** (`create_bar_plot()` lines 682-735)
-   - Sorted horizontal bars showing feature importance
-   - Each bar = |SHAP value|
-   - Color-coded by direction (up/down)
-
-#### Current PDF Integration
-
-```python
-# streamlit_app.py:819-855 (_build_month_narratives)
-if shap_explainer and SHAP_AVAILABLE:
-    explanation = shap_explainer.explain_single(pd.Series(signal_input))
-    
-    # Create text-based SHAP summary for PDF
-    shap_text = f"SHAP Drivers: Base {base_value:.0f}"
-    for driver in explanation['feature_contributions'][:3]:
-        sign = '+' if driver['shap'] > 0 else ''
-        shap_text += f" {driver['name']}({sign}{driver['shap']:.0f})"
-    
-    blocks.append(RLParagraph(f"<i>{shap_text}</i>", styles["small"]))
-```
-
-**Format:** Inline italic text below each title's narrative (compact, readable)
-
-### 17.6 Caching & Performance
-
-#### Two-Tier Caching
-
-```python
-# ml/shap_explainer.py:175-210 (SHAPExplainer class)
-def explain_single(self, X_single, use_cache=True, cache_key=None):
-    # In-memory cache (dictionary)
-    if cache_key in self._explanation_cache:
-        return self._explanation_cache[cache_key]  # ~0.0001s
-    
-    # Disk cache (pickle)
-    if self.cache_dir:
-        cached = self._load_from_cache(cache_key)
-        if cached is not None:
-            return cached  # ~0.001s
-    
-    # Compute SHAP (KernelExplainer)
-    explanation = self.explainer.shap_values(X_single.values.reshape(1, -1))  # ~0.02s
-    
-    # Cache for future use
-    self._save_to_cache(cache_key, explanation)
-    return explanation
-```
-
-**Performance Metrics (from Phase A benchmarks):**
-- Cold (no cache): 270 predictions/sec (~3.7ms each)
-- Warm (disk cache): 11,164 predictions/sec (~89µs each)
-- **Speedup:** 27.7x (small dataset), 25.3x (large dataset)
-
-**Practical Impact:**
-- Season plan with 6 titles: ~20ms cold, <1ms warm
-- PDF generation with SHAP: adds negligible time
-- Repeat queries (dashboard refresh): instant
-
-### 17.7 Error Handling & Fallbacks
-
-#### Production Hardening (Phase A)
-
-```python
-# ml/shap_explainer.py:70-140 (SHAPExplainer.__init__)
-class SHAPExplainer:
-    def __init__(self, model, X_train, feature_names=None, ...):
-        # Validation #1: Model has predict method
-        if not hasattr(model, 'predict'):
-            raise TypeError("Model must have a 'predict' method")
-        
-        # Validation #2: X_train not empty
-        if X_train is None or len(X_train) == 0:
-            raise ValueError("X_train cannot be empty")
-        
-        # Validation #3: Handle NaN values
-        if X_train.isnull().any().any():
-            n_missing = X_train.isnull().sum().sum()
-            logger.warning(f"X_train contains {n_missing} NaN values - filling with 0")
-            X_train = X_train.fillna(0)
-        
-        # Validation #4: Handle Inf values
-        if np.isinf(X_train.values).any():
-            logger.warning("X_train contains infinite values - clipping")
-            X_train = X_train.clip(-1e10, 1e10)
-        
-        # ... SHAP creation wrapped in try/catch
-        try:
-            self.explainer = shap.KernelExplainer(...)
-        except Exception as e:
-            logger.error(f"Failed to create SHAP explainer: {e}")
-            raise
-```
-
-**Test Coverage:** 31 tests (21 unit + 10 integration) achieving 100% pass rate
-
-#### Graceful Degradation
-
-```python
-# streamlit_app.py:721-750 (_narrative_for_row)
-if shap_explainer and SHAP_AVAILABLE:
-    try:
-        explanation = shap_explainer.explain_single(signal_input)
-        shap_values = {...}
-    except Exception as e:
-        logging.debug(f"SHAP computation failed: {e}")
-        shap_values = None  # Continue without SHAP
-else:
-    shap_values = None  # SHAP not available
-```
-
-**Fallback Chain:**
-1. Full SHAP explanation with 4 signals (if available)
-2. Single-signal SHAP (if only SignalOnly available)
-3. Title explanation engine without SHAP values (generic narrative)
-4. Minimal fallback text (signal-only estimate)
-
-### 17.8 API Reference
-
-#### SHAPExplainer Class
-
-```python
-# ml/shap_explainer.py:61-325
-class SHAPExplainer:
-    def __init__(
-        self,
-        model,
-        X_train: pd.DataFrame,
-        feature_names: Optional[List[str]] = None,
-        sample_size: int = 100,
-        cache_dir: Optional[str] = None
-    ):
-        """Initialize SHAP explainer for model interpretation."""
-    
-    def explain_single(
-        self,
-        X_single: pd.Series,
-        use_cache: bool = True,
-        cache_key: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Explain a single prediction with SHAP values."""
-```
-
-**Returns:**
-```python
-{
-    'prediction': float,           # Model's output
-    'base_value': float,          # Expected value on training data
-    'shap_values': np.ndarray,    # SHAP values for each feature
-    'feature_names': List[str],   # Feature names
-    'feature_values': Dict,       # Input feature values
-    'feature_contributions': List[Dict]  # Sorted contributions
-}
-```
-
-#### Utility Functions
-
-| Function | Purpose | Input | Output |
-|----------|---------|-------|--------|
-| `get_top_shap_drivers()` | Extract top N drivers | explanation, n_top | List[Dict] |
-| `format_shap_narrative()` | Human-readable summary | explanation | str |
-| `build_shap_table()` | DataFrame for display | explanation | pd.DataFrame |
-| `create_waterfall_plot()` | Waterfall visualization | explanation | Dict (plotly) |
-| `create_force_plot_data()` | Force plot data | explanation | Dict |
-| `create_bar_plot()` | Bar chart data | explanation | Dict |
-
-#### Logging Configuration
-
-```python
-# ml/shap_explainer.py:42-60
-def set_shap_logging_level(level: str = "INFO") -> None:
-    """Configure SHAP module logging verbosity."""
-    # levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
-    logger.setLevel(getattr(logging, level.upper()))
-```
-
-**Usage in PDF:**
-```python
-from ml.shap_explainer import set_shap_logging_level
-set_shap_logging_level("DEBUG")  # Enable detailed logs
-```
-
-### 17.9 Board-Level Interpretation Guide
-
-#### For Leadership Audiences
-
-**What SHAP Shows:**
-- **Each signal's individual contribution** to the ticket prediction
-- **Direction of impact** (pushing prediction up or down)
-- **Magnitude of impact** (in ticket units)
-- **Baseline assumption** (what a typical show would get)
-
-**Example Interpretation:**
-
-**"Cinderella (January, Family Classic)"**
-
-```
-Base expectation: 100 tickets (typical show)
-
-Contributing factors:
-  • YouTube engagement: +15 tickets (strong views, positive reception)
-  • Wiki searches: +8 tickets (moderate public interest)
-  • Google Trends: -3 tickets (declining search trend)
-  • Prior history: +2 tickets (previous runs performed OK)
-
-Final forecast: 122 tickets
-
-Why these drivers matter:
-- YouTube strength dominates the signal (peers with high views sell well)
-- Wiki moderate (known classic, but not freshly topical)
-- Trends declining (inevitable for January release; families book in December)
-- Prior history is slight positive (two previous runs both successful)
-
-Bottom line: Strong on execution/engagement (YouTube), normal on awareness
-(Wiki), naturally declining (Trends), supported by past results. Forecast
-is above baseline but not exceptionally high.
-```
-
-**Key Talking Points:**
-1. "We're using actual online activity data (YouTube views, Wikipedia searches)"
-2. "SHAP shows us exactly what that data predicts for each show"
-3. "The base value (100) is our benchmark; SHAP adjustments explain deviations"
-4. "Negative factors still contribute to forecast (they subtract from base, not zero it out)"
-
----
-
-## 18. PDF Report Generation & Accuracy Audit
-
-### 18.1 Overview
-
-The Alberta Ballet Title Scoring App generates comprehensive PDF season reports suitable for board presentation. This section documents the PDF generation pipeline, data flows, accuracy checks, and known limitations.
-
-**Report Structure:**
-1. Title page (organization name, season year)
-2. Plain-language overview (methodology explanation for non-technical audience)
-3. Season summary table (board view with star ratings)
-4. Season rationale (per-title narratives with SHAP breakdowns)
-5. Methodology & glossary (technical reference)
-6. Full season table (complete metrics)
-
-### 18.2 Season Year Naming Convention
-
-**Critical: Season naming follows end-year convention**
-
-- Season starting September 2026, ending May 2027 → **2027 Season**
-- User inputs the END year (2027), not start year (2026)
-- PDF filename: `alberta_ballet_season_report_2027.pdf`
-- Calculation: `season_year_display = user_input`; `start_year = user_input - 1`
-
-**Code Location:** `streamlit_app.py` lines 3655-3677  
-**Implementation:**
-```python
-season_end_year = st.number_input("Season year (end of season...)", value=2027)
-season_year = season_end_year - 1  # 2026 for calculations
-# Pass season_end_year to PDF generation
-```
-
-### 18.3 Data Accuracy Checks
-
-#### 3.1 Month Ordering & Calendar Logic
-
-The PDF orders shows by calendar month: September → October → January → February → March → May.
-
-**Order Map:** `streamlit_app.py` lines 495-502
-```python
-order_map = {
-    "September": 0, "October": 1, "January": 2,
-    "February": 3, "March": 4, "May": 5
-}
-```
-
-**Validation:** Verify that December (month 12) is NOT in the allowed_months list. If December needs to be added, update lines 3684-3686 AND update _run_year_for_month() to handle month 12 correctly.
-
-**Current Status:** ✓ Correct (December not included, months 1-12 handled correctly)
-
-#### 3.2 Year Calculation for Calendar Dates
-
-Function: `_run_year_for_month(month_num: int, start_year: int) -> int`  
-**Location:** `streamlit_app.py` line 3707
-
-**Logic:**
-- Months 9, 10, 12 (Sep, Oct, Dec) → use `start_year`
-- Months 1-8, 11 → use `start_year + 1`
-
-**Example:**
-- Input: September 2026 → year = 2026 (same year)
-- Input: January 2027 → year = 2027 (next year)
-
-**Validation:** Correct. This properly handles the season spanning two calendar years.
-
-**Edge Case:** If December is added to allowed_months, it MUST use `start_year` not `start_year + 1`.
-
-#### 3.3 Ticket Index Calculation
-
-**Data Column Priority** (lines 550-556):
-1. `TicketIndex used` (preferred, most recent naming)
-2. `EffectiveTicketIndex` (fallback)
-3. `TicketIndex_DeSeason_Used` (fallback)
-4. Default: 100
-
-**Concern:** Verify that input data has at least ONE of these columns. If none exist, all shows default to 100 (neutral benchmark), which masks missing data errors.
-
-**Recommendation:** Add validation check at app startup to ensure at least one index column exists.
-
-#### 3.4 City Split Calculation (YYC/YEG)
-
-**Data Columns:**
-- `YYC_Singles`: Calgary tickets (integer)
-- `YEG_Singles`: Edmonton tickets (integer)
-
-**Fallback Logic** (lines 548-549):
-```python
-est_tickets = yyc + yeg  # Sum of two cities
-if est_tickets is None or pd.isna(est_tickets):
-    # Fallback to EstimatedTickets_Final or EstimatedTickets
-```
-
-**Validation:** ✓ Proper fallback chain prevents NULL estimates.
-
-**Concern:** If both YYC_Singles and YEG_Singles are NULL, and EstimatedTickets is also NULL, the estimate becomes 0. Verify historical data includes at least one of these columns.
-
-#### 3.5 Estimated Tickets Calculation
-
-**Priority** (lines 539-549):
-1. `EstimatedTickets_Final` (post-adjustment)
-2. `EstimatedTickets` (raw model output)
-3. `YYC_Singles + YEG_Singles` (city split sum)
-4. Default: 0
-
-**Validation:** ✓ Proper fallback chain.
-
-### 18.4 Narrative Generation Accuracy
-
-#### 4.1 SHAP Value Extraction
-
-**Signal Columns Used:** `wiki`, `trends`, `youtube`, `chartmetric` (lines 718-722)
-
-**Issue:** If these column names don't match input data exactly, SHAP computation silently fails and narratives lack SHAP-driven explanations.
-
-**Validation Needed:**
-```python
-# Check input data has these columns
-required_signals = ['wiki', 'trends', 'youtube', 'chartmetric']
-if not all(col in df.columns for col in required_signals):
-    st.warning(f"Missing signal columns: expected {required_signals}")
-```
-
-#### 4.2 Narrative Style & Accuracy
-
-**Location:** `ml/title_explanation_engine.py` lines 31-150
-
-**Potential Issues:**
-
-1. **Intent Ratio Interpretation** (lines 88-103)
-   - If `IntentRatio < 0.05`: Warns about inflated non-performance-related signals
-   - **Accuracy Check:** Verify IntentRatio column exists; if missing, this warning is skipped
-
-2. **Remount vs Premiere Logic** (lines 105-121)
-   - Uses `IsRemount` flag or `ReturnDecayPct > 0`
-   - Uses `YearsSinceLastRun` for temporal context
-   - **Accuracy Check:** If these columns missing, defaults to "premiere" assumption
-
-3. **Seasonality Description** (lines 159-176)
-   - Thresholds: >1.05 favorable, <0.95 unfavorable
-   - **Issue:** For near-neutral values (0.98-1.02), description is generic
-   - **Accuracy:** Reasonable, but could be more precise
-
-4. **SHAP Feature Mapping** (lines 211-234 of title_explanation_engine.py)
-   - Maps technical feature names to readable descriptions
-   - **Risk:** Unmapped features fall back to generic "feature_name" description
-   - **Recommendation:** Log warnings for unmapped features
-
-**Example Unmapped Feature:**
-If input data has `new_feature_xyz` that SHAP includes, narrative will say:
-> "Key upward drivers include new feature xyz..."
-
-This is readable but less informative than hand-mapped descriptions.
-
-#### 4.3 Ticket Forecasting Accuracy
-
-**Board-level interpretation** (lines 236-255 of title_explanation_engine.py):
-- Categorizes Ticket Index into tiers: exceptional (≥120), strong (≥105), benchmark (≥95), etc.
-- Converts Index to ticket counts using YYC_Singles + YEG_Singles
-
-**Accuracy Check:** Verify that ticket counts are consistent with the Index and seasonality:
-```
-Effective_Index = TicketIndex used × FutureSeasonalityFactor
-Expected_Tickets ≈ Effective_Index × benchmark_multiplier
-```
-
-If EstimatedTickets ≠ Expected_Tickets, investigate whether:
-- City split adjustment has been applied
-- Benchmark multiplier is correct
-- RemountDecay has been applied
-
-### 18.5 SHAP Table Generation
-
-**Location:** `streamlit_app.py` lines 823-856
-
-**Data Flow:**
-1. Extract signal values from row: `{wiki, trends, youtube, chartmetric}`
-2. Call `shap_explainer.explain_single(pd.Series(signal_input))`
-3. Call `build_shap_table(explanation, n_features=4)`
-4. Convert DataFrame to ReportLab Table
-
-**Potential Issues:**
-
-1. **Empty Signal Input:** If all signal columns are NULL, `signal_input = {}` (empty dict)
-   - Result: SHAP computation may fail silently
-   - **Fix:** Add check `if len(available_signals) > 0` before calling explainer
-
-2. **Column Name Mismatch:** SHAP explainer was trained on specific signal names
-   - If input data uses different column names, signals map incorrectly
-   - **Example:** Explainer trained on `wiki`, but input data has `wikipedia_score`
-   - **Fix:** Normalize column names before SHAP extraction
-
-3. **SHAP Table Formatting:** 4-column format assumes consistent feature count
-   - If title has fewer than 4 signals available, table may have blank cells
-   - **Current behavior:** ✓ Uses `n_features=4`, so table always shows top 4 (or all available)
-
-**Validation Status:** ✓ Proper error handling with try/except
-
-### 18.6 PDF Rendering Accuracy
-
-#### 6.1 Column Width Constraints
-
-**Season Summary Table** (lines 576-631):
-- Column widths hardcoded for landscape page
-- Fit test: 8 columns × variable widths ≤ page width (9 inches landscape)
-
-**Validation:** All column widths should sum to ≤ 8.5 inches (accounting for margins).
-
-**Current widths** (lines 606-607):
-```python
-colWidths=[1.0*inch, 1.5*inch, 1.2*inch, 1.0*inch, 0.8*inch, 0.8*inch, 1.0*inch, 0.8*inch]
-# Total: 8.7 inches (OVER 8.5 limit - may cause overflow)
-```
-
-**⚠️ ISSUE FOUND:** Column widths exceed page width. Some columns may be clipped or text wrapped unexpectedly.
-
-**Fix:** Reduce widest columns slightly:
-```python
-colWidths=[0.9*inch, 1.4*inch, 1.0*inch, 0.95*inch, 0.75*inch, 0.75*inch, 0.95*inch, 0.75*inch]
-# Total: 8.05 inches (safe)
-```
-
-#### 6.2 SHAP Table Width
-
-**SHAP Decomposition Table** (lines 826-827):
-```python
-colWidths=[1.5*inch, 1.2*inch, 1.5*inch, 1.0*inch]
-# Total: 5.2 inches (safe for landscape page)
-```
-
-**Status:** ✓ Fits within page width
-
-#### 6.3 Font Sizing
-
-**Body text:** 10pt Helvetica (lines 388)
-**Small text:** 8pt Helvetica (lines 392)
-**SHAP table text:** 8pt Helvetica (line 828)
-
-**Concern:** 8pt font may be difficult for board members with vision challenges. Consider minimum 9pt for critical tables.
-
-**Recommendation:** Increase SHAP table font to 9pt for readability.
-
-#### 6.4 Page Break Logic
-
-**PDF sections:**
-1. Title page (no break after)
-2. Plain-language overview → PageBreak
-3. Season summary (no break after)
-4. Season rationale (no break after per title; single PageBreak at end)
-5. Methodology → PageBreak
-6. Full season table (no break after)
-
-**Concern:** Long narratives + SHAP tables may exceed page height for Season Rationale section, causing unexpected page breaks mid-title.
-
-**Recommendation:** Add per-title page breaks if length exceeds threshold (currently absent).
-
-### 18.7 Known Limitations & Caveats
-
-1. **SHAP Accuracy Dependence:** Per-title SHAP explanations are only as accurate as the underlying model and feature inputs. If model is miscalibrated or features are noisy, SHAP values may be misleading.
-
-2. **Narrative Fallback:** If SHAP computation fails, narratives still generate but lack signal-attribution details. Board may not realize a SHAP-less explanation is less informative.
-
-3. **Missing Column Handling:** Multiple data columns can serve as fallbacks (e.g., TicketIndex, EstimatedTickets). If wrong column is selected, calculations may be silently inaccurate.
-
-### 18.8 Recommendations
-
-**High Priority:**
-1. Add startup validation to ensure required columns exist (wiki, trends, youtube, chartmetric, TicketIndex used or equivalent)
-2. Reduce Season Summary table column widths to prevent clipping (adjust to 8.05 inches total)
-3. Increase SHAP table font to 9pt for accessibility
-4. Add per-title page break logic if combined narrative + SHAP table exceeds 7 inches
-
-**Medium Priority:**
-1. Log warnings when SHAP features are unmapped (ml/title_explanation_engine.py)
-2. Add confidence intervals or uncertainty estimates to ticket forecasts
-3. Add visual waterfall plots for SHAP breakdowns (currently text-only)
-
-**Low Priority:**
-1. Support additional months (December) with corresponding validation
-2. Add multi-season comparison PDF (trends over time)
-3. Support PDF password protection for confidential seasons
-
----
-
-## 19. Conclusion
-
-The Alberta Ballet Title Scoring Application implements a sophisticated multi-model ML pipeline that effectively combines:
-
-1. **Ridge Regression** (dynamically trained on user data) with anchor-point constraints
-2. **LinearRegression** (fallback when scikit-learn unavailable) with anchor-point constraints
-3. **k-Nearest Neighbors** with recency-weighted similarity
-4. **Digital signal fusion** from 4 external APIs
-5. **Seasonality learning** with shrinkage regularization
-6. **Hierarchical fallback** preventing prediction failures
-
-**Strengths:**
-- Robust to missing data (4-tier fallback strategy)
-- Adaptive to user's dataset (locally-trained models)
-- Transparent predictions (source attribution, k-NN neighbors)
-- Prevents data leakage (only historical features used)
-- Handles cold-start (k-NN similarity for new titles)
-
-**Limitations:**
-- Depends on user-provided training data (< 3 samples triggers fallback)
-- No uncertainty quantification (point estimates only)
-- Manual baseline management (281 reference titles in baselines.csv)
-- API dependency for live data (rate limits, availability)
-
-**Overall Assessment:**
-The system demonstrates engineering rigor with defensive coding, numerical stability safeguards, and multi-level validation. The locally-trained model architecture appropriately balances accuracy (when data is available) with graceful degradation (when data is sparse). For stakeholder presentation, the code-derived evidence supports deployment for production forecasting with recommended enhancements to uncertainty quantification and data quality monitoring.
-
----
-
-**Appendix A: File Reference Index**
-
-| Component | File | Lines | Purpose |
-|-----------|------|-------|---------|
-| Main application | `streamlit_app.py` | 1-4140 | UI, pipeline orchestration, prediction logic |
-| SHAP explainability | `ml/shap_explainer.py` | 1-841 | Per-prediction SHAP decomposition & narratives |
-| Title narratives | `ml/title_explanation_engine.py` | 1-420 | Multi-paragraph board-level narratives |
-| Model metadata | `models/model_xgb_remount_postcovid.json` | 1-70 | Historical XGBoost metadata (artifact missing) |
-| k-NN fallback | `ml/knn_fallback.py` | 1-679 | Cold-start similarity matching |
-| Configuration | `config.yaml` | 1-140 | Multipliers, priors, seasonality settings |
-
-**Appendix B: Mathematical Notation Summary**
-
-| Symbol | Definition |
-|--------|------------|
-| $\text{Fam}$ | Familiarity index (Wikipedia-weighted composite) |
-| $\text{Mot}$ | Motivation index (YouTube-weighted composite) |
-| $\text{SignalOnly}$ | $0.5 \cdot \text{Fam} + 0.5 \cdot \text{Mot}$ |
-| $F_{\text{seasonal}}$ | Seasonality factor (category × month) |
-| $\hat{y}_{\text{tickets}}$ | Predicted ticket sales (absolute) |
-| $w_i$ | k-NN neighbor weight (similarity × recency) |
-| $\lambda$ | Recency decay rate (default 0.1/year) |
-| $K$ | Shrinkage coefficient (default 0.5) |
 
 **End of Report**
