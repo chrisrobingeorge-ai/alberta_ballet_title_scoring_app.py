@@ -1044,7 +1044,10 @@ TicketIndex = 115
   - 2 (opening_month: weak seasonality)
 ```
 
-**Current Status:** ✅ SHAP is fully operational and actively being executed. SHAP explainer is instantiated during Ridge model training when sufficient historical data exists (≥5 samples). SHAP values are computed for each title in PDF reports and embedded in board-level narratives and decomposition tables.
+**Current Status:** ✅ SHAP is fully operational and actively being executed.
+- SHAP explainer is instantiated during Ridge model training when sufficient historical data exists (≥5 samples)
+- SHAP values are computed for each title in PDF reports
+- Results are embedded in board-level narratives and decomposition tables
 
 ### 14.2 Provenance Tracking
 
