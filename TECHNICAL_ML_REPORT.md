@@ -1030,6 +1030,8 @@ $$\hat{y}_{\text{upper}} = q_{0.90}(\text{CV predictions})$$
 - SHAP value computation is integrated into the ML pipeline (`ml/shap_explainer.py`)
 - Per-prediction narratives use SHAP to explain feature contributions to the ticket index estimate
 - Results are computed on-demand for each prediction
+- SHAP explainer is created during model training (lines 2835-2840 in streamlit_app.py)
+- SHAP explanations are computed in PDF generation (lines 730, 832)
 
 **Example SHAP Decomposition (from narrative engine):**
 
@@ -1042,7 +1044,7 @@ TicketIndex = 115
   - 2 (opening_month: weak seasonality)
 ```
 
-**Current Status:** SHAP integration exists in training code but values not exposed in UI.
+**Current Status:** ✅ SHAP is fully operational and actively being executed. SHAP explainer is instantiated during Ridge model training when sufficient historical data exists (≥5 samples). SHAP values are computed for each title in PDF reports and embedded in board-level narratives and decomposition tables.
 
 ### 14.2 Provenance Tracking
 
