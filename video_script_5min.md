@@ -70,11 +70,31 @@ Month-by-month adjustments ensure predictions reflect real-world demand fluctuat
 
 ---
 
-## [City and Audience Segmentation - 3:30-4:00]
+## [Real Example: Giselle in September - 3:30-4:15]
+
+**[Scene: Giselle performance imagery, app interface showing calculation]**
+
+Let's see how this works with a real example: Giselle scheduled for September.
+
+The app starts with digital signals. Giselle has strong Wikipedia traffic — it's a recognized classic with steady page views. Google Trends shows moderate but consistent search volume. YouTube engagement is high, with performance videos from major companies getting millions of views. Chartmetric picks up streaming activity from the ballet's iconic Adam score.
+
+These signals combine into a Familiarity score of 110 and a Motivation score of 95. Both above the benchmark of 100, indicating this is a well-known title with active audience interest.
+
+Next, the machine learning model kicks in. Historical data shows Giselle performed well in past Alberta Ballet seasons. The model learned that romantic story ballets resonate strongly with the Core Classical audience segment. It applies those learned patterns to this prediction.
+
+Then seasonality adjustments. September is early fall — not peak holiday season, but also not summer shoulder period. The model applies a neutral seasonal factor of 1.0, meaning no adjustment up or down.
+
+The final prediction: a Ticket Index of 115, translating to approximately 3,800 tickets in Calgary and 2,500 in Edmonton. The system forecasts strongest appeal to Core Classical enthusiasts, followed by General Population audiences.
+
+Marketing now knows exactly where to focus: target classical ballet fans, emphasize the romantic tragedy, and allocate budget proportionally between cities.
+
+---
+
+## [City and Audience Segmentation - 4:15-4:30]
 
 **[Scene: Map showing Calgary and Edmonton, audience demographic icons]**
 
-Every prediction is decomposed into actionable details:
+As you saw with Giselle, every prediction is decomposed into actionable details:
 
 **Calgary versus Edmonton splits** are learned from historical city-level performance. Some titles resonate more strongly in one market. The system captures those patterns automatically.
 
@@ -84,7 +104,7 @@ This granularity helps marketing teams allocate resources efficiently and target
 
 ---
 
-## [Explainability and Trust - 4:00-4:30]
+## [Explainability and Trust - 4:30-4:50]
 
 **[Scene: PDF report with narrative text, SHAP visualization]**
 
@@ -96,7 +116,7 @@ Every forecast comes with a detailed report showing exactly how the model arrive
 
 ---
 
-## [Closing - 4:30-5:00]
+## [Closing - 4:50-5:00]
 
 **[Scene: App dashboard with results, tickets being purchased]**
 
