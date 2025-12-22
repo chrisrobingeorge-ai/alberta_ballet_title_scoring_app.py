@@ -16,13 +16,11 @@ Expected output: All three systems should show **0% zero deltas** (meaning they'
 
 ---
 
-## The Three Weighting Systems
+## The Weighting System
 
 | System | File | Variable | Applied As | Impact |
 |--------|------|----------|------------|--------|
-| **Live Analytics** | `data/audiences/live_analytics.csv` | `aud__engagement_factor` | Model feature | +3.2 pts |
-| **Economics** | `data/economics/*.csv` | `consumer_confidence_prairies`<br/>`energy_index`<br/>`inflation_adjustment_factor` | Model features | +1.2 pts |
-| **Stone Olafson** | `streamlit_app.py` | `SEGMENT_MULT`<br/>`REGION_MULT` | Hard-coded multipliers | +2.6 pts |
+| **Stone Olafson** | `streamlit_app.py` | `SEGMENT_MULT`<br/>`REGION_MULT` | Hard-coded multipliers | Segment/region adjustments |
 
 ---
 
