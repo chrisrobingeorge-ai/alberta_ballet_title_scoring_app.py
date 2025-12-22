@@ -41,19 +41,7 @@ try:
 except ImportError:
     ML_AVAILABLE = False
 
-# Live Analytics integration
-try:
-    from data.loader import get_live_analytics_category_factors
-    LA_AVAILABLE = True
-except ImportError:
-    LA_AVAILABLE = False
-    def get_live_analytics_category_factors():
-        return {}
 
-# Economic factors integration
-# Economic factors removed - model gave them 0% feature importance
-# They were only adding computational overhead with no predictive value
-ECON_FACTORS_AVAILABLE = False
 
 try:
     from ml.shap_explainer import SHAPExplainer, format_shap_narrative
@@ -409,7 +397,7 @@ _FULL_SEASON_TABLE_COL_WIDTHS = {
     "PrimarySegment": 0.9 * inch,
     "SecondarySegment": 0.8 * inch,
     "LA_EngagementFactor": 0.45 * inch,
-    "Econ_Sentiment": 0.4 * inch,
+
 }
 
 def index_strength_rating(index_value: float) -> str:
@@ -991,7 +979,7 @@ def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
       - YEG Singles
       - Primary Segment
       - Secondary Segment
-      - LA_EngagementFactor (if available)
+
       - Econ_Sentiment (if available)
     
     Args:
@@ -1037,16 +1025,6 @@ def _make_full_season_table_pdf(plan_df: pd.DataFrame) -> Table:
         ("PrimarySegment", "Prim. Seg", lambda x: str(x) if pd.notna(x) and x else ""),
         ("SecondarySegment", "Sec. Seg", lambda x: str(x) if pd.notna(x) and x else ""),
     ]
-    
-    # Add optional columns if they exist in the data
-    if "LA_EngagementFactor" in plan_df.columns:
-        column_config.append(
-            ("LA_EngagementFactor", "LA Eng.", lambda x: f"{float(x):.3f}" if pd.notna(x) else "")
-        )
-    if "Econ_Sentiment" in plan_df.columns:
-        column_config.append(
-            ("Econ_Sentiment", "Econ.", lambda x: f"{float(x):.3f}" if pd.notna(x) else "")
-        )
     
     # Filter to only columns that exist in the data
     valid_cols = [(col, header, fmt) for col, header, fmt in column_config if col in plan_df.columns]
@@ -2606,94 +2584,6 @@ benchmark_title = st.selectbox(
 # Core compute
 # -------------------------
 
-# Live Analytics category lookup - uses data from loader
-def _la_for_category(cat: str) -> dict:
-    """Get live analytics data for a category.
-    
-    Returns a dictionary with metrics from the live_analytics.csv data.
-    Uses the get_live_analytics_category_factors function from data/loader.py.
-    """
-    if not LA_AVAILABLE:
-        return {}
-    
-    try:
-        factors = get_live_analytics_category_factors()
-        if not factors:
-            return {}
-        
-        cat_lower = cat.lower().strip()
-        
-        # Direct match
-        if cat_lower in factors:
-            return factors[cat_lower]
-        
-        # Map related categories
-        category_aliases = {
-            'classic_comedy': 'classic_romance',
-            'romantic_comedy': 'classic_romance',
-            'adult_literary_drama': 'dramatic',
-            'contemporary_mixed_bill': 'contemporary',
-            'touring_contemporary_company': 'contemporary',
-        }
-        
-        if cat_lower in category_aliases:
-            mapped = category_aliases[cat_lower]
-            if mapped in factors:
-                return factors[mapped]
-        
-        return {}
-    except Exception as e:
-        # Log but don't fail - LA data is supplemental
-        import logging
-        logging.getLogger(__name__).debug(f"Error in _la_for_category for '{cat}': {e}")
-        return {}
-
-
-def _add_live_analytics_overlays(df_in: pd.DataFrame) -> pd.DataFrame:
-    """Add Live Analytics engagement factors as overlays to the DataFrame.
-    
-    Uses data from data/audiences/live_analytics.csv via the loader functions.
-    Adds LA_EngagementFactor and related indices per category.
-    """
-    df = df_in.copy()
-    
-    # Define LA columns to add
-    la_cols = [
-        "LA_EngagementFactor",
-        "LA_HighSpenderIdx",
-        "LA_ActiveBuyerIdx",
-        "LA_RepeatBuyerIdx",
-        "LA_ArtsAttendIdx",
-    ]
-    for c in la_cols:
-        if c not in df.columns:
-            df[c] = np.nan
-
-    def _overlay_row_from_category(cat: str) -> dict:
-        la = _la_for_category(cat)
-        if not la:
-            return {
-                "LA_EngagementFactor": 1.0,
-                "LA_HighSpenderIdx": 100.0,
-                "LA_ActiveBuyerIdx": 100.0,
-                "LA_RepeatBuyerIdx": 100.0,
-                "LA_ArtsAttendIdx": 100.0,
-            }
-        return {
-            "LA_EngagementFactor": float(la.get("engagement_factor", 1.0)),
-            "LA_HighSpenderIdx": float(la.get("high_spender_index", 100.0)),
-            "LA_ActiveBuyerIdx": float(la.get("active_buyer_index", 100.0)),
-            "LA_RepeatBuyerIdx": float(la.get("repeat_buyer_index", 100.0)),
-            "LA_ArtsAttendIdx": float(la.get("arts_attendance_index", 100.0)),
-        }
-
-    overlays = df["Category"].map(lambda c: _overlay_row_from_category(str(c)))
-    overlays_df = pd.DataFrame(list(overlays)).reindex(df.index)
-    for c in [c for c in la_cols if c in overlays_df.columns]:
-        df[c] = overlays_df[c]
-
-    return df
-
 # Fallback estimator for unknown titles when live fetch is OFF
 def estimate_unknown_title(title: str) -> Dict[str, float | str]:
     # Use baseline medians, then nudge by inferred category
@@ -3386,24 +3276,7 @@ def compute_scores_and_store(
     # kNN_neighbors was populated during the prediction loop
     df["kNN_neighbors"] = knn_neighbors_data
 
-    # 10a) Live Analytics overlays (engagement factors by category)
-    df = _add_live_analytics_overlays(df)
-    
-    # Add LA_Category field based on the Category column (for diagnostic export)
-    # This maps the show category to the Live Analytics category structure
-    df["LA_Category"] = df["Category"]  # Default to show category
 
-    # Economic factors removed - provided zero predictive value
-    # (Feature importance: 0.00% across all economic indicators)
-    econ_sentiment = 1.0
-    econ_sources = []
-    boc_sentiment = None
-    alberta_sentiment = None
-
-    df["Econ_Sentiment"] = econ_sentiment
-    df["Econ_BocFactor"] = boc_sentiment if boc_sentiment is not None else np.nan
-    df["Econ_AlbertaFactor"] = alberta_sentiment if alberta_sentiment is not None else np.nan
-    df["Econ_Sources"] = ", ".join(econ_sources) if econ_sources else "none"
 
     # 11) Final ticket calculation (Remount decay + Post-COVID factors REMOVED per audit)
     # Both factors were eliminated to prevent "Structural Pessimism" - compounding penalties
@@ -3610,8 +3483,7 @@ def render_results():
         "month_of_opening", "category_seasonality_factor",
         # k-NN Metadata
         "kNN_used", "kNN_neighbors",
-        # Live Analytics
-        "LA_Category",
+
     ]
     present_cols = [c for c in table_cols if c in df_show.columns]
 
@@ -3780,18 +3652,7 @@ def render_results():
             "SignalOnly": r.get("SignalOnly", np.nan),
             "IntentRatio": r.get("IntentRatio", np.nan),
             
-            # Live Analytics factors
-            "LA_EngagementFactor": r.get("LA_EngagementFactor", 1.0),
-            "LA_HighSpenderIdx": r.get("LA_HighSpenderIdx", 100.0),
-            "LA_ActiveBuyerIdx": r.get("LA_ActiveBuyerIdx", 100.0),
-            "LA_RepeatBuyerIdx": r.get("LA_RepeatBuyerIdx", 100.0),
-            "LA_ArtsAttendIdx": r.get("LA_ArtsAttendIdx", 100.0),
-            
-            # Economic factors
-            "Econ_Sentiment": r.get("Econ_Sentiment", 1.0),
-            "Econ_BocFactor": r.get("Econ_BocFactor", np.nan),
-            "Econ_AlbertaFactor": r.get("Econ_AlbertaFactor", np.nan),
-            "Econ_Sources": r.get("Econ_Sources", "none"),
+
             
             "TicketHistory": r.get("TicketMedian", np.nan),
             "TicketIndex_DeSeason_Used": r.get("TicketIndex_DeSeason_Used", np.nan),
@@ -3831,8 +3692,7 @@ def render_results():
             "kNN_used": r.get("kNN_used", False),
             "kNN_neighbors": r.get("kNN_neighbors", "[]"),
 
-            # LA Category (if available from live analytics)
-            "LA_Category": r.get("LA_Category", cat),
+
         })
 
     # Guard + render
@@ -3948,11 +3808,7 @@ def render_results():
                 "Title","Category","PrimarySegment","SecondarySegment",
                 "WikiIdx","TrendsIdx","YouTubeIdx","ChartmetricIdx",
                 "Familiarity","Motivation","SignalOnly",
-                # Live Analytics factors
-                "LA_EngagementFactor","LA_HighSpenderIdx","LA_ActiveBuyerIdx",
-                "LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
-                # Economic factors
-                "Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor","Econ_Sources",
+
                 "TicketHistory","TicketIndex_DeSeason_Used","TicketIndex used","TicketIndexSource",
                 "FutureSeasonalityFactor","HistSeasonalityFactor",
                 "Composite","Score",
@@ -3964,7 +3820,7 @@ def render_results():
                 "ticket_median_prior","prior_total_tickets","run_count_prior",
                 "TicketIndex_Predicted",
                 "month_of_opening","holiday_flag","category_seasonality_factor",
-                "kNN_used","kNN_neighbors","LA_Category",
+                "kNN_used","kNN_neighbors",
             ]
 
             # assemble wide DF: rows = metrics, columns = month labels
@@ -3980,7 +3836,7 @@ def render_results():
                 "TicketHistory","EstimatedTickets","EstimatedTickets_Final",
                 "YYC_Singles","YEG_Singles",
                 # LA indices (shown as whole numbers)
-                "LA_HighSpenderIdx","LA_ActiveBuyerIdx","LA_RepeatBuyerIdx","LA_ArtsAttendIdx",
+
                 # New diagnostic fields - integer values
                 "ticket_median_prior","prior_total_tickets","run_count_prior","month_of_opening",
             ]
@@ -3997,8 +3853,7 @@ def render_results():
             # Factors
             sty = sty.format("{:.3f}", subset=_S[["FutureSeasonalityFactor","HistSeasonalityFactor","category_seasonality_factor"], :])
             
-            # LA and Econ factors
-            sty = sty.format("{:.3f}", subset=_S[["LA_EngagementFactor","Econ_Sentiment","Econ_BocFactor","Econ_AlbertaFactor"], :])
+
 
             # Percentages
             sty = sty.format("{:.0%}", subset=_S[["CityShare_Calgary","CityShare_Edmonton"], :])

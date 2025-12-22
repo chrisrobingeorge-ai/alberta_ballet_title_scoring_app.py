@@ -83,7 +83,6 @@ The app uses constrained Ridge regression trained on historical ticket sales dat
 - Public visibility metrics (Wikipedia views, Google Trends, YouTube engagement, Chartmetric streaming)
 - Historical performance patterns
 - Seasonality adjustments
-- Economic factors
 
 ### Season Planning
 Build complete season plans with:
@@ -219,8 +218,6 @@ The app expects the following CSV files in the `data/productions/` directory:
 - `segment_priors.csv` - Audience segment distribution priors
 - `marketing_spend_per_ticket.csv` - Historical marketing spend data (optional)
 
-Additional economic data is loaded from `data/economics/` for economic factor adjustments.
-
 ## Model Information
 
 The app uses **constrained Ridge regression** for ticket predictions:
@@ -322,17 +319,12 @@ The Ridge model uses L2 regularization (α=5.0) and synthetic anchor points to p
 ├── config.yaml                # Configuration parameters
 ├── data/                      # Data files
 │   ├── loader.py              # Data loading utilities
-│   ├── productions/           # Historical sales and baseline data
-│   └── economics/             # Economic indicator data
+│   └── productions/           # Historical sales and baseline data
 ├── ml/                        # ML pipeline modules
 │   ├── knn_fallback.py        # k-NN similarity matching
 │   └── title_explanation_engine.py  # SHAP-based narratives
-├── utils/                     # Utility modules
-│   └── economic_factors.py    # Economic sentiment calculation
 ├── docs/                      # Documentation
-├── models/                    # Trained model files
-└── pages/                     # Additional Streamlit pages
-    └── 7_External_Data_Impact.py  # Economic data dashboard
+└── models/                    # Trained model files
 ```
 
 ## Requirements
