@@ -201,8 +201,8 @@ Mathematical Effect: Converts within-batch relative scores to cross-batch absolu
 Range: [0, 100+] (no artificial ceiling; viral events can exceed 100)
 
 Example Values:
-• The Nutcracker (December): TrendsIdx = 62.0 (seasonal spike)
 • Swan Lake: TrendsIdx = 18.0 (steady year-round interest)
+• Giselle: TrendsIdx = 45.0 (strong recognition)
 • Emergence: TrendsIdx = 2.0 (limited search activity)
 
 Implementation: streamlit_app.py line 2032
@@ -268,7 +268,7 @@ Transformation Pipeline:
 Range: [0, 100]
 
 Example Values:
-• Tchaikovsky (Nutcracker, Swan Lake): ChartmetricIdx = 87.0 (classical superstar)
+• Tchaikovsky (Swan Lake): ChartmetricIdx = 87.0 (classical superstar)
 • Prokofiev (Romeo & Juliet): ChartmetricIdx = 72.0 (well-known)
 • Contemporary composer: ChartmetricIdx = 35.0 (niche audience)
 
@@ -472,7 +472,7 @@ Category: family_classic, Month: December
 • F_shrunk = 1.0 + 3.0 × (1.241 - 1.0) = 1.0 + 3.0(0.241) = 1.723
 • F_final = clip(1.723, 0.90, 1.15) = 1.15 (ceiling applied)
 
-Interpretation: December carries maximum +15% boost for family shows, likely driven by Nutcracker effect and holiday break.
+Interpretation: December carries maximum +15% boost for family shows, likely driven by holiday programming and school break patterns.
 
 Implementation: streamlit_app.py lines 2360-2415
 
@@ -921,7 +921,7 @@ Contemporary:          980    0.61
 Family:                650    0.75
 Mixed Repertoire:     1,100   0.58
 
-Interpretation: Family productions are most predictable (likely due to school schedules and Nutcracker dominance). Contemporary works are least predictable (higher variance in audience reception).
+Interpretation: Family productions are most predictable (likely due to school schedules and holiday programming patterns). Contemporary works are least predictable (higher variance in audience reception).
 
 SEGMENT ALLOCATION ACCURACY:
 Actual vs predicted segment splits compared across 150 productions with segment-level data:

@@ -278,7 +278,6 @@ def _describe_category(category: str) -> str:
         "contemporary": "contemporary",
         "holiday": "holiday-themed",
         "mixed_rep": "mixed repertoire",
-        "nutcracker": "Nutcracker",
     }
     return category_map.get(category.lower(), category)
 

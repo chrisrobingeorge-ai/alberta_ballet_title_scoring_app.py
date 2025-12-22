@@ -64,7 +64,7 @@ If a title has no local performance history, the model falls back to pattern mat
 
 **[Scene: Calendar highlighting months, winter holiday imagery]**
 
-Timing matters. A family-friendly ballet like The Nutcracker performs differently in December than it would in March. The app learns category-specific seasonality from historical data and applies those patterns to future scheduling decisions.
+Timing matters. A family-friendly ballet performs differently in December than it would in March. The app learns category-specific seasonality from historical data and applies those patterns to future scheduling decisions.
 
 Month-by-month adjustments ensure predictions reflect real-world demand fluctuations. The system knows that February is shoulder season, that holiday programming gets a boost, and that certain categories thrive in specific windows.
 

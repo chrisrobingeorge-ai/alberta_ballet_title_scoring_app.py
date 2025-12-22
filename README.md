@@ -392,10 +392,10 @@ cp .env.example .env
 
 ```bash
 # By show title
-python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
+python scripts/pull_show_data.py --show_title "Swan Lake" --season 2024-25
 
 # By show ID
-python scripts/pull_show_data.py --show_id nutcracker-2024 --city Calgary
+python scripts/pull_show_data.py --show_id swan-lake-2024 --city Calgary
 
 # Dry run (no API calls)
 python scripts/pull_show_data.py --show_title "Swan Lake" --dry-run
@@ -446,7 +446,7 @@ See [LICENSE](LICENSE) for details.
 Failed:      4
 
 ✓ SUCCESSFUL:
-  - The Nutcracker: 10,000 tickets, 16 performances
+  - Cinderella: 10,000 tickets, 16 performances
   - Swan Lake: 8,500 tickets, 12 performances
   ...
 
@@ -470,7 +470,7 @@ Failed:      4
 ### CLI Options
 
 ```
---show_title      Show title to search for (e.g., "The Nutcracker")
+--show_title      Show title to search for (e.g., "Swan Lake")
 --show_id         Show identifier for output file
 --from_csv        Path to CSV file for batch processing (expects 'show_title' column)
 --season          Production season filter (e.g., "2024-25")
@@ -535,14 +535,14 @@ archtics_client = ArchticsClient(
 )
 
 # Fetch data
-tm_events = tm_client.search_events(keyword="The Nutcracker", city="Calgary")
+tm_events = tm_client.search_events(keyword="Swan Lake", city="Calgary")
 archtics_sales = archtics_client.get_sales_summary(event_id="12345")
 
 # Normalize
 normalizer = ShowDataNormalizer()
 normalized = normalizer.normalize(
-    show_title="The Nutcracker",
-    show_id="nutcracker-2024",
+    show_title="Swan Lake",
+    show_id="swan-lake-2024",
     tm_events=tm_events,
     archtics_sales=archtics_sales,
     season="2024-25",
@@ -592,11 +592,11 @@ Run the CLI script directly for one-time or scheduled data pulls:
 
 ```bash
 # One-time pull
-python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25
+python scripts/pull_show_data.py --show_title "Swan Lake" --season 2024-25
 
 # Scheduled pull via cron (Linux/macOS)
 # Add to crontab: crontab -e
-0 6 * * * cd /path/to/repo && python scripts/pull_show_data.py --show_title "The Nutcracker" --season 2024-25 >> /var/log/show_pull.log 2>&1
+0 6 * * * cd /path/to/repo && python scripts/pull_show_data.py --show_title "Swan Lake" --season 2024-25 >> /var/log/show_pull.log 2>&1
 
 # Scheduled pull via Task Scheduler (Windows)
 # Create a scheduled task pointing to the script
@@ -612,7 +612,7 @@ import os
 from integrations import TicketmasterClient, ArchticsClient, ShowDataNormalizer, export_show_csv
 
 def lambda_handler(event, context):
-    show_title = event.get("show_title", "The Nutcracker")
+    show_title = event.get("show_title", "Swan Lake")
     season = event.get("season")
     
     # Initialize clients (API keys from environment variables)
