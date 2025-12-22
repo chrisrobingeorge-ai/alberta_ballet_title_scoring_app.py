@@ -30,7 +30,7 @@ The application predicts ballet production ticket sales by synthesizing online v
 Raw Input Signals → Feature Engineering → ML Prediction → Post-Processing → City/Segment Split
      ↓                    ↓                    ↓               ↓                  ↓
   [Baselines]   [Normalization]    [Ridge/Linear]       [Seasonality]     [Learned Priors]
-                 [Multipliers]      [k-NN Fallback]      [Decay Factors]
+                 [Multipliers]                           [Decay Factors]
 ```
 
 **File:** `streamlit_app.py:2830-4140` (main prediction pipeline)
@@ -52,12 +52,7 @@ The system employs a four-tier fallback strategy based on data availability (str
    - **Overall LinearRegression** (fallback if ≥3 total samples available)
    - Models are trained on demand at runtime
 
-3. **Tier 3 - k-NN Fallback** (`ml/knn_fallback.py:1-679`)
-   - Cosine similarity matching against baseline signals
-   - Distance-weighted voting with recency decay
-   - Returns nearest-neighbor median as prediction
-
-4. **Tier 4 - Signal-Only Estimate**
+3. **Tier 3 - Signal-Only Estimate**
    - Falls back to `SignalOnly` composite score if all other predictions unavailable
 
 ---
@@ -612,7 +607,6 @@ Each show gets 8 ticket estimates (4 segments × 2 cities).
 4. ML Prediction
    ├─ Train/load Ridge regression (if available, with anchors)
    ├─ Else use LinearRegression (legacy fallback)
-   ├─ Else fallback to k-NN (if enabled)
    └─ Else use SignalOnly as proxy
 
 5. Seasonality Application
@@ -696,8 +690,7 @@ if pd.isna(TicketIndex_DeSeason):
 1. Historical data (if available)
 2. Category-specific ML model (if ≥3 historical samples in category)
 3. Overall ML model (if ≥5 total historical samples)
-4. k-NN similarity (if baseline signals available)
-5. Raw SignalOnly score (always available)
+4. Raw SignalOnly score (always available)
 
 ### 8.2 Numerical Stability
 

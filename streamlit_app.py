@@ -49,22 +49,13 @@ try:
 except ImportError:
     SHAP_AVAILABLE = False
 
-# k-NN fallback for cold-start predictions
-try:
-    from ml.knn_fallback import KNNFallback, build_knn_from_config
-    KNN_FALLBACK_AVAILABLE = True
-except ImportError:
-    KNN_FALLBACK_AVAILABLE = False
-    KNNFallback = None
-    build_knn_from_config = None
-
 def load_config(path: str = "config.yaml"):
     global SEGMENT_MULT, REGION_MULT
     global DEFAULT_BASE_CITY_SPLIT, _CITY_CLIP_RANGE
     global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
     global K_SHRINK, MINF, MAXF, N_MIN
     # New robust forecasting settings
-    global ML_CONFIG, KNN_CONFIG, CALIBRATION_CONFIG
+    global ML_CONFIG, CALIBRATION_CONFIG
 
     if yaml is None:
         # PyYAML not installed – just use hard-coded defaults
@@ -104,12 +95,10 @@ def load_config(path: str = "config.yaml"):
 
     # 6) New robust forecasting settings (opt-in)
     ML_CONFIG = cfg.get("model", {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True})
-    KNN_CONFIG = cfg.get("knn", {"enabled": True, "k": 5})
     CALIBRATION_CONFIG = cfg.get("calibration", {"enabled": False, "mode": "global"})
 
 # Default values for new config settings (used if config.yaml doesn't have them)
 ML_CONFIG = {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True}
-KNN_CONFIG = {"enabled": True, "k": 5}
 CALIBRATION_CONFIG = {"enabled": False, "mode": "global"}
 
 def _pct(v, places=0):
@@ -2983,159 +2972,58 @@ def compute_scores_and_store(
     model_result = _fit_overall_and_by_category(df_known)
     model_type = model_result[0]
     
-    # Helper to extract baseline signals from a DataFrame row
-    def _extract_baseline_signals(row) -> dict:
-        """
-        Extract baseline signal values from a DataFrame row.
-        
-        Args:
-            row: A DataFrame row or dict-like object with WikiIdx, TrendsIdx, etc.
-        
-        Returns:
-            Dict with keys 'wiki', 'trends', 'youtube', 'chartmetric' containing float values
-        """
-        return {
-            "wiki": float(row.get("WikiIdx", 0) or 0),
-            "trends": float(row.get("TrendsIdx", 0) or 0),
-            "youtube": float(row.get("YouTubeIdx", 0) or 0),
-            "chartmetric": float(row.get("ChartmetricIdx", 0) or 0),
-        }
-    
-    # 4a) Build k-NN index for cold-start fallback
-    # Uses baseline signals (wiki, trends, youtube, chartmetric) to find similar titles
-    knn_index = None
-    knn_enabled = KNN_CONFIG.get("enabled", True)
-    if knn_enabled and KNN_FALLBACK_AVAILABLE and len(df_known) >= 3:
-        try:
-            # Build DataFrame for kNN with baseline signals and de-seasonalized ticket index
-            knn_data = df_known[["Title", "WikiIdx", "TrendsIdx", "YouTubeIdx", "ChartmetricIdx", 
-                                 "TicketIndex_DeSeason", "Category"]].copy()
-            knn_data = knn_data.rename(columns={
-                "WikiIdx": "wiki",
-                "TrendsIdx": "trends", 
-                "YouTubeIdx": "youtube",
-                "ChartmetricIdx": "chartmetric",
-                "TicketIndex_DeSeason": "ticket_index"
-            })
-            knn_data = knn_data.dropna(subset=["wiki", "trends", "youtube", "chartmetric", "ticket_index"])
-            
-            if len(knn_data) >= 3:
-                knn_index = build_knn_from_config(
-                    knn_data, 
-                    outcome_col="ticket_index",
-                    last_run_col=None  # No date column in this context
-                )
-                # kNN index built successfully - ready for fallback predictions
-        except Exception as e:
-            # kNN build failed - continue without it
-            knn_index = None
-    
-    # Helper to predict with kNN (returns prediction, source, neighbors_json)
-    def _predict_with_knn(baseline_signals: dict) -> tuple[float, str, str]:
-        """
-        Use k-NN to predict ticket index from baseline signals.
-        
-        Args:
-            baseline_signals: Dict with keys 'wiki', 'trends', 'youtube', 'chartmetric'
-                containing the baseline signal values for the title
-        
-        Returns:
-            Tuple of (predicted_value, source_label, neighbors_json):
-            - predicted_value: The predicted ticket index (clipped to [20, 180])
-            - source_label: "kNN Fallback" on success, "Not enough data" on failure
-            - neighbors_json: JSON string with neighbor details for debugging
-        """
-        if knn_index is None:
-            return np.nan, "Not enough data", "[]"
-        try:
-            pred, neighbors_df = knn_index.predict(baseline_signals, return_neighbors=True)
-            if np.isnan(pred):
-                return np.nan, "Not enough data", "[]"
-            pred = float(np.clip(pred, 20.0, 180.0))
-            # Create JSON summary of neighbors for debugging
-            # Use all neighbors returned by knn_index.predict (already limited to k)
-            if neighbors_df is not None and not neighbors_df.empty:
-                neighbors_list = []
-                for _, nr in neighbors_df.iterrows():
-                    neighbors_list.append({
-                        "title": str(nr.get("Title", "")),
-                        "similarity": round(float(nr.get("similarity", 0)), 3),
-                        "ticket_index": round(float(nr.get("ticket_index", 0)), 1)
-                    })
-                neighbors_json = json.dumps(neighbors_list)
-            else:
-                neighbors_json = "[]"
-            return pred, "kNN Fallback", neighbors_json
-        except (ValueError, RuntimeError, KeyError) as e:
-            # Log specific errors for debugging but return fallback values
-            import logging
-            logging.getLogger(__name__).debug(f"kNN prediction failed: {e}")
-            return np.nan, "Not enough data", "[]"
-    
     if model_type == 'ml':
         _, overall_model, cat_models, overall_metrics, cat_metrics, overall_explainer = model_result
         
         # Model performance metrics available for debugging if needed
         # (Hidden from UI to avoid confusion - metrics stored in session state)
         
-        # 5) Impute missing TicketIndex with ML models, with kNN fallback
-        def _predict_ticket_index_deseason(signal_only: float, category: str, baseline_signals: dict) -> tuple[float, str, str]:
+        # 5) Impute missing TicketIndex with ML models
+        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
             # Try category model first
             if category in cat_models:
                 pred = _predict_with_ml_model(cat_models[category], signal_only)
                 if not np.isnan(pred):
                     pred = float(np.clip(pred, 20.0, 180.0))
-                    return pred, "ML Category", "[]"
+                    return pred, "ML Category"
             
             # Try overall model
             if overall_model is not None:
                 pred = _predict_with_ml_model(overall_model, signal_only)
                 if not np.isnan(pred):
                     pred = float(np.clip(pred, 20.0, 180.0))
-                    return pred, "ML Overall", "[]"
+                    return pred, "ML Overall"
             
-            # Fall back to k-NN if enabled
-            if knn_enabled and knn_index is not None:
-                return _predict_with_knn(baseline_signals)
-            
-            return np.nan, "Not enough data", "[]"
+            return np.nan, "Not enough data"
     else:
         # Linear regression fallback
         _, overall_coef, cat_coefs, _, _, _ = model_result
         overall_explainer = None  # Linear fallback has no SHAP explainer
         
-        # 5) Impute missing TicketIndex with linear models, with kNN fallback
-        def _predict_ticket_index_deseason(signal_only: float, category: str, baseline_signals: dict) -> tuple[float, str, str]:
+        # 5) Impute missing TicketIndex with linear models
+        def _predict_ticket_index_deseason(signal_only: float, category: str) -> tuple[float, str]:
             if category in cat_coefs:
                 a, b = cat_coefs[category]; src = "Category model"
                 pred = a * signal_only + b
                 pred = float(np.clip(pred, 20.0, 180.0))
-                return pred, src, "[]"
+                return pred, src
             elif overall_coef is not None:
                 a, b = overall_coef; src = "Overall model"
                 pred = a * signal_only + b
                 pred = float(np.clip(pred, 20.0, 180.0))
-                return pred, src, "[]"
+                return pred, src
             
-            # Fall back to k-NN if enabled
-            if knn_enabled and knn_index is not None:
-                return _predict_with_knn(baseline_signals)
-            
-            return np.nan, "Not enough data", "[]"
+            return np.nan, "Not enough data"
 
-    imputed_vals, imputed_srcs, predicted_vals, knn_neighbors_data = [], [], [], []
+    imputed_vals, imputed_srcs, predicted_vals = [], [], []
     for _, r in df.iterrows():
         if pd.notna(r["TicketIndex_DeSeason"]):
             imputed_vals.append(r["TicketIndex_DeSeason"]); imputed_srcs.append("History")
             predicted_vals.append(np.nan)  # No ML prediction needed for history
-            knn_neighbors_data.append("[]")
         else:
-            # Use helper to extract baseline signals for kNN fallback
-            baseline_signals = _extract_baseline_signals(r)
-            pred, src, neighbors_json = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"], baseline_signals)
+            pred, src = _predict_ticket_index_deseason(r["SignalOnly"], r["Category"])
             imputed_vals.append(pred); imputed_srcs.append(src)
             predicted_vals.append(pred)  # Store raw ML prediction
-            knn_neighbors_data.append(neighbors_json)
 
     df["TicketIndex_DeSeason_Used"] = imputed_vals
     df["TicketIndexSource"] = imputed_srcs
@@ -3264,18 +3152,6 @@ def compute_scores_and_store(
     # The raw factor before shrinkage is not typically exposed as it may be unreliable for sparse data
     df["category_seasonality_factor"] = df["FutureSeasonalityFactor"]
     
-    # k-NN metadata: indicate whether k-NN was used and store neighbor info
-    # k-NN is used when the TicketIndexSource indicates a k-NN-based prediction
-    KNN_SOURCE_INDICATORS = {"kNN", "k-NN", "KNN", "knn fallback", "kNN Fallback", "k-Nearest Neighbors"}
-    knn_used_list = []
-    for i, src in enumerate(imputed_srcs):
-        # Check if source matches any k-NN indicator
-        is_knn = any(indicator in str(src) for indicator in KNN_SOURCE_INDICATORS)
-        knn_used_list.append(is_knn)
-    df["kNN_used"] = knn_used_list
-    # kNN_neighbors was populated during the prediction loop
-    df["kNN_neighbors"] = knn_neighbors_data
-
 
 
     # 11) Final ticket calculation (Remount decay + Post-COVID factors REMOVED per audit)
