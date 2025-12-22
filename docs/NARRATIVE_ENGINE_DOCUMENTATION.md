@@ -44,11 +44,10 @@ Each title explanation follows a consistent 5-paragraph structure:
 **Example:**
 > This production represents a remount, last performed approximately 3 years ago. Historical Alberta Ballet data shows that adult classical productions typically benefit from audience recognition on return engagements, a pattern the model incorporates into its baseline expectations.
 
-### 3. Seasonal & Macro Factors
+### 3. Seasonal Factors
 - Month-specific seasonality multiplier
 - Holiday vs shoulder season context
-- Economic indicator integration (interest rates, employment, etc.)
-- Macroeconomic environment at opening
+- Category-specific timing patterns
 
 **Example:**
 > The December scheduling carries a favorable seasonal multiplier of 1.15, reflecting historically stronger demand for this category during this period — likely influenced by holiday proximity and heightened cultural activity.
