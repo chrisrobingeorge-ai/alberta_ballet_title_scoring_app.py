@@ -117,7 +117,7 @@ When SHAP values are provided, the engine translates technical feature names int
 | `season`, `month` | "favorable seasonal positioning" |
 | `remount`, `years_since` | "remount timing dynamics" |
 | `category` | "category-specific historical patterns" |
-| `econ`, `sentiment` | "macroeconomic conditions" |
+
 | `prior`, `median` | "strong historical precedent" |
 
 ### Signal Level Interpretation
@@ -152,8 +152,7 @@ The enhanced `_plain_language_overview_text()` provides an 8-paragraph executive
 4. **Seasonality & Category** - How temporal and genre patterns influence predictions
 5. **Premiere vs Remount** - How the model distinguishes and handles each
 6. **SHAP Explainability** - How feature attributions provide transparency
-7. **Economic Integration** - How macroeconomic factors are incorporated
-8. **Summary & Scope** - Overall methodology and appropriate use
+7. **Summary & Scope** - Overall methodology and appropriate use
 
 This introduction is derived from the canonical Technical Report Prose Style document and provides board-level clarity on the entire forecasting methodology.
 

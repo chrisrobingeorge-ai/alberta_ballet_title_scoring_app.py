@@ -30,7 +30,7 @@ The application predicts ballet production ticket sales by synthesizing online v
 Raw Input Signals → Feature Engineering → ML Prediction → Post-Processing → City/Segment Split
      ↓                    ↓                    ↓               ↓                  ↓
   [Baselines]   [Normalization]    [Ridge/Linear]       [Seasonality]     [Learned Priors]
-                 [Multipliers]                           [Decay Factors]
+                 [Multipliers]
 ```
 
 **File:** `streamlit_app.py:2830-4140` (main prediction pipeline)
@@ -651,7 +651,7 @@ The application enforces data leakage prevention during dynamic model training:
 **Allowed Historical Features:**
 - `prior_total_tickets` (tickets from *prior* seasons)
 - `ticket_median_prior` (median from *past* runs)
-- `years_since_last_run` (temporal gap from *prior* run)
+- `years_since_last_run` (temporal gap from *prior* run) - Note: Explicit decay penalties based on this feature have been removed per audit
 
 **Forbidden Features:**
 - `single_tickets` (current-run actual sales)

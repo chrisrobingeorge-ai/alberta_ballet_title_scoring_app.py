@@ -190,13 +190,6 @@ def build_title_explanation(
         
         p3_parts.append(seasonal_desc)
     
-    # Add economic context (generic for now, could be enhanced with actual economic data)
-    p3_parts.append(
-        f"The forecast incorporates time-aligned economic indicators including interest rates, "
-        f"energy prices, employment levels, and consumer confidence, ensuring the prediction reflects "
-        f"the macroeconomic environment audiences will experience at opening."
-    )
-    
     _add_paragraph(p3_parts)
     
     # Paragraph 4: SHAP-based driver summary (or feature-based if SHAP unavailable)
@@ -392,8 +385,6 @@ def _describe_shap_features(features: List[Tuple[str, float]], direction: str) -
             descriptions.append("remount timing dynamics")
         elif "category" in feat_name.lower():
             descriptions.append("category-specific historical patterns")
-        elif "econ" in feat_name.lower() or "sentiment" in feat_name.lower():
-            descriptions.append("macroeconomic conditions")
         elif "prior" in feat_name.lower() or "median" in feat_name.lower():
             descriptions.append("strong historical precedent")
         else:

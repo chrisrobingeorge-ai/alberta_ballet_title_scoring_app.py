@@ -11,7 +11,6 @@ A Streamlit application for predicting ticket sales and planning ballet seasons 
 - **Seasonality Adjustment**: Accounts for performance timing and repeat effects
 - **City-Specific Analysis**: Separate projections for Calgary and Edmonton
 - **Revenue Forecasting**: Estimates single ticket revenue by city
-- **Marketing Budget Planning**: Recommends spend based on historical performance
 - **Season Builder**: Interactive tool to plan full seasons with financial summaries
 - **ML Feature Registry**: Config-driven feature inventory with leakage guardrails
 - **Data Quality Dashboard**: Registry vs dataset validation
@@ -89,7 +88,6 @@ Build complete season plans with:
 - Month-by-month title assignments
 - City-specific (Calgary/Edmonton) ticket projections
 - Revenue forecasts
-- Marketing budget recommendations
 - PDF report generation with narratives
 
 ## Documentation
@@ -216,7 +214,7 @@ The app expects the following CSV files in the `data/productions/` directory:
 - `history_city_sales.csv` - Historical ticket sales by production and city
 - `baselines.csv` - Baseline scores (familiarity, motivation) for known titles
 - `segment_priors.csv` - Audience segment distribution priors
-- `marketing_spend_per_ticket.csv` - Historical marketing spend data (optional)
+
 
 ## Model Information
 
@@ -238,7 +236,7 @@ The app uses several CSV files in the `data/` directory:
 
 - `data/productions/history_city_sales.csv` - Historical ticket sales by city (includes actual and model predictions, and ticket priors)
 - `data/productions/baselines.csv` - Familiarity and motivation scores for all titles (includes both historical and reference titles)
-- `data/productions/marketing_spend_per_ticket.csv` - Historical marketing spend data
+
 - `data/productions/past_runs.csv` - Performance dates for seasonality analysis
 - `data/productions/segment_priors.csv` - Audience segment preferences
 - `data/title_id_map.csv` - Title canonicalization mapping
@@ -997,7 +995,6 @@ The app uses optional external APIs for fetching title signals:
 The app processes potentially sensitive data:
 - Historical ticket sales by title and city
 - Revenue figures
-- Marketing spend data
 
 When `hide_row_level_data: true` is set in `config.yaml`:
 - Raw row-level sales data is hidden in the UI

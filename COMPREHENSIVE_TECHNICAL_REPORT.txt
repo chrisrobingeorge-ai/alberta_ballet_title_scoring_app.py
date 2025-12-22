@@ -29,13 +29,13 @@ The application answers three critical questions for season planners:
 
 2. PORTFOLIO OPTIMIZATION: Which combinations of titles maximize total season attendance while balancing risk across familiar classics and innovative programming?
 
-3. MARKETING INTELLIGENCE: Which audience segments show highest propensity for each title, enabling targeted campaign allocation?
+3. AUDIENCE SEGMENTATION: Which audience segments show highest propensity for each title?
 
 The primary outputs include:
 
 • Ticket Index scores (0-180 scale) representing seasonality-adjusted demand
 • Absolute ticket forecasts for Calgary and Edmonton (typically 2,000-8,000 per production)
-• Segment-level predictions enabling precision marketing budgets
+• Segment-level predictions for audience targeting
 • Narrative explanations translating technical predictions into board-level insights
 • PDF reports with 250-word explanations per title, embedding SHAP-based transparency
 
@@ -55,7 +55,7 @@ Implementation: Direct dictionary lookup in BASELINES data structure
 Data Source: data/productions/history_city_sales.csv
 Key Variable: ticket_median_prior (median single tickets across all prior runs)
 
-Historical data automatically accounts for remount decay—the phenomenon where returning productions typically see 15-25% lower attendance than their premiere runs. The system tracks years_since_last_run and applies learned decay factors derived from historical patterns.
+Historical data includes patterns from both premiere and remount performances. Note: Explicit remount decay penalties have been removed per audit findings to eliminate structural pessimism in predictions.
 
 
 TIER 2: MACHINE LEARNING MODELS
@@ -604,7 +604,7 @@ Two-stage decomposition applied sequentially:
      Core_Edmonton: 2,990 × 0.367 = 1,097
      (etc. for Family and EA)
 
-Result: 8 granular predictions (4 segments × 2 cities) enabling precision marketing budget allocation.
+Result: 8 granular predictions (4 segments × 2 cities) for audience analysis.
 
 Implementation: streamlit_app.py lines 3175-3185
 
@@ -1324,9 +1324,9 @@ MEDIUM-TERM (6-12 months)
    Analyze social media sentiment (Twitter, Instagram) for title mentions
    Distinguish positive buzz from negative controversy
 
-5. MACRO-ECONOMIC INDICATORS:
-   Integrate unemployment rate, consumer confidence index
-   Model recession-driven demand suppression
+5. EXTERNAL FACTORS:
+   Consider integration of external data sources if proven predictive
+   Focus on factors with demonstrated historical correlation
 
 
 LONG-TERM (12+ months)
@@ -1360,7 +1360,7 @@ The Alberta Ballet Title Scoring Application represents a mature predictive anal
 
 The three-tier architecture (Historical → ML → SignalOnly) ensures robustness across data availability scenarios. Constrained Ridge regression with anchor points prevents unrealistic extrapolations while maintaining interpretability. The dual-model SHAP framework decomposes predictions into human-readable feature contributions, enabling trust and institutional adoption.
 
-With 68% explained variance (R² = 0.68) and mean absolute errors of ±850 tickets (13% of median), the system provides credible demand estimates suitable for portfolio optimization, marketing budget allocation, and capacity planning. Limitations around marketing quality, external events, and pricing elasticity are acknowledged and communicated to users, ensuring appropriate application of predictions.
+With 68% explained variance (R² = 0.68) and mean absolute errors of ±850 tickets (13% of median), the system provides credible demand estimates suitable for portfolio optimization and capacity planning. Limitations around marketing quality, external events, and pricing elasticity are acknowledged and communicated to users, ensuring appropriate application of predictions.
 
 Future enhancements—confidence intervals, dynamic pricing integration, sentiment analysis—will further strengthen the system's predictive power while maintaining its core strengths: transparency, interpretability, and alignment with organizational decision-making processes.
 
