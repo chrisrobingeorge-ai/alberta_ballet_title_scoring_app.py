@@ -10,7 +10,7 @@
 
 What if you could predict audience demand for a ballet performance before you even book the theater?
 
-The Alberta Ballet Title Scoring App is an AI-powered decision support system that helps artistic directors, programmers, and marketing teams make evidence-based choices about which ballets to stage, when to schedule them, and where audiences are most likely to respond.
+The Alberta Ballet Title Scoring App is a machine-learning-powered decision support system that helps artistic directors, programmers, and marketing teams make evidence-based choices about which ballets to stage, when to schedule them, and where audiences are most likely to respond.
 
 Let's explore how this system transforms uncertainty into actionable insights.
 
@@ -24,7 +24,7 @@ Ballet companies face a fundamental challenge: programming seasons up to 18 mont
 
 Traditionally, these decisions relied on intuition, anecdotal experience, and past box office numbers. But historical ticket sales alone don't capture the full picture. Public interest shifts. Digital platforms like YouTube and Wikipedia reveal what audiences are searching for right now. Seasonal patterns matter. The calendar matters.
 
-The Title Scoring App brings all these factors together into a single, intelligent forecast.
+The Title Scoring App brings all these factors together into a single, data-driven forecast.
 
 ---
 
@@ -54,7 +54,7 @@ But online signals alone don't guarantee ticket sales. That's where machine lear
 
 The app trains regression models dynamically using your own historical performance data. It learns patterns from past productions: which titles sold well in Calgary versus Edmonton, how seasonality affects different categories of ballet, and how online visibility translates into actual box office results for your specific audience.
 
-The system uses Ridge regression with intelligent constraints. It knows that a title with zero online presence still has a realistic floor for ticket sales, and it anchors predictions to benchmark titles you trust. As you add more historical data, the models become more accurate and personalized to Alberta Ballet's unique audience.
+The system uses Ridge regression with empirical constraints. It knows that a title with zero online presence still has a realistic floor for ticket sales, and it anchors predictions to benchmark titles you trust. As you add more historical data, the models become more accurate and personalized to Alberta Ballet's unique audience.
 
 If a title has no local performance history, the model falls back to pattern matching based on similar productions with known outcomes.
 
