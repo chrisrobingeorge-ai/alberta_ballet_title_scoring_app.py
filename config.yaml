@@ -112,12 +112,6 @@ calibration:
   mode: "global"           # Options: "global", "per_category", "by_remount_bin"
   params: {}               # Auto-populated from models/calibration.json
 
-# Trained ML model settings
-model:
-  path: "models/model_xgb_remount_postcovid.joblib"
-  use_for_cold_start: true  # Use ML model for titles without ticket history
-  confidence_threshold: 0.6 # R² threshold below which to prefer KNN fallback
-
 # ============================================================================
 # Security & Privacy Settings
 # ============================================================================

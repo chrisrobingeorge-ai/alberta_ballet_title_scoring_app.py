@@ -36,7 +36,6 @@ try:
     from sklearn.linear_model import Ridge, LinearRegression
     from sklearn.model_selection import cross_val_score, GridSearchCV
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-    import xgboost as xgb
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -55,7 +54,7 @@ def load_config(path: str = "config.yaml"):
     global POSTCOVID_FACTOR, TICKET_BLEND_WEIGHT
     global K_SHRINK, MINF, MAXF, N_MIN
     # New robust forecasting settings
-    global ML_CONFIG, CALIBRATION_CONFIG
+    global CALIBRATION_CONFIG
 
     if yaml is None:
         # PyYAML not installed – just use hard-coded defaults
@@ -94,11 +93,9 @@ def load_config(path: str = "config.yaml"):
     N_MIN = seas_cfg.get("n_min", N_MIN)
 
     # 6) New robust forecasting settings (opt-in)
-    ML_CONFIG = cfg.get("model", {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True})
     CALIBRATION_CONFIG = cfg.get("calibration", {"enabled": False, "mode": "global"})
 
 # Default values for new config settings (used if config.yaml doesn't have them)
-ML_CONFIG = {"path": "models/model_xgb_remount_postcovid.joblib", "use_for_cold_start": True}
 CALIBRATION_CONFIG = {"enabled": False, "mode": "global"}
 
 def _pct(v, places=0):
@@ -2789,7 +2786,7 @@ def _train_ml_models(df_known_in: pd.DataFrame):
     return overall_model, cat_models, overall_metrics, cat_metrics, overall_explainer
 
 def _predict_with_ml_model(model, signal_only: float) -> float:
-    """Helper to make prediction with a scikit-learn or XGBoost model."""
+    """Helper to make prediction with a scikit-learn model."""
     if model is None:
         return np.nan
     try:
@@ -2966,7 +2963,7 @@ def compute_scores_and_store(
     df["prior_total_tickets"] = prior_totals
     df["run_count_prior"] = run_counts
 
-    # 4) Fit regression models (XGBoost/GradientBoosting or simple linear)
+    # 4) Fit regression models (Ridge or simple linear)
     df_known = df[pd.notna(df["TicketIndex_DeSeason"])].copy()
 
     model_result = _fit_overall_and_by_category(df_known)
