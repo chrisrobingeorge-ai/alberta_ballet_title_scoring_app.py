@@ -74,19 +74,19 @@ Month-by-month adjustments ensure predictions reflect real-world demand fluctuat
 
 **[Scene: Giselle performance imagery, app interface showing calculation]**
 
-Let's see how this works with a real example: Giselle scheduled for September.
+Let's see how this works with a real example: Giselle, a romantic tragedy ballet.
 
-The app starts with digital signals. Giselle has strong Wikipedia traffic — it's a recognized classic with steady page views. Google Trends shows moderate but consistent search volume. YouTube engagement is high, with performance videos from major companies getting millions of views. Chartmetric picks up streaming activity from the ballet's iconic Adam score.
+The app starts with digital signals. Giselle shows modest Wikipedia traffic — it's a recognized romantic ballet but not at blockbuster levels. Google Trends shows moderate search volume. YouTube has some engagement from major company performances, but not viral-level activity. Chartmetric registers streaming from the ballet's Adolphe Adam score, though classical music generally scores lower than pop.
 
-These signals combine into a Familiarity score of 110 and a Motivation score of 95. Both above the benchmark of 100, indicating this is a well-known title with active audience interest.
+These signals combine into a Familiarity score of 30 and a Motivation score of 21. Both well below the benchmark of 100, indicating this is a known title but without current digital momentum.
 
-Next, the machine learning model kicks in. Historical data shows Giselle performed well in past Alberta Ballet seasons. The model learned that romantic story ballets resonate strongly with the Core Classical audience segment. It applies those learned patterns to this prediction.
+Next, the machine learning model kicks in. Historical data shows Giselle performed reliably in past Alberta Ballet seasons — not a blockbuster, but solid. The model learned that romantic tragedy ballets appeal strongly to Core Classical audiences who value traditional storytelling. It applies those learned patterns to boost the prediction above raw signal levels.
 
-Then seasonality adjustments. September is early fall — not peak holiday season, but also not summer shoulder period. The model applies a neutral seasonal factor of 1.0, meaning no adjustment up or down.
+Then seasonality adjustments. The model applies a neutral seasonal factor of 1.0, meaning no calendar-specific boost or penalty.
 
-The final prediction: a Ticket Index of 115, translating to approximately 3,800 tickets in Calgary and 2,500 in Edmonton. The system forecasts strongest appeal to Core Classical enthusiasts, followed by General Population audiences.
+The final prediction: a Ticket Index of 54, translating to approximately 3,560 tickets in Calgary and 2,370 in Edmonton, totaling 5,930 tickets. The system forecasts strongest appeal to Core Classical enthusiasts who appreciate romantic narrative ballets, even when digital buzz is modest.
 
-Marketing now knows exactly where to focus: target classical ballet fans, emphasize the romantic tragedy, and allocate budget proportionally between cities.
+Marketing now knows: this is a core audience play, not a mass-market attraction. Target subscription holders and traditional ballet lovers, emphasize emotional storytelling and technical artistry, and set realistic capacity expectations.
 
 ---
 
